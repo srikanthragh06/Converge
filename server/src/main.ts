@@ -1,3 +1,5 @@
+// dotenv.config() must run before any other import that reads process.env,
+// so it is called here at the top of the entry point.
 import dotenv from 'dotenv'
 dotenv.config()
 
