@@ -1,0 +1,123 @@
+# Converge Roadmap: v0.01 → v0.1
+
+Single-doc scope throughout. Auth, awareness, offline support, and auto-scaling are all deferred to v0.11+.
+
+---
+
+## v0.01 — Repo Scaffold ✅
+**Goal:** Empty project compiles and boots. Nothing functional yet.
+**Branch:** `scaffold` | **Status:** COMPLETE
+
+### Delivered
+- Monorepo structure: `web/`, `server/`
+- `web/`: React + Vite + TypeScript — BlockNote, Yjs, Socket.IO client, Jotai, Tailwind installed
+- `server/`: Node.js + TypeScript — Socket.IO, Kysely, pg, yjs, cors, dotenv installed
+- `docker-compose.yml`: all four services — web, server, postgres 16, redis 7-alpine
+- `web/Dockerfile` + `server/Dockerfile`: node:20-alpine, layer-cached npm install, `COPY . .`
+- `.dockerignore` in both: excludes `node_modules/` and `dist/`
+- `.env` (local dev) and `.env.local` (docker) wired for both web and server
+- `vite.config.ts`: `host: true` so Vite binds to 0.0.0.0 inside docker
+- `nodemon.json`: watches `src/`, ignores `dist/`, runs via `ts-node`
+- Both `npm run dev` commands boot without errors
+- Inline comments on all code files
+
+---
+
+## v0.02 — Frontend: Editor Renders
+**Goal:** BlockNote editor renders and local editing works. No server involved.
+
+- React app with a single page
+- `Y.Doc` created, BlockNote wired to `yDoc.getXmlFragment('blocknote')`
+- Local typing works (no sync yet)
+- Confirms BlockNote + Yjs integration before adding sockets
+
+---
+
+## v0.03 — Core Sync: Two Clients Can Collaborate
+**Goal:** Two browser tabs edit the same doc simultaneously and converge in real-time.
+
+- Socket.IO server setup with `safeSocketHandler`
+- Server creates a `Y.Doc` in memory on startup
+- `sync_doc`: client sends batched update (300ms window, `Y.mergeUpdates`) → server relays to all others in room → server applies to its Y.Doc (tagged `REMOTE_ORIGIN`)
+- `repair_doc` / `repair_response`: client sends SV on connect → server computes diff → sends `repair_response`
+- Origin marking on client: skip re-sending if `origin === 'remote'`
+- Socket.IO room: `socket.join('doc-1')` / `socket.to('doc-1').emit(...)`
+- No persistence yet — doc resets on server restart
+
+---
+
+## v0.04 — Postgres Persistence
+**Goal:** Doc survives server restarts. Updates are durable.
+
+- Kysely + postgres connection with retry logic
+- Migration runner (runs on server startup)
+- Migration 001: `document_updates (id, document_id, update BYTEA, snapshot_version INT nullable, created_at)`
+- Migration 002: `snapshots (id, document_id, s3_key, created_at)` — table exists, unused until v0.06
+- On `sync_doc` received: relay first, then write update to Postgres
+- On server startup: load all updates from Postgres in `id` order, apply to server Y.Doc
+- Clients bootstrapping via `repair_doc` now get the full persisted state
+
+---
+
+## v0.05 — Redis Pub/Sub (Horizontal Scaling)
+**Goal:** Two server instances stay in sync. Any client on any server sees all updates.
+
+- Redis connection setup
+- On `sync_doc` from a client: publish raw Yjs binary to Redis channel `doc:1`
+- Redis subscriber: relay to local clients, apply to local Y.Doc — never re-publish to Redis
+- Cold-start gap handling: subscribe to Redis *before* loading from Postgres, buffer messages during load, apply buffer after (Yjs deduplication handles overlap)
+- Test: run two server instances, connect a client to each, confirm edits propagate
+
+---
+
+## v0.06 — S3 Snapshots + Compaction
+**Goal:** Postgres update table doesn't grow unboundedly.
+
+- S3 client setup (MinIO in docker-compose for local dev)
+- Background async snapshot job:
+  1. Acquire Redis lock (`snapshot:lock:doc-1`)
+  2. Encode full Y.Doc: `Y.encodeStateAsUpdate(serverDoc)`
+  3. Upload binary to S3, record key in `snapshots` table
+  4. Subsequent Postgres inserts reference the new `snapshot_version`
+  5. Release lock
+- Trigger: after each write, if update count for current snapshot > 10K → fire-and-forget snapshot job
+- On server startup: load latest snapshot from S3 first, then replay only updates where `snapshot_version = latest_snapshot.id`
+
+---
+
+## v0.07 — Robustness Pass
+**Goal:** Edge cases handled, no known failure modes.
+
+- Reconnection: client drops and reconnects, `repair_doc` returns correct diff
+- Server restart with populated DB + snapshot: doc loads correctly
+- Rapid concurrent edits from 3+ clients: all converge
+- Redis pub/sub disconnect/reconnect: server re-subscribes
+- Double-compaction: Redis lock prevents it, second attempt is a no-op
+
+---
+
+## v0.08 — UI Polish
+**Goal:** Users can see sync state, latency, and connectivity.
+
+- Sync status indicator: `SAVED` / `SAVING...` / `FAILED`
+- Ping/latency display (ping/pong events)
+- Online/offline badge
+
+---
+
+## v0.09 — Docker Compose Polish
+**Goal:** One command starts the full stack.
+
+- MinIO service in docker-compose
+- All env vars documented and wired through compose
+- Health checks on server, postgres, redis
+- `README.md` with setup instructions
+
+---
+
+## v0.1 — Stable Milestone
+**Goal:** End-to-end working, documented, ready for v0.11+ scope expansion.
+
+- CLAUDE.md updated with implementation learnings
+- All services start cleanly from `docker-compose up`
+- Manual end-to-end test: open 3 clients, edit concurrently, disconnect one, reconnect, confirm convergence
