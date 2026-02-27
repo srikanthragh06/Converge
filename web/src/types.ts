@@ -11,4 +11,5 @@ export interface ServerToClientEvents {
 export interface ClientToServerEvents {
     sync_doc: (update: Uint8Array) => void;
     repair_doc: (clientSV: Uint8Array) => void;
+    repair_response: (diff: Uint8Array) => void;
 }

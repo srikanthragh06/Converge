@@ -7,7 +7,7 @@ import {
     REPAIR_RESPONSE,
 } from "../constants";
 import { TypedSocket } from "../types";
-import { safeSocketHandler } from "../utils";
+import { safeSocketHandler, mapsEqual } from "../utils";
 
 // Authoritative server Y.Doc — holds the full document state in memory.
 // Primary job: answer repair_doc requests with the correct diff.
@@ -26,8 +26,18 @@ export const handleDocSocketConnection = (socket: TypedSocket) => {
         safeSocketHandler((update: Uint8Array) => {
             // 1. Relay raw update to every other client in the room
             socket.to(DOC_ID).emit(SYNC_DOC, update);
-            // 2. Apply to server Y.Doc tagged as remote to prevent any re-broadcast loop
+
+            // 2. Apply to server Y.Doc tagged as remote to prevent any re-broadcast loop.
+            // Decode SVs to Maps before and after to accurately detect a buffered op:
+            // if the Maps are equal, Yjs couldn't apply the update (missing predecessor),
+            // so we emit repair_doc back to the sender to request what we're missing.
+            const svBefore = Y.decodeStateVector(Y.encodeStateVector(yDoc));
             Y.applyUpdate(yDoc, new Uint8Array(update), REMOTE_ORIGIN);
+            const svAfter = Y.decodeStateVector(Y.encodeStateVector(yDoc));
+
+            if (mapsEqual(svBefore, svAfter)) {
+                socket.emit(REPAIR_DOC, Y.encodeStateVector(yDoc));
+            }
         }),
     );
 
@@ -38,6 +48,15 @@ export const handleDocSocketConnection = (socket: TypedSocket) => {
         safeSocketHandler((clientSV: Uint8Array) => {
             const diff = Y.encodeStateAsUpdate(yDoc, new Uint8Array(clientSV));
             socket.emit(REPAIR_RESPONSE, diff);
+        }),
+    );
+
+    // repair_response: client sends a diff in response to our repair_doc request.
+    // Apply it to bring the server Y.Doc back in sync.
+    socket.on(
+        REPAIR_RESPONSE,
+        safeSocketHandler((diff: Uint8Array) => {
+            Y.applyUpdate(yDoc, new Uint8Array(diff), REMOTE_ORIGIN);
         }),
     );
 

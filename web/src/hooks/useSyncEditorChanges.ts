@@ -73,6 +73,19 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
         };
     }, [yDoc]);
 
+    // Receive repair_doc from server — server detected it's behind and needs our state.
+    // Compute and send back the diff from the server's SV to our current state.
+    useEffect(() => {
+        const onRepairDoc = (serverSV: Uint8Array) => {
+            const diff = Y.encodeStateAsUpdate(yDoc, new Uint8Array(serverSV));
+            socket.emit(REPAIR_RESPONSE, diff);
+        };
+        socket.on(REPAIR_DOC, onRepairDoc);
+        return () => {
+            socket.off(REPAIR_DOC, onRepairDoc);
+        };
+    }, [yDoc]);
+
     // Receive repair_response — apply the diff the server computed from our state vector
     useEffect(() => {
         const onRepairResponse = (diff: Uint8Array) => {
