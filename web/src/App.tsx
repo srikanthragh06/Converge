@@ -30,23 +30,16 @@ function App() {
 
   return (
     // Full-screen column: fixed header + scrollable editor area below
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", backgroundColor: "#1f1f1f" }}>
-      <header style={{
-        height: 56,
-        borderBottom: "1px solid rgba(255,255,255,0.1)",
-        display: "flex",
-        alignItems: "center",
-        paddingInline: 24,
-        flexShrink: 0,
-      }}>
-        <span style={{ fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: "Inter, sans-serif" }}>
+    <div className="flex flex-col h-screen bg-[#1f1f1f]">
+      <header className="h-14 border-b border-white/10 flex items-center px-6 shrink-0">
+        <span className="text-2xl font-bold text-white font-[Inter,sans-serif]">
           Converge
         </span>
       </header>
 
       {/* Editor fills remaining height; overflow-auto handles long documents */}
-      <div style={{ flex: 1, overflow: "auto" }}>
-        <BlockNoteView editor={editor} theme="dark" style={{ height: "100%" }} />
+      <div className="flex-1 overflow-auto">
+        <BlockNoteView editor={editor} theme="dark" className="h-full" />
       </div>
     </div>
   );

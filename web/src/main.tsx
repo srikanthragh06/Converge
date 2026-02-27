@@ -1,4 +1,5 @@
 import { createRoot } from 'react-dom/client'
+import './index.css' // Tailwind base + utilities
 import App from './App'
 
 // Mount the React app into the #root div defined in index.html.
