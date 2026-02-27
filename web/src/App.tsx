@@ -3,12 +3,18 @@ import "@blocknote/mantine/style.css";
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
 import * as Y from "yjs";
+import useSocket from "./hooks/useSocket";
+import useSyncEditorChanges from "./hooks/useSyncEditorChanges";
 
 // Module-level Y.Doc — stable across re-renders, shared for the lifetime of the page.
-// v0.02 is local-only; v0.03 sync hooks will attach to this same instance.
+// Sync hooks attach to this same instance to read/write collaborative state.
 const yDoc = new Y.Doc();
 
 function App() {
+    // Connect to the server and wire up real-time sync
+    useSocket();
+    useSyncEditorChanges(yDoc);
+
     const editor = useCreateBlockNote({
         // Bind the editor to the Yjs XML fragment — the shared data structure BlockNote
         // uses internally. "blocknote" is the established key convention.
