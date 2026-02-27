@@ -6,4 +6,9 @@ export default {
     extend: {},
   },
   plugins: [],
+  corePlugins: {
+    // Disable Tailwind's preflight reset — it conflicts with Mantine/BlockNote's own
+    // CSS reset and causes styles to break. Utility classes still work fine.
+    preflight: false,
+  },
 };
