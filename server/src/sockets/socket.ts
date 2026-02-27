@@ -52,10 +52,12 @@ export const handleDocSocketConnection = (socket: TypedSocket) => {
     );
 
     // repair_response: client sends a diff in response to our repair_doc request.
-    // Apply it to bring the server Y.Doc back in sync.
+    // Relay to all other clients as repair_response so they apply the missing update,
+    // then apply locally to bring the server Y.Doc back in sync.
     socket.on(
         REPAIR_RESPONSE,
         safeSocketHandler((diff: Uint8Array) => {
+            socket.to(DOC_ID).emit(REPAIR_RESPONSE, diff);
             Y.applyUpdate(yDoc, new Uint8Array(diff), REMOTE_ORIGIN);
         }),
     );
