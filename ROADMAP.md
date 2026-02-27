@@ -38,15 +38,20 @@ Single-doc scope throughout. Auth, awareness, offline support, and auto-scaling 
 
 ---
 
-## v0.03 — Core Sync: Two Clients Can Collaborate
+## v0.03 — Core Sync: Two Clients Can Collaborate ✅
 **Goal:** Two browser tabs edit the same doc simultaneously and converge in real-time.
+**Branch:** `sync-v0.03` | **Status:** COMPLETE
 
-- Socket.IO server setup with `safeSocketHandler`
-- Server creates a `Y.Doc` in memory on startup
-- `sync_doc`: client sends batched update (300ms window, `Y.mergeUpdates`) → server relays to all others in room → server applies to its Y.Doc (tagged `REMOTE_ORIGIN`)
-- `repair_doc` / `repair_response`: client sends SV on connect → server computes diff → sends `repair_response`
-- Origin marking on client: skip re-sending if `origin === 'remote'`
-- Socket.IO room: `socket.join('doc-1')` / `socket.to('doc-1').emit(...)`
+### Delivered
+- Server-side `Y.Doc` in memory — authoritative state vector, answers repair requests
+- `sync_doc`: 300ms batched client updates → relay-first to room → apply to server Y.Doc with `REMOTE_ORIGIN` tag
+- Fully bidirectional repair protocol: both client and server detect buffered ops via `mapsEqual` SV check and request repair from the other side
+- `repair_response` relayed to all room clients so every peer receives missing updates
+- `useSocket` hook: controls connect/disconnect lifecycle (`autoConnect: false`)
+- `useSyncEditorChanges` hook: Y.Doc observer, batching, all sync and repair event handlers
+- Typed Socket.IO events via `ClientToServerEvents` / `ServerToClientEvents` interfaces on both sides
+- Constants and utilities extracted to separate files (`constants.ts`, `utils.ts`) on both sides
+- `safeSocketHandler` prevents uncaught errors from crashing the server process
 - No persistence yet — doc resets on server restart
 
 ---
