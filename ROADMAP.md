@@ -23,13 +23,18 @@ Single-doc scope throughout. Auth, awareness, offline support, and auto-scaling 
 
 ---
 
-## v0.02 — Frontend: Editor Renders
+## v0.02 — Frontend: Editor Renders ✅
 **Goal:** BlockNote editor renders and local editing works. No server involved.
+**Branch:** `editor-v0.02` | **Status:** COMPLETE
 
-- React app with a single page
-- `Y.Doc` created, BlockNote wired to `yDoc.getXmlFragment('blocknote')`
-- Local typing works (no sync yet)
-- Confirms BlockNote + Yjs integration before adding sockets
+### Delivered
+- `App.tsx`: BlockNote editor wired to module-level `Y.Doc` via `yDoc.getXmlFragment("blocknote")`
+- `pasteHandler`: intercepts `text/plain` clipboard and calls `editor.pasteMarkdown()` — AI-generated markdown pastes as formatted blocks
+- Full-screen dark layout with header using Tailwind utility classes
+- **Tailwind CSS integrated**: `tailwind.config.js`, PostCSS inlined in `vite.config.ts`
+- Tailwind preflight disabled (`corePlugins: { preflight: false }`) to avoid Mantine/BlockNote CSS conflicts
+- Manual `body { margin: 0 }` reset in `index.css` since preflight is off
+- Local typing and editing confirmed working
 
 ---
 
