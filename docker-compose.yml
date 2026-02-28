@@ -18,6 +18,29 @@ services:
       - ./server/.env.local
     environment:
       # Override .env.local values with docker-internal service hostnames.
+      PORT: 5000
+      POSTGRES_HOST: postgres
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+
+  server2:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001"
+    volumes:
+      # Same source mount as server — identical code, different port.
+      - ./server:/server
+      - /server/node_modules
+    working_dir: /server
+    env_file:
+      - ./server/.env.local
+    environment:
+      # Only PORT differs — server2 binds to 5001 while sharing Postgres and Redis.
+      PORT: 5001
       POSTGRES_HOST: postgres
       REDIS_URL: redis://redis:6379
     depends_on:
@@ -40,6 +63,7 @@ services:
       - ./web/.env.local
     depends_on:
       - server
+      - server2
 
   postgres:
     image: postgres:16

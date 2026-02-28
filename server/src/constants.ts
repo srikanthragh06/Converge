@@ -22,3 +22,7 @@ export const SWEEP_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
 // Number of doc entries processed per setImmediate tick to avoid blocking the event loop
 export const SWEEP_BATCH_SIZE = 50;
+
+// Redis pub/sub channel prefix — full channel name is REDIS_CHANNEL_PREFIX + docId
+// e.g. "yjs:doc-1"
+export const REDIS_CHANNEL_PREFIX = "yjs:";

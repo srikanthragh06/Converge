@@ -1,9 +1,12 @@
 // In-memory document registry: docId → { yDoc, lastAccess }.
 // Provides lazy loading (getDoc), access tracking (touchDoc), and
 // periodic eviction of idle documents (startSweeper).
+// Each cold load subscribes to the doc's Redis channel before querying Postgres
+// so updates from other server instances are never missed during the load window.
 
 import * as Y from "yjs";
 import { loadDocFromDb } from "../db/persistence";
+import { subscribeDoc, goLive, unsubscribeDoc } from "../redis/pubsub";
 import {
     EVICT_AFTER_MS,
     SWEEP_INTERVAL_MS,
@@ -37,10 +40,26 @@ export const getDoc = async (docId: string): Promise<Y.Doc> => {
     const inFlight = loadingPromises.get(docId);
     if (inFlight) return inFlight;
 
-    // Cold miss — start a new load
+    // Cold miss — start a new load with Redis gap handling:
+    //   1. Subscribe to Redis (buffer mode) before Postgres query starts.
+    //   2. Load history from Postgres — Redis messages during this await go to buffer.
+    //   3. goLive() flushes the buffer and switches to live mode.
+    // This ensures no cross-server update is dropped during the load window.
     const loadPromise = (async (): Promise<Y.Doc> => {
         const yDoc = new Y.Doc();
+
+        // Step 1: Subscribe before loading — any Redis message arriving during the
+        // Postgres query is buffered inside pubsub.ts rather than discarded.
+        await subscribeDoc(docId, yDoc);
+
+        // Step 2: Replay persisted history from Postgres.
         await loadDocFromDb(yDoc);
+
+        // Step 3: Flush the cold-start buffer then switch to live mode.
+        // Yjs CRDT deduplication handles any overlap between Postgres rows
+        // and buffered Redis messages without double-applying ops.
+        goLive(docId);
+
         docs.set(docId, { yDoc, lastAccess: Date.now() });
         loadingPromises.delete(docId);
         console.log(`Doc ${docId} loaded into memory`);
@@ -74,6 +93,10 @@ const sweepBatch = (keys: string[], offset: number): void => {
         // Re-check existence: a concurrent getDoc may have re-populated this key
         if (entry && Date.now() - entry.lastAccess > EVICT_AFTER_MS) {
             docs.delete(key);
+            // Unsubscribe from Redis — fire-and-forget; errors logged inside unsubscribeDoc
+            unsubscribeDoc(key).catch((err) =>
+                console.error(`unsubscribeDoc error for ${key}: ${String(err)}`),
+            );
             console.log(`Evicted doc ${key} from memory`);
         }
     }

@@ -5,23 +5,31 @@ dotenv.config();
 
 import { server } from "./server";
 import { waitForDb, migrate } from "./db";
+import { waitForRedis } from "./redis";
+import { initPubSub } from "./redis/pubsub";
 import { startSweeper } from "./store/docStore";
 
 const PORT = Number(process.env.PORT) || 5000;
 
-// Async IIFE: Postgres must be ready and schema correct before accepting connections.
+// Async IIFE: Postgres and Redis must be ready before accepting connections.
 // Doc loading is lazy — triggered on first client access via getDoc(), not here.
 (async () => {
-    // 1. Wait for Postgres to accept connections (retries on Docker cold start)
-    await waitForDb();
+    // 1. Wait for Postgres and Redis in parallel — both are infrastructure deps
+    //    and neither depends on the other, so starting them together saves time
+    //    on Docker cold starts where both services may be warming up simultaneously.
+    await Promise.all([waitForDb(), waitForRedis()]);
 
-    // 2. Apply schema migrations idempotently
+    // 2. Apply schema migrations idempotently (Postgres is ready after step 1)
     await migrate();
 
-    // 3. Start the background sweeper that evicts idle docs from memory
+    // 3. Register the Redis pub/sub message handler — must run before any client
+    //    connects so the sub client is ready to receive cross-server updates.
+    initPubSub();
+
+    // 4. Start the background sweeper that evicts idle docs from memory
     startSweeper();
 
-    // 4. Open the HTTP + Socket.IO listener — safe now that the schema is ready
+    // 5. Open the HTTP + Socket.IO listener — safe now that infra is ready
     server.listen(PORT, () => {
         console.log(`Server running on :${PORT}`);
     });

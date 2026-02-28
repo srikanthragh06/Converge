@@ -14,6 +14,7 @@ import { TypedSocket } from "../types";
 import { safeSocketHandler, mapsEqual } from "../utils";
 import { getDoc, touchDoc } from "../store/docStore";
 import { saveUpdate } from "../db/persistence";
+import { publishUpdate } from "../redis/pubsub";
 
 export const handleDocSocketConnection = async (socket: TypedSocket) => {
     console.log(`Client connected: ${socket.id}`);
@@ -34,13 +35,17 @@ export const handleDocSocketConnection = async (socket: TypedSocket) => {
             // Refresh last-access so the sweeper doesn't evict an active doc
             touchDoc(DOC_ID);
 
-            // 1. Relay raw update to every other client in the room
+            // 1. Relay raw update to every other client in the room on this server
             socket.to(DOC_ID).emit(SYNC_DOC, update);
 
-            // 2. Persist to Postgres (fire-and-forget — errors are logged inside saveUpdate)
+            // 2. Publish to Redis so other server instances receive and relay the update.
+            //    Fire-and-forget — errors are caught inside publishUpdate.
+            publishUpdate(DOC_ID, new Uint8Array(update));
+
+            // 3. Persist to Postgres (fire-and-forget — errors are logged inside saveUpdate)
             saveUpdate(new Uint8Array(update));
 
-            // 3. Apply to server Y.Doc tagged as remote to prevent any re-broadcast loop.
+            // 4. Apply to server Y.Doc tagged as remote to prevent any re-broadcast loop.
             // Compare SVs before and after: if equal, Yjs buffered the op (missing predecessor),
             // so emit repair_doc back to the sender to request what we're missing.
             const svBefore = Y.decodeStateVector(Y.encodeStateVector(yDoc));
@@ -74,13 +79,16 @@ export const handleDocSocketConnection = async (socket: TypedSocket) => {
             // Refresh last-access on every client interaction
             touchDoc(DOC_ID);
 
-            // 1. Relay repair diff to all other clients so they apply the missing update too
+            // 1. Relay repair diff to all other clients on this server
             socket.to(DOC_ID).emit(REPAIR_RESPONSE, diff);
 
-            // 2. Persist — this is new content the server was missing
+            // 2. Publish to Redis so other server instances relay the diff too
+            publishUpdate(DOC_ID, new Uint8Array(diff));
+
+            // 3. Persist — this is new content the server was missing
             saveUpdate(new Uint8Array(diff));
 
-            // 3. Apply locally to bring the server Y.Doc into full sync
+            // 4. Apply locally to bring the server Y.Doc into full sync
             Y.applyUpdate(yDoc, new Uint8Array(diff), REMOTE_ORIGIN);
         }),
     );
