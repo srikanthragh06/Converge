@@ -65,6 +65,7 @@ services:
       - server
       - server2
 
+  # psql -h 127.0.0.1 -p 5432 -U converge -d converge
   postgres:
     image: postgres:16
     environment:
