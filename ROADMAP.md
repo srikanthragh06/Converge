@@ -90,6 +90,25 @@ Single-doc scope throughout. Auth, awareness, offline support, and auto-scaling 
 
 ---
 
+## v0.055 — OOP Refactor ✅
+**Goal:** Rewrite server in a class-based, dependency-injected style. Eliminate module-level singletons and the circular import.
+**Branch:** `refactor-v0.055` | **Status:** COMPLETE
+
+### Delivered
+- All functional modules replaced with classes: `Database`, `Persistence`, `RedisClient`, `PubSub`, `DocStore`, `SocketHandler`, `HttpServer`, `App`
+- `App` is the composition root — constructs all classes and injects dependencies; no other class knows about every dependency
+- Circular import eliminated: `PubSub` receives `SocketIOServer` as a constructor parameter instead of importing `socketServer` from `server.ts`
+- `Persistence.saveUpdate()` / `loadDocFromDb()` take `documentId` per-call (not stored as instance state)
+- `DocStore.loadDoc()` extracted as a private method — no inline function-in-function
+- `HttpServer` separates construction from `listen()` so connection handlers can be wired before the port opens
+- Sub-layer types extracted to dedicated files: `db/schema.ts`, `redis/types.ts`, `store/types.ts`
+- Retry constants and `sleep` moved to `private static` class members
+- Web `src/` also reorganised into `constants/`, `types/`, `utils/`, `sockets/` subdirs
+- `main.ts` reduced to ~10 lines
+- Zero TypeScript errors after full delete of all procedural files
+
+---
+
 ## v0.06 — S3 Snapshots + Compaction
 **Goal:** Postgres update table doesn't grow unboundedly.
 
