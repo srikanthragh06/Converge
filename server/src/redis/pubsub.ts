@@ -64,11 +64,11 @@ export const initPubSub = (): void => {
             return;
         }
 
-        // Live: broadcast to all local Socket.IO clients in the doc room,
-        // then apply the update to the server Y.Doc.
+        // Live: apply to server Y.Doc first so the SV we piggyback is up to date,
+        // then broadcast update + serverSV to all local Socket.IO clients.
         // REMOTE_ORIGIN tag prevents any update observer in this process re-publishing.
-        socketServer.to(docId).emit(SYNC_DOC, update);
         Y.applyUpdate(entry.yDoc, update, REMOTE_ORIGIN);
+        socketServer.to(docId).emit(SYNC_DOC, update, Y.encodeStateVector(entry.yDoc));
     });
 };
 
@@ -100,9 +100,10 @@ export const goLive = (docId: string): void => {
 
     if (entry.buffer.length > 0) {
         // Merge all buffered updates into a single update then apply and broadcast.
+        // Apply first so the piggybacked serverSV reflects the full merged state.
         const merged = Y.mergeUpdates(entry.buffer);
-        socketServer.to(docId).emit(SYNC_DOC, merged);
         Y.applyUpdate(entry.yDoc, merged, REMOTE_ORIGIN);
+        socketServer.to(docId).emit(SYNC_DOC, merged, Y.encodeStateVector(entry.yDoc));
     }
 
     entry.buffer = [];

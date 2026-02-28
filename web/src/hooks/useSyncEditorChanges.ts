@@ -23,7 +23,8 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
         const updates = pendingUpdates.current;
         pendingUpdates.current = [];
         const merged = Y.mergeUpdates(updates);
-        socket.emit(SYNC_DOC, merged);
+        // Piggyback the client's current SV so the server can compare and detect divergence
+        socket.emit(SYNC_DOC, merged, Y.encodeStateVector(yDoc));
     };
 
     // Observe local Y.Doc changes — batch and send to server after BATCH_MS debounce.
@@ -40,16 +41,17 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
     }, [yDoc]);
 
     // Receive sync_doc from server — apply to local Y.Doc tagged as remote.
-    // Decode SVs to Maps before and after to accurately detect a buffered op:
-    // if the Maps are equal, Yjs couldn't apply the update (missing predecessor),
-    // so we emit repair_doc to ask the server for what we're missing.
+    // Server piggybacks its current SV on every relay. After applying, compare
+    // client SV against serverSV: any divergence means one side has ops the other
+    // is missing, so emit repair_doc to trigger the server to send what we lack.
     useEffect(() => {
-        const onSyncDoc = (update: Uint8Array) => {
-            const svBefore = Y.decodeStateVector(Y.encodeStateVector(yDoc));
+        const onSyncDoc = (update: Uint8Array, serverSV: Uint8Array) => {
             Y.applyUpdate(yDoc, new Uint8Array(update), REMOTE_ORIGIN);
-            const svAfter = Y.decodeStateVector(Y.encodeStateVector(yDoc));
 
-            if (mapsEqual(svBefore, svAfter)) {
+            const clientSVMap = Y.decodeStateVector(Y.encodeStateVector(yDoc));
+            const serverSVMap = Y.decodeStateVector(new Uint8Array(serverSV));
+
+            if (!mapsEqual(clientSVMap, serverSVMap)) {
                 socket.emit(REPAIR_DOC, Y.encodeStateVector(yDoc));
             }
         };

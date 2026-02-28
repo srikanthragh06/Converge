@@ -27,33 +27,44 @@ export const handleDocSocketConnection = async (socket: TypedSocket) => {
     // All clients join the same room so broadcasts are scoped to the document
     socket.join(DOC_ID);
 
-    // sync_doc: relay-first (before applying locally), then update the server Y.Doc.
-    // Relay-first ensures other clients aren't blocked waiting on the server's apply step.
+    // sync_doc: client sends its update AND its current state vector.
+    // Apply to server Y.Doc first, then relay update + serverSV to other clients in the room.
+    // Apply-before-relay ensures the piggybacked serverSV is accurate.
+    // After relaying, compare server SV against the originating client's SV — any divergence
+    // means one or both sides are missing ops, so a bidirectional repair fires immediately.
     socket.on(
         SYNC_DOC,
-        safeSocketHandler((update: Uint8Array) => {
+        safeSocketHandler((update: Uint8Array, clientSV: Uint8Array) => {
             // Refresh last-access so the sweeper doesn't evict an active doc
             touchDoc(DOC_ID);
 
-            // 1. Relay raw update to every other client in the room on this server
-            socket.to(DOC_ID).emit(SYNC_DOC, update);
-
-            // 2. Publish to Redis so other server instances receive and relay the update.
+            // 1. Publish to Redis so other server instances receive and relay the update.
             //    Fire-and-forget — errors are caught inside publishUpdate.
             publishUpdate(DOC_ID, new Uint8Array(update));
 
-            // 3. Persist to Postgres (fire-and-forget — errors are logged inside saveUpdate)
+            // 2. Persist to Postgres (fire-and-forget — errors are logged inside saveUpdate)
             saveUpdate(new Uint8Array(update));
 
-            // 4. Apply to server Y.Doc tagged as remote to prevent any re-broadcast loop.
-            // Compare SVs before and after: if equal, Yjs buffered the op (missing predecessor),
-            // so emit repair_doc back to the sender to request what we're missing.
-            const svBefore = Y.decodeStateVector(Y.encodeStateVector(yDoc));
+            // 3. Apply to server Y.Doc tagged as remote to prevent re-broadcast loops.
+            //    Apply before relay so the serverSV we piggyback reflects this update.
             Y.applyUpdate(yDoc, new Uint8Array(update), REMOTE_ORIGIN);
-            const svAfter = Y.decodeStateVector(Y.encodeStateVector(yDoc));
 
-            if (mapsEqual(svBefore, svAfter)) {
-                socket.emit(REPAIR_DOC, Y.encodeStateVector(yDoc));
+            // 4. Relay update + current server SV to every other client in the room.
+            //    Recipients use the SV to detect their own divergence without a round trip.
+            const serverSV = Y.encodeStateVector(yDoc);
+            socket.to(DOC_ID).emit(SYNC_DOC, update, serverSV);
+
+            // 5. Compare server SV against the originating client's SV.
+            //    If they differ either side has ops the other is missing.
+            //    Repair both directions in one shot:
+            //      - repair_doc tells client to send us what we're missing
+            //      - repair_response sends client what it's missing right now
+            const serverSVMap = Y.decodeStateVector(serverSV);
+            const clientSVMap = Y.decodeStateVector(new Uint8Array(clientSV));
+
+            if (!mapsEqual(serverSVMap, clientSVMap)) {
+                socket.emit(REPAIR_DOC, serverSV);
+                socket.emit(REPAIR_RESPONSE, Y.encodeStateAsUpdate(yDoc, new Uint8Array(clientSV)));
             }
         }),
     );
