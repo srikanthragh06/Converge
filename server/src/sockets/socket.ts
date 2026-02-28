@@ -9,6 +9,9 @@ import {
     SYNC_DOC,
     REPAIR_DOC,
     REPAIR_RESPONSE,
+    HEARTBEAT_SYNC,
+    HEARTBEAT_SYNCACK,
+    HEARTBEAT_ACK,
 } from "../constants";
 import { TypedSocket } from "../types";
 import { safeSocketHandler, mapsEqual } from "../utils";
@@ -64,7 +67,10 @@ export const handleDocSocketConnection = async (socket: TypedSocket) => {
 
             if (!mapsEqual(serverSVMap, clientSVMap)) {
                 socket.emit(REPAIR_DOC, serverSV);
-                socket.emit(REPAIR_RESPONSE, Y.encodeStateAsUpdate(yDoc, new Uint8Array(clientSV)));
+                socket.emit(
+                    REPAIR_RESPONSE,
+                    Y.encodeStateAsUpdate(yDoc, new Uint8Array(clientSV)),
+                );
             }
         }),
     );
@@ -100,6 +106,41 @@ export const handleDocSocketConnection = async (socket: TypedSocket) => {
             saveUpdate(new Uint8Array(diff));
 
             // 4. Apply locally to bring the server Y.Doc into full sync
+            Y.applyUpdate(yDoc, new Uint8Array(diff), REMOTE_ORIGIN);
+        }),
+    );
+
+    // heartbeat_sync: client sends its current SV every HEARTBEAT_INTERVAL_MS.
+    // Server computes what the client is missing and responds with that diff plus
+    // its own SV so the client can compute the reverse diff in heartbeat_ack.
+    socket.on(
+        HEARTBEAT_SYNC,
+        safeSocketHandler((clientSV: Uint8Array) => {
+            touchDoc(DOC_ID);
+
+            const serverSV = Y.encodeStateVector(yDoc);
+            // Diff from clientSV → server state: everything the client is missing
+            const diffForClient = Y.encodeStateAsUpdate(
+                yDoc,
+                new Uint8Array(clientSV),
+            );
+            socket.emit(HEARTBEAT_SYNCACK, diffForClient, serverSV);
+        }),
+    );
+
+    // heartbeat_ack: client sends what the server is missing (computed from the
+    // serverSV it received in heartbeat_syncack). Publish to Redis so other server
+    // instances receive the recovered content, then persist and apply locally.
+    socket.on(
+        HEARTBEAT_ACK,
+        safeSocketHandler((diff: Uint8Array) => {
+            touchDoc(DOC_ID);
+
+            // Relay to other server instances via Redis
+            publishUpdate(DOC_ID, new Uint8Array(diff));
+
+            // Persist the new content and apply to bring server Y.Doc fully in sync
+            saveUpdate(new Uint8Array(diff));
             Y.applyUpdate(yDoc, new Uint8Array(diff), REMOTE_ORIGIN);
         }),
     );

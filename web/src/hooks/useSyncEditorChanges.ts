@@ -7,6 +7,10 @@ import {
     REPAIR_RESPONSE,
     REMOTE_ORIGIN,
     BATCH_MS,
+    HEARTBEAT_SYNC,
+    HEARTBEAT_SYNCACK,
+    HEARTBEAT_ACK,
+    HEARTBEAT_INTERVAL_MS,
 } from "../constants";
 import { mapsEqual } from "../utils";
 
@@ -96,6 +100,31 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
         socket.on(REPAIR_RESPONSE, onRepairResponse);
         return () => {
             socket.off(REPAIR_RESPONSE, onRepairResponse);
+        };
+    }, [yDoc]);
+
+    // Heartbeat: every HEARTBEAT_INTERVAL_MS emit our SV so the server can diff.
+    // Only fires while connected; the interval is cleared on unmount.
+    useEffect(() => {
+        const id = setInterval(() => {
+            if (!socket.connected) return;
+            socket.emit(HEARTBEAT_SYNC, Y.encodeStateVector(yDoc));
+        }, HEARTBEAT_INTERVAL_MS);
+        return () => clearInterval(id);
+    }, [yDoc]);
+
+    // heartbeat_syncack: server sends what we're missing plus its own SV.
+    // Apply the diff, then send back what the server is missing.
+    useEffect(() => {
+        const onSyncAck = (diff: Uint8Array, serverSV: Uint8Array) => {
+            Y.applyUpdate(yDoc, new Uint8Array(diff), REMOTE_ORIGIN);
+            // Compute what the server is missing relative to our (now updated) state
+            const diffForServer = Y.encodeStateAsUpdate(yDoc, new Uint8Array(serverSV));
+            socket.emit(HEARTBEAT_ACK, diffForServer);
+        };
+        socket.on(HEARTBEAT_SYNCACK, onSyncAck);
+        return () => {
+            socket.off(HEARTBEAT_SYNCACK, onSyncAck);
         };
     }, [yDoc]);
 };
