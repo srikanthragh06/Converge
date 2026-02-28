@@ -1,5 +1,5 @@
 import { io, Socket } from "socket.io-client";
-import { ServerToClientEvents, ClientToServerEvents } from "./types";
+import { ServerToClientEvents, ClientToServerEvents } from "../types/types";
 
 // Resolve which server to connect to based on the ?server query param.
 // ?server=2  → VITE_SERVER_URL_2 (server instance on port 5001)

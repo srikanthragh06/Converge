@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import * as Y from "yjs";
-import { socket } from "../socket";
+import { socket } from "../sockets/socket";
 import {
     SYNC_DOC,
     REPAIR_DOC,
@@ -11,8 +11,8 @@ import {
     HEARTBEAT_SYNCACK,
     HEARTBEAT_ACK,
     HEARTBEAT_INTERVAL_MS,
-} from "../constants";
-import { mapsEqual } from "../utils";
+} from "../constants/constants";
+import { mapsEqual } from "../utils/utils";
 
 // Wires the local Y.Doc to the server via Socket.IO.
 // Handles batched outgoing updates, incoming sync, and the repair protocol.
@@ -119,7 +119,10 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
         const onSyncAck = (diff: Uint8Array, serverSV: Uint8Array) => {
             Y.applyUpdate(yDoc, new Uint8Array(diff), REMOTE_ORIGIN);
             // Compute what the server is missing relative to our (now updated) state
-            const diffForServer = Y.encodeStateAsUpdate(yDoc, new Uint8Array(serverSV));
+            const diffForServer = Y.encodeStateAsUpdate(
+                yDoc,
+                new Uint8Array(serverSV),
+            );
             socket.emit(HEARTBEAT_ACK, diffForServer);
         };
         socket.on(HEARTBEAT_SYNCACK, onSyncAck);

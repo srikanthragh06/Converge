@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { socket } from "../socket";
+import { socket } from "../sockets/socket";
 
 // Manages the socket connection lifecycle.
 // Connects on mount and disconnects on unmount — keeps connection scoped to the component tree.
