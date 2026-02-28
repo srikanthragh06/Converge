@@ -12,8 +12,8 @@ import {
 } from "../constants";
 import { TypedSocket } from "../types";
 import { safeSocketHandler, mapsEqual } from "../utils";
-import { getDoc, touchDoc } from "../docStore";
-import { saveUpdate } from "../persistence";
+import { getDoc, touchDoc } from "../store/docStore";
+import { saveUpdate } from "../db/persistence";
 
 export const handleDocSocketConnection = async (socket: TypedSocket) => {
     console.log(`Client connected: ${socket.id}`);

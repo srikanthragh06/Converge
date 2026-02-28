@@ -3,12 +3,12 @@
 // periodic eviction of idle documents (startSweeper).
 
 import * as Y from "yjs";
-import { loadDocFromDb } from "./persistence";
+import { loadDocFromDb } from "../db/persistence";
 import {
     EVICT_AFTER_MS,
     SWEEP_INTERVAL_MS,
     SWEEP_BATCH_SIZE,
-} from "./constants";
+} from "../constants";
 
 interface DocEntry {
     yDoc: Y.Doc;

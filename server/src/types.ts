@@ -1,6 +1,8 @@
 // Socket.IO typed event interfaces — defines the protocol contract between client and server.
 // Keep in sync with web/src/types.ts (no shared package yet).
 
+import { Socket } from "socket.io";
+
 // Events the server receives from clients
 export interface ClientToServerEvents {
     sync_doc: (update: Uint8Array) => void;
@@ -16,5 +18,4 @@ export interface ServerToClientEvents {
 }
 
 // Convenience alias used throughout the server socket handlers
-import { Socket } from "socket.io";
 export type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>;

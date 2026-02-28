@@ -5,7 +5,7 @@ dotenv.config();
 
 import { server } from "./server";
 import { waitForDb, migrate } from "./db";
-import { startSweeper } from "./docStore";
+import { startSweeper } from "./store/docStore";
 
 const PORT = Number(process.env.PORT) || 5000;
 

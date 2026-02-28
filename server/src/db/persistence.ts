@@ -1,9 +1,9 @@
 // Persistence helpers: writing updates to Postgres and loading them back.
-// Used by docStore.ts (loadDocFromDb on cache miss) and socket.ts (saveUpdate on every update).
+// Used by store/docStore.ts (loadDocFromDb on cache miss) and sockets/socket.ts (saveUpdate on every update).
 
 import * as Y from "yjs";
-import { db } from "./db";
-import { DOCUMENT_ID, REMOTE_ORIGIN } from "./constants";
+import { db } from ".";
+import { DOCUMENT_ID, REMOTE_ORIGIN } from "../constants";
 
 // Inserts one raw Yjs binary update into the document_updates table.
 // snapshot_version is null for all v0.04 writes — will be set in v0.06.
