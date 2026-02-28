@@ -71,14 +71,22 @@ Single-doc scope throughout. Auth, awareness, offline support, and auto-scaling 
 
 ---
 
-## v0.05 — Redis Pub/Sub (Horizontal Scaling)
+## v0.05 — Redis Pub/Sub (Horizontal Scaling) ✅
 **Goal:** Two server instances stay in sync. Any client on any server sees all updates.
+**Branch:** `redis-v0.05` | **Status:** COMPLETE
 
-- Redis connection setup
-- On `sync_doc` from a client: publish raw Yjs binary to Redis channel `doc:1`
-- Redis subscriber: relay to local clients, apply to local Y.Doc — never re-publish to Redis
-- Cold-start gap handling: subscribe to Redis *before* loading from Postgres, buffer messages during load, apply buffer after (Yjs deduplication handles overlap)
-- Test: run two server instances, connect a client to each, confirm edits propagate
+### Delivered
+- `redis/client.ts`: two ioredis instances (`pub` + `sub`) with `lazyConnect: true` — subscriber mode can't run other commands so they must be separate clients
+- `redis/index.ts`: `waitForRedis()` retry loop (10×3s, mirrors `waitForDb()`); exports both clients
+- `redis/pubsub.ts`: `initPubSub()` attaches single global message handler (called once from `main.ts`); `subscribeDoc()` registers in buffer mode before Postgres load; `goLive()` merges buffered updates via `Y.mergeUpdates()` then applies + broadcasts; `publishUpdate()` latin1 encode for lossless binary→string→binary round-trip over Redis strings; `unsubscribeDoc()` called by sweeper on eviction
+- Cold-start gap: subscribe before Postgres load → buffer Redis messages → flush after load — Yjs CRDT deduplication handles any overlap
+- `docker-compose.yml`: added `server2` service on port 5001; `web` gets `VITE_SERVER_URL_1` + `VITE_SERVER_URL_2`
+- Frontend `?server=2` query param selects which server instance to connect to
+- `web/src/vite-env.d.ts` created (`/// <reference types="vite/client" />`) — fixes `import.meta.env` TypeScript errors
+- `Socket<S,C>` type annotation on variable (not generics on `io<>` call) — `io()` doesn't accept type arguments
+- **SV-based repair detection**: `sync_doc` client → server now carries the client's current SV as second arg; server compares SVs after applying and fires bidirectional repair in one shot (`repair_doc` + `repair_response`) if they differ
+- **Relay carries serverSV**: every `sync_doc` relay (local room + Redis-originated) includes the server's current SV; receiving clients compare their post-apply SV against it and self-trigger `repair_doc` if different — apply-before-relay order ensures accuracy
+- **Heartbeat reconciliation** (`HEARTBEAT_SYNC` / `HEARTBEAT_SYNCACK` / `HEARTBEAT_ACK`): every 10 s client sends its SV; server replies with diff-for-client + serverSV; client applies diff then sends diff-for-server back; server publishes to Redis, persists, and applies — full bidirectional convergence in one round trip without user interaction
 
 ---
 
