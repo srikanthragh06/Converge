@@ -1,4 +1,4 @@
-import { io } from "socket.io-client";
+import { io, Socket } from "socket.io-client";
 import { ServerToClientEvents, ClientToServerEvents } from "./types";
 
 // Resolve which server to connect to based on the ?server query param.
@@ -12,8 +12,13 @@ const serverUrl =
         : import.meta.env.VITE_SERVER_URL_1;
 
 // Singleton typed Socket.IO client.
+// Type annotation on the variable (not the io() call) is the correct way to
+// pass event generics — io() itself does not accept type arguments.
 // autoConnect: false — useSocket hook controls when the connection is established.
-export const socket = io<ServerToClientEvents, ClientToServerEvents>(serverUrl, {
-    path: "/socket",
-    autoConnect: false,
-});
+export const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(
+    serverUrl,
+    {
+        path: "/socket",
+        autoConnect: false,
+    },
+);
