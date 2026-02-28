@@ -56,16 +56,18 @@ Single-doc scope throughout. Auth, awareness, offline support, and auto-scaling 
 
 ---
 
-## v0.04 — Postgres Persistence
+## v0.04 — Postgres Persistence ✅
 **Goal:** Doc survives server restarts. Updates are durable.
+**Branch:** `persistence-v0.04` | **Status:** COMPLETE
 
-- Kysely + postgres connection with retry logic
-- Migration runner (runs on server startup)
-- Migration 001: `document_updates (id, document_id, update BYTEA, snapshot_version INT nullable, created_at)`
-- Migration 002: `snapshots (id, document_id, s3_key, created_at)` — table exists, unused until v0.06
-- On `sync_doc` received: relay first, then write update to Postgres
-- On server startup: load all updates from Postgres in `id` order, apply to server Y.Doc
-- Clients bootstrapping via `repair_doc` now get the full persisted state
+### Delivered
+- `db/index.ts`: Kysely instance + DB type interfaces + `waitForDb()` retry loop (10×3s for Docker cold start) + `migrate()` creates `snapshots` and `document_updates` tables idempotently on every startup
+- `db/persistence.ts`: `saveUpdate()` fire-and-forget insert (logs errors, never throws); `loadDocFromDb()` fetches all rows, merges via `Y.mergeUpdates()` before a single apply — more efficient than per-row loop
+- `docStore.ts`: `Map<docId, {yDoc, lastAccess}>` registry; `getDoc()` lazy-loads on first client access and deduplicates concurrent loads via in-flight promise map; `touchDoc()` refreshes lastAccess on every socket event; `startSweeper()` evicts idle docs every 10 min in batches of 50 via `setImmediate` to avoid blocking the event loop
+- `main.ts`: async IIFE startup — `waitForDb` → `migrate` → `startSweeper` → `listen`; no eager load at startup
+- `sockets/socket.ts`: connection handler is now `async`; calls `getDoc(DOC_ID)` at top of each connection; `touchDoc()` + `saveUpdate()` called in `sync_doc` and `repair_response` handlers
+- `snapshot_version` is NULL for all v0.04 inserts; FK constraint deferred to v0.06
+- Server `src/` reorganised: `db/` for Kysely client + persistence, `store/` for doc registry, `sockets/` unchanged
 
 ---
 
