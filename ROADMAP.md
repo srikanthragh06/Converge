@@ -109,18 +109,18 @@ Single-doc scope throughout. Auth, awareness, offline support, and auto-scaling 
 
 ---
 
-## v0.06 — S3 Snapshots + Compaction
+## v0.06 — Postgres Compaction ✅
 **Goal:** Postgres update table doesn't grow unboundedly.
+**Branch:** `compaction-v0.06` | **Status:** COMPLETE
 
-- S3 client setup (MinIO in docker-compose for local dev)
-- Background async snapshot job:
-  1. Acquire Redis lock (`snapshot:lock:doc-1`)
-  2. Encode full Y.Doc: `Y.encodeStateAsUpdate(serverDoc)`
-  3. Upload binary to S3, record key in `snapshots` table
-  4. Subsequent Postgres inserts reference the new `snapshot_version`
-  5. Release lock
-- Trigger: after each write, if update count for current snapshot > 10K → fire-and-forget snapshot job
-- On server startup: load latest snapshot from S3 first, then replay only updates where `snapshot_version = latest_snapshot.id`
+### Delivered
+- New `document_meta` table: one row per document, tracks `update_count` (monotonic) and `last_compact_count` (last compacted threshold)
+- `Persistence.saveUpdate()` is now a transaction: insert update row + UPSERT counter atomically; returns `{ count, lastCompactCount }` so the caller can check whether compaction is needed
+- `Compactor` class owns all persistence + compaction logic — `SocketHandler` calls `compactor.saveAndMaybeCompact()` and no longer imports `Persistence` directly
+- Compaction trigger: when `floor(count / 500) * 500 > last_compact_count`, a `setTimeout(0)` fires `compact()` off the hot path
+- `compact()` acquires a Redis NX lock (`lock:compact:<documentId>`, 30s TTL), snapshots `MAX(id)`, loads all rows up to that point, calls `Y.mergeUpdates()`, then in one DB transaction: inserts the merged row, deletes the originals, updates `last_compact_count = threshold`; `update_count` is never touched during compaction
+- Index on `document_updates.document_id` for efficient range queries
+- No S3 — all state lives in Postgres; `snapshots` table and `snapshot_version` column removed
 
 ---
 
