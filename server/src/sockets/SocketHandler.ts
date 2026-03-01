@@ -17,14 +17,14 @@ import {
 import { TypedSocket } from "../types";
 import { safeSocketHandler, mapsEqual } from "../utils";
 import { DocStore } from "../store/DocStore";
-import { Persistence } from "../db/Persistence";
+import { Compactor } from "../db/Compactor";
 import { PubSub } from "../redis/PubSub";
 
 export class SocketHandler {
     constructor(
         private readonly docStore: DocStore,
-        private readonly persistence: Persistence,
         private readonly pubSub: PubSub,
+        private readonly compactor: Compactor,
     ) {}
 
     // Registered on io.on("connection", ...) by App.
@@ -41,8 +41,8 @@ export class SocketHandler {
 
         socket.on(
             SYNC_DOC,
-            safeSocketHandler((update: Uint8Array, clientSV: Uint8Array) => {
-                this.handleSyncDoc(socket, yDoc, update, clientSV);
+            safeSocketHandler(async (update: Uint8Array, clientSV: Uint8Array) => {
+                await this.handleSyncDoc(socket, yDoc, update, clientSV);
             }),
         );
 
@@ -55,8 +55,8 @@ export class SocketHandler {
 
         socket.on(
             REPAIR_RESPONSE,
-            safeSocketHandler((diff: Uint8Array) => {
-                this.handleRepairResponse(socket, yDoc, diff);
+            safeSocketHandler(async (diff: Uint8Array) => {
+                await this.handleRepairResponse(socket, yDoc, diff);
             }),
         );
 
@@ -69,8 +69,8 @@ export class SocketHandler {
 
         socket.on(
             HEARTBEAT_ACK,
-            safeSocketHandler((diff: Uint8Array) => {
-                this.handleHeartbeatAck(socket, yDoc, diff);
+            safeSocketHandler(async (diff: Uint8Array) => {
+                await this.handleHeartbeatAck(socket, yDoc, diff);
             }),
         );
 
@@ -87,19 +87,19 @@ export class SocketHandler {
     // Apply-before-relay ensures the piggybacked serverSV is accurate.
     // After relaying, compare server SV against the originating client's SV — any
     // divergence means one or both sides are missing ops, so a bidirectional repair fires.
-    private handleSyncDoc(
+    private async handleSyncDoc(
         socket: TypedSocket,
         yDoc: Y.Doc,
         update: Uint8Array,
         clientSV: Uint8Array,
-    ): void {
+    ): Promise<void> {
         this.docStore.touchDoc(DOC_ID);
 
         // 1. Publish to Redis so other server instances receive and relay the update.
         this.pubSub.publishUpdate(DOC_ID, new Uint8Array(update));
 
-        // 2. Persist to Postgres (fire-and-forget).
-        this.persistence.saveUpdate(DOCUMENT_ID, new Uint8Array(update));
+        // 2. Persist to Postgres and check whether compaction should be triggered.
+        await this.compactor.saveAndMaybeCompact(DOCUMENT_ID, new Uint8Array(update));
 
         // 3. Apply to server Y.Doc tagged as remote to prevent re-broadcast loops.
         //    Apply before relay so the serverSV we piggyback reflects this update.
@@ -140,11 +140,11 @@ export class SocketHandler {
 
     // repair_response: client sends a diff in response to our repair_doc request.
     // Relay to all other clients, persist the new content, then apply locally.
-    private handleRepairResponse(
+    private async handleRepairResponse(
         socket: TypedSocket,
         yDoc: Y.Doc,
         diff: Uint8Array,
-    ): void {
+    ): Promise<void> {
         this.docStore.touchDoc(DOC_ID);
 
         // 1. Relay repair diff to all other clients on this server.
@@ -154,7 +154,7 @@ export class SocketHandler {
         this.pubSub.publishUpdate(DOC_ID, new Uint8Array(diff));
 
         // 3. Persist — this is new content the server was missing.
-        this.persistence.saveUpdate(DOCUMENT_ID, new Uint8Array(diff));
+        await this.compactor.saveAndMaybeCompact(DOCUMENT_ID, new Uint8Array(diff));
 
         // 4. Apply locally to bring the server Y.Doc into full sync.
         Y.applyUpdate(yDoc, new Uint8Array(diff), REMOTE_ORIGIN);
@@ -181,18 +181,18 @@ export class SocketHandler {
     // heartbeat_ack: client sends what the server is missing (computed from the
     // serverSV it received in heartbeat_syncack). Publish to Redis so other server
     // instances receive the recovered content, then persist and apply locally.
-    private handleHeartbeatAck(
+    private async handleHeartbeatAck(
         socket: TypedSocket,
         yDoc: Y.Doc,
         diff: Uint8Array,
-    ): void {
+    ): Promise<void> {
         this.docStore.touchDoc(DOC_ID);
 
         // Relay to other server instances via Redis.
         this.pubSub.publishUpdate(DOC_ID, new Uint8Array(diff));
 
-        // Persist the new content and apply to bring server Y.Doc fully in sync.
-        this.persistence.saveUpdate(DOCUMENT_ID, new Uint8Array(diff));
+        // Persist the new content, then apply to bring server Y.Doc fully in sync.
+        await this.compactor.saveAndMaybeCompact(DOCUMENT_ID, new Uint8Array(diff));
         Y.applyUpdate(yDoc, new Uint8Array(diff), REMOTE_ORIGIN);
     }
 }

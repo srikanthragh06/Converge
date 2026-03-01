@@ -1,5 +1,5 @@
 // Kysely schema type interfaces for the Postgres tables.
-// Imported by Database.ts and Persistence.ts.
+// Imported by Database.ts, Persistence.ts, and Compactor.ts.
 
 import { Generated } from "kysely";
 
@@ -10,22 +10,21 @@ export interface DocumentUpdatesTable {
     id: Generated<bigint>;
     document_id: number;
     update: Buffer;
-    snapshot_version: number | null; // null for all v0.04 inserts; populated in v0.06
     created_at: Generated<Date>;
 }
 
-// Row shape for the snapshots table.
-// Table exists now so the schema is correct from day one; populated in v0.06.
-export interface SnapshotsTable {
-    id: Generated<number>;
-    document_id: number;
-    s3_key: string;
-    created_at: Generated<Date>;
+// One row per document — tracks monotonic update count and last compaction threshold.
+// update_count increments on every saveUpdate; never reset.
+// last_compact_count records the 1000-multiple at which the last compaction ran.
+export interface DocumentMetaTable {
+    document_id: number;       // primary key
+    update_count: bigint;      // BIGINT maps to JS BigInt via Kysely
+    last_compact_count: bigint; // 0 until first compaction
 }
 
 // Root schema passed as a generic to Kysely<DatabaseSchema>.
 // Table names must exactly match the Postgres table names.
 export interface DatabaseSchema {
     document_updates: DocumentUpdatesTable;
-    snapshots: SnapshotsTable;
+    document_meta: DocumentMetaTable;
 }

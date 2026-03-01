@@ -5,27 +5,56 @@
 import * as Y from "yjs";
 import { Kysely } from "kysely";
 import { DatabaseSchema } from "./schema";
+import { SaveUpdateResult } from "./types";
 import { REMOTE_ORIGIN } from "../constants";
 
 export class Persistence {
     constructor(private readonly db: Kysely<DatabaseSchema>) {}
 
-    // Inserts one raw Yjs binary update into the document_updates table.
-    // snapshot_version is null for all v0.04 writes — will be set in v0.06.
-    // Catches and logs errors internally so a DB failure never blocks in-memory sync.
-    async saveUpdate(documentId: number, update: Uint8Array): Promise<void> {
-        try {
-            await this.db
+    // Atomically inserts the Yjs update and increments the document's update counter.
+    // Both writes happen inside a single transaction so the counter always reflects
+    // the true number of persisted updates.
+    // Returns the new count and the last compaction threshold so SocketHandler
+    // can decide whether to schedule a compaction job.
+    // Throws on failure — the caller (persistAndMaybeCompact) catches and logs.
+    async saveUpdate(documentId: number, update: Uint8Array): Promise<SaveUpdateResult> {
+        return this.db.transaction().execute(async (trx) => {
+            // 1. Persist the raw Yjs binary.
+            await trx
                 .insertInto("document_updates")
                 .values({
                     document_id: documentId,
                     update: Buffer.from(update), // pg driver requires Buffer for BYTEA
-                    snapshot_version: null,
                 })
                 .execute();
-        } catch (err) {
-            console.error(`saveUpdate failed: ${String(err)}`);
-        }
+
+            // 2. Upsert the counter: create on first insert, increment on subsequent ones.
+            // RETURNING both columns so the caller has everything it needs in one round-trip.
+            const result = await trx
+                .insertInto("document_meta")
+                .values({
+                    document_id: documentId,
+                    update_count: BigInt(1),
+                    last_compact_count: BigInt(0),
+                })
+                .onConflict((oc) =>
+                    oc.column("document_id").doUpdateSet((eb) => ({
+                        // Increment update_count; leave last_compact_count untouched.
+                        update_count: eb(
+                            eb.ref("document_meta.update_count"),
+                            "+",
+                            eb.val(BigInt(1)),
+                        ),
+                    })),
+                )
+                .returning(["update_count", "last_compact_count"])
+                .executeTakeFirstOrThrow();
+
+            return {
+                count: result.update_count,
+                lastCompactCount: result.last_compact_count,
+            };
+        });
     }
 
     // Loads all persisted updates for documentId, merges them into one combined

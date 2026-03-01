@@ -7,6 +7,7 @@
 
 import { Database } from "./db/Database";
 import { Persistence } from "./db/Persistence";
+import { Compactor } from "./db/Compactor";
 import { RedisClient } from "./redis/RedisClient";
 import { PubSub } from "./redis/PubSub";
 import { DocStore } from "./store/DocStore";
@@ -16,6 +17,7 @@ import { HttpServer } from "./HttpServer";
 export class App {
     private readonly database: Database;
     private readonly persistence: Persistence;
+    private readonly compactor: Compactor;
     private readonly redisClient: RedisClient;
     private readonly pubSub: PubSub;
     private readonly docStore: DocStore;
@@ -33,6 +35,13 @@ export class App {
         // Persistence receives the Kysely instance from Database
         this.persistence = new Persistence(this.database.kysely);
 
+        // Compactor wraps Persistence and owns all save + compaction logic
+        this.compactor = new Compactor(
+            this.database.kysely,
+            this.redisClient.pub,
+            this.persistence,
+        );
+
         // PubSub receives the Socket.IO server so it can broadcast to local clients
         this.pubSub = new PubSub(
             this.redisClient.pub,
@@ -40,12 +49,14 @@ export class App {
             this.httpServer.io,
         );
 
-        // DocStore and SocketHandler receive their dependencies via constructor
+        // DocStore uses Persistence (load path) and PubSub (cold-start gap handling)
         this.docStore = new DocStore(this.persistence, this.pubSub);
+
+        // SocketHandler no longer needs Persistence directly — Compactor handles it
         this.socketHandler = new SocketHandler(
             this.docStore,
-            this.persistence,
             this.pubSub,
+            this.compactor,
         );
 
         // Wire the connection handler before listen() is called

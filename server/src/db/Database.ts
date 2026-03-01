@@ -7,7 +7,7 @@ import { Kysely, PostgresDialect, sql } from "kysely";
 import { DatabaseSchema } from "./schema";
 
 export class Database {
-    // Public readonly so Persistence can receive it via constructor injection.
+    // Public readonly so Persistence and Compactor can receive it via constructor injection.
     public readonly kysely: Kysely<DatabaseSchema>;
     private readonly pool: Pool;
 
@@ -57,16 +57,15 @@ export class Database {
         }
     }
 
-    // Creates both tables idempotently (IF NOT EXISTS). Safe to call on every startup.
-    // snapshots is created first so document_updates can FK into it in v0.06.
+    // Creates all tables and indexes idempotently. Safe to call on every startup.
     async migrate(): Promise<void> {
-        // Snapshot registry — unused until v0.06, but schema must be correct from the start
+        // Append-only Yjs update log — primary persistence store.
         await this.kysely.schema
-            .createTable("snapshots")
+            .createTable("document_updates")
             .ifNotExists()
-            .addColumn("id", "serial", (c) => c.primaryKey())
+            .addColumn("id", "bigserial", (c) => c.primaryKey())
             .addColumn("document_id", "integer", (c) => c.notNull())
-            .addColumn("s3_key", "text", (c) => c.notNull())
+            .addColumn("update", "bytea", (c) => c.notNull())
             .addColumn(
                 "created_at",
                 "timestamptz",
@@ -74,19 +73,23 @@ export class Database {
             )
             .execute();
 
-        // Append-only Yjs update log — primary persistence store
+        // Index on document_id so range queries (load, compact) don't do full-table scans.
         await this.kysely.schema
-            .createTable("document_updates")
+            .createIndex("document_updates_document_id_idx")
             .ifNotExists()
-            .addColumn("id", "bigserial", (c) => c.primaryKey())
-            .addColumn("document_id", "integer", (c) => c.notNull())
-            .addColumn("update", "bytea", (c) => c.notNull())
-            .addColumn("snapshot_version", "integer") // nullable; FK added in v0.06
-            .addColumn(
-                "created_at",
-                "timestamptz",
-                (c) => c.notNull().defaultTo(sql`now()`),
-            )
+            .on("document_updates")
+            .column("document_id")
+            .execute();
+
+        // One row per document: monotonic update counter + last compaction threshold.
+        // update_count increments on every write; last_compact_count tracks which
+        // 1000-multiple was last compacted so each threshold is only processed once.
+        await this.kysely.schema
+            .createTable("document_meta")
+            .ifNotExists()
+            .addColumn("document_id", "integer", (c) => c.primaryKey())
+            .addColumn("update_count", "bigint", (c) => c.notNull().defaultTo(0))
+            .addColumn("last_compact_count", "bigint", (c) => c.notNull().defaultTo(0))
             .execute();
 
         console.log("Migration complete");

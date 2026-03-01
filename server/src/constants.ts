@@ -37,3 +37,7 @@ export const SWEEP_BATCH_SIZE = 50;
 // Redis pub/sub channel prefix — full channel name is REDIS_CHANNEL_PREFIX + docId
 // e.g. "yjs:doc-1"
 export const REDIS_CHANNEL_PREFIX = "yjs:";
+
+// Compaction is triggered when update_count crosses a new multiple of this value.
+// BigInt because document_meta.update_count is BIGINT and Kysely maps it to JS BigInt.
+export const COMPACTION_THRESHOLD = BigInt(1000);
