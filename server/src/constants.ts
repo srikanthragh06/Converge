@@ -40,4 +40,4 @@ export const REDIS_CHANNEL_PREFIX = "yjs:";
 
 // Compaction is triggered when update_count crosses a new multiple of this value.
 // BigInt because document_meta.update_count is BIGINT and Kysely maps it to JS BigInt.
-export const COMPACTION_THRESHOLD = BigInt(1000);
+export const COMPACTION_THRESHOLD = BigInt(500);
