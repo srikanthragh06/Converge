@@ -1,36 +1,28 @@
-// Internal types for the doc store layer.
+// Shared server-side types: doc store, pub/sub, persistence, and socket protocol.
+// Keep socket event interfaces in sync with web/src/types.ts (no shared package yet).
 
 import * as Y from "yjs";
+import { Socket } from "socket.io";
 
-// Registry entry for an in-memory document.
+// Registry entry for an in-memory document (DocStoreService).
 export interface DocEntry {
     yDoc: Y.Doc;
     lastAccess: number; // Date.now() timestamp — updated on every client interaction
 }
-// Internal types for the Redis pub/sub layer.
 
-// Per-document subscription state held by PubSub.
+// Per-document subscription state held by PubSubService.
 export interface SubEntry {
     yDoc: Y.Doc;
-    // false while Postgres is still loading; messages go into buffer instead.
-    live: boolean;
-    // Accumulates Redis messages that arrive during the Postgres cold load.
-    buffer: Uint8Array[];
+    live: boolean; // false while Postgres is still loading; messages go into buffer instead
+    buffer: Uint8Array[]; // accumulates Redis messages that arrive during the Postgres cold load
 }
 
-// Type definitions for the db layer.
-
-// Returned by Persistence.saveUpdate so callers can decide whether to
+// Returned by PersistenceService.saveUpdate so callers can decide whether to
 // trigger compaction without an extra round-trip to the database.
 export interface SaveUpdateResult {
     count: bigint; // new monotonic update count for this document
-    lastCompactCount: bigint; // last 1000-multiple at which compaction completed
+    lastCompactCount: bigint; // last threshold-multiple at which compaction completed
 }
-
-// Socket.IO typed event interfaces — defines the protocol contract between client and server.
-// Keep in sync with web/src/types.ts (no shared package yet).
-
-import { Socket } from "socket.io";
 
 // Events the server receives from clients
 export interface ClientToServerEvents {
