@@ -9,11 +9,17 @@
 // unsubscribeDoc()— remove subscription on doc eviction.
 
 import * as Y from "yjs";
-import { REMOTE_ORIGIN, REDIS_CHANNEL_PREFIX, SYNC_DOC } from "../constants";
 import { SubEntry } from "./types";
 import { servicesStore } from "../servicesStore";
+import { SocketHandlerService } from "../sockets/SocketHandlerService";
 
 export class PubSubService {
+    // Yjs origin tag — applied when applying a remotely-received update so local
+    // observers know not to re-broadcast it.
+    static readonly REMOTE_ORIGIN = "remote";
+    // Redis pub/sub channel prefix: full channel is PubSubService.REDIS_CHANNEL_PREFIX + docId.
+    private static readonly REDIS_CHANNEL_PREFIX = "yjs:";
+
     // One entry per active docId on this server process.
     private readonly subs = new Map<string, SubEntry>();
 
@@ -23,7 +29,7 @@ export class PubSubService {
         // Single handler for all channels — routes to the correct SubEntry by
         // reversing the channel prefix.
         servicesStore.redisService.sub.on("message", (channel: string, rawMessage: string) => {
-            const docId = channel.slice(REDIS_CHANNEL_PREFIX.length);
+            const docId = channel.slice(PubSubService.REDIS_CHANNEL_PREFIX.length);
             const entry = this.subs.get(docId);
             if (!entry) return;
 
@@ -38,11 +44,11 @@ export class PubSubService {
             }
 
             // Live: apply first so the piggybacked serverSV is accurate, then broadcast.
-            // REMOTE_ORIGIN tag prevents any observer in this process from re-publishing.
-            Y.applyUpdate(entry.yDoc, update, REMOTE_ORIGIN);
+            // PubSubService.REMOTE_ORIGIN tag prevents any observer in this process from re-publishing.
+            Y.applyUpdate(entry.yDoc, update, PubSubService.REMOTE_ORIGIN);
             servicesStore.httpServerService.io
                 .to(docId)
-                .emit(SYNC_DOC, update, Y.encodeStateVector(entry.yDoc));
+                .emit(SocketHandlerService.SYNC_DOC, update, Y.encodeStateVector(entry.yDoc));
         });
     }
 
@@ -72,10 +78,10 @@ export class PubSubService {
         if (entry.buffer.length > 0) {
             // Apply first so the piggybacked serverSV reflects the full merged state.
             const merged = Y.mergeUpdates(entry.buffer);
-            Y.applyUpdate(entry.yDoc, merged, REMOTE_ORIGIN);
+            Y.applyUpdate(entry.yDoc, merged, PubSubService.REMOTE_ORIGIN);
             servicesStore.httpServerService.io
                 .to(docId)
-                .emit(SYNC_DOC, merged, Y.encodeStateVector(entry.yDoc));
+                .emit(SocketHandlerService.SYNC_DOC, merged, Y.encodeStateVector(entry.yDoc));
         }
 
         entry.buffer = [];
@@ -116,6 +122,6 @@ export class PubSubService {
     }
 
     private channelFor(docId: string): string {
-        return REDIS_CHANNEL_PREFIX + docId;
+        return PubSubService.REDIS_CHANNEL_PREFIX + docId;
     }
 }

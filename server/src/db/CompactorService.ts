@@ -7,7 +7,6 @@
 // fully independent.
 
 import * as Y from "yjs";
-import { COMPACTION_THRESHOLD } from "../constants";
 import { servicesStore } from "../servicesStore";
 
 export class CompactorService {
@@ -16,6 +15,9 @@ export class CompactorService {
     // If the process crashes mid-compaction the lock auto-expires so the next
     // trigger can proceed.
     private static readonly LOCK_TTL_S = 30;
+    // Compaction fires when update_count crosses a new multiple of this value.
+    // BigInt because document_meta.update_count is BIGINT (mapped to JS BigInt).
+    private static readonly COMPACTION_THRESHOLD = BigInt(500);
 
     // Checks whether the current update count has crossed a new 500-multiple
     // threshold and, if so, schedules a compaction job via setTimeout(0) so it
@@ -28,7 +30,7 @@ export class CompactorService {
     ): void {
         // e.g. count=3603 → threshold=3000, count=4000 → threshold=4000
         const threshold =
-            (count / COMPACTION_THRESHOLD) * COMPACTION_THRESHOLD;
+            (count / CompactorService.COMPACTION_THRESHOLD) * CompactorService.COMPACTION_THRESHOLD;
 
         // Only trigger if this threshold hasn't been compacted yet.
         if (threshold > lastCompactCount) {

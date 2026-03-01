@@ -5,8 +5,8 @@
 
 import * as Y from "yjs";
 import { SaveUpdateResult } from "./types";
-import { REMOTE_ORIGIN } from "../constants";
 import { servicesStore } from "../servicesStore";
+import { PubSubService } from "../redis/PubSubService";
 
 export class PersistenceService {
     // Atomically inserts the Yjs update and increments the document's update counter.
@@ -85,7 +85,7 @@ export class PersistenceService {
             (row) => new Uint8Array(row.update as unknown as Buffer),
         );
         const merged = Y.mergeUpdates(allUpdates);
-        Y.applyUpdate(yDoc, merged, REMOTE_ORIGIN);
+        Y.applyUpdate(yDoc, merged, PubSubService.REMOTE_ORIGIN);
 
         console.log(`loadDocFromDb: merged and applied ${rows.length} updates`);
     }

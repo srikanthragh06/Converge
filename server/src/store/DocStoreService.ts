@@ -6,16 +6,18 @@
 // Accesses PersistenceService and PubSubService via the global container.
 
 import * as Y from "yjs";
-import {
-    DOCUMENT_ID,
-    EVICT_AFTER_MS,
-    SWEEP_INTERVAL_MS,
-    SWEEP_BATCH_SIZE,
-} from "../constants";
 import { DocEntry } from "./types";
 import { servicesStore } from "../servicesStore";
 
 export class DocStoreService {
+    // Numeric document_id primary key — matches the single doc scope for v0.1.
+    static readonly DOCUMENT_ID = 1;
+    // Evict docs not accessed for this long (10 minutes).
+    private static readonly EVICT_AFTER_MS = 10 * 60 * 1000;
+    // How often the sweeper runs.
+    private static readonly SWEEP_INTERVAL_MS = 10 * 60 * 1000;
+    // Doc entries processed per setImmediate tick to avoid blocking the event loop.
+    private static readonly SWEEP_BATCH_SIZE = 50;
     // Currently live documents
     private readonly docs = new Map<string, DocEntry>();
 
@@ -61,7 +63,7 @@ export class DocStoreService {
             if (keys.length > 0) {
                 this.sweepBatch(keys, 0);
             }
-        }, SWEEP_INTERVAL_MS);
+        }, DocStoreService.SWEEP_INTERVAL_MS);
     }
 
     // Cold-load sequence with Redis gap handling:
@@ -77,7 +79,7 @@ export class DocStoreService {
         await servicesStore.pubSubService.subscribeDoc(docId, yDoc);
 
         // Step 2: Replay persisted history from Postgres.
-        await servicesStore.persistenceService.loadDocFromDb(DOCUMENT_ID, yDoc);
+        await servicesStore.persistenceService.loadDocFromDb(DocStoreService.DOCUMENT_ID, yDoc);
 
         // Step 3: Flush the cold-start buffer then switch to live mode.
         // Yjs CRDT deduplication handles any overlap between Postgres rows
@@ -94,12 +96,12 @@ export class DocStoreService {
     // Calls itself via setImmediate for any remaining keys so the event loop
     // is not blocked on large registries.
     private sweepBatch(keys: string[], offset: number): void {
-        const end = Math.min(offset + SWEEP_BATCH_SIZE, keys.length);
+        const end = Math.min(offset + DocStoreService.SWEEP_BATCH_SIZE, keys.length);
         for (let i = offset; i < end; i++) {
             const key = keys[i];
             const entry = this.docs.get(key);
             // Re-check existence: a concurrent getDoc may have re-populated this key
-            if (entry && Date.now() - entry.lastAccess > EVICT_AFTER_MS) {
+            if (entry && Date.now() - entry.lastAccess > DocStoreService.EVICT_AFTER_MS) {
                 this.docs.delete(key);
                 // Fire-and-forget; errors logged inside unsubscribeDoc
                 servicesStore.pubSubService.unsubscribeDoc(key).catch((err) =>
