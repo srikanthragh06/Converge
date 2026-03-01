@@ -5,7 +5,7 @@
 
 import * as Y from "yjs";
 import { TypedSocket } from "../types/types";
-import { safeSocketHandler, mapsEqual } from "../utils";
+import { safeSocketHandler, mapsEqual } from "../utils/utils";
 import { servicesStore } from "../store/servicesStore";
 import { PubSubService } from "./PubSubService";
 import { DocStoreService } from "./DocStoreService";
