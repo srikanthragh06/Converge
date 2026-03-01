@@ -17,7 +17,10 @@ export class Persistence {
     // Returns the new count and the last compaction threshold so SocketHandler
     // can decide whether to schedule a compaction job.
     // Throws on failure — the caller (persistAndMaybeCompact) catches and logs.
-    async saveUpdate(documentId: number, update: Uint8Array): Promise<SaveUpdateResult> {
+    async saveUpdate(
+        documentId: number,
+        update: Uint8Array,
+    ): Promise<SaveUpdateResult> {
         return this.db.transaction().execute(async (trx) => {
             // 1. Persist the raw Yjs binary.
             await trx
@@ -71,7 +74,9 @@ export class Persistence {
             .execute();
 
         if (rows.length === 0) {
-            console.log("loadDocFromDb: no updates found, starting with empty doc");
+            console.log(
+                "loadDocFromDb: no updates found, starting with empty doc",
+            );
             return;
         }
 

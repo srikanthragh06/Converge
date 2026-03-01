@@ -28,40 +28,57 @@ export class Compactor {
     // Persists the update, increments the document counter, then schedules a
     // compaction job if the counter has crossed a new 1000-multiple threshold.
     // Errors are caught and logged so a DB failure never blocks in-memory sync.
-    async saveAndMaybeCompact(documentId: number, update: Uint8Array): Promise<void> {
+    async saveAndMaybeCompact(
+        documentId: number,
+        update: Uint8Array,
+    ): Promise<void> {
         try {
-            const { count, lastCompactCount } = await this.persistence.saveUpdate(
-                documentId,
-                update,
-            );
+            const { count, lastCompactCount } =
+                await this.persistence.saveUpdate(documentId, update);
 
             // e.g. count=3603 → threshold=3000, count=4000 → threshold=4000
-            const threshold = (count / COMPACTION_THRESHOLD) * COMPACTION_THRESHOLD;
+            const threshold =
+                (count / COMPACTION_THRESHOLD) * COMPACTION_THRESHOLD;
 
             // Only trigger if this threshold hasn't been compacted yet.
             // setTimeout(0) defers the work off the hot sync path.
             if (threshold > lastCompactCount) {
                 setTimeout(() => {
                     this.compact(documentId, threshold).catch((err) =>
-                        console.error(`Compaction error for doc ${documentId}: ${String(err)}`),
+                        console.error(
+                            `Compaction error for doc ${documentId}: ${String(err)}`,
+                        ),
                     );
                 }, 0);
             }
         } catch (err) {
-            console.error(`saveUpdate failed for doc ${documentId}: ${String(err)}`);
+            console.error(
+                `saveUpdate failed for doc ${documentId}: ${String(err)}`,
+            );
         }
     }
 
     // Acquires a Redis NX lock, merges all update rows up to the current MAX(id)
     // into a single Yjs update, then atomically replaces them with that one row
     // and records the compacted threshold in document_meta.
-    private async compact(documentId: number, threshold: bigint): Promise<void> {
+    private async compact(
+        documentId: number,
+        threshold: bigint,
+    ): Promise<void> {
         const lockKey = this.lockKey(documentId);
 
         // NX = set only if not exists; EX = expire after LOCK_TTL_S seconds.
-        const acquired = await this.redis.set(lockKey, "1", "EX", Compactor.LOCK_TTL_S, "NX");
+        const acquired = await this.redis.set(
+            lockKey,
+            "1",
+            "EX",
+            Compactor.LOCK_TTL_S,
+            "NX",
+        );
         if (acquired !== "OK") {
-            console.log(`Compaction skipped for doc ${documentId}: lock held by another server`);
+            console.log(
+                `Compaction skipped for doc ${documentId}: lock held by another server`,
+            );
             return;
         }
 
@@ -131,12 +148,18 @@ export class Compactor {
                 `Compaction complete for doc ${documentId}: merged ${rows.length} rows (threshold=${threshold})`,
             );
         } catch (err) {
-            console.error(`Compaction error for doc ${documentId}: ${String(err)}`);
+            console.error(
+                `Compaction error for doc ${documentId}: ${String(err)}`,
+            );
         } finally {
             // Best-effort release — TTL is the safety net if this fails.
-            await this.redis.del(lockKey).catch((err) =>
-                console.error(`Failed to release compaction lock: ${String(err)}`),
-            );
+            await this.redis
+                .del(lockKey)
+                .catch((err) =>
+                    console.error(
+                        `Failed to release compaction lock: ${String(err)}`,
+                    ),
+                );
         }
     }
 

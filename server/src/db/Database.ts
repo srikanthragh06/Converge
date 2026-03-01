@@ -2,7 +2,7 @@
 // Exposes waitForDb() and migrate() as instance methods.
 // All Postgres credentials come from environment variables.
 
-import { Pool } from "pg";
+import { Pool, types } from "pg";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import { DatabaseSchema } from "./schema";
 
@@ -15,6 +15,10 @@ export class Database {
     private static readonly RETRY_DELAY_MS = 3000;
 
     constructor() {
+        // By default pg returns BIGINT (OID 20) as strings to avoid JS number precision loss.
+        // Configure the type parser once here so BigInt arithmetic works correctly at runtime.
+        types.setTypeParser(20, (val: string) => BigInt(val));
+
         // Pool shared across all queries in this process — reads env vars set by dotenv.
         this.pool = new Pool({
             host: process.env.POSTGRES_HOST,
@@ -66,10 +70,8 @@ export class Database {
             .addColumn("id", "bigserial", (c) => c.primaryKey())
             .addColumn("document_id", "integer", (c) => c.notNull())
             .addColumn("update", "bytea", (c) => c.notNull())
-            .addColumn(
-                "created_at",
-                "timestamptz",
-                (c) => c.notNull().defaultTo(sql`now()`),
+            .addColumn("created_at", "timestamptz", (c) =>
+                c.notNull().defaultTo(sql`now()`),
             )
             .execute();
 
@@ -88,8 +90,12 @@ export class Database {
             .createTable("document_meta")
             .ifNotExists()
             .addColumn("document_id", "integer", (c) => c.primaryKey())
-            .addColumn("update_count", "bigint", (c) => c.notNull().defaultTo(0))
-            .addColumn("last_compact_count", "bigint", (c) => c.notNull().defaultTo(0))
+            .addColumn("update_count", "bigint", (c) =>
+                c.notNull().defaultTo(0),
+            )
+            .addColumn("last_compact_count", "bigint", (c) =>
+                c.notNull().defaultTo(0),
+            )
             .execute();
 
         console.log("Migration complete");
