@@ -1,7 +1,6 @@
 // Cross-server Yjs update distribution via Redis pub/sub.
 //
-// The Socket.IO server instance is injected via constructor so PubSub can
-// broadcast to local clients without importing HttpServer directly.
+// Accesses Redis clients and the Socket.IO server via the global container.
 //
 // init()          — attach the global Redis message handler; call once at startup.
 // subscribeDoc()  — subscribe in buffer mode before Postgres load begins.
@@ -10,31 +9,20 @@
 // unsubscribeDoc()— remove subscription on doc eviction.
 
 import * as Y from "yjs";
-import Redis from "ioredis";
-import { Server as SocketIOServer } from "socket.io";
 import { REMOTE_ORIGIN, REDIS_CHANNEL_PREFIX, SYNC_DOC } from "../constants";
-import { ClientToServerEvents, ServerToClientEvents } from "../types";
 import { SubEntry } from "./types";
+import { servicesStore } from "../servicesStore";
 
-export class PubSub {
+export class PubSubService {
     // One entry per active docId on this server process.
     private readonly subs = new Map<string, SubEntry>();
-
-    constructor(
-        private readonly pub: Redis,
-        private readonly sub: Redis,
-        private readonly socketServer: SocketIOServer<
-            ClientToServerEvents,
-            ServerToClientEvents
-        >,
-    ) {}
 
     // Must be called once at server startup before any client connects.
     // Registers the single global Redis message handler on the sub client.
     init(): void {
         // Single handler for all channels — routes to the correct SubEntry by
         // reversing the channel prefix.
-        this.sub.on("message", (channel: string, rawMessage: string) => {
+        servicesStore.redisService.sub.on("message", (channel: string, rawMessage: string) => {
             const docId = channel.slice(REDIS_CHANNEL_PREFIX.length);
             const entry = this.subs.get(docId);
             if (!entry) return;
@@ -52,7 +40,7 @@ export class PubSub {
             // Live: apply first so the piggybacked serverSV is accurate, then broadcast.
             // REMOTE_ORIGIN tag prevents any observer in this process from re-publishing.
             Y.applyUpdate(entry.yDoc, update, REMOTE_ORIGIN);
-            this.socketServer
+            servicesStore.httpServerService.io
                 .to(docId)
                 .emit(SYNC_DOC, update, Y.encodeStateVector(entry.yDoc));
         });
@@ -69,7 +57,7 @@ export class PubSub {
         // Redis delivers a message.
         this.subs.set(docId, { yDoc, live: false, buffer: [] });
 
-        await this.sub.subscribe(this.channelFor(docId));
+        await servicesStore.redisService.sub.subscribe(this.channelFor(docId));
         console.log(`Redis: subscribed to ${this.channelFor(docId)}`);
     }
 
@@ -85,7 +73,7 @@ export class PubSub {
             // Apply first so the piggybacked serverSV reflects the full merged state.
             const merged = Y.mergeUpdates(entry.buffer);
             Y.applyUpdate(entry.yDoc, merged, REMOTE_ORIGIN);
-            this.socketServer
+            servicesStore.httpServerService.io
                 .to(docId)
                 .emit(SYNC_DOC, merged, Y.encodeStateVector(entry.yDoc));
         }
@@ -101,7 +89,7 @@ export class PubSub {
     // Fire-and-forget: errors are caught and logged so a publish failure never blocks sync.
     async publishUpdate(docId: string, update: Uint8Array): Promise<void> {
         try {
-            await this.pub.publish(
+            await servicesStore.redisService.pub.publish(
                 this.channelFor(docId),
                 Buffer.from(update).toString("binary"),
             );
@@ -118,7 +106,7 @@ export class PubSub {
         if (!this.subs.has(docId)) return;
         this.subs.delete(docId);
         try {
-            await this.sub.unsubscribe(this.channelFor(docId));
+            await servicesStore.redisService.sub.unsubscribe(this.channelFor(docId));
             console.log(`Redis: unsubscribed from ${this.channelFor(docId)}`);
         } catch (err) {
             console.error(

@@ -3,10 +3,9 @@
 // periodic eviction of idle documents (startSweeper).
 // Each cold load subscribes to the doc's Redis channel before querying Postgres
 // so updates from other server instances are never missed during the load window.
+// Accesses PersistenceService and PubSubService via the global container.
 
 import * as Y from "yjs";
-import { Persistence } from "../db/Persistence";
-import { PubSub } from "../redis/PubSub";
 import {
     DOCUMENT_ID,
     EVICT_AFTER_MS,
@@ -14,19 +13,15 @@ import {
     SWEEP_BATCH_SIZE,
 } from "../constants";
 import { DocEntry } from "./types";
+import { servicesStore } from "../servicesStore";
 
-export class DocStore {
+export class DocStoreService {
     // Currently live documents
     private readonly docs = new Map<string, DocEntry>();
 
     // In-flight load promises — prevents duplicate DB queries when two clients
     // connect simultaneously for a document that is not yet in memory.
     private readonly loadingPromises = new Map<string, Promise<Y.Doc>>();
-
-    constructor(
-        private readonly persistence: Persistence,
-        private readonly pubSub: PubSub,
-    ) {}
 
     // Returns the cached Y.Doc for docId, loading it from Postgres on first access.
     // Concurrent callers for the same unloaded doc share one in-flight promise so
@@ -78,16 +73,16 @@ export class DocStore {
         const yDoc = new Y.Doc();
 
         // Step 1: Subscribe before loading — any Redis message arriving during the
-        // Postgres query is buffered inside PubSub rather than discarded.
-        await this.pubSub.subscribeDoc(docId, yDoc);
+        // Postgres query is buffered inside PubSubService rather than discarded.
+        await servicesStore.pubSubService.subscribeDoc(docId, yDoc);
 
         // Step 2: Replay persisted history from Postgres.
-        await this.persistence.loadDocFromDb(DOCUMENT_ID, yDoc);
+        await servicesStore.persistenceService.loadDocFromDb(DOCUMENT_ID, yDoc);
 
         // Step 3: Flush the cold-start buffer then switch to live mode.
         // Yjs CRDT deduplication handles any overlap between Postgres rows
         // and buffered Redis messages without double-applying ops.
-        this.pubSub.goLive(docId);
+        servicesStore.pubSubService.goLive(docId);
 
         this.docs.set(docId, { yDoc, lastAccess: Date.now() });
         this.loadingPromises.delete(docId);
@@ -107,7 +102,7 @@ export class DocStore {
             if (entry && Date.now() - entry.lastAccess > EVICT_AFTER_MS) {
                 this.docs.delete(key);
                 // Fire-and-forget; errors logged inside unsubscribeDoc
-                this.pubSub.unsubscribeDoc(key).catch((err) =>
+                servicesStore.pubSubService.unsubscribeDoc(key).catch((err) =>
                     console.error(`unsubscribeDoc error for ${key}: ${String(err)}`),
                 );
                 console.log(`Evicted doc ${key} from memory`);

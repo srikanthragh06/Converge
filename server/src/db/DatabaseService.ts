@@ -6,8 +6,8 @@ import { Pool, types } from "pg";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import { DatabaseSchema } from "./schema";
 
-export class Database {
-    // Public readonly so Persistence and Compactor can receive it via constructor injection.
+export class DatabaseService {
+    // Public readonly so the container can expose it via services.databaseService.kysely.
     public readonly kysely: Kysely<DatabaseSchema>;
     private readonly pool: Pool;
 
@@ -36,7 +36,7 @@ export class Database {
     // Needed because on a cold docker-compose up the server container can start
     // before Postgres is ready to accept connections.
     async waitForDb(): Promise<void> {
-        for (let attempt = 1; attempt <= Database.MAX_RETRIES; attempt++) {
+        for (let attempt = 1; attempt <= DatabaseService.MAX_RETRIES; attempt++) {
             try {
                 const client = await this.pool.connect();
                 try {
@@ -47,14 +47,14 @@ export class Database {
                 console.log("Postgres connection established");
                 return;
             } catch (err) {
-                if (attempt < Database.MAX_RETRIES) {
+                if (attempt < DatabaseService.MAX_RETRIES) {
                     console.log(
-                        `Postgres not ready, retrying in ${Database.RETRY_DELAY_MS / 1000}s... (${attempt}/${Database.MAX_RETRIES})`,
+                        `Postgres not ready, retrying in ${DatabaseService.RETRY_DELAY_MS / 1000}s... (${attempt}/${DatabaseService.MAX_RETRIES})`,
                     );
-                    await Database.sleep(Database.RETRY_DELAY_MS);
+                    await DatabaseService.sleep(DatabaseService.RETRY_DELAY_MS);
                 } else {
                     throw new Error(
-                        `Postgres unavailable after ${Database.MAX_RETRIES} attempts: ${String(err)}`,
+                        `Postgres unavailable after ${DatabaseService.MAX_RETRIES} attempts: ${String(err)}`,
                     );
                 }
             }

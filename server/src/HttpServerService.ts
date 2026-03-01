@@ -8,7 +8,7 @@ import { Server as SocketIOServer } from "socket.io";
 import cors from "cors";
 import { ClientToServerEvents, ServerToClientEvents } from "./types";
 
-export class HttpServer {
+export class HttpServerService {
     public readonly expressApp: Express;
     public readonly httpServer: http.Server;
     public readonly io: SocketIOServer<ClientToServerEvents, ServerToClientEvents>;
@@ -18,7 +18,7 @@ export class HttpServer {
 
     constructor() {
         this.expressApp = express();
-        this.expressApp.use(cors({ origin: HttpServer.ALLOWED_ORIGINS }));
+        this.expressApp.use(cors({ origin: HttpServerService.ALLOWED_ORIGINS }));
 
         // Wrap Express in a raw http.Server so Socket.IO and Express share one port.
         this.httpServer = http.createServer(this.expressApp);
@@ -29,7 +29,7 @@ export class HttpServer {
             this.httpServer,
             {
                 cors: {
-                    origin: HttpServer.ALLOWED_ORIGINS,
+                    origin: HttpServerService.ALLOWED_ORIGINS,
                     methods: ["GET", "POST"],
                 },
                 path: "/socket",

@@ -5,15 +5,17 @@
 
 import Redis from "ioredis";
 
-export class RedisClient {
-    // Public readonly so PubSub can receive them via constructor injection.
+export class RedisService {
+    // Public readonly so the container can expose them via services.redisService.pub/.sub.
     public readonly pub: Redis;
     public readonly sub: Redis;
 
     private static readonly MAX_RETRIES = 10;
     private static readonly RETRY_DELAY_MS = 3000;
 
-    constructor(redisUrl: string) {
+    constructor() {
+        // Read REDIS_URL from environment — same pattern as DatabaseService reading POSTGRES_*.
+        const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
         this.pub = new Redis(redisUrl, { lazyConnect: true });
         this.sub = new Redis(redisUrl, { lazyConnect: true });
     }
@@ -21,7 +23,7 @@ export class RedisClient {
     // Connects both clients and pings pub to confirm the connection is functional.
     // On failure both clients are disconnected so the next attempt starts clean.
     async waitForRedis(): Promise<void> {
-        for (let attempt = 1; attempt <= RedisClient.MAX_RETRIES; attempt++) {
+        for (let attempt = 1; attempt <= RedisService.MAX_RETRIES; attempt++) {
             try {
                 await this.pub.connect();
                 await this.sub.connect();
@@ -32,14 +34,14 @@ export class RedisClient {
                 // Disconnect both so the next attempt starts from a clean state.
                 this.pub.disconnect();
                 this.sub.disconnect();
-                if (attempt < RedisClient.MAX_RETRIES) {
+                if (attempt < RedisService.MAX_RETRIES) {
                     console.log(
-                        `Redis not ready, retrying in ${RedisClient.RETRY_DELAY_MS / 1000}s... (${attempt}/${RedisClient.MAX_RETRIES})`,
+                        `Redis not ready, retrying in ${RedisService.RETRY_DELAY_MS / 1000}s... (${attempt}/${RedisService.MAX_RETRIES})`,
                     );
-                    await RedisClient.sleep(RedisClient.RETRY_DELAY_MS);
+                    await RedisService.sleep(RedisService.RETRY_DELAY_MS);
                 } else {
                     throw new Error(
-                        `Redis unavailable after ${RedisClient.MAX_RETRIES} attempts: ${String(err)}`,
+                        `Redis unavailable after ${RedisService.MAX_RETRIES} attempts: ${String(err)}`,
                     );
                 }
             }

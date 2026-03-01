@@ -1,27 +1,26 @@
 // Persistence helpers: writing updates to Postgres and loading them back.
 // documentId is passed per-call rather than held as instance state,
 // making each method independently usable across multiple documents.
+// Accesses the database via the global container (servicesStore.databaseService.kysely).
 
 import * as Y from "yjs";
-import { Kysely } from "kysely";
-import { DatabaseSchema } from "./schema";
 import { SaveUpdateResult } from "./types";
 import { REMOTE_ORIGIN } from "../constants";
+import { servicesStore } from "../servicesStore";
 
-export class Persistence {
-    constructor(private readonly db: Kysely<DatabaseSchema>) {}
-
+export class PersistenceService {
     // Atomically inserts the Yjs update and increments the document's update counter.
     // Both writes happen inside a single transaction so the counter always reflects
     // the true number of persisted updates.
-    // Returns the new count and the last compaction threshold so SocketHandler
+    // Returns the new count and the last compaction threshold so the compactor
     // can decide whether to schedule a compaction job.
-    // Throws on failure — the caller (persistAndMaybeCompact) catches and logs.
+    // Throws on failure — the caller (saveAndMaybeCompact) catches and logs.
     async saveUpdate(
         documentId: number,
         update: Uint8Array,
     ): Promise<SaveUpdateResult> {
-        return this.db.transaction().execute(async (trx) => {
+        const db = servicesStore.databaseService.kysely;
+        return db.transaction().execute(async (trx) => {
             // 1. Persist the raw Yjs binary.
             await trx
                 .insertInto("document_updates")
@@ -66,7 +65,8 @@ export class Persistence {
     // resolves one CRDT pass instead of N sequential applies.
     // Updates are tagged REMOTE_ORIGIN so no observer re-broadcasts during replay.
     async loadDocFromDb(documentId: number, yDoc: Y.Doc): Promise<void> {
-        const rows = await this.db
+        const db = servicesStore.databaseService.kysely;
+        const rows = await db
             .selectFrom("document_updates")
             .select(["id", "update"])
             .where("document_id", "=", documentId)
