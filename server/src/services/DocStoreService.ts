@@ -6,8 +6,8 @@
 // Accesses PersistenceService and PubSubService via the global container.
 
 import * as Y from "yjs";
-import { DocEntry } from "./types";
-import { servicesStore } from "../servicesStore";
+import { DocEntry } from "../types/types";
+import { servicesStore } from "../store/servicesStore";
 
 export class DocStoreService {
     // Numeric document_id primary key — matches the single doc scope for v0.1.
@@ -79,7 +79,10 @@ export class DocStoreService {
         await servicesStore.pubSubService.subscribeDoc(docId, yDoc);
 
         // Step 2: Replay persisted history from Postgres.
-        await servicesStore.persistenceService.loadDocFromDb(DocStoreService.DOCUMENT_ID, yDoc);
+        await servicesStore.persistenceService.loadDocFromDb(
+            DocStoreService.DOCUMENT_ID,
+            yDoc,
+        );
 
         // Step 3: Flush the cold-start buffer then switch to live mode.
         // Yjs CRDT deduplication handles any overlap between Postgres rows
@@ -96,17 +99,27 @@ export class DocStoreService {
     // Calls itself via setImmediate for any remaining keys so the event loop
     // is not blocked on large registries.
     private sweepBatch(keys: string[], offset: number): void {
-        const end = Math.min(offset + DocStoreService.SWEEP_BATCH_SIZE, keys.length);
+        const end = Math.min(
+            offset + DocStoreService.SWEEP_BATCH_SIZE,
+            keys.length,
+        );
         for (let i = offset; i < end; i++) {
             const key = keys[i];
             const entry = this.docs.get(key);
             // Re-check existence: a concurrent getDoc may have re-populated this key
-            if (entry && Date.now() - entry.lastAccess > DocStoreService.EVICT_AFTER_MS) {
+            if (
+                entry &&
+                Date.now() - entry.lastAccess > DocStoreService.EVICT_AFTER_MS
+            ) {
                 this.docs.delete(key);
                 // Fire-and-forget; errors logged inside unsubscribeDoc
-                servicesStore.pubSubService.unsubscribeDoc(key).catch((err) =>
-                    console.error(`unsubscribeDoc error for ${key}: ${String(err)}`),
-                );
+                servicesStore.pubSubService
+                    .unsubscribeDoc(key)
+                    .catch((err) =>
+                        console.error(
+                            `unsubscribeDoc error for ${key}: ${String(err)}`,
+                        ),
+                    );
                 console.log(`Evicted doc ${key} from memory`);
             }
         }

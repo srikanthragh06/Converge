@@ -9,9 +9,9 @@
 // unsubscribeDoc()— remove subscription on doc eviction.
 
 import * as Y from "yjs";
-import { SubEntry } from "./types";
-import { servicesStore } from "../servicesStore";
-import { SocketHandlerService } from "../sockets/SocketHandlerService";
+import { SubEntry } from "../types/types";
+import { servicesStore } from "../store/servicesStore";
+import { SocketHandlerService } from "./SocketHandlerService";
 
 export class PubSubService {
     // Yjs origin tag — applied when applying a remotely-received update so local
@@ -28,28 +28,39 @@ export class PubSubService {
     init(): void {
         // Single handler for all channels — routes to the correct SubEntry by
         // reversing the channel prefix.
-        servicesStore.redisService.sub.on("message", (channel: string, rawMessage: string) => {
-            const docId = channel.slice(PubSubService.REDIS_CHANNEL_PREFIX.length);
-            const entry = this.subs.get(docId);
-            if (!entry) return;
+        servicesStore.redisService.sub.on(
+            "message",
+            (channel: string, rawMessage: string) => {
+                const docId = channel.slice(
+                    PubSubService.REDIS_CHANNEL_PREFIX.length,
+                );
+                const entry = this.subs.get(docId);
+                if (!entry) return;
 
-            // Redis delivers messages as strings. The publisher encoded bytes as latin1
-            // (lossless binary↔string mapping). Reverse that here to get raw bytes.
-            const update = new Uint8Array(Buffer.from(rawMessage, "binary"));
+                // Redis delivers messages as strings. The publisher encoded bytes as latin1
+                // (lossless binary↔string mapping). Reverse that here to get raw bytes.
+                const update = new Uint8Array(
+                    Buffer.from(rawMessage, "binary"),
+                );
 
-            if (!entry.live) {
-                // Still loading from Postgres — buffer for flush in goLive().
-                entry.buffer.push(update);
-                return;
-            }
+                if (!entry.live) {
+                    // Still loading from Postgres — buffer for flush in goLive().
+                    entry.buffer.push(update);
+                    return;
+                }
 
-            // Live: apply first so the piggybacked serverSV is accurate, then broadcast.
-            // PubSubService.REMOTE_ORIGIN tag prevents any observer in this process from re-publishing.
-            Y.applyUpdate(entry.yDoc, update, PubSubService.REMOTE_ORIGIN);
-            servicesStore.httpServerService.io
-                .to(docId)
-                .emit(SocketHandlerService.SYNC_DOC, update, Y.encodeStateVector(entry.yDoc));
-        });
+                // Live: apply first so the piggybacked serverSV is accurate, then broadcast.
+                // PubSubService.REMOTE_ORIGIN tag prevents any observer in this process from re-publishing.
+                Y.applyUpdate(entry.yDoc, update, PubSubService.REMOTE_ORIGIN);
+                servicesStore.httpServerService.io
+                    .to(docId)
+                    .emit(
+                        SocketHandlerService.SYNC_DOC,
+                        update,
+                        Y.encodeStateVector(entry.yDoc),
+                    );
+            },
+        );
     }
 
     // Subscribes to the Redis channel for docId in buffer mode.
@@ -81,7 +92,11 @@ export class PubSubService {
             Y.applyUpdate(entry.yDoc, merged, PubSubService.REMOTE_ORIGIN);
             servicesStore.httpServerService.io
                 .to(docId)
-                .emit(SocketHandlerService.SYNC_DOC, merged, Y.encodeStateVector(entry.yDoc));
+                .emit(
+                    SocketHandlerService.SYNC_DOC,
+                    merged,
+                    Y.encodeStateVector(entry.yDoc),
+                );
         }
 
         entry.buffer = [];
@@ -112,7 +127,9 @@ export class PubSubService {
         if (!this.subs.has(docId)) return;
         this.subs.delete(docId);
         try {
-            await servicesStore.redisService.sub.unsubscribe(this.channelFor(docId));
+            await servicesStore.redisService.sub.unsubscribe(
+                this.channelFor(docId),
+            );
             console.log(`Redis: unsubscribed from ${this.channelFor(docId)}`);
         } catch (err) {
             console.error(

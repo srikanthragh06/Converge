@@ -4,7 +4,7 @@
 
 import { Pool, types } from "pg";
 import { Kysely, PostgresDialect, sql } from "kysely";
-import { DatabaseSchema } from "./schema";
+import { DatabaseSchema } from "../db/schema";
 
 export class DatabaseService {
     // Public readonly so the container can expose it via services.databaseService.kysely.
@@ -36,7 +36,11 @@ export class DatabaseService {
     // Needed because on a cold docker-compose up the server container can start
     // before Postgres is ready to accept connections.
     async waitForDb(): Promise<void> {
-        for (let attempt = 1; attempt <= DatabaseService.MAX_RETRIES; attempt++) {
+        for (
+            let attempt = 1;
+            attempt <= DatabaseService.MAX_RETRIES;
+            attempt++
+        ) {
             try {
                 const client = await this.pool.connect();
                 try {

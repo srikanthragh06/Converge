@@ -1,7 +1,7 @@
 // Lifecycle orchestrator: waits for infrastructure, runs migrations, then opens the port.
 // All service instances are accessed from the global container module.
 
-import { servicesStore } from "./servicesStore";
+import { servicesStore } from "./store/servicesStore";
 
 export class App {
     constructor(private readonly port: number) {}

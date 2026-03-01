@@ -4,9 +4,9 @@
 // Accesses the database via the global container (servicesStore.databaseService.kysely).
 
 import * as Y from "yjs";
-import { SaveUpdateResult } from "./types";
-import { servicesStore } from "../servicesStore";
-import { PubSubService } from "../redis/PubSubService";
+import { SaveUpdateResult } from "../types/types";
+import { servicesStore } from "../store/servicesStore";
+import { PubSubService } from "./PubSubService";
 
 export class PersistenceService {
     // Atomically inserts the Yjs update and increments the document's update counter.

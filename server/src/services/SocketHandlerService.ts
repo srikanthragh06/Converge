@@ -4,11 +4,11 @@
 // All dependencies are accessed via the global container.
 
 import * as Y from "yjs";
-import { TypedSocket } from "../types";
+import { TypedSocket } from "../types/types";
 import { safeSocketHandler, mapsEqual } from "../utils";
-import { servicesStore } from "../servicesStore";
-import { PubSubService } from "../redis/PubSubService";
-import { DocStoreService } from "../store/DocStoreService";
+import { servicesStore } from "../store/servicesStore";
+import { PubSubService } from "./PubSubService";
+import { DocStoreService } from "./DocStoreService";
 
 export class SocketHandlerService {
     // Socket.IO event names — must match the client-side constants exactly.
@@ -29,16 +29,20 @@ export class SocketHandlerService {
 
         // Lazy-load: retrieves the Y.Doc from cache or loads from Postgres.
         // All handlers below close over this resolved yDoc reference.
-        const yDoc = await servicesStore.docStoreService.getDoc(SocketHandlerService.DOC_ID);
+        const yDoc = await servicesStore.docStoreService.getDoc(
+            SocketHandlerService.DOC_ID,
+        );
 
         // All clients join the same room so broadcasts are scoped to the document.
         socket.join(SocketHandlerService.DOC_ID);
 
         socket.on(
             SocketHandlerService.SYNC_DOC,
-            safeSocketHandler(async (update: Uint8Array, clientSV: Uint8Array) => {
-                await this.handleSyncDoc(socket, yDoc, update, clientSV);
-            }),
+            safeSocketHandler(
+                async (update: Uint8Array, clientSV: Uint8Array) => {
+                    await this.handleSyncDoc(socket, yDoc, update, clientSV);
+                },
+            ),
         );
 
         socket.on(
@@ -91,23 +95,37 @@ export class SocketHandlerService {
         servicesStore.docStoreService.touchDoc(SocketHandlerService.DOC_ID);
 
         // 1. Publish to Redis so other server instances receive and relay the update.
-        servicesStore.pubSubService.publishUpdate(SocketHandlerService.DOC_ID, new Uint8Array(update));
-
-        // 2. Persist to Postgres, then check whether compaction should be triggered.
-        const { count, lastCompactCount } = await servicesStore.persistenceService.saveUpdate(
-            DocStoreService.DOCUMENT_ID,
+        servicesStore.pubSubService.publishUpdate(
+            SocketHandlerService.DOC_ID,
             new Uint8Array(update),
         );
-        servicesStore.compactorService.compact(DocStoreService.DOCUMENT_ID, count, lastCompactCount);
+
+        // 2. Persist to Postgres, then check whether compaction should be triggered.
+        const { count, lastCompactCount } =
+            await servicesStore.persistenceService.saveUpdate(
+                DocStoreService.DOCUMENT_ID,
+                new Uint8Array(update),
+            );
+        servicesStore.compactorService.compact(
+            DocStoreService.DOCUMENT_ID,
+            count,
+            lastCompactCount,
+        );
 
         // 3. Apply to server Y.Doc tagged as remote to prevent re-broadcast loops.
         //    Apply before relay so the serverSV we piggyback reflects this update.
-        Y.applyUpdate(yDoc, new Uint8Array(update), PubSubService.REMOTE_ORIGIN);
+        Y.applyUpdate(
+            yDoc,
+            new Uint8Array(update),
+            PubSubService.REMOTE_ORIGIN,
+        );
 
         // 4. Relay update + current serverSV to every other client in the room.
         //    Recipients use the SV to detect their own divergence without a round trip.
         const serverSV = Y.encodeStateVector(yDoc);
-        socket.to(SocketHandlerService.DOC_ID).emit(SocketHandlerService.SYNC_DOC, update, serverSV);
+        socket
+            .to(SocketHandlerService.DOC_ID)
+            .emit(SocketHandlerService.SYNC_DOC, update, serverSV);
 
         // 5. Compare server SV against the originating client's SV.
         //    If they differ, either side has ops the other is missing.
@@ -147,17 +165,27 @@ export class SocketHandlerService {
         servicesStore.docStoreService.touchDoc(SocketHandlerService.DOC_ID);
 
         // 1. Relay repair diff to all other clients on this server.
-        socket.to(SocketHandlerService.DOC_ID).emit(SocketHandlerService.REPAIR_RESPONSE, diff);
+        socket
+            .to(SocketHandlerService.DOC_ID)
+            .emit(SocketHandlerService.REPAIR_RESPONSE, diff);
 
         // 2. Publish to Redis so other server instances relay the diff too.
-        servicesStore.pubSubService.publishUpdate(SocketHandlerService.DOC_ID, new Uint8Array(diff));
-
-        // 3. Persist — this is new content the server was missing.
-        const { count, lastCompactCount } = await servicesStore.persistenceService.saveUpdate(
-            DocStoreService.DOCUMENT_ID,
+        servicesStore.pubSubService.publishUpdate(
+            SocketHandlerService.DOC_ID,
             new Uint8Array(diff),
         );
-        servicesStore.compactorService.compact(DocStoreService.DOCUMENT_ID, count, lastCompactCount);
+
+        // 3. Persist — this is new content the server was missing.
+        const { count, lastCompactCount } =
+            await servicesStore.persistenceService.saveUpdate(
+                DocStoreService.DOCUMENT_ID,
+                new Uint8Array(diff),
+            );
+        servicesStore.compactorService.compact(
+            DocStoreService.DOCUMENT_ID,
+            count,
+            lastCompactCount,
+        );
 
         // 4. Apply locally to bring the server Y.Doc into full sync.
         Y.applyUpdate(yDoc, new Uint8Array(diff), PubSubService.REMOTE_ORIGIN);
@@ -178,7 +206,11 @@ export class SocketHandlerService {
             yDoc,
             new Uint8Array(clientSV),
         );
-        socket.emit(SocketHandlerService.HEARTBEAT_SYNCACK, diffForClient, serverSV);
+        socket.emit(
+            SocketHandlerService.HEARTBEAT_SYNCACK,
+            diffForClient,
+            serverSV,
+        );
     }
 
     // heartbeat_ack: client sends what the server is missing (computed from the
@@ -192,14 +224,22 @@ export class SocketHandlerService {
         servicesStore.docStoreService.touchDoc(SocketHandlerService.DOC_ID);
 
         // Relay to other server instances via Redis.
-        servicesStore.pubSubService.publishUpdate(SocketHandlerService.DOC_ID, new Uint8Array(diff));
-
-        // Persist the new content, then apply to bring server Y.Doc fully in sync.
-        const { count, lastCompactCount } = await servicesStore.persistenceService.saveUpdate(
-            DocStoreService.DOCUMENT_ID,
+        servicesStore.pubSubService.publishUpdate(
+            SocketHandlerService.DOC_ID,
             new Uint8Array(diff),
         );
-        servicesStore.compactorService.compact(DocStoreService.DOCUMENT_ID, count, lastCompactCount);
+
+        // Persist the new content, then apply to bring server Y.Doc fully in sync.
+        const { count, lastCompactCount } =
+            await servicesStore.persistenceService.saveUpdate(
+                DocStoreService.DOCUMENT_ID,
+                new Uint8Array(diff),
+            );
+        servicesStore.compactorService.compact(
+            DocStoreService.DOCUMENT_ID,
+            count,
+            lastCompactCount,
+        );
         Y.applyUpdate(yDoc, new Uint8Array(diff), PubSubService.REMOTE_ORIGIN);
     }
 }

@@ -7,7 +7,7 @@
 // fully independent.
 
 import * as Y from "yjs";
-import { servicesStore } from "../servicesStore";
+import { servicesStore } from "../store/servicesStore";
 
 export class CompactorService {
     private static readonly LOCK_KEY_PREFIX = "lock:compact:";
@@ -23,14 +23,11 @@ export class CompactorService {
     // threshold and, if so, schedules a compaction job via setTimeout(0) so it
     // runs off the hot sync path.
     // count and lastCompactCount come directly from persistenceService.saveUpdate().
-    compact(
-        documentId: number,
-        count: bigint,
-        lastCompactCount: bigint,
-    ): void {
+    compact(documentId: number, count: bigint, lastCompactCount: bigint): void {
         // e.g. count=3603 → threshold=3000, count=4000 → threshold=4000
         const threshold =
-            (count / CompactorService.COMPACTION_THRESHOLD) * CompactorService.COMPACTION_THRESHOLD;
+            (count / CompactorService.COMPACTION_THRESHOLD) *
+            CompactorService.COMPACTION_THRESHOLD;
 
         // Only trigger if this threshold hasn't been compacted yet.
         if (threshold > lastCompactCount) {
