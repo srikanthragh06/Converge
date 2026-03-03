@@ -3,7 +3,9 @@
 // All Postgres credentials come from environment variables.
 
 import { Pool, types } from "pg";
-import { Kysely, PostgresDialect, sql } from "kysely";
+import { FileMigrationProvider, Kysely, Migrator, PostgresDialect } from "kysely";
+import { promises as fs } from "fs";
+import * as path from "path";
 import { DatabaseSchema } from "../db/schema";
 
 export class DatabaseService {
@@ -65,49 +67,39 @@ export class DatabaseService {
         }
     }
 
-    // Creates all tables and indexes idempotently. Safe to call on every startup.
+    // Runs all pending migrations to latest using Kysely's Migrator.
+    // Logs the result of each individual migration file.
+    // Throws if any migration fails.
     async migrate(): Promise<void> {
-        // One row per document: monotonic update counter + last compaction threshold.
-        // update_count increments on every write; last_compact_count tracks which
-        // 500-multiple was last compacted so each threshold is only processed once.
-        // Created first — document_updates.document_id references this table's PK.
-        await this.kysely.schema
-            .createTable("document_meta")
-            .ifNotExists()
-            .addColumn("document_id", "integer", (c) => c.primaryKey())
-            .addColumn("update_count", "bigint", (c) =>
-                c.notNull().defaultTo(0),
-            )
-            .addColumn("last_compact_count", "bigint", (c) =>
-                c.notNull().defaultTo(0),
-            )
-            .execute();
+        const migrator = new Migrator({
+            db: this.kysely,
+            provider: new FileMigrationProvider({
+                fs,
+                path,
+                // Absolute path to the migrations directory — works for both
+                // ts-node/tsx (dev) and compiled JS (prod) because __dirname
+                // resolves relative to this file in both cases.
+                migrationFolder: path.join(__dirname, "../migrations"),
+            }),
+        });
 
-        // Append-only Yjs update log — primary persistence store.
-        // document_id is a FK to document_meta.document_id so every update row
-        // is tied to a known document record.
-        await this.kysely.schema
-            .createTable("document_updates")
-            .ifNotExists()
-            .addColumn("id", "bigserial", (c) => c.primaryKey())
-            .addColumn("document_id", "integer", (c) =>
-                c.notNull().references("document_meta.document_id"),
-            )
-            .addColumn("update", "bytea", (c) => c.notNull())
-            .addColumn("created_at", "timestamptz", (c) =>
-                c.notNull().defaultTo(sql`now()`),
-            )
-            .execute();
+        const { error, results } = await migrator.migrateToLatest();
 
-        // Index on document_id so range queries (load, compact) don't do full-table scans.
-        await this.kysely.schema
-            .createIndex("document_updates_document_id_idx")
-            .ifNotExists()
-            .on("document_updates")
-            .column("document_id")
-            .execute();
+        for (const result of results ?? []) {
+            if (result.status === "Success") {
+                console.log(
+                    `Migration "${result.migrationName}" applied successfully`,
+                );
+            } else if (result.status === "Error") {
+                console.error(`Migration "${result.migrationName}" failed`);
+            }
+        }
 
-        console.log("Migration complete");
+        if (error) {
+            throw new Error(`Migration failed: ${String(error)}`);
+        }
+
+        console.log("All migrations complete");
     }
 
     private static sleep(ms: number): Promise<void> {
