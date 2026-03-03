@@ -126,7 +126,7 @@ Single-doc scope throughout. Auth, awareness, offline support, and auto-scaling 
 
 ## v0.065 — Container / Directory Refactor ✅
 **Goal:** Flatten server source layout — one `services/` directory for all service classes, shared types and utils in their own directories, `servicesStore` as a global module (no constructor injection).
-**Branch:** `container-v0.065` | **Status:** COMPLETE
+**Branch:** `refactor-v0.065` | **Status:** COMPLETE
 
 ### Delivered
 - Constructor DI replaced with global `servicesStore` module: all services access dependencies via `import { servicesStore }` — no constructor parameters on any service class

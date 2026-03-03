@@ -1,66 +1,79 @@
 // Handles compaction only — saving is done separately by PersistenceService.
-// compact() checks whether a new threshold has been crossed and, if so,
-// fires the actual DB compaction job under a Redis distributed lock.
+// checkAndCompactDocumentUpdates() checks whether a new threshold has been crossed
+// and, if so, fires the actual DB compaction job under a Redis distributed lock.
 //
 // Socket handlers call persistenceService.saveUpdate() first, then pass the
-// resulting counts to compactorService.compact() — keeping the two concerns
-// fully independent.
+// resulting counts to compactorService.checkAndCompactDocumentUpdates() — keeping
+// the two concerns fully independent.
 
 import * as Y from "yjs";
 import { servicesStore } from "../store/servicesStore";
+import { REDIS_OK } from "../constants/constants";
 
 export class CompactorService {
-    private static readonly LOCK_KEY_PREFIX = "lock:compact:";
+    private static readonly DOCUMENT_UPDATES_COMPACTION_LOCK_PREFIX =
+        "document_updates_compaction_lock:";
     // Lock TTL in seconds — generous upper bound on how long compaction can take.
     // If the process crashes mid-compaction the lock auto-expires so the next
     // trigger can proceed.
-    private static readonly LOCK_TTL_S = 30;
+    private static readonly DOCUMENT_UPDATES_COMPACTION_LOCK_TTL_S =
+        24 * 60 * 60; // 24 hours
     // Compaction fires when update_count crosses a new multiple of this value.
     // BigInt because document_meta.update_count is BIGINT (mapped to JS BigInt).
     private static readonly COMPACTION_THRESHOLD = BigInt(500);
 
-    // Checks whether the current update count has crossed a new 500-multiple
-    // threshold and, if so, schedules a compaction job via setTimeout(0) so it
-    // runs off the hot sync path.
-    // count and lastCompactCount come directly from persistenceService.saveUpdate().
-    compact(documentId: number, count: bigint, lastCompactCount: bigint): void {
-        // e.g. count=3603 → threshold=3000, count=4000 → threshold=4000
-        const threshold =
-            (count / CompactorService.COMPACTION_THRESHOLD) *
-            CompactorService.COMPACTION_THRESHOLD;
+    // Checks whether currentCompactCount has crossed a new 500-multiple threshold
+    // that hasn't been compacted yet. If so, fires runCompaction() immediately
+    // (fire-and-forget) so it runs off the hot sync path.
+    // currentCompactCount and lastDocumentUpdatesCompactCount come directly from
+    // persistenceService.saveUpdate().
+    checkAndCompactDocumentUpdates(
+        documentId: number,
+        currentCompactCount: bigint,
+        lastDocumentUpdatesCompactCount: bigint,
+    ): void {
+        // e.g. currentCompactCount=523, lastDocumentUpdatesCompactCount=500, threshold=500 => no compaction
+        // e.g. currentCompactCount=1001, lastDocumentUpdatesCompactCount=500, threshold=1000 => compaction
+        const currentThreshold = BigInt(
+            Math.floor(
+                Number(currentCompactCount) /
+                    Number(CompactorService.COMPACTION_THRESHOLD),
+            ) * Number(CompactorService.COMPACTION_THRESHOLD),
+        );
 
         // Only trigger if this threshold hasn't been compacted yet.
-        if (threshold > lastCompactCount) {
-            setTimeout(() => {
-                this.runCompaction(documentId, threshold).catch((err) =>
+        if (currentThreshold > lastDocumentUpdatesCompactCount) {
+            void this.runCompaction(documentId, currentThreshold).catch(
+                (err) => {
                     console.error(
                         `Compaction error for doc ${documentId}: ${String(err)}`,
-                    ),
-                );
-            }, 0);
+                    );
+                },
+            );
         }
     }
 
-    // Acquires a Redis NX lock, merges all update rows up to the current MAX(id)
-    // into a single Yjs update, then atomically replaces them with that one row
-    // and records the compacted threshold in document_meta.
+    // Acquires a Redis NX lock keyed to documentId, merges all update rows up to
+    // the current MAX(id) into a single Yjs update, then atomically replaces them
+    // with that one row and records newThreshold in document_meta.last_compact_count.
     private async runCompaction(
         documentId: number,
-        threshold: bigint,
+        newThreshold: bigint,
     ): Promise<void> {
-        const lockKey = this.lockKey(documentId);
-        const redis = servicesStore.redisService.pub;
+        const lockKey =
+            this.generateDocumentUpdatesCompactionLockKey(documentId);
+        const redisPubClient = servicesStore.redisService.pub;
         const db = servicesStore.databaseService.kysely;
 
         // NX = set only if not exists; EX = expire after LOCK_TTL_S seconds.
-        const acquired = await redis.set(
-            lockKey,
-            "1",
-            "EX",
-            CompactorService.LOCK_TTL_S,
-            "NX",
+        const acquired = await redisPubClient.set(
+            lockKey, // Unique lock key for this document
+            "1", // Arbitrary lock value (not used here)
+            "EX", // Expiration mode
+            CompactorService.DOCUMENT_UPDATES_COMPACTION_LOCK_TTL_S, // TTL in seconds
+            "NX", // Only set if key does not exist
         );
-        if (acquired !== "OK") {
+        if (acquired !== REDIS_OK) {
             console.log(
                 `Compaction skipped for doc ${documentId}: lock held by another server`,
             );
@@ -70,18 +83,18 @@ export class CompactorService {
         try {
             // Snapshot the current MAX(id) so we have a stable upper bound.
             // Rows inserted after this point are not touched.
-            const maxRow = await db
+            const maxIDRow = await db
                 .selectFrom("document_updates")
                 .select((eb) => eb.fn.max("id").as("max_id"))
                 .where("document_id", "=", documentId)
                 .executeTakeFirst();
 
-            if (maxRow?.max_id == null) {
+            if (maxIDRow?.max_id == null) {
                 // Nothing in the table yet — nothing to compact.
                 return;
             }
 
-            const lastId = maxRow.max_id; // bigint
+            const lastId = maxIDRow.max_id; // bigint
 
             // Load all updates up to and including lastId.
             // Order is not required — Y.mergeUpdates is commutative.
@@ -98,7 +111,7 @@ export class CompactorService {
             }
 
             // Merge all updates into a single Yjs state update.
-            const merged = Y.mergeUpdates(
+            const mergedDocUpdates = Y.mergeUpdates(
                 rows.map((r) => new Uint8Array(r.update as unknown as Buffer)),
             );
 
@@ -109,7 +122,7 @@ export class CompactorService {
                     .insertInto("document_updates")
                     .values({
                         document_id: documentId,
-                        update: Buffer.from(merged),
+                        update: Buffer.from(mergedDocUpdates),
                     })
                     .execute();
 
@@ -124,13 +137,13 @@ export class CompactorService {
                 // update_count is left untouched — concurrent writes keep incrementing it.
                 await trx
                     .updateTable("document_meta")
-                    .set({ last_compact_count: threshold })
+                    .set({ last_compact_count: newThreshold })
                     .where("document_id", "=", documentId)
                     .execute();
             });
 
             console.log(
-                `Compaction complete for doc ${documentId}: merged ${rows.length} rows (threshold=${threshold})`,
+                `Compaction complete for doc ${documentId}: merged ${rows.length} rows (threshold=${newThreshold})`,
             );
         } catch (err) {
             console.error(
@@ -138,7 +151,7 @@ export class CompactorService {
             );
         } finally {
             // Best-effort release — TTL is the safety net if this fails.
-            await redis
+            await redisPubClient
                 .del(lockKey)
                 .catch((err) =>
                     console.error(
@@ -148,7 +161,12 @@ export class CompactorService {
         }
     }
 
-    private lockKey(documentId: number): string {
-        return CompactorService.LOCK_KEY_PREFIX + String(documentId);
+    private generateDocumentUpdatesCompactionLockKey(
+        documentId: number,
+    ): string {
+        return (
+            CompactorService.DOCUMENT_UPDATES_COMPACTION_LOCK_PREFIX +
+            String(documentId)
+        );
     }
 }

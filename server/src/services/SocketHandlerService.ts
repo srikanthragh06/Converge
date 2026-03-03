@@ -106,7 +106,7 @@ export class SocketHandlerService {
                 DocStoreService.DOCUMENT_ID,
                 new Uint8Array(update),
             );
-        servicesStore.compactorService.compact(
+        servicesStore.compactorService.checkAndCompactDocumentUpdates(
             DocStoreService.DOCUMENT_ID,
             count,
             lastCompactCount,
@@ -181,7 +181,7 @@ export class SocketHandlerService {
                 DocStoreService.DOCUMENT_ID,
                 new Uint8Array(diff),
             );
-        servicesStore.compactorService.compact(
+        servicesStore.compactorService.checkAndCompactDocumentUpdates(
             DocStoreService.DOCUMENT_ID,
             count,
             lastCompactCount,
@@ -235,7 +235,7 @@ export class SocketHandlerService {
                 DocStoreService.DOCUMENT_ID,
                 new Uint8Array(diff),
             );
-        servicesStore.compactorService.compact(
+        servicesStore.compactorService.checkAndCompactDocumentUpdates(
             DocStoreService.DOCUMENT_ID,
             count,
             lastCompactCount,
