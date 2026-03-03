@@ -67,12 +67,32 @@ export class DatabaseService {
 
     // Creates all tables and indexes idempotently. Safe to call on every startup.
     async migrate(): Promise<void> {
+        // One row per document: monotonic update counter + last compaction threshold.
+        // update_count increments on every write; last_compact_count tracks which
+        // 500-multiple was last compacted so each threshold is only processed once.
+        // Created first — document_updates.document_id references this table's PK.
+        await this.kysely.schema
+            .createTable("document_meta")
+            .ifNotExists()
+            .addColumn("document_id", "integer", (c) => c.primaryKey())
+            .addColumn("update_count", "bigint", (c) =>
+                c.notNull().defaultTo(0),
+            )
+            .addColumn("last_compact_count", "bigint", (c) =>
+                c.notNull().defaultTo(0),
+            )
+            .execute();
+
         // Append-only Yjs update log — primary persistence store.
+        // document_id is a FK to document_meta.document_id so every update row
+        // is tied to a known document record.
         await this.kysely.schema
             .createTable("document_updates")
             .ifNotExists()
             .addColumn("id", "bigserial", (c) => c.primaryKey())
-            .addColumn("document_id", "integer", (c) => c.notNull())
+            .addColumn("document_id", "integer", (c) =>
+                c.notNull().references("document_meta.document_id"),
+            )
             .addColumn("update", "bytea", (c) => c.notNull())
             .addColumn("created_at", "timestamptz", (c) =>
                 c.notNull().defaultTo(sql`now()`),
@@ -85,21 +105,6 @@ export class DatabaseService {
             .ifNotExists()
             .on("document_updates")
             .column("document_id")
-            .execute();
-
-        // One row per document: monotonic update counter + last compaction threshold.
-        // update_count increments on every write; last_compact_count tracks which
-        // 1000-multiple was last compacted so each threshold is only processed once.
-        await this.kysely.schema
-            .createTable("document_meta")
-            .ifNotExists()
-            .addColumn("document_id", "integer", (c) => c.primaryKey())
-            .addColumn("update_count", "bigint", (c) =>
-                c.notNull().defaultTo(0),
-            )
-            .addColumn("last_compact_count", "bigint", (c) =>
-                c.notNull().defaultTo(0),
-            )
             .execute();
 
         console.log("Migration complete");
