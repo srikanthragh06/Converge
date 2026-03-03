@@ -15,7 +15,7 @@ export class PersistenceService {
     // Returns the new count and the last compaction threshold so the compactor
     // can decide whether to schedule a compaction job.
     // Throws on failure — the caller (saveAndMaybeCompact) catches and logs.
-    async saveUpdate(
+    async saveYDocUpdate(
         documentId: number,
         update: Uint8Array,
     ): Promise<SaveUpdateResult> {
@@ -64,7 +64,7 @@ export class PersistenceService {
     // Merging first is more efficient than applying each row individually — Yjs
     // resolves one CRDT pass instead of N sequential applies.
     // Updates are tagged REMOTE_ORIGIN so no observer re-broadcasts during replay.
-    async loadDocFromDb(documentId: number, yDoc: Y.Doc): Promise<void> {
+    async loadYDocFromDb(documentId: number, yDoc: Y.Doc): Promise<void> {
         const db = servicesStore.databaseService.kysely;
         const rows = await db
             .selectFrom("document_updates")

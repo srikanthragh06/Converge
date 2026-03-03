@@ -102,7 +102,7 @@ export class SocketHandlerService {
 
         // 2. Persist to Postgres, then check whether compaction should be triggered.
         const { count, lastCompactCount } =
-            await servicesStore.persistenceService.saveUpdate(
+            await servicesStore.persistenceService.saveYDocUpdate(
                 YDocStoreService.DOCUMENT_ID,
                 new Uint8Array(update),
             );
@@ -177,7 +177,7 @@ export class SocketHandlerService {
 
         // 3. Persist — this is new content the server was missing.
         const { count, lastCompactCount } =
-            await servicesStore.persistenceService.saveUpdate(
+            await servicesStore.persistenceService.saveYDocUpdate(
                 YDocStoreService.DOCUMENT_ID,
                 new Uint8Array(diff),
             );
@@ -231,7 +231,7 @@ export class SocketHandlerService {
 
         // Persist the new content, then apply to bring server Y.Doc fully in sync.
         const { count, lastCompactCount } =
-            await servicesStore.persistenceService.saveUpdate(
+            await servicesStore.persistenceService.saveYDocUpdate(
                 YDocStoreService.DOCUMENT_ID,
                 new Uint8Array(diff),
             );

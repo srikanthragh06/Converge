@@ -83,7 +83,7 @@ export class YDocStoreService {
         await servicesStore.pubSubService.subscribeDoc(docId, yDoc);
 
         // Step 2: Replay persisted history from Postgres.
-        await servicesStore.persistenceService.loadDocFromDb(
+        await servicesStore.persistenceService.loadYDocFromDb(
             YDocStoreService.DOCUMENT_ID,
             yDoc,
         );
