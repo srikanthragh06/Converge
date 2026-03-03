@@ -29,7 +29,7 @@ export class App {
         servicesStore.pubSubService.init();
 
         // Start the background sweeper that evicts idle docs from memory.
-        servicesStore.docStoreService.startSweeper();
+        servicesStore.docStoreService.setYDocSweepInterval();
 
         // Open the HTTP + Socket.IO listener — safe now that all infra is ready.
         servicesStore.httpServerService.listen(this.port);
