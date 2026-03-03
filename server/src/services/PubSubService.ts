@@ -12,11 +12,9 @@ import * as Y from "yjs";
 import { SubEntry } from "../types/types";
 import { servicesStore } from "../store/servicesStore";
 import { SocketHandlerService } from "./SocketHandlerService";
+import { REMOTE_ORIGIN } from "../constants/constants";
 
 export class PubSubService {
-    // Yjs origin tag — applied when applying a remotely-received update so local
-    // observers know not to re-broadcast it.
-    static readonly REMOTE_ORIGIN = "remote";
     // Redis pub/sub channel prefix: full channel is PubSubService.REDIS_CHANNEL_PREFIX + docId.
     private static readonly REDIS_CHANNEL_PREFIX = "yjs:";
 
@@ -51,7 +49,7 @@ export class PubSubService {
 
                 // Live: apply first so the piggybacked serverSV is accurate, then broadcast.
                 // PubSubService.REMOTE_ORIGIN tag prevents any observer in this process from re-publishing.
-                Y.applyUpdate(entry.yDoc, update, PubSubService.REMOTE_ORIGIN);
+                Y.applyUpdate(entry.yDoc, update, REMOTE_ORIGIN);
                 servicesStore.httpServerService.io
                     .to(docId)
                     .emit(
@@ -89,7 +87,7 @@ export class PubSubService {
         if (entry.buffer.length > 0) {
             // Apply first so the piggybacked serverSV reflects the full merged state.
             const merged = Y.mergeUpdates(entry.buffer);
-            Y.applyUpdate(entry.yDoc, merged, PubSubService.REMOTE_ORIGIN);
+            Y.applyUpdate(entry.yDoc, merged, REMOTE_ORIGIN);
             servicesStore.httpServerService.io
                 .to(docId)
                 .emit(
