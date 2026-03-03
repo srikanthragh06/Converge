@@ -4,6 +4,7 @@
 // Both use lazyConnect: true so TCP connections are deferred to waitForRedis().
 
 import Redis from "ioredis";
+import { sleep } from "../utils/utils";
 
 export class RedisService {
     // Public readonly so the container can expose them via services.redisService.pub/.sub.
@@ -38,7 +39,7 @@ export class RedisService {
                     console.log(
                         `Redis not ready, retrying in ${RedisService.RETRY_DELAY_MS / 1000}s... (${attempt}/${RedisService.MAX_RETRIES})`,
                     );
-                    await RedisService.sleep(RedisService.RETRY_DELAY_MS);
+                    await sleep(RedisService.RETRY_DELAY_MS);
                 } else {
                     throw new Error(
                         `Redis unavailable after ${RedisService.MAX_RETRIES} attempts: ${String(err)}`,
@@ -46,9 +47,5 @@ export class RedisService {
                 }
             }
         }
-    }
-
-    private static sleep(ms: number): Promise<void> {
-        return new Promise((r) => setTimeout(r, ms));
     }
 }

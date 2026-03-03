@@ -3,10 +3,16 @@
 // All Postgres credentials come from environment variables.
 
 import { Pool, types } from "pg";
-import { FileMigrationProvider, Kysely, Migrator, PostgresDialect } from "kysely";
+import {
+    FileMigrationProvider,
+    Kysely,
+    Migrator,
+    PostgresDialect,
+} from "kysely";
 import { promises as fs } from "fs";
 import * as path from "path";
 import { DatabaseSchema } from "../db/schema";
+import { sleep } from "../utils/utils";
 
 export class DatabaseService {
     // Public readonly so the container can expose it via services.databaseService.kysely.
@@ -57,7 +63,7 @@ export class DatabaseService {
                     console.log(
                         `Postgres not ready, retrying in ${DatabaseService.RETRY_DELAY_MS / 1000}s... (${attempt}/${DatabaseService.MAX_RETRIES})`,
                     );
-                    await DatabaseService.sleep(DatabaseService.RETRY_DELAY_MS);
+                    await sleep(DatabaseService.RETRY_DELAY_MS);
                 } else {
                     throw new Error(
                         `Postgres unavailable after ${DatabaseService.MAX_RETRIES} attempts: ${String(err)}`,
@@ -100,9 +106,5 @@ export class DatabaseService {
         }
 
         console.log("All migrations complete");
-    }
-
-    private static sleep(ms: number): Promise<void> {
-        return new Promise((r) => setTimeout(r, ms));
     }
 }
