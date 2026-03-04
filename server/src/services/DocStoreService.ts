@@ -82,10 +82,34 @@ export class YDocStoreService {
         }, YDocStoreService.YDOC_SWEEP_INTERVAL_MS);
     }
 
-    // Public accessor used by PubSubService.init() to look up the SubEntry for
-    // an incoming Redis channel message without coupling PubSubService to doc state.
-    getYDocRedisSubEntry(docId: string): SubEntry | undefined {
-        return this.yDocRedisSubEntries.get(docId);
+    // Applies an incoming Redis pub/sub message for a document.
+    // Called by PubSubService for every message on a document update channel.
+    // Buffers the update if the doc is still loading from Postgres, or applies
+    // and broadcasts it immediately if the subscription is already live.
+    handleRedisDocumentUpdate(docId: string, rawMessage: string): void {
+        const entry = this.yDocRedisSubEntries.get(docId);
+        if (!entry) return;
+
+        // Redis delivers messages as strings. The publisher encoded bytes as latin1
+        // (lossless binary↔string mapping). Reverse that here to get raw bytes.
+        const update = new Uint8Array(Buffer.from(rawMessage, "binary"));
+
+        if (!entry.live) {
+            // Still loading from Postgres — buffer for flush in activateYDocRedisChannel().
+            entry.buffer.push(update);
+            return;
+        }
+
+        // Live: apply first so the piggybacked serverSV is accurate, then broadcast.
+        // REMOTE_ORIGIN tag prevents any observer in this process from re-publishing.
+        Y.applyUpdate(entry.yDoc, update, REMOTE_ORIGIN);
+        servicesStore.httpServerService.io
+            .to(docId)
+            .emit(
+                SocketHandlerService.SYNC_DOC,
+                update,
+                Y.encodeStateVector(entry.yDoc),
+            );
     }
 
     // Subscribes to the Redis channel for docId in buffer mode.
