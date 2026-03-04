@@ -6,7 +6,6 @@
 import * as Y from "yjs";
 import { SaveUpdateResult } from "../types/types";
 import { servicesStore } from "../store/servicesStore";
-import { PubSubService } from "./PubSubService";
 import { REMOTE_ORIGIN } from "../constants/constants";
 
 export class PersistenceService {

@@ -7,8 +7,8 @@ import * as Y from "yjs";
 import { TypedSocket } from "../types/types";
 import { safeSocketHandler, mapsEqual } from "../utils/utils";
 import { servicesStore } from "../store/servicesStore";
-import { PubSubService } from "./PubSubService";
 import { YDocStoreService } from "./DocStoreService";
+import { REMOTE_ORIGIN } from "../constants/constants";
 
 export class SocketHandlerService {
     // Socket.IO event names — must match the client-side constants exactly.
@@ -114,11 +114,7 @@ export class SocketHandlerService {
 
         // 3. Apply to server Y.Doc tagged as remote to prevent re-broadcast loops.
         //    Apply before relay so the serverSV we piggyback reflects this update.
-        Y.applyUpdate(
-            yDoc,
-            new Uint8Array(update),
-            PubSubService.REMOTE_ORIGIN,
-        );
+        Y.applyUpdate(yDoc, new Uint8Array(update), REMOTE_ORIGIN);
 
         // 4. Relay update + current serverSV to every other client in the room.
         //    Recipients use the SV to detect their own divergence without a round trip.
@@ -188,7 +184,7 @@ export class SocketHandlerService {
         );
 
         // 4. Apply locally to bring the server Y.Doc into full sync.
-        Y.applyUpdate(yDoc, new Uint8Array(diff), PubSubService.REMOTE_ORIGIN);
+        Y.applyUpdate(yDoc, new Uint8Array(diff), REMOTE_ORIGIN);
     }
 
     // heartbeat_sync: client sends its current SV every HEARTBEAT_INTERVAL_MS.
@@ -240,6 +236,6 @@ export class SocketHandlerService {
             count,
             lastCompactCount,
         );
-        Y.applyUpdate(yDoc, new Uint8Array(diff), PubSubService.REMOTE_ORIGIN);
+        Y.applyUpdate(yDoc, new Uint8Array(diff), REMOTE_ORIGIN);
     }
 }
