@@ -1,6 +1,6 @@
 // Socket.IO connection handler for the collaborative document room.
-// Each connection lazy-loads the Y.Doc via DocStoreService.getDoc() so the doc is only
-// in memory when at least one client is connected (or has recently disconnected).
+// Each connection lazy-loads the Y.Doc via YDocStoreService.getYDocByDocID() so the
+// doc is only in memory when at least one client is connected (or recently disconnected).
 // All dependencies are accessed via the global container.
 
 import * as Y from "yjs";
@@ -82,7 +82,8 @@ export class SocketHandlerService {
     }
 
     // sync_doc: client sends its update AND its current state vector.
-    // Apply to server Y.Doc first, then relay update + serverSV to other clients.
+    // Fast path: publish to Redis → apply → relay (all synchronous or fire-and-forget).
+    // Persist to Postgres after relay so the critical relay path is not blocked by a DB write.
     // Apply-before-relay ensures the piggybacked serverSV is accurate.
     // After relaying, compare server SV against the originating client's SV — any
     // divergence means one or both sides are missing ops, so a bidirectional repair fires.
@@ -100,7 +101,19 @@ export class SocketHandlerService {
             new Uint8Array(update),
         );
 
-        // 2. Persist to Postgres, then check whether compaction should be triggered.
+        // 2. Apply to server Y.Doc tagged as remote to prevent re-broadcast loops.
+        //    Apply before relay so the serverSV we piggyback reflects this update.
+        Y.applyUpdate(yDoc, new Uint8Array(update), REMOTE_ORIGIN);
+
+        // 3. Relay update + current serverSV to every other client in the room.
+        //    Recipients use the SV to detect their own divergence without a round trip.
+        const serverSV = Y.encodeStateVector(yDoc);
+        socket
+            .to(SocketHandlerService.DOC_ID)
+            .emit(SocketHandlerService.SYNC_DOC, update, serverSV);
+
+        // 4. Persist to Postgres after relay — DB write does not block the relay path.
+        //    Check whether compaction should be triggered based on the new update count.
         const { count, lastCompactCount } =
             await servicesStore.persistenceService.saveYDocUpdate(
                 YDocStoreService.DOCUMENT_ID,
@@ -111,17 +124,6 @@ export class SocketHandlerService {
             count,
             lastCompactCount,
         );
-
-        // 3. Apply to server Y.Doc tagged as remote to prevent re-broadcast loops.
-        //    Apply before relay so the serverSV we piggyback reflects this update.
-        Y.applyUpdate(yDoc, new Uint8Array(update), REMOTE_ORIGIN);
-
-        // 4. Relay update + current serverSV to every other client in the room.
-        //    Recipients use the SV to detect their own divergence without a round trip.
-        const serverSV = Y.encodeStateVector(yDoc);
-        socket
-            .to(SocketHandlerService.DOC_ID)
-            .emit(SocketHandlerService.SYNC_DOC, update, serverSV);
 
         // 5. Compare server SV against the originating client's SV.
         //    If they differ, either side has ops the other is missing.
@@ -219,13 +221,18 @@ export class SocketHandlerService {
     ): Promise<void> {
         servicesStore.docStoreService.touchYDoc(SocketHandlerService.DOC_ID);
 
-        // Relay to other server instances via Redis.
+        // 1. Publish to Redis so other server instances also receive the recovered content.
         servicesStore.docStoreService.publishYDocUpdate(
             SocketHandlerService.DOC_ID,
             new Uint8Array(diff),
         );
 
-        // Persist the new content, then apply to bring server Y.Doc fully in sync.
+        // 2. Relay to other clients on this server instance — they have the same gap.
+        socket
+            .to(SocketHandlerService.DOC_ID)
+            .emit(SocketHandlerService.REPAIR_RESPONSE, diff);
+
+        // 3. Persist the recovered content, then apply to bring server Y.Doc fully in sync.
         const { count, lastCompactCount } =
             await servicesStore.persistenceService.saveYDocUpdate(
                 YDocStoreService.DOCUMENT_ID,
@@ -236,6 +243,7 @@ export class SocketHandlerService {
             count,
             lastCompactCount,
         );
+        // 4. Apply locally to bring the server Y.Doc into full sync.
         Y.applyUpdate(yDoc, new Uint8Array(diff), REMOTE_ORIGIN);
     }
 }
