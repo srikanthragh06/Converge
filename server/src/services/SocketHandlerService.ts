@@ -95,7 +95,7 @@ export class SocketHandlerService {
         servicesStore.docStoreService.touchYDoc(SocketHandlerService.DOC_ID);
 
         // 1. Publish to Redis so other server instances receive and relay the update.
-        servicesStore.pubSubService.publishUpdate(
+        servicesStore.docStoreService.publishYDocUpdate(
             SocketHandlerService.DOC_ID,
             new Uint8Array(update),
         );
@@ -166,7 +166,7 @@ export class SocketHandlerService {
             .emit(SocketHandlerService.REPAIR_RESPONSE, diff);
 
         // 2. Publish to Redis so other server instances relay the diff too.
-        servicesStore.pubSubService.publishUpdate(
+        servicesStore.docStoreService.publishYDocUpdate(
             SocketHandlerService.DOC_ID,
             new Uint8Array(diff),
         );
@@ -220,7 +220,7 @@ export class SocketHandlerService {
         servicesStore.docStoreService.touchYDoc(SocketHandlerService.DOC_ID);
 
         // Relay to other server instances via Redis.
-        servicesStore.pubSubService.publishUpdate(
+        servicesStore.docStoreService.publishYDocUpdate(
             SocketHandlerService.DOC_ID,
             new Uint8Array(diff),
         );

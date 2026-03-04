@@ -10,7 +10,7 @@ export interface DocEntry {
     lastAccess: number; // Date.now() timestamp — updated on every client interaction
 }
 
-// Per-document subscription state held by PubSubService.
+// Per-document Redis subscription state held by YDocStoreService.
 export interface SubEntry {
     yDoc: Y.Doc;
     live: boolean; // false while Postgres is still loading; messages go into buffer instead

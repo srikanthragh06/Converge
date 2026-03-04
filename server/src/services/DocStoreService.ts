@@ -1,13 +1,21 @@
 // In-memory document registry: docId → { yDoc, lastAccess }.
-// Provides lazy loading (getDoc), access tracking (touchDoc), and
-// periodic eviction of idle documents (startSweeper).
+// Provides lazy loading (getYDocByDocID), access tracking (touchYDoc), and
+// periodic eviction of idle documents (setYDocSweepInterval).
 // Each cold load subscribes to the doc's Redis channel before querying Postgres
 // so updates from other server instances are never missed during the load window.
-// Accesses PersistenceService and PubSubService via the global container.
+// Owns all Redis subscription lifecycle state for each doc:
+//   subscribeYDocToRedis()     — open channel in buffer mode before Postgres load.
+//   activateYDocRedisChannel() — flush buffer and switch to live mode after load.
+//   publishYDocUpdate()        — fire-and-forget publish for client-originated updates.
+//   unsubscribeYDocFromRedis() — close channel on doc eviction.
+// Accesses PersistenceService, PubSubService, and HttpServerService via the global container.
 
 import * as Y from "yjs";
-import { DocEntry } from "../types/types";
+import { DocEntry, SubEntry } from "../types/types";
 import { servicesStore } from "../store/servicesStore";
+import { PubSubService } from "./PubSubService";
+import { SocketHandlerService } from "./SocketHandlerService";
+import { REMOTE_ORIGIN } from "../constants/constants";
 
 export class YDocStoreService {
     // Numeric document_id primary key — matches the single doc scope for v0.1.
@@ -22,12 +30,16 @@ export class YDocStoreService {
     // Doc entries processed per setImmediate tick to avoid blocking the event loop.
     private static readonly YDOC_SWEEP_BATCH_SIZE = 50;
 
-    // Currently live documents
+    // Currently live documents: docId → { yDoc, lastAccess }.
     private readonly yDocsMap = new Map<string, DocEntry>();
 
     // In-flight load promises — prevents duplicate DB queries when two clients
     // connect simultaneously for a document that is not yet in memory.
     private readonly yDocLoadPromiseMap = new Map<string, Promise<Y.Doc>>();
+
+    // Redis subscription state per active docId.
+    // Tracks live/buffer status for the cold-start gap-handling protocol.
+    private readonly yDocRedisSubEntries = new Map<string, SubEntry>();
 
     // Returns the cached Y.Doc for docId, loading it from Postgres on first access.
     // Concurrent callers for the same unloaded doc share one in-flight promise so
@@ -70,17 +82,99 @@ export class YDocStoreService {
         }, YDocStoreService.YDOC_SWEEP_INTERVAL_MS);
     }
 
+    // Public accessor used by PubSubService.init() to look up the SubEntry for
+    // an incoming Redis channel message without coupling PubSubService to doc state.
+    getYDocRedisSubEntry(docId: string): SubEntry | undefined {
+        return this.yDocRedisSubEntries.get(docId);
+    }
+
+    // Subscribes to the Redis channel for docId in buffer mode.
+    // Entry is written BEFORE sub.subscribe() so no message can slip between
+    // the subscribe call returning and the entry being registered.
+    // Idempotent: no-op if already subscribed for this docId.
+    async subscribeYDocToRedis(docId: string, yDoc: Y.Doc): Promise<void> {
+        if (this.yDocRedisSubEntries.has(docId)) return;
+
+        // Write entry first so the message handler can find it the instant
+        // Redis delivers a message.
+        this.yDocRedisSubEntries.set(docId, { yDoc, live: false, buffer: [] });
+
+        const channel = PubSubService.DOCUMENT_UPDATE_CHANNEL + docId;
+        await servicesStore.redisService.sub.subscribe(channel);
+        console.log(`Redis: subscribed to ${channel}`);
+    }
+
+    // Flushes the cold-start buffer and switches the subscription to live mode.
+    // Merges all buffered updates into one before applying — more efficient than N
+    // sequential applies, and Yjs CRDT semantics handle any overlap with the
+    // Postgres-loaded history idempotently.
+    activateYDocRedisChannel(docId: string): void {
+        const entry = this.yDocRedisSubEntries.get(docId);
+        if (!entry || entry.live) return;
+
+        if (entry.buffer.length > 0) {
+            // Apply first so the piggybacked serverSV reflects the full merged state.
+            const merged = Y.mergeUpdates(entry.buffer);
+            Y.applyUpdate(entry.yDoc, merged, REMOTE_ORIGIN);
+            servicesStore.httpServerService.io
+                .to(docId)
+                .emit(
+                    SocketHandlerService.SYNC_DOC,
+                    merged,
+                    Y.encodeStateVector(entry.yDoc),
+                );
+        }
+
+        entry.buffer = [];
+        entry.live = true;
+        console.log(`Redis: doc ${docId} is now live`);
+    }
+
+    // Publishes a raw Yjs binary update to the doc's Redis channel.
+    // Binary is encoded as latin1 — a lossless byte→char mapping that survives
+    // Redis' string-based pub/sub without data corruption.
+    // Fire-and-forget: errors are caught and logged so a publish failure never blocks sync.
+    async publishYDocUpdate(docId: string, update: Uint8Array): Promise<void> {
+        const channel = PubSubService.DOCUMENT_UPDATE_CHANNEL + docId;
+        try {
+            await servicesStore.redisService.pub.publish(
+                channel,
+                Buffer.from(update).toString("binary"),
+            );
+        } catch (err) {
+            console.error(
+                `Redis: publishYDocUpdate failed for ${docId}: ${String(err)}`,
+            );
+        }
+    }
+
+    // Removes the subscription entry and unsubscribes from the Redis channel.
+    // Called by the sweeper when a doc is evicted from memory.
+    async unsubscribeYDocFromRedis(docId: string): Promise<void> {
+        if (!this.yDocRedisSubEntries.has(docId)) return;
+        this.yDocRedisSubEntries.delete(docId);
+        const channel = PubSubService.DOCUMENT_UPDATE_CHANNEL + docId;
+        try {
+            await servicesStore.redisService.sub.unsubscribe(channel);
+            console.log(`Redis: unsubscribed from ${channel}`);
+        } catch (err) {
+            console.error(
+                `Redis: unsubscribeYDocFromRedis failed for ${docId}: ${String(err)}`,
+            );
+        }
+    }
+
     // Cold-load sequence with Redis gap handling:
     //   1. Subscribe to Redis (buffer mode) before Postgres query starts.
     //   2. Load history from Postgres — Redis messages during this await go to buffer.
-    //   3. goLive() flushes the buffer and switches to live mode.
+    //   3. activateYDocRedisChannel() flushes the buffer and switches to live mode.
     // This ensures no cross-server update is dropped during the load window.
     private async loadYDoc(docId: string): Promise<Y.Doc> {
         const yDoc = new Y.Doc();
 
         // Step 1: Subscribe before loading — any Redis message arriving during the
-        // Postgres query is buffered inside PubSubService rather than discarded.
-        await servicesStore.pubSubService.subscribeDoc(docId, yDoc);
+        // Postgres query is buffered in yDocRedisSubEntries rather than discarded.
+        await this.subscribeYDocToRedis(docId, yDoc);
 
         // Step 2: Replay persisted history from Postgres.
         await servicesStore.persistenceService.loadYDocFromDb(
@@ -91,7 +185,7 @@ export class YDocStoreService {
         // Step 3: Flush the cold-start buffer then switch to live mode.
         // Yjs CRDT deduplication handles any overlap between Postgres rows
         // and buffered Redis messages without double-applying ops.
-        servicesStore.pubSubService.goLive(docId);
+        this.activateYDocRedisChannel(docId);
 
         this.yDocsMap.set(docId, { yDoc, lastAccess: Date.now() });
         this.yDocLoadPromiseMap.delete(docId);
@@ -110,21 +204,19 @@ export class YDocStoreService {
         for (let i = offset; i < end; i++) {
             const key = keys[i];
             const entry = this.yDocsMap.get(key);
-            // Re-check existence: a concurrent getDoc may have re-populated this key
+            // Re-check existence: a concurrent getYDocByDocID may have re-populated this key
             if (
                 entry &&
                 Date.now() - entry.lastAccess >
                     YDocStoreService.YDOC_SWEEP_AFTER_MS
             ) {
                 this.yDocsMap.delete(key);
-                // Fire-and-forget; errors logged inside unsubscribeDoc
-                servicesStore.pubSubService
-                    .unsubscribeDoc(key)
-                    .catch((err) =>
-                        console.error(
-                            `unsubscribeDoc error for ${key}: ${String(err)}`,
-                        ),
-                    );
+                // Fire-and-forget; errors logged inside unsubscribeYDocFromRedis
+                this.unsubscribeYDocFromRedis(key).catch((err) =>
+                    console.error(
+                        `unsubscribeYDocFromRedis error for ${key}: ${String(err)}`,
+                    ),
+                );
                 console.log(`Evicted doc ${key} from memory`);
             }
         }
