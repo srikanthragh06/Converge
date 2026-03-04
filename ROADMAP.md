@@ -140,6 +140,22 @@ Single-doc scope throughout. Auth, awareness, offline support, and auto-scaling 
 
 ---
 
+## v0.066 — Responsibility Refactor
+**Goal:** Each service owns exactly the state and logic it should. Redis subscription lifecycle moves into `YDocStoreService`. `PubSubService` becomes pure infrastructure. Kysely Migrator replaces inline DDL. Persist deferred past relay in `sync_doc`.
+**Branch:** `refactor-v0.066` | **Status:** IN PROGRESS
+
+### Delivered
+- `YDocStoreService` owns all Redis subscription lifecycle: `yDocRedisSubEntries` map (renamed from `subs`), `subscribeYDocToRedis`, `activateYDocRedisChannel`, `publishYDocUpdate`, `unsubscribeYDocFromRedis`, `handleRedisDocumentUpdate` — doc-scoped state co-located with doc-scoped logic
+- `PubSubService` reduced to pure infrastructure: `init()` + `handleDocumentUpdateMessage()` (prefix-strip + delegate) — no Yjs imports, no per-doc state
+- `DOCUMENT_UPDATE_CHANNEL` public static on `PubSubService`; `YDocStoreService` references it for channel name construction
+- Kysely `Migrator` + `FileMigrationProvider` in `DatabaseService.migrate()` — migration files under `server/src/migrations/`; `1_init.ts` created with `up`/`down`; FK constraint: `document_updates.document_id → document_meta.document_id`
+- `REMOTE_ORIGIN` + `REDIS_OK` constants moved to shared `constants/constants.ts`
+- `handleSyncDoc` now defers Postgres persist to after relay — DB write no longer blocks the relay path
+- `handleHeartbeatAck` relays recovered diff to local room clients before applying — same-instance clients have the same gap
+- Broad method rename pass: `DocStoreService` → `YDocStoreService`, `getDoc` → `getYDocByDocID`, `saveUpdate` → `saveYDocUpdate`, `loadDocFromDb` → `loadYDocFromDb`, `goLive` → `activateYDocRedisChannel`, `subscribeDoc` → `subscribeYDocToRedis`, etc.
+
+---
+
 ## v0.07 — Robustness Pass
 **Goal:** Edge cases handled, no known failure modes.
 
