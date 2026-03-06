@@ -4,11 +4,12 @@
 // Each cold load subscribes to the doc's Redis channel before querying Postgres
 // so updates from other server instances are never missed during the load window.
 // Owns all Redis subscription lifecycle state for each doc:
-//   subscribeYDocToRedis()     — open channel in buffer mode before Postgres load.
-//   activateYDocRedisChannel() — flush buffer and switch to live mode after load.
-//   publishYDocUpdate()        — fire-and-forget publish for client-originated updates.
-//   unsubscribeYDocFromRedis() — close channel on doc eviction.
-// Accesses PersistenceService, PubSubService, and HttpServerService via the global container.
+//   subscribeYDocToRedis()        — open channel in buffer mode before Postgres load.
+//   activateYDocRedisChannel()    — flush buffer and switch to live mode after load.
+//   publishYDocUpdate()           — fire-and-forget publish for client-originated updates.
+//   unsubscribeYDocFromRedis()    — close channel on doc eviction.
+//   handleRedisDocumentUpdate()   — called by PubSubService on every incoming channel message.
+// Accesses PersistenceService, RedisService, and HttpServerService via the global container.
 
 import * as Y from "yjs";
 import { DocEntry, SubEntry } from "../types/types";

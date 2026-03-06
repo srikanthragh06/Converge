@@ -8,7 +8,7 @@ import { RedisService } from "../services/RedisService";
 import { PersistenceService } from "../services/PersistenceService";
 import { CompactorService } from "../services/CompactorService";
 import { PubSubService } from "../services/PubSubService";
-import { YDocStoreService } from "../services/DocStoreService";
+import { YDocStoreService } from "../services/YDocStoreService";
 import { SocketHandlerService } from "../services/SocketHandlerService";
 
 export const servicesStore = {

@@ -7,7 +7,7 @@ import * as Y from "yjs";
 import { TypedSocket } from "../types/types";
 import { safeSocketHandler, mapsEqual } from "../utils/utils";
 import { servicesStore } from "../store/servicesStore";
-import { YDocStoreService } from "./DocStoreService";
+import { YDocStoreService } from "./YDocStoreService";
 import { REMOTE_ORIGIN } from "../constants/constants";
 
 export class SocketHandlerService {
