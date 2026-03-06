@@ -34,10 +34,10 @@ export default function Navbar() {
                 </div>
 
                 {/* Ping indicator: colored dot + latency value */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-4">
                     <PingDot pingMs={pingMs} />
-                    <span className="text-sm text-white/40 tabular-nums w-10 text-right">
-                        {pingMs !== null ? `${pingMs} ms` : "—ms"}
+                    <span className="text-sm text-white/40 tabular-nums whitespace-nowrap">
+                        {pingMs !== null && `${pingMs} ms`}
                     </span>
                 </div>
             </div>
