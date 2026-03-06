@@ -1,7 +1,11 @@
 // Top navigation bar: Converge brand, sync status indicator, and ping display.
 // "Restoring sync" takes priority over "Applying updates" when both are active.
 import { useAtomValue } from "jotai";
-import { pingMsAtom, isRestoringSyncAtom, isApplyingUpdatesAtom } from "../atoms/uiAtoms";
+import {
+    pingMsAtom,
+    isRestoringSyncAtom,
+    isApplyingUpdatesAtom,
+} from "../atoms/uiAtoms";
 import PingDot from "./PingDot";
 import SyncStatus from "./SyncStatus";
 
@@ -23,18 +27,19 @@ export default function Navbar() {
             </span>
 
             <div className="flex-1" />
+            <div className="flex items-center gap-8">
+                {/* Sync status — fades in/out with animated trailing dots */}
+                <div className="mr-6">
+                    <SyncStatus label={syncLabel} />
+                </div>
 
-            {/* Sync status — fades in/out with animated trailing dots */}
-            <div className="mr-6">
-                <SyncStatus label={syncLabel} />
-            </div>
-
-            {/* Ping indicator: colored dot + latency value */}
-            <div className="flex items-center gap-2">
-                <PingDot pingMs={pingMs} />
-                <span className="text-xs text-white/40 tabular-nums w-10 text-right">
-                    {pingMs !== null ? `${pingMs}ms` : "—ms"}
-                </span>
+                {/* Ping indicator: colored dot + latency value */}
+                <div className="flex items-center gap-2">
+                    <PingDot pingMs={pingMs} />
+                    <span className="text-sm text-white/40 tabular-nums w-10 text-right">
+                        {pingMs !== null ? `${pingMs} ms` : "—ms"}
+                    </span>
+                </div>
             </div>
         </header>
     );
