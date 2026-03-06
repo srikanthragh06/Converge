@@ -183,16 +183,18 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
     }, [yDoc]);
 
     // Heartbeat: every HEARTBEAT_INTERVAL_MS emit our SV so the server can diff.
-    // Only fires while connected; the interval is cleared on unmount.
+    // Guards on both isSocketConnected and isIndexedDBSynced — no point sending a
+    // stale SV before the local snapshot has been applied.
     useEffect(() => {
         const id = setInterval(() => {
             if (!isSocketConnected) return;
+            if (!isIndexedDBSynced) return;
             // Heartbeat starts a restore cycle — auto-clears after RESTORING_DISPLAY_MS
             flashRestoring();
             socket.emit(HEARTBEAT_SYNC, Y.encodeStateVector(yDoc));
         }, HEARTBEAT_INTERVAL_MS);
         return () => clearInterval(id);
-    }, [yDoc, isSocketConnected]);
+    }, [yDoc, isSocketConnected, isIndexedDBSynced]);
 
     // heartbeat_syncack: server sends what we're missing plus its own SV.
     // Apply the diff, then send back what the server is missing.
