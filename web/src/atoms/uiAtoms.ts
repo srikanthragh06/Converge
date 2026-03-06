@@ -2,6 +2,10 @@
 // These are separate from Y.Doc (collaborative content) state.
 import { atom } from "jotai";
 
+// Whether the socket is currently connected to the server.
+// Written by useSocket; read by usePing to react immediately on reconnect.
+export const isSocketConnectedAtom = atom<boolean>(false);
+
 // Round-trip latency to the server in milliseconds. null = not yet measured.
 export const pingMsAtom = atom<number | null>(null);
 
