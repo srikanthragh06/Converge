@@ -23,18 +23,31 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
     // Accumulate local Y.Doc updates between flushes
     const pendingUpdates = useRef<Uint8Array[]>([]);
     const timeoutId = useRef<ReturnType<typeof setTimeout> | null>(null);
-    // Tracks the auto-clear timer for the "Applying updates" indicator
+    // Auto-clear timers for the status indicators — reset on each new trigger
+    const restoringTimerId = useRef<ReturnType<typeof setTimeout> | null>(null);
     const applyingTimerId = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // useSetAtom avoids subscribing this hook to atom value changes (no extra re-renders)
     const setIsRestoring = useSetAtom(isRestoringSyncAtom);
     const setIsApplying = useSetAtom(isApplyingUpdatesAtom);
 
-    // Auto-clear timeout for the "Applying updates" indicator (milliseconds).
-    // Long enough for the animation to be visible but short enough to feel instant.
+    // Minimum time (ms) each status indicator stays visible, even if the underlying
+    // operation completes faster. Resets the timer whenever called again.
+    const RESTORING_DISPLAY_MS = 1200;
     const APPLYING_DISPLAY_MS = 1200;
 
-    // Helper: show "Applying updates" for APPLYING_DISPLAY_MS then auto-clear.
+    // Helper: show "Restoring sync" for at least RESTORING_DISPLAY_MS then auto-clear.
+    // Calling again while the timer is active resets it, keeping the indicator visible.
+    const flashRestoring = () => {
+        setIsRestoring(true);
+        if (restoringTimerId.current) clearTimeout(restoringTimerId.current);
+        restoringTimerId.current = setTimeout(
+            () => setIsRestoring(false),
+            RESTORING_DISPLAY_MS,
+        );
+    };
+
+    // Helper: show "Applying updates" for at least APPLYING_DISPLAY_MS then auto-clear.
     // Resets the timer if called again before the previous one expires.
     const flashApplying = () => {
         setIsApplying(true);
@@ -84,7 +97,7 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
 
             if (!mapsEqual(clientSVMap, serverSVMap)) {
                 // SV mismatch — kick off a repair cycle
-                setIsRestoring(true);
+                flashRestoring();
                 socket.emit(REPAIR_DOC, Y.encodeStateVector(yDoc));
             }
         };
@@ -99,7 +112,7 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
     useEffect(() => {
         const onConnect = () => {
             // Initial repair_doc is the start of a restore cycle
-            setIsRestoring(true);
+            flashRestoring();
             socket.emit(REPAIR_DOC, Y.encodeStateVector(yDoc));
         };
         socket.on("connect", onConnect);
@@ -115,7 +128,7 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
     useEffect(() => {
         const onRepairDoc = (serverSV: Uint8Array) => {
             // Server requested our state — we are in a restore cycle
-            setIsRestoring(true);
+            flashRestoring();
             const diff = Y.encodeStateAsUpdate(yDoc, new Uint8Array(serverSV));
             socket.emit(REPAIR_RESPONSE, diff);
         };
@@ -126,10 +139,9 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
     }, [yDoc]);
 
     // Receive repair_response — apply the diff the server computed from our state vector.
-    // Clears "Restoring sync" and briefly shows "Applying updates".
+    // Restoring clears itself via its own timer; briefly flash "Applying updates" instead.
     useEffect(() => {
         const onRepairResponse = (diff: Uint8Array) => {
-            setIsRestoring(false);
             flashApplying();
             Y.applyUpdate(yDoc, new Uint8Array(diff), REMOTE_ORIGIN);
         };
@@ -144,8 +156,8 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
     useEffect(() => {
         const id = setInterval(() => {
             if (!socket.connected) return;
-            // Heartbeat starts a restore cycle — cleared when heartbeat_ack is sent
-            setIsRestoring(true);
+            // Heartbeat starts a restore cycle — auto-clears after RESTORING_DISPLAY_MS
+            flashRestoring();
             socket.emit(HEARTBEAT_SYNC, Y.encodeStateVector(yDoc));
         }, HEARTBEAT_INTERVAL_MS);
         return () => clearInterval(id);
@@ -161,8 +173,6 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
                 yDoc,
                 new Uint8Array(serverSV),
             );
-            // Sending heartbeat_ack completes the cycle — restore is done
-            setIsRestoring(false);
             socket.emit(HEARTBEAT_ACK, diffForServer);
         };
         socket.on(HEARTBEAT_SYNCACK, onSyncAck);
