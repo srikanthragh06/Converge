@@ -21,11 +21,6 @@ export default function Navbar() {
 
     return (
         <header className="h-14 border-b border-white/10 flex items-center px-6 shrink-0 bg-[#111111]">
-            {/* Brand */}
-            <span className="text-2xl font-bold text-white font-[Inter,sans-serif]">
-                Converge
-            </span>
-
             <div className="flex-1" />
             <div className="flex items-center gap-8">
                 {/* Sync status — fades in/out with animated trailing dots */}
