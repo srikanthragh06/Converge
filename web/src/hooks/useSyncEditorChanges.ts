@@ -16,10 +16,6 @@ import {
 import { mapsEqual } from "../utils/utils";
 import { isApplyingUpdatesAtom, isRestoringSyncAtom } from "../atoms/uiAtoms";
 
-// Auto-clear timeout for the "Applying updates" indicator (milliseconds).
-// Long enough for the animation to be visible but short enough to feel instant.
-const APPLYING_DISPLAY_MS = 600;
-
 // Wires the local Y.Doc to the server via Socket.IO.
 // Handles batched outgoing updates, incoming sync, and the repair protocol.
 // Also drives the isRestoringSyncAtom and isApplyingUpdatesAtom UI status indicators.
@@ -33,6 +29,10 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
     // useSetAtom avoids subscribing this hook to atom value changes (no extra re-renders)
     const setIsRestoring = useSetAtom(isRestoringSyncAtom);
     const setIsApplying = useSetAtom(isApplyingUpdatesAtom);
+
+    // Auto-clear timeout for the "Applying updates" indicator (milliseconds).
+    // Long enough for the animation to be visible but short enough to feel instant.
+    const APPLYING_DISPLAY_MS = 1200;
 
     // Helper: show "Applying updates" for APPLYING_DISPLAY_MS then auto-clear.
     // Resets the timer if called again before the previous one expires.
