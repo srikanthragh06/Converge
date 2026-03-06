@@ -81,7 +81,7 @@ export class SocketHandlerService {
         socket.on(
             SocketHandlerService.SOCKET_PING,
             safeSocketHandler((ts: number) => {
-                socket.emit(SocketHandlerService.SOCKET_PONG, ts);
+                this.handlePing(socket, ts);
             }),
         );
 
@@ -257,5 +257,11 @@ export class SocketHandlerService {
         );
         // 4. Apply locally to bring the server Y.Doc into full sync.
         Y.applyUpdate(yDoc, new Uint8Array(diff), REMOTE_ORIGIN);
+    }
+
+    // socket_ping: echo the client's timestamp straight back so it can compute RTT.
+    // No Yjs involvement — pure latency probe with no side effects.
+    private handlePing(socket: TypedSocket, ts: number): void {
+        socket.emit(SocketHandlerService.SOCKET_PONG, ts);
     }
 }
