@@ -18,6 +18,9 @@ export class SocketHandlerService {
     static readonly HEARTBEAT_SYNC = "heartbeat_sync";
     static readonly HEARTBEAT_SYNCACK = "heartbeat_syncack";
     static readonly HEARTBEAT_ACK = "heartbeat_ack";
+    // Ping/pong for round-trip latency measurement — server echoes the client's timestamp.
+    static readonly SOCKET_PING = "socket_ping";
+    static readonly SOCKET_PONG = "socket_pong";
     // How often the client fires a heartbeat (milliseconds).
     static readonly HEARTBEAT_INTERVAL_MS = 10_000;
     // The single document room all clients join (single-doc scope for v0.1).
@@ -70,6 +73,15 @@ export class SocketHandlerService {
             SocketHandlerService.HEARTBEAT_ACK,
             safeSocketHandler(async (diff: Uint8Array) => {
                 await this.handleHeartbeatAck(socket, yDoc, diff);
+            }),
+        );
+
+        // socket_ping: client sends a timestamp; echo it straight back so the client
+        // can measure round-trip time. No Yjs involvement — pure latency probe.
+        socket.on(
+            SocketHandlerService.SOCKET_PING,
+            safeSocketHandler((ts: number) => {
+                socket.emit(SocketHandlerService.SOCKET_PONG, ts);
             }),
         );
 

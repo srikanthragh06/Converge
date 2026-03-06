@@ -31,6 +31,7 @@ export interface ClientToServerEvents {
     repair_response: (diff: Uint8Array) => void;
     heartbeat_sync: (clientSV: Uint8Array) => void;
     heartbeat_ack: (diff: Uint8Array) => void;
+    socket_ping: (ts: number) => void; // timestamp from client for RTT measurement
 }
 
 // Events the server sends to clients
@@ -39,6 +40,7 @@ export interface ServerToClientEvents {
     repair_doc: (serverSV: Uint8Array) => void;
     repair_response: (diff: Uint8Array) => void;
     heartbeat_syncack: (diff: Uint8Array, serverSV: Uint8Array) => void;
+    socket_pong: (ts: number) => void; // echoed timestamp for RTT measurement
 }
 
 // Convenience alias used throughout the server socket handlers

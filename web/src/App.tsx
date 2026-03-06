@@ -5,6 +5,8 @@ import { BlockNoteView } from "@blocknote/mantine";
 import * as Y from "yjs";
 import useSocket from "./hooks/useSocket";
 import useSyncEditorChanges from "./hooks/useSyncEditorChanges";
+import usePing from "./hooks/usePing";
+import Navbar from "./components/Navbar";
 
 // Module-level Y.Doc — stable across re-renders, shared for the lifetime of the page.
 // Sync hooks attach to this same instance to read/write collaborative state.
@@ -14,6 +16,8 @@ function App() {
     // Connect to the server and wire up real-time sync
     useSocket();
     useSyncEditorChanges(yDoc);
+    // Measure round-trip latency and write to pingMsAtom for Navbar display
+    usePing();
 
     const editor = useCreateBlockNote({
         // Bind the editor to the Yjs XML fragment — the shared data structure BlockNote
@@ -37,11 +41,7 @@ function App() {
     return (
         // Full-screen column: fixed header + scrollable editor area below
         <div className="flex flex-col h-screen bg-[#1f1f1f]">
-            <header className="h-14 border-b border-white/10 flex items-center px-6 shrink-0">
-                <span className="text-2xl font-bold text-white font-[Inter,sans-serif]">
-                    Converge
-                </span>
-            </header>
+            <Navbar />
 
             {/* Editor fills remaining height; overflow-auto handles long documents */}
             <div className="flex-1 overflow-auto">
