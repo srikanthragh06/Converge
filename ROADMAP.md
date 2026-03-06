@@ -172,14 +172,17 @@ Single-doc scope throughout. Auth, awareness, offline support, and auto-scaling 
 
 ---
 
-## v0.08 — Robustness Pass
-**Goal:** Edge cases handled, no known failure modes.
+## v0.08 — Robustness Pass + Offline Support ✅
+**Goal:** Edge cases handled, no known failure modes. Client edits survive offline periods.
+**Branch:** `offline-v0.08` | **Status:** COMPLETE
 
-- Reconnection: client drops and reconnects, `repair_doc` returns correct diff
-- Server restart with populated DB + snapshot: doc loads correctly
-- Rapid concurrent edits from 3+ clients: all converge
-- Redis pub/sub disconnect/reconnect: server re-subscribes
-- Double-compaction: Redis lock prevents it, second attempt is a no-op
+### Delivered
+- **IndexedDB persistence** via `y-indexeddb`: all Y.Doc updates (local and remote) are automatically persisted to IndexedDB; on page load the local snapshot is applied before server sync so no edits are lost
+- **Offline-aware sync gate**: initial `repair_doc` and heartbeat are gated on `isIndexedDBSynced` — the server only receives the client SV after the local snapshot has been loaded, preventing stale SVs from triggering unnecessary repairs
+- **Offline UI**: navbar shows a zinc offline badge when the socket is disconnected, replacing the ping indicator
+- **Stale ping cleared on disconnect**: `pingMsAtom` resets to `null` on disconnect so the UI never shows an outdated latency value
+- `isIndexedDBSynced` state in `useSyncEditorChanges` gates both the connect effect and the heartbeat interval
+- `INDEXEDDB_DOC_NAME = "1"` constant scoped inside the hook
 
 ---
 
