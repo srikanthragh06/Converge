@@ -27,11 +27,15 @@ const usePing = () => {
         };
     }, []);
 
-    // Re-fires whenever isConnected flips to true — sends an immediate probe then
-    // sets up the recurring interval. This ensures the first ping goes out as soon
-    // as the socket connects rather than waiting for the first interval tick.
+    // Re-fires whenever isConnected changes.
+    // When disconnected, clears the stale ping value so the UI shows no data.
+    // When connected, sends an immediate probe then sets up the recurring interval
+    // so the first ping goes out right away rather than waiting for the first tick.
     useEffect(() => {
-        if (!isConnected) return;
+        if (!isConnected) {
+            setPingMs(null);
+            return;
+        }
 
         const sendPing = () => socket.emit(SOCKET_PING, Date.now());
         sendPing();

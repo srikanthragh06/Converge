@@ -1,10 +1,12 @@
-// Top navigation bar: Converge brand, sync status indicator, and ping display.
+// Top navigation bar: sync status indicator, ping display, and offline badge.
 // "Restoring sync" takes priority over "Applying updates" when both are active.
+// When the socket is disconnected, an offline badge replaces the ping indicator.
 import { useAtomValue } from "jotai";
 import {
     pingMsAtom,
     isRestoringSyncAtom,
     isApplyingUpdatesAtom,
+    isSocketConnectedAtom,
 } from "../atoms/uiAtoms";
 import PingDot from "./PingDot";
 import SyncStatus from "./SyncStatus";
@@ -13,6 +15,7 @@ export default function Navbar() {
     const pingMs = useAtomValue(pingMsAtom);
     const isRestoring = useAtomValue(isRestoringSyncAtom);
     const isApplying = useAtomValue(isApplyingUpdatesAtom);
+    const isSocketConnected = useAtomValue(isSocketConnectedAtom);
 
     // "Restoring sync" takes priority over "Applying updates"
     let syncLabel: string | null = null;
@@ -28,13 +31,23 @@ export default function Navbar() {
                     <SyncStatus label={syncLabel} />
                 </div>
 
-                {/* Ping indicator: colored dot + latency value */}
-                <div className="flex items-center gap-4">
-                    <PingDot pingMs={pingMs} />
-                    <span className="text-sm text-white/40 tabular-nums whitespace-nowrap">
-                        {pingMs !== null && `${pingMs} ms`}
-                    </span>
-                </div>
+                {/* Offline badge replaces ping indicator when disconnected */}
+                {!isSocketConnected ? (
+                    <div className="flex items-center gap-2">
+                        <span className="inline-block w-2 h-2 rounded-full bg-zinc-500" />
+                        <span className="text-sm text-zinc-500 whitespace-nowrap">
+                            Offline
+                        </span>
+                    </div>
+                ) : (
+                    /* Ping indicator: colored dot + latency value */
+                    <div className="flex items-center gap-4">
+                        <PingDot pingMs={pingMs} />
+                        <span className="text-sm text-white/40 tabular-nums whitespace-nowrap">
+                            {pingMs !== null && `${pingMs} ms`}
+                        </span>
+                    </div>
+                )}
             </div>
         </header>
     );
