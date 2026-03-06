@@ -140,9 +140,9 @@ Single-doc scope throughout. Auth, awareness, offline support, and auto-scaling 
 
 ---
 
-## v0.066 — Responsibility Refactor
+## v0.066 — Responsibility Refactor ✅
 **Goal:** Each service owns exactly the state and logic it should. Redis subscription lifecycle moves into `YDocStoreService`. `PubSubService` becomes pure infrastructure. Kysely Migrator replaces inline DDL. Persist deferred past relay in `sync_doc`.
-**Branch:** `refactor-v0.066` | **Status:** IN PROGRESS
+**Branch:** `refactor-v0.066` | **Status:** COMPLETE
 
 ### Delivered
 - `YDocStoreService` owns all Redis subscription lifecycle: `yDocRedisSubEntries` map (renamed from `subs`), `subscribeYDocToRedis`, `activateYDocRedisChannel`, `publishYDocUpdate`, `unsubscribeYDocFromRedis`, `handleRedisDocumentUpdate` — doc-scoped state co-located with doc-scoped logic
@@ -156,7 +156,23 @@ Single-doc scope throughout. Auth, awareness, offline support, and auto-scaling 
 
 ---
 
-## v0.07 — Robustness Pass
+## v0.07 — UI Polish ✅
+**Goal:** Users can see sync state and connection quality at a glance.
+**Branch:** `ui-v0.07` | **Status:** COMPLETE
+
+### Delivered
+- Darker navbar (`#111111`) distinct from the editor background
+- Custom `socket_ping` / `socket_pong` events: client probes every 5s, server echoes timestamp, client computes RTT
+- Ping indicator: colored dot (green/yellow/red) + `Nms` value; `isSocketConnectedAtom` ensures first probe fires on connect not after first interval tick
+- Sync status: "Restoring sync" and "Applying updates" messages with animated trailing dots and fade in/out transitions
+- Flash pattern: both indicators use a minimum display window (1200ms) so fast cycles are still visible; timer resets on each new trigger
+- Jotai atoms for all UI state (`isSocketConnectedAtom`, `pingMsAtom`, `isRestoringSyncAtom`, `isApplyingUpdatesAtom`)
+- Components: `AnimatedDots`, `PingDot`, `SyncStatus`, `Navbar` — one component per file
+- `<Provider>` in `main.tsx`
+
+---
+
+## v0.08 — Robustness Pass
 **Goal:** Edge cases handled, no known failure modes.
 
 - Reconnection: client drops and reconnects, `repair_doc` returns correct diff
@@ -164,15 +180,6 @@ Single-doc scope throughout. Auth, awareness, offline support, and auto-scaling 
 - Rapid concurrent edits from 3+ clients: all converge
 - Redis pub/sub disconnect/reconnect: server re-subscribes
 - Double-compaction: Redis lock prevents it, second attempt is a no-op
-
----
-
-## v0.08 — UI Polish
-**Goal:** Users can see sync state, latency, and connectivity.
-
-- Sync status indicator: `SAVED` / `SAVING...` / `FAILED`
-- Ping/latency display (ping/pong events)
-- Online/offline badge
 
 ---
 
