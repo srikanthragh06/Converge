@@ -40,7 +40,7 @@ function App() {
 
     return (
         // Full-screen column: fixed header + scrollable editor area below
-        <div className="flex flex-col h-screen bg-[#1f1f1f]">
+        <div className="flex flex-col h-screen bg-[#1f1f1f] gap-2">
             <Navbar />
 
             {/* Editor fills remaining height; overflow-auto handles long documents */}
