@@ -1,6 +1,6 @@
-# Converge Roadmap: v0.01 → v0.1
+# Converge Roadmap: v0.01 → v0.2+
 
-Single-doc scope throughout. Auth, awareness, offline support, and auto-scaling are all deferred to v0.11+.
+Single-doc scope through v0.1. Multi-doc, auth, document library, access control, and security hardening planned for v0.11–v0.16.
 
 ---
 
@@ -186,19 +186,69 @@ Single-doc scope throughout. Auth, awareness, offline support, and auto-scaling 
 
 ---
 
-## v0.09 — Docker Compose Polish
-**Goal:** One command starts the full stack.
+## v0.09 — Multi-Document Support
+**Goal:** Users can create and access distinct documents via URL. Each doc is isolated.
 
-- MinIO service in docker-compose
-- All env vars documented and wired through compose
-- Health checks on server, postgres, redis
-- `README.md` with setup instructions
+- Frontend: React Router with `/note/:docId` route — load the doc matching the URL param
+- Backend: all socket handlers are already parameterised by `docId`; verify all paths accept any integer `docId` (not hardcoded to `1`)
+- If `docId` does not exist in `document_meta`, create it on first client connection (auto-provision)
+- If `docId` exists, load and sync as normal
+- `INDEXEDDB_DOC_NAME` keyed to `docId` so offline snapshots are per-document
 
 ---
 
-## v0.1 — Stable Milestone
-**Goal:** End-to-end working, documented, ready for v0.11+ scope expansion.
+## v0.1 — Google Auth (Forced)
+**Goal:** Only authenticated Google users can access the app. No anonymous editing.
 
-- CLAUDE.md updated with implementation learnings
-- All services start cleanly from `docker-compose up`
-- Manual end-to-end test: open 3 clients, edit concurrently, disconnect one, reconnect, confirm convergence
+- Google OAuth 2.0 via a backend callback route (`/auth/google`, `/auth/google/callback`)
+- Session cookie issued on successful login (JWT or server-side session with Redis store)
+- Frontend: redirect to Google login if no valid session; render app only when authenticated
+- Server: middleware on all socket connections and REST routes — reject unauthenticated requests
+- Store user info (`google_id`, `email`, `display_name`) in a `users` Postgres table
+- No per-doc access control yet — any authenticated user can edit any doc (refined in v0.13)
+
+---
+
+## v0.11 — Document Title
+**Goal:** Each document has an editable title, persisted and displayed in the UI.
+
+- Add `title` column to `document_meta` table (migration)
+- Frontend: editable title input in the navbar, debounced REST PATCH to update the title
+- Server: `PATCH /documents/:docId/title` — validates auth, updates `document_meta.title`
+- Title shown in the browser tab (`<title>`) and the document library (v0.12)
+
+---
+
+## v0.12 — Document Library
+**Goal:** Users can see all their documents and create or delete them from a dashboard.
+
+- New `/library` route — full-page document list view
+- Library table columns: document title, created by, last edited at
+- "New document" CTA — creates a `document_meta` row, redirects to `/note/:docId`
+- Delete document — confirm dialog; removes all `document_updates` rows and the `document_meta` row in a transaction
+- `document_meta` extended: add `created_by` (FK to `users`), `created_at`, `last_edited_at` (updated on every `saveYDocUpdate`)
+
+---
+
+## v0.13 — Access Management
+**Goal:** Document owners control who can view or edit each document.
+
+- New `document_access` table: `(document_id, user_id, role ENUM('owner','editor','viewer'))`
+- Owner set to the creating user at doc creation time
+- Owner can invite other users by email (lookup in `users` table); assign `editor` or `viewer` role
+- Viewer role: socket connection allowed, edits rejected server-side; editor role: full sync
+- Frontend: share button → modal with user list + role picker
+- Library page filtered to docs where the current user has any access role
+
+---
+
+## v0.14 — Security & Robustness Hardening
+**Goal:** Production-grade safety — no single bad request can take the server down or abuse resources.
+
+- **Rate limiting**: express-rate-limit on all REST routes; per-socket event rate limits in socket handlers (drop events exceeding threshold)
+- **Input validation**: validate all socket payloads — binary length cap on Yjs updates, docId must be a positive integer — with Zod or hand-rolled guards
+- **Error boundaries**: every async path wrapped in try/catch with structured logging; audit `safeSocketHandler` usage for gaps
+- **Auth on every surface**: re-verify session on every socket event (not just at connection time); reject stale sessions mid-session
+- **DoS protection**: max payload size on express body parser; socket.io `maxHttpBufferSize` set explicitly
+- **Graceful shutdown**: SIGTERM handler drains in-flight requests, closes DB and Redis connections cleanly
+- **Structured logging**: replace `console.log/error` with a levelled logger (e.g. `pino`) across all services
