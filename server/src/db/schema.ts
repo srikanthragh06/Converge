@@ -22,9 +22,21 @@ export interface DocumentMetaTable {
     last_compact_count: bigint; // 0 until first compaction
 }
 
+// Row shape for the users table.
+// display_name and avatar_url come from Google OAuth user metadata and may be null.
+export interface UsersTable {
+    id: Generated<number>;   // serial — auto-increment integer PK
+    email: string;
+    display_name: string | null;
+    avatar_url: string | null;
+    created_at: Generated<Date>;
+    updated_at: Generated<Date>;
+}
+
 // Root schema passed as a generic to Kysely<DatabaseSchema>.
 // Table names must exactly match the Postgres table names.
 export interface DatabaseSchema {
     document_updates: DocumentUpdatesTable;
     document_meta: DocumentMetaTable;
+    users: UsersTable;
 }

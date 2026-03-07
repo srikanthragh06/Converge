@@ -9,3 +9,9 @@ export const REDIS_OK = "OK";
 // Any Y.Doc observer that sees this origin must skip re-broadcasting the
 // update — it already came from a remote source (Redis pub/sub or client relay).
 export const REMOTE_ORIGIN = "remote";
+
+// JWT lifetime passed to jwt.sign() expiresIn option.
+export const JWT_EXPIRES_IN = "7d";
+
+// JWT cookie maxAge in milliseconds — must correspond to JWT_EXPIRES_IN.
+export const JWT_COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;

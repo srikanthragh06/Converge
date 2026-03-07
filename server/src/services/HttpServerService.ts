@@ -16,27 +16,31 @@ export class HttpServerService {
         ServerToClientEvents
     >;
 
-    // Only the Vite dev server is allowed to connect (browser origin).
-    private static readonly ALLOWED_ORIGINS = ["http://localhost:5173"];
-
     constructor() {
+        // WEB_URL must be set in env — used to restrict CORS to the frontend origin.
+        const webUrl = process.env.WEB_URL!;
+
         this.expressApp = express();
+
+        // credentials: true is required for httpOnly cookies to be sent cross-origin.
         this.expressApp.use(
-            cors({ origin: HttpServerService.ALLOWED_ORIGINS }),
+            cors({ origin: webUrl, credentials: true }),
         );
 
         // Wrap Express in a raw http.Server so Socket.IO and Express share one port.
         this.httpServer = http.createServer(this.expressApp);
 
         // Attach Socket.IO to the shared http.Server with typed event generics.
-        // path: '/socket' namespaces the upgrade request away from any future REST routes.
+        // path: '/socket' namespaces the upgrade request away from REST routes.
+        // credentials: true lets Socket.IO include the JWT cookie in the handshake.
         this.io = new SocketIOServer<
             ClientToServerEvents,
             ServerToClientEvents
         >(this.httpServer, {
             cors: {
-                origin: HttpServerService.ALLOWED_ORIGINS,
+                origin: webUrl,
                 methods: ["GET", "POST"],
+                credentials: true,
             },
             path: "/socket",
         });

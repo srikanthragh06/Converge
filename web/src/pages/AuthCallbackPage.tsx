@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { axiosClient } from "../lib/axiosClient";
-import { ApiResponse, VerifyTokenData } from "../types/api";
+import { ApiResponse, VerifyGoogleAuthData } from "../types/api";
 
 // AuthCallbackPage: handles the redirect from Google OAuth.
 // Supabase exchanges the URL code for a session automatically on mount.
-// Once the session is ready, the access token is sent to the backend for verification.
+// Once the session is ready, the access token is sent to the backend to:
+//   1. Verify it with Supabase admin client
+//   2. Upsert the user in the DB
+//   3. Issue an httpOnly JWT cookie
 function AuthCallbackPage() {
     const [verified, setVerified] = useState(false);
 
@@ -20,16 +23,15 @@ function AuthCallbackPage() {
                 return;
             }
 
-            // Send the access token to the backend to verify and create/fetch the user.
-            const res = await axiosClient.post<ApiResponse<VerifyTokenData>>("/auth/verify", { accessToken });
+            // Send the access token to the backend — backend sets the JWT cookie in the response.
+            const res = await axiosClient.post<ApiResponse<VerifyGoogleAuthData>>("/auth/verifyGoogleAuth", { accessToken });
             const body = res.data;
 
             if (!body.success) {
-                console.error("verify failed:", body.error);
+                console.error("verifyGoogleAuth failed:", body.error);
                 return;
             }
 
-            console.log("verify response:", body.data);
             setVerified(true);
         };
 

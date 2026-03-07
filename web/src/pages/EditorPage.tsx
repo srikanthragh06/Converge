@@ -5,7 +5,6 @@ import { useParams } from "react-router-dom";
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
 import * as Y from "yjs";
-import useSocket from "../hooks/useSocket";
 import useSyncEditorChanges from "../hooks/useSyncEditorChanges";
 import usePing from "../hooks/usePing";
 import Navbar from "../components/Navbar";
@@ -27,7 +26,6 @@ function EditorPage() {
 
     // Hooks are always called — React requires unconditional hook invocation.
     // For invalid IDs, join_doc is rejected by the server so no sync occurs.
-    useSocket();
     useSyncEditorChanges(yDoc, isValidDocumentId ? documentId : -1);
     usePing();
 

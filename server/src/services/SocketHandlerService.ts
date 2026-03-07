@@ -1,4 +1,5 @@
 // Socket.IO connection handler for collaborative documents.
+// handleSocketMiddleware validates the JWT cookie before a connection is accepted.
 // handleConnection wires every socket event to a named private handler method.
 // Sync handlers guard inside the method body: if socket.data.documentId is unset
 // they return early and are no-ops — safe before a successful join_doc.
@@ -7,6 +8,7 @@
 // All subsequent handlers retrieve the Y.Doc from YDocStoreService (cache hit after join).
 // All dependencies are accessed via the global container.
 
+import cookie from "cookie";
 import * as Y from "yjs";
 import { TypedSocket } from "../types/types";
 import { safeSocketHandler, mapsEqual } from "../utils/utils";
@@ -29,6 +31,37 @@ export class SocketHandlerService {
     static readonly SOCKET_PONG = "socket_pong";
     // How often the client fires a heartbeat (milliseconds).
     static readonly HEARTBEAT_INTERVAL_MS = 10_000;
+
+    // Socket.IO middleware registered via io.use() in App.
+    // Reads the JWT from the httpOnly "token" cookie in the handshake headers,
+    // verifies it, and attaches the decoded user to socket.data.
+    // Connections without a valid JWT are rejected with an "unauthorized" error.
+    handleSocketMiddleware(socket: TypedSocket, next: (err?: Error) => void): void {
+        const rawCookie = socket.handshake.headers.cookie ?? "";
+        const cookies = cookie.parse(rawCookie);
+        const token = cookies["token"];
+
+        if (!token) {
+            next(new Error("unauthorized"));
+            return;
+        }
+
+        const payload = servicesStore.authService.verifyJwt(token);
+
+        if (!payload) {
+            next(new Error("unauthorized"));
+            return;
+        }
+
+        socket.data.user = {
+            id: payload.id,
+            email: payload.email,
+            displayName: payload.displayName,
+            avatarUrl: payload.avatarUrl,
+        };
+
+        next();
+    }
 
     // Registered on io.on("connection", ...) by App.
     // Wires every socket event to a named private handler.
@@ -103,6 +136,16 @@ export class SocketHandlerService {
         );
     }
 
+    // Returns true if the socket has an authenticated user attached.
+    // Disconnects the socket and returns false if not — callers must return immediately.
+    private assertAuthed(socket: TypedSocket): boolean {
+        if (!socket.data.user) {
+            socket.disconnect();
+            return false;
+        }
+        return true;
+    }
+
     // join_doc: validates the numeric documentId, provisions the document_meta row,
     // preloads the Y.Doc into memory, joins the socket room, stores documentId in
     // socket.data, and confirms with joined_doc.
@@ -110,6 +153,7 @@ export class SocketHandlerService {
         socket: TypedSocket,
         rawDocumentId: number,
     ): Promise<void> {
+        if (!this.assertAuthed(socket)) return;
         const documentId = parseInt(String(rawDocumentId));
         if (!Number.isInteger(documentId) || documentId < 1) {
             console.warn(
@@ -133,6 +177,7 @@ export class SocketHandlerService {
     // leave_doc: leaves the socket room and clears socket.data so sync handlers
     // become no-ops again until the next join_doc.
     private handleLeaveDoc(socket: TypedSocket): void {
+        if (!this.assertAuthed(socket)) return;
         if (socket.data.documentId === undefined) return;
         socket.leave(String(socket.data.documentId));
         console.log(`${socket.id} left doc ${socket.data.documentId}`);
@@ -146,6 +191,7 @@ export class SocketHandlerService {
         update: Uint8Array,
         clientSV: Uint8Array,
     ): Promise<void> {
+        if (!this.assertAuthed(socket)) return;
         if (socket.data.documentId === undefined) return;
         const documentId = socket.data.documentId;
         const yDoc = await servicesStore.docStoreService.getYDocByDocID(
@@ -197,6 +243,7 @@ export class SocketHandlerService {
         socket: TypedSocket,
         clientSV: Uint8Array,
     ): Promise<void> {
+        if (!this.assertAuthed(socket)) return;
         if (socket.data.documentId === undefined) return;
         const yDoc = await servicesStore.docStoreService.getYDocByDocID(
             String(socket.data.documentId),
@@ -212,6 +259,7 @@ export class SocketHandlerService {
         socket: TypedSocket,
         diff: Uint8Array,
     ): Promise<void> {
+        if (!this.assertAuthed(socket)) return;
         if (socket.data.documentId === undefined) return;
         const documentId = socket.data.documentId;
         const yDoc = await servicesStore.docStoreService.getYDocByDocID(
@@ -251,6 +299,7 @@ export class SocketHandlerService {
         socket: TypedSocket,
         clientSV: Uint8Array,
     ): Promise<void> {
+        if (!this.assertAuthed(socket)) return;
         if (socket.data.documentId === undefined) return;
         const yDoc = await servicesStore.docStoreService.getYDocByDocID(
             String(socket.data.documentId),
@@ -274,6 +323,7 @@ export class SocketHandlerService {
         socket: TypedSocket,
         diff: Uint8Array,
     ): Promise<void> {
+        if (!this.assertAuthed(socket)) return;
         if (socket.data.documentId === undefined) return;
         const documentId = socket.data.documentId;
         const yDoc = await servicesStore.docStoreService.getYDocByDocID(
@@ -310,6 +360,7 @@ export class SocketHandlerService {
 
     // socket_ping: echo the client's timestamp straight back so it can compute RTT.
     private handlePing(socket: TypedSocket, ts: number): void {
+        if (!this.assertAuthed(socket)) return;
         socket.emit(SocketHandlerService.SOCKET_PONG, ts);
     }
 }

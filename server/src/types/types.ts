@@ -1,4 +1,4 @@
-// Shared server-side types: doc store, pub/sub, persistence, and socket protocol.
+// Shared server-side types: doc store, pub/sub, persistence, socket protocol, and auth.
 // Keep socket event interfaces in sync with web/src/types.ts (no shared package yet).
 
 import * as Y from "yjs";
@@ -47,10 +47,28 @@ export interface ServerToClientEvents {
     socket_pong: (ts: number) => void; // echoed timestamp for RTT measurement
 }
 
+// Payload embedded in every JWT issued after Google auth.
+// id is the integer PK from the users table; all other fields come from Supabase user metadata.
+export interface JwtPayload {
+    id: number;
+    email: string;
+    displayName?: string;
+    avatarUrl?: string;
+}
+
+// Decoded user attached to socket.data after JWT middleware validates the cookie.
+export interface AuthedUser {
+    id: number;
+    email: string;
+    displayName?: string;
+    avatarUrl?: string;
+}
+
 // Per-connection state stored in socket.data after a successful join_doc.
-// Optional because it is unset before join_doc and after leave_doc.
+// user is set by Socket.IO middleware on every connection; documentId is set by join_doc.
 export interface SocketData {
     documentId?: number; // numeric Postgres primary key for the joined document
+    user?: AuthedUser;   // populated from JWT cookie on connect; undefined = unauthenticated
 }
 
 // Convenience alias used throughout the server socket handlers

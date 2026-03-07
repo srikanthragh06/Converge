@@ -76,6 +76,38 @@ export class PersistenceService {
         console.log(`createDocIfDoesntExist: ensured document_meta row for doc ${documentId}`);
     }
 
+    // Inserts a new user row or updates display_name/avatar_url if email already exists.
+    // Returns the upserted row including the auto-generated integer id.
+    async upsertUser(user: {
+        email: string;
+        displayName?: string;
+        avatarUrl?: string;
+    }): Promise<{ id: number; email: string; displayName?: string; avatarUrl?: string }> {
+        const db = servicesStore.databaseService.kysely;
+        const row = await db
+            .insertInto("users")
+            .values({
+                email: user.email,
+                display_name: user.displayName ?? null,
+                avatar_url: user.avatarUrl ?? null,
+            })
+            .onConflict((oc) =>
+                oc.column("email").doUpdateSet({
+                    display_name: user.displayName ?? null,
+                    avatar_url: user.avatarUrl ?? null,
+                }),
+            )
+            .returning(["id", "email", "display_name", "avatar_url"])
+            .executeTakeFirstOrThrow();
+
+        return {
+            id: row.id,
+            email: row.email,
+            displayName: row.display_name ?? undefined,
+            avatarUrl: row.avatar_url ?? undefined,
+        };
+    }
+
     // Loads all persisted updates for documentId, merges them into one combined
     // update via Y.mergeUpdates, then applies the single merged update to yDoc.
     // Merging first is more efficient than applying each row individually — Yjs

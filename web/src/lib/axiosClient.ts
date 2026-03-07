@@ -16,4 +16,6 @@ export const axiosClient = axios.create({
     headers: {
         "Content-Type": "application/json",
     },
+    // Required for httpOnly cookies to be sent on cross-origin requests.
+    withCredentials: true,
 });

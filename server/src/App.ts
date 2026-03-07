@@ -12,6 +12,13 @@ export class App {
         // Register REST routes before listen() so all routes are available on startup.
         servicesStore.controllerService.registerRoutes();
 
+        // JWT middleware — runs before every socket connection is accepted.
+        // Reads the httpOnly "token" cookie, verifies it, and attaches the decoded
+        // user to socket.data. Connections without a valid JWT are rejected.
+        servicesStore.httpServerService.io.use((socket, next) => {
+            servicesStore.socketHandlerService.handleSocketMiddleware(socket, next);
+        });
+
         // Wire the connection handler before listen() so no connection can arrive
         // on an unwired server.
         servicesStore.httpServerService.io.on("connection", (socket) => {

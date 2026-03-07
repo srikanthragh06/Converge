@@ -1,6 +1,14 @@
-// Jotai atoms for UI state — ping latency and sync status indicators.
+// Jotai atoms for UI state — auth state, ping latency, and sync status indicators.
 // These are separate from Y.Doc (collaborative content) state.
 import { atom } from "jotai";
+import { AuthedUser } from "../types/api";
+
+// Whether the current user is authenticated (JWT cookie verified via /auth/me).
+// Set to true by useAuth on success; false until verified or on 401.
+export const isAuthedAtom = atom<boolean>(false);
+
+// The authenticated user's profile. null until /auth/me returns successfully.
+export const currentUserAtom = atom<AuthedUser | null>(null);
 
 // Whether the socket is currently connected to the server.
 // Written by useSocket; read by usePing to react immediately on reconnect.
