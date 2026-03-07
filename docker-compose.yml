@@ -1,87 +1,87 @@
 version: "3.9"
 
 services:
-  server:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
-    ports:
-      - "5000:5000"
-    volumes:
-      # Mount source for hot reload via nodemon.
-      - ./server:/server
-      # Anonymous volume preserves the container's node_modules so the host
-      # mount above doesn't shadow the deps installed during image build.
-      - /server/node_modules
-    working_dir: /server
-    env_file:
-      - ./server/.env.local
-    environment:
-      # Override .env.local values with docker-internal service hostnames.
-      PORT: 5000
-      POSTGRES_HOST: postgres
-      REDIS_URL: redis://redis:6379
-    depends_on:
-      - postgres
-      - redis
+    server:
+        build:
+            context: ./server
+            dockerfile: Dockerfile
+        ports:
+            - "5000:5000"
+        volumes:
+            # Mount source for hot reload via nodemon.
+            - ./server:/server
+            # Anonymous volume preserves the container's node_modules so the host
+            # mount above doesn't shadow the deps installed during image build.
+            - /server/node_modules
+        working_dir: /server
+        env_file:
+            - ./server/.env
+        environment:
+            # Override .env.local values with docker-internal service hostnames.
+            PORT: 5000
+            POSTGRES_HOST: postgres
+            REDIS_URL: redis://redis:6379
+        depends_on:
+            - postgres
+            - redis
 
-  server2:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
-    ports:
-      - "5001:5001"
-    volumes:
-      # Same source mount as server — identical code, different port.
-      - ./server:/server
-      - /server/node_modules
-    working_dir: /server
-    env_file:
-      - ./server/.env.local
-    environment:
-      # Only PORT differs — server2 binds to 5001 while sharing Postgres and Redis.
-      PORT: 5001
-      POSTGRES_HOST: postgres
-      REDIS_URL: redis://redis:6379
-    depends_on:
-      - postgres
-      - redis
+    server2:
+        build:
+            context: ./server
+            dockerfile: Dockerfile
+        ports:
+            - "5001:5001"
+        volumes:
+            # Same source mount as server — identical code, different port.
+            - ./server:/server
+            - /server/node_modules
+        working_dir: /server
+        env_file:
+            - ./server/.env
+        environment:
+            # Only PORT differs — server2 binds to 5001 while sharing Postgres and Redis.
+            PORT: 5001
+            POSTGRES_HOST: postgres
+            REDIS_URL: redis://redis:6379
+        depends_on:
+            - postgres
+            - redis
 
-  web:
-    build:
-      context: ./web
-      dockerfile: Dockerfile
-    ports:
-      - "5173:5173"
-    volumes:
-      # Mount source for hot reload via Vite HMR.
-      - ./web:/web
-      # Same node_modules preservation trick as server.
-      - /web/node_modules
-    working_dir: /web
-    env_file:
-      - ./web/.env.local
-    depends_on:
-      - server
-      - server2
+    web:
+        build:
+            context: ./web
+            dockerfile: Dockerfile
+        ports:
+            - "5173:5173"
+        volumes:
+            # Mount source for hot reload via Vite HMR.
+            - ./web:/web
+            # Same node_modules preservation trick as server.
+            - /web/node_modules
+        working_dir: /web
+        env_file:
+            - ./web/.env
+        depends_on:
+            - server
+            - server2
 
-  # psql -h 127.0.0.1 -p 5432 -U converge -d converge
-  postgres:
-    image: postgres:16
-    environment:
-      POSTGRES_USER: converge
-      POSTGRES_PASSWORD: converge
-      POSTGRES_DB: converge
-    ports:
-      - "5432:5432"
-    volumes:
-      # Named volume persists data across container restarts.
-      - postgres-data:/var/lib/postgresql/data
+    # psql -h 127.0.0.1 -p 5432 -U converge -d converge
+    postgres:
+        image: postgres:16
+        environment:
+            POSTGRES_USER: converge
+            POSTGRES_PASSWORD: converge
+            POSTGRES_DB: converge
+        ports:
+            - "5432:5432"
+        volumes:
+            # Named volume persists data across container restarts.
+            - postgres-data:/var/lib/postgresql/data
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    redis:
+        image: redis:7-alpine
+        ports:
+            - "6379:6379"
 
 volumes:
-  postgres-data:
+    postgres-data:
