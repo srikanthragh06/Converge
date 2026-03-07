@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { axiosClient } from "../lib/axiosClient";
+import { ApiResponse, VerifyTokenData } from "../types/api";
 
 // AuthCallbackPage: handles the redirect from Google OAuth.
 // Supabase exchanges the URL code for a session automatically on mount.
@@ -20,8 +21,15 @@ function AuthCallbackPage() {
             }
 
             // Send the access token to the backend to verify and create/fetch the user.
-            const res = await axiosClient.post("/auth/verify", { accessToken });
-            console.log("verify response:", res.data);
+            const res = await axiosClient.post<ApiResponse<VerifyTokenData>>("/auth/verify", { accessToken });
+            const body = res.data;
+
+            if (!body.success) {
+                console.error("verify failed:", body.error);
+                return;
+            }
+
+            console.log("verify response:", body.data);
             setVerified(true);
         };
 

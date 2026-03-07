@@ -3,6 +3,7 @@
 
 import express, { Request, Response } from "express";
 import { servicesStore } from "../store/servicesStore";
+import { ApiResponse, VerifyTokenData } from "../types/api";
 
 export class ControllerService {
     // Mounts all routes on the shared Express app. Called by App.start() before listen().
@@ -15,22 +16,22 @@ export class ControllerService {
         // POST /auth/verify — verifies a Supabase access token sent by the frontend.
         // Body: { accessToken: string }
         // Returns the decoded user on success, 401 on invalid/missing token.
-        app.post("/auth/verify", async (req: Request, res: Response) => {
+        app.post("/auth/verify", async (req: Request, res: Response<ApiResponse<VerifyTokenData>>) => {
             const { accessToken } = req.body as { accessToken?: string };
 
             if (!accessToken) {
-                res.status(400).json({ error: "accessToken is required" });
+                res.status(400).json({ success: false, error: "accessToken is required" });
                 return;
             }
 
             const user = await servicesStore.authService.verifyToken(accessToken);
 
             if (!user) {
-                res.status(401).json({ error: "Invalid or expired token" });
+                res.status(401).json({ success: false, error: "Invalid or expired token" });
                 return;
             }
 
-            res.json({ user });
+            res.json({ success: true, data: { user } });
         });
     }
 }
