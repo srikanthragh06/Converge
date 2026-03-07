@@ -26,6 +26,8 @@ export interface SaveUpdateResult {
 
 // Events the server receives from clients
 export interface ClientToServerEvents {
+    join_doc: (documentId: number) => void; // request to join a document room
+    leave_doc: () => void; // request to leave the current document room
     sync_doc: (update: Uint8Array, sv: Uint8Array) => void;
     repair_doc: (clientSV: Uint8Array) => void;
     repair_response: (diff: Uint8Array) => void;
@@ -36,6 +38,8 @@ export interface ClientToServerEvents {
 
 // Events the server sends to clients
 export interface ServerToClientEvents {
+    joined_doc: (documentId: number) => void; // confirmation that the client joined the room
+    left_doc: () => void; // confirmation that the client left the room
     sync_doc: (update: Uint8Array, serverSV: Uint8Array) => void;
     repair_doc: (serverSV: Uint8Array) => void;
     repair_response: (diff: Uint8Array) => void;
@@ -43,5 +47,16 @@ export interface ServerToClientEvents {
     socket_pong: (ts: number) => void; // echoed timestamp for RTT measurement
 }
 
+// Per-connection state stored in socket.data after a successful join_doc.
+// Optional because it is unset before join_doc and after leave_doc.
+export interface SocketData {
+    documentId?: number; // numeric Postgres primary key for the joined document
+}
+
 // Convenience alias used throughout the server socket handlers
-export type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
+export type TypedSocket = Socket<
+    ClientToServerEvents,
+    ServerToClientEvents,
+    Record<string, never>,
+    SocketData
+>;

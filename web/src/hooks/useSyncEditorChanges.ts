@@ -23,9 +23,10 @@ import {
 
 // Wires the local Y.Doc to the server via Socket.IO.
 // Handles batched outgoing updates, incoming sync, and the repair protocol.
-// Also drives the isRestoringSyncAtom and isApplyingUpdatesAtom UI status indicators.
-// Persists all Y.Doc changes to IndexedDB via y-indexeddb so edits survive offline periods.
-const useSyncEditorChanges = (yDoc: Y.Doc) => {
+// Manages the doc join lifecycle: emits join_doc on socket connect, listens for
+// joined_doc to gate all sync operations, and emits leave_doc on cleanup.
+// IndexedDB persistence via y-indexeddb ensures offline edits survive disconnects.
+const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
     // Accumulate local Y.Doc updates between flushes
     const pendingUpdates = useRef<Uint8Array[]>([]);
     const timeoutId = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -35,8 +36,9 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
     // True once y-indexeddb has applied the local IndexedDB snapshot to the Y.Doc.
     // Gates the initial repair_doc so we send an accurate SV with all offline edits included.
     const [isIndexedDBSynced, setIsIndexedDBSynced] = useState(false);
-    // IndexedDB document key — single-doc scope for now
-    const INDEXEDDB_DOC_NAME = "1";
+    // True once the server confirms joined_doc — gates all sync events so no
+    // sync traffic flows before the server has loaded the right Y.Doc for this room.
+    const [isDocJoined, setIsDocJoined] = useState(false);
 
     // useSetAtom avoids subscribing this hook to atom value changes (no extra re-renders)
     const setIsRestoring = useSetAtom(isRestoringSyncAtom);
@@ -49,7 +51,6 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
     const APPLYING_DISPLAY_MS = 1200;
 
     // Helper: show "Restoring sync" for at least RESTORING_DISPLAY_MS then auto-clear.
-    // Calling again while the timer is active resets it, keeping the indicator visible.
     const flashRestoring = () => {
         setIsRestoring(true);
         if (restoringTimerId.current) clearTimeout(restoringTimerId.current);
@@ -60,7 +61,6 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
     };
 
     // Helper: show "Applying updates" for at least APPLYING_DISPLAY_MS then auto-clear.
-    // Resets the timer if called again before the previous one expires.
     const flashApplying = () => {
         setIsApplying(true);
         if (applyingTimerId.current) clearTimeout(applyingTimerId.current);
@@ -70,12 +70,11 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
         );
     };
 
-    // Set up IndexedDB persistence for the Y.Doc.
-    // On mount, loads locally stored state from IndexedDB into the doc before server sync.
-    // y-indexeddb automatically observes all future Y.Doc updates and persists them —
-    // no manual write calls needed. isIndexedDBSynced flips to true once ready.
+    // Set up IndexedDB persistence scoped to this document.
+    // Loads the local snapshot into the Y.Doc on mount before any server sync fires.
+    // y-indexeddb automatically persists all future Y.Doc updates — no manual writes needed.
     useEffect(() => {
-        const persistence = new IndexeddbPersistence(INDEXEDDB_DOC_NAME, yDoc);
+        const persistence = new IndexeddbPersistence(String(documentId), yDoc);
         persistence.on("synced", () => {
             setIsIndexedDBSynced(true);
         });
@@ -83,6 +82,30 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
             persistence.destroy();
         };
     }, [yDoc]);
+
+    // Doc join lifecycle: emit join_doc on connect; listen for joined_doc/left_doc/disconnect
+    // to keep isDocJoined accurate. Emits leave_doc on cleanup so the server clears its state.
+    // If isSocketConnected is true when this effect runs, fire join_doc immediately.
+    useEffect(() => {
+        const onConnect = () => socket.emit("join_doc", documentId);
+        const onJoinedDoc = () => setIsDocJoined(true);
+        const onLeftOrDisconnect = () => setIsDocJoined(false);
+
+        socket.on("connect", onConnect);
+        socket.on("joined_doc", onJoinedDoc);
+        socket.on("left_doc", onLeftOrDisconnect);
+        socket.on("disconnect", onLeftOrDisconnect);
+
+        if (isSocketConnected) onConnect();
+
+        return () => {
+            socket.off("connect", onConnect);
+            socket.off("joined_doc", onJoinedDoc);
+            socket.off("left_doc", onLeftOrDisconnect);
+            socket.off("disconnect", onLeftOrDisconnect);
+            socket.emit("leave_doc");
+        };
+    }, [documentId, isSocketConnected]);
 
     // Merge and emit all pending updates to the server as a single batched update
     const flushPendingUpdates = () => {
@@ -109,20 +132,14 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
 
     // Receive sync_doc from server — apply to local Y.Doc tagged as remote.
     // Server piggybacks its current SV on every relay. After applying, compare
-    // client SV against serverSV: any divergence means one side has ops the other
-    // is missing, so emit repair_doc to trigger the server to send what we lack.
+    // client SV against serverSV: any divergence triggers a repair_doc.
     useEffect(() => {
         const onSyncDoc = (update: Uint8Array, serverSV: Uint8Array) => {
-            // Show "Applying updates" while this remote change lands in the editor
             flashApplying();
-
             Y.applyUpdate(yDoc, new Uint8Array(update), REMOTE_ORIGIN);
-
             const clientSVMap = Y.decodeStateVector(Y.encodeStateVector(yDoc));
             const serverSVMap = Y.decodeStateVector(new Uint8Array(serverSV));
-
             if (!mapsEqual(clientSVMap, serverSVMap)) {
-                // SV mismatch — kick off a repair cycle
                 flashRestoring();
                 socket.emit(REPAIR_DOC, Y.encodeStateVector(yDoc));
             }
@@ -133,32 +150,18 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
         };
     }, [yDoc]);
 
-    // On connect (or reconnect), send our state vector so the server can diff and repair.
-    // Guards on both isIndexedDBSynced and isSocketConnected — if the local IndexedDB
-    // snapshot hasn't been applied yet, return early so we don't send a stale SV.
-    // When isIndexedDBSynced flips to true this effect re-runs (it's in the dep array)
-    // and onConnect() is called directly to fire repair_doc with the correct SV,
-    // including any offline edits made while disconnected.
+    // Fire initial repair_doc once both the IndexedDB snapshot and the doc join are ready.
+    // Re-runs whenever either dependency changes so reconnects and re-joins are handled
+    // automatically without a separate socket.on("connect") listener.
     useEffect(() => {
-        const onConnect = () => {
-            if (!isIndexedDBSynced) return;
-            if (!isSocketConnected) return;
-            // Initial repair_doc is the start of a restore cycle
-            flashRestoring();
-            socket.emit(REPAIR_DOC, Y.encodeStateVector(yDoc));
-        };
-        socket.on("connect", onConnect);
-        onConnect();
-        return () => {
-            socket.off("connect", onConnect);
-        };
-    }, [yDoc, isIndexedDBSynced, isSocketConnected]);
+        if (!isIndexedDBSynced || !isDocJoined) return;
+        flashRestoring();
+        socket.emit(REPAIR_DOC, Y.encodeStateVector(yDoc));
+    }, [yDoc, isIndexedDBSynced, isDocJoined]);
 
-    // Receive repair_doc from server — server detected it's behind and needs our state.
-    // Compute and send back the diff from the server's SV to our current state.
+    // Receive repair_doc from server — compute and send back the diff from the server's SV.
     useEffect(() => {
         const onRepairDoc = (serverSV: Uint8Array) => {
-            // Server requested our state — we are in a restore cycle
             flashRestoring();
             const diff = Y.encodeStateAsUpdate(yDoc, new Uint8Array(serverSV));
             socket.emit(REPAIR_RESPONSE, diff);
@@ -170,7 +173,6 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
     }, [yDoc]);
 
     // Receive repair_response — apply the diff the server computed from our state vector.
-    // Restoring clears itself via its own timer; briefly flash "Applying updates" instead.
     useEffect(() => {
         const onRepairResponse = (diff: Uint8Array) => {
             flashApplying();
@@ -182,26 +184,22 @@ const useSyncEditorChanges = (yDoc: Y.Doc) => {
         };
     }, [yDoc]);
 
-    // Heartbeat: every HEARTBEAT_INTERVAL_MS emit our SV so the server can diff.
-    // Guards on both isSocketConnected and isIndexedDBSynced — no point sending a
-    // stale SV before the local snapshot has been applied.
+    // Heartbeat: periodic reconciliation ping, gated on both isDocJoined and isIndexedDBSynced
+    // so no stale SV is sent before the local snapshot or the server join are ready.
     useEffect(() => {
         const id = setInterval(() => {
-            if (!isSocketConnected) return;
-            if (!isIndexedDBSynced) return;
-            // Heartbeat starts a restore cycle — auto-clears after RESTORING_DISPLAY_MS
+            if (!isDocJoined || !isIndexedDBSynced) return;
             flashRestoring();
             socket.emit(HEARTBEAT_SYNC, Y.encodeStateVector(yDoc));
         }, HEARTBEAT_INTERVAL_MS);
         return () => clearInterval(id);
-    }, [yDoc, isSocketConnected, isIndexedDBSynced]);
+    }, [yDoc, isDocJoined, isIndexedDBSynced]);
 
     // heartbeat_syncack: server sends what we're missing plus its own SV.
     // Apply the diff, then send back what the server is missing.
     useEffect(() => {
         const onSyncAck = (diff: Uint8Array, serverSV: Uint8Array) => {
             Y.applyUpdate(yDoc, new Uint8Array(diff), REMOTE_ORIGIN);
-            // Compute what the server is missing relative to our (now updated) state
             const diffForServer = Y.encodeStateAsUpdate(
                 yDoc,
                 new Uint8Array(serverSV),

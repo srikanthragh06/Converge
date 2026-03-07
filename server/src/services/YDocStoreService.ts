@@ -19,9 +19,6 @@ import { SocketHandlerService } from "./SocketHandlerService";
 import { REMOTE_ORIGIN } from "../constants/constants";
 
 export class YDocStoreService {
-    // Numeric document_id primary key — matches the single doc scope for v0.1.
-    static readonly DOCUMENT_ID = 1;
-
     // Evict docs not accessed for this long (10 minutes).
     private static readonly YDOC_SWEEP_AFTER_MS = 10 * 60 * 1000;
 
@@ -202,8 +199,9 @@ export class YDocStoreService {
         await this.subscribeYDocToRedis(docId, yDoc);
 
         // Step 2: Replay persisted history from Postgres.
+        // Parse the string docId back to a numeric documentId for the DB query.
         await servicesStore.persistenceService.loadYDocFromDb(
-            YDocStoreService.DOCUMENT_ID,
+            parseInt(docId),
             yDoc,
         );
 

@@ -59,6 +59,23 @@ export class PersistenceService {
         });
     }
 
+    // Creates a document_meta row for documentId if one does not already exist.
+    // Called on join_doc so the row is ready before the first saveYDocUpdate arrives.
+    // ON CONFLICT DO NOTHING makes this a true no-op for existing documents.
+    async createDocIfDoesntExist(documentId: number): Promise<void> {
+        const db = servicesStore.databaseService.kysely;
+        await db
+            .insertInto("document_meta")
+            .values({
+                document_id: documentId,
+                update_count: BigInt(0),
+                last_compact_count: BigInt(0),
+            })
+            .onConflict((oc) => oc.column("document_id").doNothing())
+            .execute();
+        console.log(`createDocIfDoesntExist: ensured document_meta row for doc ${documentId}`);
+    }
+
     // Loads all persisted updates for documentId, merges them into one combined
     // update via Y.mergeUpdates, then applies the single merged update to yDoc.
     // Merging first is more efficient than applying each row individually — Yjs

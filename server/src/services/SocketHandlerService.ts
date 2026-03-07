@@ -1,83 +1,93 @@
-// Socket.IO connection handler for the collaborative document room.
-// Each connection lazy-loads the Y.Doc via YDocStoreService.getYDocByDocID() so the
-// doc is only in memory when at least one client is connected (or recently disconnected).
+// Socket.IO connection handler for collaborative documents.
+// handleConnection wires every socket event to a named private handler method.
+// Sync handlers guard inside the method body: if socket.data.documentId is unset
+// they return early and are no-ops — safe before a successful join_doc.
+// join_doc provisions the document, preloads the Y.Doc into memory, and stores
+// documentId in socket.data before confirming with joined_doc.
+// All subsequent handlers retrieve the Y.Doc from YDocStoreService (cache hit after join).
 // All dependencies are accessed via the global container.
 
 import * as Y from "yjs";
 import { TypedSocket } from "../types/types";
 import { safeSocketHandler, mapsEqual } from "../utils/utils";
 import { servicesStore } from "../store/servicesStore";
-import { YDocStoreService } from "./YDocStoreService";
 import { REMOTE_ORIGIN } from "../constants/constants";
 
 export class SocketHandlerService {
     // Socket.IO event names — must match the client-side constants exactly.
+    static readonly JOIN_DOC = "join_doc";
+    static readonly JOINED_DOC = "joined_doc";
+    static readonly LEAVE_DOC = "leave_doc";
+    static readonly LEFT_DOC = "left_doc";
     static readonly SYNC_DOC = "sync_doc";
     static readonly REPAIR_DOC = "repair_doc";
     static readonly REPAIR_RESPONSE = "repair_response";
     static readonly HEARTBEAT_SYNC = "heartbeat_sync";
     static readonly HEARTBEAT_SYNCACK = "heartbeat_syncack";
     static readonly HEARTBEAT_ACK = "heartbeat_ack";
-    // Ping/pong for round-trip latency measurement — server echoes the client's timestamp.
     static readonly SOCKET_PING = "socket_ping";
     static readonly SOCKET_PONG = "socket_pong";
     // How often the client fires a heartbeat (milliseconds).
     static readonly HEARTBEAT_INTERVAL_MS = 10_000;
-    // The single document room all clients join (single-doc scope for v0.1).
-    static readonly DOC_ID = "doc-1";
+
     // Registered on io.on("connection", ...) by App.
-    // Lazy-loads the Y.Doc then registers all event handlers for this socket.
+    // Wires every socket event to a named private handler.
     async handleConnection(socket: TypedSocket): Promise<void> {
         console.log(`Client connected: ${socket.id}`);
 
-        // Lazy-load: retrieves the Y.Doc from cache or loads from Postgres.
-        // All handlers below close over this resolved yDoc reference.
-        const yDoc = await servicesStore.docStoreService.getYDocByDocID(
-            SocketHandlerService.DOC_ID,
+        socket.on(
+            SocketHandlerService.JOIN_DOC,
+            safeSocketHandler(async (rawDocumentId: number) => {
+                await this.handleJoinDoc(socket, rawDocumentId);
+            }),
         );
 
-        // All clients join the same room so broadcasts are scoped to the document.
-        socket.join(SocketHandlerService.DOC_ID);
+        socket.on(
+            SocketHandlerService.LEAVE_DOC,
+            safeSocketHandler(() => {
+                this.handleLeaveDoc(socket);
+            }),
+        );
 
         socket.on(
             SocketHandlerService.SYNC_DOC,
             safeSocketHandler(
                 async (update: Uint8Array, clientSV: Uint8Array) => {
-                    await this.handleSyncDoc(socket, yDoc, update, clientSV);
+                    await this.handleSyncDoc(socket, update, clientSV);
                 },
             ),
         );
 
         socket.on(
             SocketHandlerService.REPAIR_DOC,
-            safeSocketHandler((clientSV: Uint8Array) => {
-                this.handleRepairDoc(socket, yDoc, clientSV);
+            safeSocketHandler(async (clientSV: Uint8Array) => {
+                await this.handleRepairDoc(socket, clientSV);
             }),
         );
 
         socket.on(
             SocketHandlerService.REPAIR_RESPONSE,
             safeSocketHandler(async (diff: Uint8Array) => {
-                await this.handleRepairResponse(socket, yDoc, diff);
+                await this.handleRepairResponse(socket, diff);
             }),
         );
 
         socket.on(
             SocketHandlerService.HEARTBEAT_SYNC,
-            safeSocketHandler((clientSV: Uint8Array) => {
-                this.handleHeartbeatSync(socket, yDoc, clientSV);
+            safeSocketHandler(async (clientSV: Uint8Array) => {
+                await this.handleHeartbeatSync(socket, clientSV);
             }),
         );
 
         socket.on(
             SocketHandlerService.HEARTBEAT_ACK,
             safeSocketHandler(async (diff: Uint8Array) => {
-                await this.handleHeartbeatAck(socket, yDoc, diff);
+                await this.handleHeartbeatAck(socket, diff);
             }),
         );
 
-        // socket_ping: client sends a timestamp; echo it straight back so the client
-        // can measure round-trip time. No Yjs involvement — pure latency probe.
+        // socket_ping: echo the client's timestamp back for RTT measurement.
+        // No doc join required — pure transport-level probe.
         socket.on(
             SocketHandlerService.SOCKET_PING,
             safeSocketHandler((ts: number) => {
@@ -93,56 +103,86 @@ export class SocketHandlerService {
         );
     }
 
-    // sync_doc: client sends its update AND its current state vector.
-    // Fast path: publish to Redis → apply → relay (all synchronous or fire-and-forget).
-    // Persist to Postgres after relay so the critical relay path is not blocked by a DB write.
-    // Apply-before-relay ensures the piggybacked serverSV is accurate.
-    // After relaying, compare server SV against the originating client's SV — any
-    // divergence means one or both sides are missing ops, so a bidirectional repair fires.
+    // join_doc: validates the numeric documentId, provisions the document_meta row,
+    // preloads the Y.Doc into memory, joins the socket room, stores documentId in
+    // socket.data, and confirms with joined_doc.
+    private async handleJoinDoc(
+        socket: TypedSocket,
+        rawDocumentId: number,
+    ): Promise<void> {
+        const documentId = parseInt(String(rawDocumentId));
+        if (!Number.isInteger(documentId) || documentId < 1) {
+            console.warn(
+                `join_doc rejected — invalid documentId from ${socket.id}: ${rawDocumentId}`,
+            );
+            return;
+        }
+
+        // Ensure document_meta row exists before any update lands.
+        await servicesStore.persistenceService.createDocIfDoesntExist(documentId);
+
+        // Preload Y.Doc so all subsequent sync handlers get a cache hit.
+        await servicesStore.docStoreService.getYDocByDocID(String(documentId));
+        socket.join(String(documentId));
+        socket.data.documentId = documentId;
+
+        console.log(`${socket.id} joined doc ${documentId}`);
+        socket.emit(SocketHandlerService.JOINED_DOC, documentId);
+    }
+
+    // leave_doc: leaves the socket room and clears socket.data so sync handlers
+    // become no-ops again until the next join_doc.
+    private handleLeaveDoc(socket: TypedSocket): void {
+        if (socket.data.documentId === undefined) return;
+        socket.leave(String(socket.data.documentId));
+        console.log(`${socket.id} left doc ${socket.data.documentId}`);
+        socket.data.documentId = undefined;
+        socket.emit(SocketHandlerService.LEFT_DOC);
+    }
+
+    // sync_doc: publish → apply → relay → persist → SV divergence check.
     private async handleSyncDoc(
         socket: TypedSocket,
-        yDoc: Y.Doc,
         update: Uint8Array,
         clientSV: Uint8Array,
     ): Promise<void> {
-        servicesStore.docStoreService.touchYDoc(SocketHandlerService.DOC_ID);
+        if (socket.data.documentId === undefined) return;
+        const documentId = socket.data.documentId;
+        const yDoc = await servicesStore.docStoreService.getYDocByDocID(
+            String(documentId),
+        );
+        servicesStore.docStoreService.touchYDoc(String(documentId));
 
         // 1. Publish to Redis so other server instances receive and relay the update.
         servicesStore.docStoreService.publishYDocUpdate(
-            SocketHandlerService.DOC_ID,
+            String(documentId),
             new Uint8Array(update),
         );
 
-        // 2. Apply to server Y.Doc tagged as remote to prevent re-broadcast loops.
-        //    Apply before relay so the serverSV we piggyback reflects this update.
+        // 2. Apply before relay so the piggybacked serverSV is accurate.
         Y.applyUpdate(yDoc, new Uint8Array(update), REMOTE_ORIGIN);
 
-        // 3. Relay update + current serverSV to every other client in the room.
-        //    Recipients use the SV to detect their own divergence without a round trip.
+        // 3. Relay to all other clients in the room.
         const serverSV = Y.encodeStateVector(yDoc);
         socket
-            .to(SocketHandlerService.DOC_ID)
+            .to(String(documentId))
             .emit(SocketHandlerService.SYNC_DOC, update, serverSV);
 
-        // 4. Persist to Postgres after relay — DB write does not block the relay path.
-        //    Check whether compaction should be triggered based on the new update count.
+        // 4. Persist after relay so the DB write does not block the relay path.
         const { count, lastCompactCount } =
             await servicesStore.persistenceService.saveYDocUpdate(
-                YDocStoreService.DOCUMENT_ID,
+                documentId,
                 new Uint8Array(update),
             );
         servicesStore.compactorService.checkAndCompactDocumentUpdates(
-            YDocStoreService.DOCUMENT_ID,
+            documentId,
             count,
             lastCompactCount,
         );
 
-        // 5. Compare server SV against the originating client's SV.
-        //    If they differ, either side has ops the other is missing.
-        //    Repair both directions in one shot.
+        // 5. SV divergence check — repair both sides in one shot if needed.
         const serverSVMap = Y.decodeStateVector(serverSV);
         const clientSVMap = Y.decodeStateVector(new Uint8Array(clientSV));
-
         if (!mapsEqual(serverSVMap, clientSVMap)) {
             socket.emit(SocketHandlerService.REPAIR_DOC, serverSV);
             socket.emit(
@@ -152,64 +192,70 @@ export class SocketHandlerService {
         }
     }
 
-    // repair_doc: client sends its current state vector.
-    // Server responds with a diff containing everything the client is missing.
-    private handleRepairDoc(
+    // repair_doc: compute and send a diff from the client's SV to current server state.
+    private async handleRepairDoc(
         socket: TypedSocket,
-        yDoc: Y.Doc,
         clientSV: Uint8Array,
-    ): void {
-        servicesStore.docStoreService.touchYDoc(SocketHandlerService.DOC_ID);
+    ): Promise<void> {
+        if (socket.data.documentId === undefined) return;
+        const yDoc = await servicesStore.docStoreService.getYDocByDocID(
+            String(socket.data.documentId),
+        );
+        servicesStore.docStoreService.touchYDoc(String(socket.data.documentId));
 
         const diff = Y.encodeStateAsUpdate(yDoc, new Uint8Array(clientSV));
         socket.emit(SocketHandlerService.REPAIR_RESPONSE, diff);
     }
 
-    // repair_response: client sends a diff in response to our repair_doc request.
-    // Relay to all other clients, persist the new content, then apply locally.
+    // repair_response: relay, publish, persist, then apply locally.
     private async handleRepairResponse(
         socket: TypedSocket,
-        yDoc: Y.Doc,
         diff: Uint8Array,
     ): Promise<void> {
-        servicesStore.docStoreService.touchYDoc(SocketHandlerService.DOC_ID);
+        if (socket.data.documentId === undefined) return;
+        const documentId = socket.data.documentId;
+        const yDoc = await servicesStore.docStoreService.getYDocByDocID(
+            String(documentId),
+        );
+        servicesStore.docStoreService.touchYDoc(String(documentId));
 
-        // 1. Relay repair diff to all other clients on this server.
+        // 1. Relay to other local clients first — they have the same gap.
         socket
-            .to(SocketHandlerService.DOC_ID)
+            .to(String(documentId))
             .emit(SocketHandlerService.REPAIR_RESPONSE, diff);
 
-        // 2. Publish to Redis so other server instances relay the diff too.
+        // 2. Publish to Redis for other server instances.
         servicesStore.docStoreService.publishYDocUpdate(
-            SocketHandlerService.DOC_ID,
+            String(documentId),
             new Uint8Array(diff),
         );
 
-        // 3. Persist — this is new content the server was missing.
+        // 3. Persist then check compaction.
         const { count, lastCompactCount } =
             await servicesStore.persistenceService.saveYDocUpdate(
-                YDocStoreService.DOCUMENT_ID,
+                documentId,
                 new Uint8Array(diff),
             );
         servicesStore.compactorService.checkAndCompactDocumentUpdates(
-            YDocStoreService.DOCUMENT_ID,
+            documentId,
             count,
             lastCompactCount,
         );
 
-        // 4. Apply locally to bring the server Y.Doc into full sync.
+        // 4. Apply locally to bring the server Y.Doc fully in sync.
         Y.applyUpdate(yDoc, new Uint8Array(diff), REMOTE_ORIGIN);
     }
 
-    // heartbeat_sync: client sends its current SV every HEARTBEAT_INTERVAL_MS.
-    // Server computes what the client is missing and responds with that diff plus
-    // its own SV so the client can compute the reverse diff in heartbeat_ack.
-    private handleHeartbeatSync(
+    // heartbeat_sync: compute and send what the client is missing plus the server SV.
+    private async handleHeartbeatSync(
         socket: TypedSocket,
-        yDoc: Y.Doc,
         clientSV: Uint8Array,
-    ): void {
-        servicesStore.docStoreService.touchYDoc(SocketHandlerService.DOC_ID);
+    ): Promise<void> {
+        if (socket.data.documentId === undefined) return;
+        const yDoc = await servicesStore.docStoreService.getYDocByDocID(
+            String(socket.data.documentId),
+        );
+        servicesStore.docStoreService.touchYDoc(String(socket.data.documentId));
 
         const serverSV = Y.encodeStateVector(yDoc);
         const diffForClient = Y.encodeStateAsUpdate(
@@ -223,44 +269,46 @@ export class SocketHandlerService {
         );
     }
 
-    // heartbeat_ack: client sends what the server is missing (computed from the
-    // serverSV it received in heartbeat_syncack). Publish to Redis so other server
-    // instances receive the recovered content, then persist and apply locally.
+    // heartbeat_ack: publish, relay, persist, then apply what the server was missing.
     private async handleHeartbeatAck(
         socket: TypedSocket,
-        yDoc: Y.Doc,
         diff: Uint8Array,
     ): Promise<void> {
-        servicesStore.docStoreService.touchYDoc(SocketHandlerService.DOC_ID);
+        if (socket.data.documentId === undefined) return;
+        const documentId = socket.data.documentId;
+        const yDoc = await servicesStore.docStoreService.getYDocByDocID(
+            String(documentId),
+        );
+        servicesStore.docStoreService.touchYDoc(String(documentId));
 
-        // 1. Publish to Redis so other server instances also receive the recovered content.
+        // 1. Publish to Redis so other instances receive the recovered content.
         servicesStore.docStoreService.publishYDocUpdate(
-            SocketHandlerService.DOC_ID,
+            String(documentId),
             new Uint8Array(diff),
         );
 
-        // 2. Relay to other clients on this server instance — they have the same gap.
+        // 2. Relay to other clients on this instance — they have the same gap.
         socket
-            .to(SocketHandlerService.DOC_ID)
+            .to(String(documentId))
             .emit(SocketHandlerService.REPAIR_RESPONSE, diff);
 
-        // 3. Persist the recovered content, then apply to bring server Y.Doc fully in sync.
+        // 3. Persist and check compaction.
         const { count, lastCompactCount } =
             await servicesStore.persistenceService.saveYDocUpdate(
-                YDocStoreService.DOCUMENT_ID,
+                documentId,
                 new Uint8Array(diff),
             );
         servicesStore.compactorService.checkAndCompactDocumentUpdates(
-            YDocStoreService.DOCUMENT_ID,
+            documentId,
             count,
             lastCompactCount,
         );
-        // 4. Apply locally to bring the server Y.Doc into full sync.
+
+        // 4. Apply locally to bring the server Y.Doc fully in sync.
         Y.applyUpdate(yDoc, new Uint8Array(diff), REMOTE_ORIGIN);
     }
 
     // socket_ping: echo the client's timestamp straight back so it can compute RTT.
-    // No Yjs involvement — pure latency probe with no side effects.
     private handlePing(socket: TypedSocket, ts: number): void {
         socket.emit(SocketHandlerService.SOCKET_PONG, ts);
     }
