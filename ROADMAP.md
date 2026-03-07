@@ -186,14 +186,20 @@ Single-doc scope through v0.1. Multi-doc, auth, document library, access control
 
 ---
 
-## v0.09 — Multi-Document Support
+## v0.09 — Multi-Document Support ✅
 **Goal:** Users can create and access distinct documents via URL. Each doc is isolated.
+**Branch:** `multi-doc-v0.09` | **Status:** COMPLETE
 
-- Frontend: React Router with `/note/:docId` route — load the doc matching the URL param
-- Backend: all socket handlers are already parameterised by `docId`; verify all paths accept any integer `docId` (not hardcoded to `1`)
-- If `docId` does not exist in `document_meta`, create it on first client connection (auto-provision)
-- If `docId` exists, load and sync as normal
-- `INDEXEDDB_DOC_NAME` keyed to `docId` so offline snapshots are per-document
+### Delivered
+- **React Router**: `/note/:documentId` route; unknown paths render `NotFoundPage`
+- **Join/leave doc protocol**: new `join_doc` / `joined_doc` / `leave_doc` / `left_doc` socket events; client gates all sync operations on `joined_doc` confirmation
+- **`socket.data.documentId`**: server stores validated numeric documentId in socket.data after join; all sync handlers read from there with `if (socket.data.documentId === undefined) return` guard
+- **Auto-provision**: `PersistenceService.createDocIfDoesntExist()` called on `join_doc` so `document_meta` row exists before any update lands
+- **Removed hardcoded IDs**: `SocketHandlerService.DOC_ID` and `YDocStoreService.DOCUMENT_ID` constants eliminated; `String(documentId)` used inline as the socket room key
+- **Per-doc IndexedDB**: `INDEXEDDB_DOC_NAME` is now `String(documentId)` — each document has its own offline snapshot
+- **`EditorPage`**: extracts `documentId` from URL params, creates a per-mount `Y.Doc`, calls all sync hooks with `documentId`
+- **`NotFoundPage`**: rendered for unknown routes and invalid documentId URL params
+- `useSyncEditorChanges` emits `join_doc` on socket connect, tracks `isDocJoined` locally, gates repair_doc and heartbeat on `isDocJoined` instead of `isSocketConnected`
 
 ---
 
