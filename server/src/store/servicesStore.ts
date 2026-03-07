@@ -10,6 +10,9 @@ import { CompactorService } from "../services/CompactorService";
 import { PubSubService } from "../services/PubSubService";
 import { YDocStoreService } from "../services/YDocStoreService";
 import { SocketHandlerService } from "../services/SocketHandlerService";
+import { AuthService } from "../services/AuthService";
+import { ControllerService } from "../services/ControllerService";
+import { SupabaseService } from "../services/SupabaseService";
 
 export const servicesStore = {
     databaseService: new DatabaseService(),
@@ -20,4 +23,7 @@ export const servicesStore = {
     pubSubService: new PubSubService(),
     docStoreService: new YDocStoreService(),
     socketHandlerService: new SocketHandlerService(),
+    supabaseService: new SupabaseService(),
+    authService: new AuthService(),
+    controllerService: new ControllerService(),
 };

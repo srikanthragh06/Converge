@@ -9,6 +9,9 @@ export class App {
     // Startup sequence: wire connection handler → wait for infra → migrate → init pub/sub
     //                   → start sweeper → listen
     async start(): Promise<void> {
+        // Register REST routes before listen() so all routes are available on startup.
+        servicesStore.controllerService.registerRoutes();
+
         // Wire the connection handler before listen() so no connection can arrive
         // on an unwired server.
         servicesStore.httpServerService.io.on("connection", (socket) => {
