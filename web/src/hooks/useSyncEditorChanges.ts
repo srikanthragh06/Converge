@@ -15,6 +15,7 @@ import {
     HEARTBEAT_SYNCACK,
     HEARTBEAT_ACK,
     HEARTBEAT_INTERVAL_MS,
+    SYNC_TITLE,
 } from "../constants/constants";
 import { mapsEqual } from "../utils/utils";
 import {
@@ -234,13 +235,13 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
     // Update local title state so all connected clients stay in sync in real time.
     useEffect(() => {
         const onSyncTitle = (incoming: string) => setTitle(incoming);
-        socket.on("sync_title", onSyncTitle);
+        socket.on(SYNC_TITLE, onSyncTitle);
         return () => {
-            socket.off("sync_title", onSyncTitle);
+            socket.off(SYNC_TITLE, onSyncTitle);
         };
     }, []);
 
-    return { title };
+    return { title, isDocJoined };
 };
 
 export default useSyncEditorChanges;

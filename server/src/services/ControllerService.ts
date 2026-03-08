@@ -191,7 +191,7 @@ export class ControllerService {
                 }
             },
         );
-
+        f;
         // PATCH /documents/:documentId/title — overwrites the document title (last-writer-wins).
         // Requires a valid JWT cookie. Body: { title: string }.
         app.patch(

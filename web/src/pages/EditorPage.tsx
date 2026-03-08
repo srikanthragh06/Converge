@@ -28,7 +28,7 @@ function EditorPage() {
 
     // Hooks are always called — React requires unconditional hook invocation.
     // For invalid IDs, join_doc is rejected by the server so no sync occurs.
-    const { title } = useSyncEditorChanges(yDoc, isValidDocumentId ? documentId : -1);
+    const { title, isDocJoined } = useSyncEditorChanges(yDoc, isValidDocumentId ? documentId : -1);
     usePing();
 
     const editor = useCreateBlockNote({
@@ -62,7 +62,7 @@ function EditorPage() {
 
             {/* Scrollable area: title above editor, both share the same scroll container */}
             <div className="flex-1 overflow-auto flex flex-col">
-                <DocumentTitle documentId={documentId} title={title} />
+                <DocumentTitle documentId={documentId} title={title} isDocJoined={isDocJoined} />
                 <div className="flex-1">
                     <BlockNoteView
                         editor={editor}

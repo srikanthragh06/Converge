@@ -1,4 +1,4 @@
-// Cross-server Yjs update distribution via Redis pub/sub.
+// Cross-server update distribution via Redis pub/sub.
 //
 // Accesses Redis clients and the Socket.IO server via the global container.
 //
@@ -15,6 +15,10 @@ export class PubSubService {
     // Public so YDocStoreService can construct channel names without duplicating the string.
     public static readonly DOCUMENT_UPDATE_CHANNEL = "document_update_channel:";
 
+    // Redis pub/sub channel prefix for document title updates.
+    // Plain UTF-8 string payload — the new title text.
+    public static readonly TITLE_UPDATE_CHANNEL = "title_update_channel:";
+
     // Must be called once at server startup before any client connects.
     // Registers the single global Redis message handler on the sub client.
     // Routes each incoming message to YDocStoreService by stripping the channel prefix.
@@ -22,21 +26,24 @@ export class PubSubService {
         servicesStore.redisService.sub.on(
             "message",
             (channel: string, rawMessage: string) => {
-                this.handleDocumentUpdateMessage(channel, rawMessage);
+                this.handleRedisMessage(channel, rawMessage);
             },
         );
     }
 
-    // Routes a raw Redis message to the correct doc handler.
-    // Strips the channel prefix to extract the docId, then delegates to
-    // YDocStoreService which owns all per-doc state and apply/broadcast logic.
-    private handleDocumentUpdateMessage(
-        channel: string,
-        rawMessage: string,
-    ): void {
-        if (!channel.startsWith(PubSubService.DOCUMENT_UPDATE_CHANNEL)) return;
+    // Routes a raw Redis message to the appropriate handler based on channel prefix.
+    // Delegates to YDocStoreService, which owns all per-doc state and broadcast logic.
+    private handleRedisMessage(channel: string, rawMessage: string): void {
+        if (channel.startsWith(PubSubService.DOCUMENT_UPDATE_CHANNEL)) {
+            const docId = channel.slice(PubSubService.DOCUMENT_UPDATE_CHANNEL.length);
+            servicesStore.docStoreService.handleRedisDocumentUpdate(docId, rawMessage);
+            return;
+        }
 
-        const docId = channel.slice(PubSubService.DOCUMENT_UPDATE_CHANNEL.length);
-        servicesStore.docStoreService.handleRedisDocumentUpdate(docId, rawMessage);
+        if (channel.startsWith(PubSubService.TITLE_UPDATE_CHANNEL)) {
+            const docId = channel.slice(PubSubService.TITLE_UPDATE_CHANNEL.length);
+            // rawMessage is the plain title string published by publishTitleUpdate.
+            servicesStore.docStoreService.handleRedisTitleUpdate(docId, rawMessage);
+        }
     }
 }

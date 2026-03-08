@@ -27,6 +27,7 @@ export class SocketHandlerService {
     static readonly HEARTBEAT_SYNC = "heartbeat_sync";
     static readonly HEARTBEAT_SYNCACK = "heartbeat_syncack";
     static readonly HEARTBEAT_ACK = "heartbeat_ack";
+    static readonly SYNC_TITLE = "sync_title";
     static readonly SOCKET_PING = "socket_ping";
     static readonly SOCKET_PONG = "socket_pong";
     // How often the client fires a heartbeat (milliseconds).

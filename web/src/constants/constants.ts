@@ -21,6 +21,9 @@ export const REMOTE_ORIGIN = "remote";
 // Debounce window for batching Y.Doc updates before sending to server (milliseconds)
 export const BATCH_MS = 300;
 
+// Real-time title sync event — server broadcasts to room after a PATCH /documents/:id/title.
+export const SYNC_TITLE = "sync_title";
+
 // Ping/pong events for measuring round-trip latency to the server.
 // Client sends socket_ping with a timestamp; server echoes it back as socket_pong.
 export const SOCKET_PING = "socket_ping";

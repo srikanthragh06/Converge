@@ -122,8 +122,9 @@ export class YDocStoreService {
         this.yDocRedisSubEntries.set(docId, { yDoc, live: false, buffer: [] });
 
         const channel = PubSubService.DOCUMENT_UPDATE_CHANNEL + docId;
-        await servicesStore.redisService.sub.subscribe(channel);
-        console.log(`Redis: subscribed to ${channel}`);
+        const titleChannel = PubSubService.TITLE_UPDATE_CHANNEL + docId;
+        await servicesStore.redisService.sub.subscribe(channel, titleChannel);
+        console.log(`Redis: subscribed to ${channel} and ${titleChannel}`);
     }
 
     // Flushes the cold-start buffer and switches the subscription to live mode.
@@ -170,15 +171,39 @@ export class YDocStoreService {
         }
     }
 
+    // Publishes a title update to the doc's title Redis channel.
+    // All servers subscribed to this channel (including this one) will receive it
+    // and broadcast sync_title to their local clients in the document room.
+    // Fire-and-forget: errors are caught and logged.
+    async publishTitleUpdate(docId: string, title: string): Promise<void> {
+        const channel = PubSubService.TITLE_UPDATE_CHANNEL + docId;
+        try {
+            await servicesStore.redisService.pub.publish(channel, title);
+        } catch (err) {
+            console.error(
+                `Redis: publishTitleUpdate failed for ${docId}: ${String(err)}`,
+            );
+        }
+    }
+
+    // Called by PubSubService when a title update arrives on the Redis title channel.
+    // Broadcasts sync_title to all clients in the document room on this server.
+    handleRedisTitleUpdate(docId: string, title: string): void {
+        servicesStore.httpServerService.io
+            .to(docId)
+            .emit(SocketHandlerService.SYNC_TITLE, title);
+    }
+
     // Removes the subscription entry and unsubscribes from the Redis channel.
     // Called by the sweeper when a doc is evicted from memory.
     async unsubscribeYDocFromRedis(docId: string): Promise<void> {
         if (!this.yDocRedisSubEntries.has(docId)) return;
         this.yDocRedisSubEntries.delete(docId);
         const channel = PubSubService.DOCUMENT_UPDATE_CHANNEL + docId;
+        const titleChannel = PubSubService.TITLE_UPDATE_CHANNEL + docId;
         try {
-            await servicesStore.redisService.sub.unsubscribe(channel);
-            console.log(`Redis: unsubscribed from ${channel}`);
+            await servicesStore.redisService.sub.unsubscribe(channel, titleChannel);
+            console.log(`Redis: unsubscribed from ${channel} and ${titleChannel}`);
         } catch (err) {
             console.error(
                 `Redis: unsubscribeYDocFromRedis failed for ${docId}: ${String(err)}`,
