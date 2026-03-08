@@ -8,7 +8,7 @@
 // All subsequent handlers retrieve the Y.Doc from YDocStoreService (cache hit after join).
 // All dependencies are accessed via the global container.
 
-import cookie from "cookie";
+import { parse as parseCookie } from "cookie";
 import * as Y from "yjs";
 import { TypedSocket } from "../types/types";
 import { safeSocketHandler, mapsEqual } from "../utils/utils";
@@ -41,7 +41,7 @@ export class SocketHandlerService {
         next: (err?: Error) => void,
     ): void {
         const rawCookie = socket.handshake.headers.cookie ?? "";
-        const cookies = cookie.parse(rawCookie);
+        const cookies = parseCookie(rawCookie);
         const token = cookies["token"];
 
         if (!token) {
