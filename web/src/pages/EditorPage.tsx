@@ -7,6 +7,7 @@ import { BlockNoteView } from "@blocknote/mantine";
 import * as Y from "yjs";
 import useSyncEditorChanges from "../hooks/useSyncEditorChanges";
 import usePing from "../hooks/usePing";
+import AuthOverlay from "../components/AuthOverlay";
 import Navbar from "../components/Navbar";
 import NotFoundPage from "./NotFoundPage";
 
@@ -55,6 +56,7 @@ function EditorPage() {
     return (
         // Full-screen column: fixed header + scrollable editor area below
         <div className="flex flex-col h-screen bg-[#1f1f1f] gap-2">
+            <AuthOverlay />
             <Navbar />
 
             {/* Editor fills remaining height; overflow-auto handles long documents */}
