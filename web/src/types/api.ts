@@ -13,3 +13,7 @@ export type VerifyGoogleAuthData = { user: AuthedUser };
 
 // GET /auth/me
 export type MeData = { user: AuthedUser };
+
+// GET /documents/:documentId
+// PATCH /documents/:documentId/title
+export type DocumentMetaData = { id: number; title: string };

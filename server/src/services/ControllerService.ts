@@ -1,13 +1,25 @@
 // ControllerService: registers all Express REST routes.
 // Delegates business logic to the appropriate services via servicesStore.
+// requireAuth() is a private helper used at the top of every protected route —
+// it reads the JWT cookie, verifies it, and returns the payload or null.
 
 import express, { Request, Response } from "express";
 import cookieParser from "cookie-parser";
 import { servicesStore } from "../store/servicesStore";
-import { ApiResponse, VerifyGoogleAuthData, MeData } from "../types/api";
+import { ApiResponse, VerifyGoogleAuthData, MeData, DocumentMetaData } from "../types/api";
 import { JWT_EXPIRES_IN, JWT_COOKIE_MAX_AGE_MS } from "../constants/constants";
+import { JwtPayload } from "../types/types";
 
 export class ControllerService {
+    // Reads the "token" cookie and verifies it. Returns the decoded payload on success,
+    // or null if the cookie is missing or the JWT is invalid/expired.
+    // Call at the top of every protected route handler.
+    private requireAuth(req: Request): JwtPayload | null {
+        const token = (req.cookies as Record<string, string | undefined>)["token"];
+        if (!token) return null;
+        return servicesStore.authService.verifyJwt(token);
+    }
+
     // Mounts all routes on the shared Express app. Called by App.start() before listen().
     registerRoutes(): void {
         const app = servicesStore.httpServerService.expressApp;
@@ -68,17 +80,10 @@ export class ControllerService {
         // GET /auth/me — reads the JWT cookie and returns the current user's profile.
         // Returns 401 if no cookie is present or the JWT is invalid or expired.
         app.get("/auth/me", (req: Request, res: Response<ApiResponse<MeData>>) => {
-            const token = (req.cookies as Record<string, string | undefined>)["token"];
-
-            if (!token) {
-                res.status(401).json({ success: false, error: "Not authenticated" });
-                return;
-            }
-
-            const payload = servicesStore.authService.verifyJwt(token);
+            const payload = this.requireAuth(req);
 
             if (!payload) {
-                res.status(401).json({ success: false, error: "Invalid or expired token" });
+                res.status(401).json({ success: false, error: "Not authenticated" });
                 return;
             }
 
@@ -93,6 +98,52 @@ export class ControllerService {
                     },
                 },
             });
+        });
+
+        // GET /documents/:documentId — returns public metadata (id + title) for a document.
+        // Returns 401 if unauthenticated, 400 if the id is invalid, 404 if not found.
+        app.get("/documents/:documentId", async (req: Request, res: Response<ApiResponse<DocumentMetaData>>) => {
+            if (!this.requireAuth(req)) {
+                res.status(401).json({ success: false, error: "Not authenticated" });
+                return;
+            }
+
+            const documentId = parseInt(req.params["documentId"] ?? "", 10);
+            if (!Number.isInteger(documentId) || documentId < 1) {
+                res.status(400).json({ success: false, error: "Invalid documentId" });
+                return;
+            }
+
+            try {
+                const meta = await servicesStore.persistenceService.getDocumentMeta(documentId);
+                res.json({ success: true, data: meta });
+            } catch {
+                res.status(404).json({ success: false, error: "Document not found" });
+            }
+        });
+
+        // PATCH /documents/:documentId/title — overwrites the document title (last-writer-wins).
+        // Requires a valid JWT cookie. Body: { title: string }.
+        app.patch("/documents/:documentId/title", async (req: Request, res: Response<ApiResponse<DocumentMetaData>>) => {
+            if (!this.requireAuth(req)) {
+                res.status(401).json({ success: false, error: "Not authenticated" });
+                return;
+            }
+
+            const documentId = parseInt(req.params["documentId"] ?? "", 10);
+            if (!Number.isInteger(documentId) || documentId < 1) {
+                res.status(400).json({ success: false, error: "Invalid documentId" });
+                return;
+            }
+
+            const { title } = req.body as { title?: string };
+            if (typeof title !== "string") {
+                res.status(400).json({ success: false, error: "title must be a string" });
+                return;
+            }
+
+            await servicesStore.persistenceService.updateDocumentTitle(documentId, title);
+            res.json({ success: true, data: { id: documentId, title } });
         });
     }
 }

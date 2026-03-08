@@ -13,13 +13,15 @@ export interface DocumentUpdatesTable {
     created_at: Generated<Date>;
 }
 
-// One row per document — tracks monotonic update count and last compaction threshold.
+// One row per document — tracks monotonic update count, last compaction threshold, and title.
 // update_count increments on every saveUpdate; never reset.
 // last_compact_count records the 1000-multiple at which the last compaction ran.
+// title is NOT NULL (defaults to '' in Postgres); set via PATCH /documents/:id/title.
 export interface DocumentMetaTable {
-    document_id: number;       // primary key
-    update_count: bigint;      // BIGINT maps to JS BigInt via Kysely
+    document_id: number;        // primary key
+    update_count: bigint;       // BIGINT maps to JS BigInt via Kysely
     last_compact_count: bigint; // 0 until first compaction
+    title: string;              // editable document title; empty string = untitled
 }
 
 // Row shape for the users table.

@@ -38,6 +38,7 @@ export class PersistenceService {
                     document_id: documentId,
                     update_count: BigInt(1),
                     last_compact_count: BigInt(0),
+                    title: "",
                 })
                 .onConflict((oc) =>
                     oc.column("document_id").doUpdateSet((eb) => ({
@@ -70,6 +71,7 @@ export class PersistenceService {
                 document_id: documentId,
                 update_count: BigInt(0),
                 last_compact_count: BigInt(0),
+                title: "",
             })
             .onConflict((oc) => oc.column("document_id").doNothing())
             .execute();
@@ -106,6 +108,29 @@ export class PersistenceService {
             displayName: row.display_name ?? undefined,
             avatarUrl: row.avatar_url ?? undefined,
         };
+    }
+
+    // Returns public metadata (id + title) for a document.
+    // Used by GET /documents/:documentId.
+    async getDocumentMeta(documentId: number): Promise<{ id: number; title: string }> {
+        const db = servicesStore.databaseService.kysely;
+        const row = await db
+            .selectFrom("document_meta")
+            .select(["document_id", "title"])
+            .where("document_id", "=", documentId)
+            .executeTakeFirstOrThrow();
+        return { id: row.document_id, title: row.title };
+    }
+
+    // Overwrites the title for a document — last writer wins, no CRDT.
+    // Called from PATCH /documents/:documentId/title in ControllerService.
+    async updateDocumentTitle(documentId: number, title: string): Promise<void> {
+        const db = servicesStore.databaseService.kysely;
+        await db
+            .updateTable("document_meta")
+            .set({ title })
+            .where("document_id", "=", documentId)
+            .execute();
     }
 
     // Loads all persisted updates for documentId, merges them into one combined

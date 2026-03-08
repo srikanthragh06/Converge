@@ -9,6 +9,7 @@ import useSyncEditorChanges from "../hooks/useSyncEditorChanges";
 import usePing from "../hooks/usePing";
 import AuthOverlay from "../components/AuthOverlay";
 import Navbar from "../components/Navbar";
+import DocumentTitle from "../components/DocumentTitle";
 import NotFoundPage from "./NotFoundPage";
 
 // EditorPage: collaborative editor for a single document identified by URL param.
@@ -27,7 +28,7 @@ function EditorPage() {
 
     // Hooks are always called — React requires unconditional hook invocation.
     // For invalid IDs, join_doc is rejected by the server so no sync occurs.
-    useSyncEditorChanges(yDoc, isValidDocumentId ? documentId : -1);
+    const { title } = useSyncEditorChanges(yDoc, isValidDocumentId ? documentId : -1);
     usePing();
 
     const editor = useCreateBlockNote({
@@ -59,13 +60,16 @@ function EditorPage() {
             <AuthOverlay />
             <Navbar />
 
-            {/* Editor fills remaining height; overflow-auto handles long documents */}
-            <div className="flex-1 overflow-auto">
-                <BlockNoteView
-                    editor={editor}
-                    theme="dark"
-                    className="h-full"
-                />
+            {/* Scrollable area: title above editor, both share the same scroll container */}
+            <div className="flex-1 overflow-auto flex flex-col">
+                <DocumentTitle documentId={documentId} title={title} />
+                <div className="flex-1">
+                    <BlockNoteView
+                        editor={editor}
+                        theme="dark"
+                        className="h-full"
+                    />
+                </div>
             </div>
         </div>
     );

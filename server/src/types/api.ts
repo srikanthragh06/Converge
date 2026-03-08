@@ -14,3 +14,7 @@ export type VerifyGoogleAuthData = { user: AuthedUser };
 
 // GET /auth/me — returns the decoded JWT payload for the current session.
 export type MeData = { user: AuthedUser };
+
+// GET /documents/:documentId — returns public document metadata (id + title).
+// PATCH /documents/:documentId/title — updates the title, returns updated metadata.
+export type DocumentMetaData = { id: number; title: string };

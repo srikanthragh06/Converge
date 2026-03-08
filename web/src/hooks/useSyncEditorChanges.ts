@@ -3,6 +3,8 @@ import { useSetAtom, useAtomValue } from "jotai";
 import * as Y from "yjs";
 import { IndexeddbPersistence } from "y-indexeddb";
 import { socket } from "../sockets/socket";
+import { axiosClient } from "../lib/axiosClient";
+import { ApiResponse, DocumentMetaData } from "../types/api";
 import {
     SYNC_DOC,
     REPAIR_DOC,
@@ -26,6 +28,7 @@ import {
 // Manages the doc join lifecycle: emits join_doc on socket connect, listens for
 // joined_doc to gate all sync operations, and emits leave_doc on cleanup.
 // IndexedDB persistence via y-indexeddb ensures offline edits survive disconnects.
+// Returns { title } — the document title fetched from the server on each join.
 const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
     // Accumulate local Y.Doc updates between flushes
     const pendingUpdates = useRef<Uint8Array[]>([]);
@@ -39,6 +42,8 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
     // True once the server confirms joined_doc — gates all sync events so no
     // sync traffic flows before the server has loaded the right Y.Doc for this room.
     const [isDocJoined, setIsDocJoined] = useState(false);
+    // Document title fetched from the server on each joined_doc. Empty until loaded.
+    const [title, setTitle] = useState("");
 
     // useSetAtom avoids subscribing this hook to atom value changes (no extra re-renders)
     const setIsRestoring = useSetAtom(isRestoringSyncAtom);
@@ -88,8 +93,21 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
     // If isSocketConnected is true when this effect runs, fire join_doc immediately.
     useEffect(() => {
         const onConnect = () => socket.emit("join_doc", documentId);
-        const onJoinedDoc = () => setIsDocJoined(true);
-        const onLeftOrDisconnect = () => setIsDocJoined(false);
+        const onJoinedDoc = async () => {
+            setIsDocJoined(true);
+            // Fetch the current title from the server now that the doc row is guaranteed to exist.
+            try {
+                const res = await axiosClient.get<ApiResponse<DocumentMetaData>>(`/documents/${documentId}`);
+                if (res.data.success) setTitle(res.data.data.title);
+            } catch (err) {
+                console.error("Failed to fetch document title:", err);
+            }
+        };
+        const onLeftOrDisconnect = () => {
+            setIsDocJoined(false);
+            // Clear stale title so it doesn't show briefly when joining a different doc.
+            setTitle("");
+        };
 
         socket.on("connect", onConnect);
         socket.on("joined_doc", onJoinedDoc);
@@ -211,6 +229,8 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
             socket.off(HEARTBEAT_SYNCACK, onSyncAck);
         };
     }, [yDoc]);
+
+    return { title };
 };
 
 export default useSyncEditorChanges;
