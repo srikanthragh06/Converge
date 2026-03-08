@@ -12,10 +12,12 @@ export default function DocumentTitle({
     documentId,
     title,
     isDocJoined,
+    isTitleSyncing,
 }: {
     documentId: number;
     title: string;
     isDocJoined: boolean;
+    isTitleSyncing: boolean;
 }) {
     // How long after the last keystroke before the PATCH fires (ms).
     const DEBOUNCE_MS = 500;
@@ -73,9 +75,8 @@ export default function DocumentTitle({
                 disabled={!isDocJoined}
                 className={`w-full bg-transparent outline-none border-none text-6xl font-bold text-white placeholder-white/30 transition-opacity duration-300 rounded-lg ${
                     !isDocJoined
-                        ? `cursor-default opacity-90
-`
-                        : isSaving
+                        ? "cursor-default opacity-90"
+                        : isSaving || isTitleSyncing
                           ? "opacity-80"
                           : "opacity-100"
                 }`}

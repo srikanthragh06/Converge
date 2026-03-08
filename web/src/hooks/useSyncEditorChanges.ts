@@ -45,6 +45,8 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
     const [isDocJoined, setIsDocJoined] = useState(false);
     // Document title fetched from the server on each joined_doc. Empty until loaded.
     const [title, setTitle] = useState("");
+    // Briefly true when a remote sync_title arrives — drives the dim effect in DocumentTitle.
+    const [isTitleSyncing, setIsTitleSyncing] = useState(false);
 
     // useSetAtom avoids subscribing this hook to atom value changes (no extra re-renders)
     const setIsRestoring = useSetAtom(isRestoringSyncAtom);
@@ -234,14 +236,19 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
     // sync_title: server broadcasts when any client PATCHes the title.
     // Update local title state so all connected clients stay in sync in real time.
     useEffect(() => {
-        const onSyncTitle = (incoming: string) => setTitle(incoming);
+        const onSyncTitle = (incoming: string) => {
+            setTitle(incoming);
+            // Flash the dim effect for 500ms to indicate a remote title update arrived.
+            setIsTitleSyncing(true);
+            setTimeout(() => setIsTitleSyncing(false), 500);
+        };
         socket.on(SYNC_TITLE, onSyncTitle);
         return () => {
             socket.off(SYNC_TITLE, onSyncTitle);
         };
     }, []);
 
-    return { title, isDocJoined };
+    return { title, isDocJoined, isTitleSyncing };
 };
 
 export default useSyncEditorChanges;
