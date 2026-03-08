@@ -14,6 +14,7 @@ import {
 } from "../types/api";
 import { JWT_EXPIRES_IN, JWT_COOKIE_MAX_AGE_MS } from "../constants/constants";
 import { JwtPayload } from "../types/types";
+import { ValidationService } from "./ValidationService";
 
 export class ControllerService {
     // Reads the "token" cookie and verifies it. Returns the decoded payload on success,
@@ -124,7 +125,10 @@ export class ControllerService {
                 }
 
                 // Confirm the user still exists in the DB — the JWT alone is not enough.
-                const dbUser = await servicesStore.persistenceService.getUserByEmail(payload.email);
+                const dbUser =
+                    await servicesStore.persistenceService.getUserByEmail(
+                        payload.email,
+                    );
 
                 if (!dbUser) {
                     res.status(401).json({
@@ -213,15 +217,19 @@ export class ControllerService {
                     return;
                 }
 
-                const { title } = req.body as { title?: string };
-                if (typeof title !== "string") {
+                const parsedTitle =
+                    ValidationService.patchDocumentTitle.safeParse(req.body);
+                if (!parsedTitle.success) {
                     res.status(400).json({
                         success: false,
-                        error: "title must be a string",
+                        error:
+                            parsedTitle.error.issues[0]?.message ??
+                            "Invalid request body",
                     });
                     return;
                 }
 
+                const { title } = parsedTitle.data;
                 await servicesStore.persistenceService.updateDocumentTitle(
                     documentId,
                     title,

@@ -17,6 +17,8 @@ export default function DocumentTitle({
 }) {
     // How long after the last keystroke before the PATCH fires (ms).
     const DEBOUNCE_MS = 500;
+    // Maximum number of characters allowed in the title — must match server-side validation.
+    const MAX_TITLE_LENGTH = 32;
 
     // Local controlled state — updates immediately on every keystroke so the UI is responsive.
     const [value, setValue] = useState(title);
@@ -65,6 +67,7 @@ export default function DocumentTitle({
                 value={value}
                 onChange={handleChange}
                 placeholder="Untitled"
+                maxLength={MAX_TITLE_LENGTH}
                 className={`w-full bg-transparent outline-none border-none text-6xl font-bold text-white placeholder-white/30 transition-[filter] duration-300 ${isSaving ? "opacity-80" : "opacity-100"}`}
             />
         </div>
