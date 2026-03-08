@@ -203,15 +203,22 @@ Single-doc scope through v0.1. Multi-doc, auth, document library, access control
 
 ---
 
-## v0.1 — Google Auth (Forced)
+## v0.1 — Google Auth (Forced) ✅
 **Goal:** Only authenticated Google users can access the app. No anonymous editing.
+**Branch:** `auth-v0.10` | **Status:** COMPLETE
 
-- Google OAuth 2.0 via a backend callback route (`/auth/google`, `/auth/google/callback`)
-- Session cookie issued on successful login (JWT or server-side session with Redis store)
-- Frontend: redirect to Google login if no valid session; render app only when authenticated
-- Server: middleware on all socket connections and REST routes — reject unauthenticated requests
-- Store user info (`google_id`, `email`, `display_name`) in a `users` Postgres table
-- No per-doc access control yet — any authenticated user can edit any doc (refined in v0.13)
+### Delivered
+- Google OAuth 2.0 via Supabase (`signInWithOAuth`); no custom server OAuth routes needed
+- `POST /auth/verifyGoogleAuth`: verifies Supabase token, upserts user in DB, issues httpOnly JWT cookie
+- `GET /auth/me`: verifies JWT cookie and returns user profile — used by `useAuth` on mount
+- `users` table: serial integer PK, `email` unique + indexed, `display_name`, `avatar_url`
+- `AuthService`: `signJwt(payload, expiresIn)` + `verifyJwt(token)` — JWT logic co-located with Supabase token verification
+- `upsertUser` in `PersistenceService`: `ON CONFLICT (email) DO UPDATE` — no separate UserService
+- Socket.IO JWT middleware (`handleSocketMiddleware`): parses `token` cookie from handshake headers, attaches `socket.data.user`; `assertAuthed()` guard in all sync handlers
+- CORS `credentials: true` with `WEB_URL` origin; `withCredentials: true` on axios and Socket.IO client
+- `AuthOverlay`: full-screen backdrop shown when `isAuthedAtom=false`; passes `?from=<pathname>` in OAuth redirectTo; placed in pages that require auth
+- `AuthCallbackPage`: reads `?from=`, verifies, sets auth atoms, shows `AnimatedDots` then navigates back
+- `useAuth` + `useSocket` moved to `App.tsx`; socket only connects after `isAuthedAtom=true`
 
 ---
 
