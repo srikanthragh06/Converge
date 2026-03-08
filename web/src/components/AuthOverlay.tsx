@@ -24,7 +24,7 @@ function AuthOverlay() {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/60">
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/90">
             <div className="flex flex-col items-center gap-6 bg-[#2a2a2a] rounded-2xl px-10 py-10 shadow-2xl">
                 <p className="text-2xl font-bold text-zinc-100">Converge</p>
                 <p className="text-sm text-zinc-400">
