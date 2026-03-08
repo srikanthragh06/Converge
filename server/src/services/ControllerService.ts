@@ -234,6 +234,13 @@ export class ControllerService {
                     documentId,
                     title,
                 );
+
+                // Broadcast the new title to all clients currently in the document room
+                // so they update in real time without needing a page reload.
+                servicesStore.httpServerService.io
+                    .to(String(documentId))
+                    .emit("sync_title", title);
+
                 res.json({ success: true, data: { id: documentId, title } });
             },
         );

@@ -10,6 +10,7 @@ export interface ServerToClientEvents {
     repair_response: (diff: Uint8Array) => void;
     heartbeat_syncack: (diff: Uint8Array, serverSV: Uint8Array) => void;
     socket_pong: (ts: number) => void; // echoed timestamp for RTT measurement
+    sync_title: (title: string) => void; // broadcast to room when title is updated via REST
 }
 
 // Events this client sends to the server

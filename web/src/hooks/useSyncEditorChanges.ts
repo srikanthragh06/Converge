@@ -230,6 +230,14 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
         };
     }, [yDoc]);
 
+    // sync_title: server broadcasts when any client PATCHes the title.
+    // Update local title state so all connected clients stay in sync in real time.
+    useEffect(() => {
+        const onSyncTitle = (incoming: string) => setTitle(incoming);
+        socket.on("sync_title", onSyncTitle);
+        return () => { socket.off("sync_title", onSyncTitle); };
+    }, []);
+
     return { title };
 };
 
