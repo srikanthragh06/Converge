@@ -20,5 +20,6 @@ export const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(
     {
         path: "/socket",
         autoConnect: false,
+        withCredentials: true,
     },
 );
