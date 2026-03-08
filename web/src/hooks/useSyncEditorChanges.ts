@@ -171,14 +171,6 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
         };
     }, [yDoc]);
 
-    // Fire initial repair_doc once both the IndexedDB snapshot and the doc join are ready.
-    // Re-runs whenever either dependency changes so reconnects and re-joins are handled
-    // automatically without a separate socket.on("connect") listener.
-    useEffect(() => {
-        if (!isIndexedDBSynced || !isDocJoined) return;
-        flashRestoring();
-        socket.emit(REPAIR_DOC, Y.encodeStateVector(yDoc));
-    }, [yDoc, isIndexedDBSynced, isDocJoined]);
 
     // Receive repair_doc from server — compute and send back the diff from the server's SV.
     useEffect(() => {
@@ -205,14 +197,24 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
         };
     }, [yDoc]);
 
-    // Heartbeat: periodic reconciliation ping, gated on both isDocJoined and isIndexedDBSynced
-    // so no stale SV is sent before the local snapshot or the server join are ready.
+    // Heartbeat: bidirectional reconciliation — fires immediately on join/reconnect and then
+    // every HEARTBEAT_INTERVAL_MS. Using the heartbeat (rather than a one-shot repair_doc)
+    // ensures both directions are repaired: the server sends what the client missed, and the
+    // client sends back what the server missed (e.g. edits made while offline).
+    // Gated on isDocJoined and isIndexedDBSynced so no stale SV is sent too early.
     useEffect(() => {
-        const id = setInterval(() => {
+        const initiateHeartbeat = () => {
             if (!isDocJoined || !isIndexedDBSynced) return;
             flashRestoring();
             socket.emit(HEARTBEAT_SYNC, Y.encodeStateVector(yDoc));
-        }, HEARTBEAT_INTERVAL_MS);
+        };
+
+        const id = setInterval(
+            () => initiateHeartbeat(),
+            HEARTBEAT_INTERVAL_MS,
+        );
+        initiateHeartbeat();
+
         return () => clearInterval(id);
     }, [yDoc, isDocJoined, isIndexedDBSynced]);
 
