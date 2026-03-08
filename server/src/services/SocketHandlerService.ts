@@ -36,7 +36,10 @@ export class SocketHandlerService {
     // Reads the JWT from the httpOnly "token" cookie in the handshake headers,
     // verifies it, and attaches the decoded user to socket.data.
     // Connections without a valid JWT are rejected with an "unauthorized" error.
-    handleSocketMiddleware(socket: TypedSocket, next: (err?: Error) => void): void {
+    handleSocketMiddleware(
+        socket: TypedSocket,
+        next: (err?: Error) => void,
+    ): void {
         const rawCookie = socket.handshake.headers.cookie ?? "";
         const cookies = cookie.parse(rawCookie);
         const token = cookies["token"];
@@ -136,16 +139,6 @@ export class SocketHandlerService {
         );
     }
 
-    // Returns true if the socket has an authenticated user attached.
-    // Disconnects the socket and returns false if not — callers must return immediately.
-    private assertAuthed(socket: TypedSocket): boolean {
-        if (!socket.data.user) {
-            socket.disconnect();
-            return false;
-        }
-        return true;
-    }
-
     // join_doc: validates the numeric documentId, provisions the document_meta row,
     // preloads the Y.Doc into memory, joins the socket room, stores documentId in
     // socket.data, and confirms with joined_doc.
@@ -163,7 +156,9 @@ export class SocketHandlerService {
         }
 
         // Ensure document_meta row exists before any update lands.
-        await servicesStore.persistenceService.createDocIfDoesntExist(documentId);
+        await servicesStore.persistenceService.createDocIfDoesntExist(
+            documentId,
+        );
 
         // Preload Y.Doc so all subsequent sync handlers get a cache hit.
         await servicesStore.docStoreService.getYDocByDocID(String(documentId));
@@ -362,5 +357,15 @@ export class SocketHandlerService {
     private handlePing(socket: TypedSocket, ts: number): void {
         if (!this.assertAuthed(socket)) return;
         socket.emit(SocketHandlerService.SOCKET_PONG, ts);
+    }
+
+    // Returns true if the socket has an authenticated user attached.
+    // Disconnects the socket and returns false if not — callers must return immediately.
+    private assertAuthed(socket: TypedSocket): boolean {
+        if (!socket.data.user) {
+            socket.disconnect();
+            return false;
+        }
+        return true;
     }
 }
