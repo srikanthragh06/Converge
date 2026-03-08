@@ -222,13 +222,24 @@ Single-doc scope through v0.1. Multi-doc, auth, document library, access control
 
 ---
 
-## v0.11 — Document Title
+## v0.11 — Document Title ✅
 **Goal:** Each document has an editable title, persisted and displayed in the UI.
+**Branch:** `title-v0.11` | **Status:** COMPLETE
 
-- Add `title` column to `document_meta` table (migration)
-- Frontend: editable title input in the navbar, debounced REST PATCH to update the title
-- Server: `PATCH /documents/:docId/title` — validates auth, updates `document_meta.title`
-- Title shown in the browser tab (`<title>`) and the document library (v0.12)
+### Delivered
+- Migration `3_document_title.ts`: adds `title TEXT NOT NULL DEFAULT ''` to `document_meta`
+- `GET /documents/:documentId`: returns `{ id, title }` metadata — auth required
+- `PATCH /documents/:documentId/title`: updates title, auth required, Zod validation (max 32 chars) via `ValidationService`
+- `ValidationService`: dedicated class for Zod request body schemas
+- `requireAuth()` private helper in `ControllerService` DRYs up JWT cookie checks across all routes
+- `GET /auth/me` now confirms the user still exists in the `users` table (not just JWT validity)
+- `PersistenceService`: added `getDocumentMeta()`, `updateDocumentTitle()`, `getUserByEmail()`
+- `sync_title` Socket.IO event: PATCH publishes new title to Redis (`TITLE_UPDATE_CHANNEL`) so all servers broadcast to their local clients — cross-server real-time sync
+- `YDocStoreService`: subscribes/unsubscribes each doc to both `DOCUMENT_UPDATE_CHANNEL` and `TITLE_UPDATE_CHANNEL`; `publishTitleUpdate()` + `handleRedisTitleUpdate()`
+- `PubSubService`: routes `TITLE_UPDATE_CHANNEL` messages alongside `DOCUMENT_UPDATE_CHANNEL`
+- `DocumentTitle` component: `text-6xl font-bold`, debounced PATCH (500ms), `isSaving` dim while in-flight, `isTitleSyncing` dim (500ms) on remote `sync_title`, disabled with visual feedback when not joined
+- `useSyncEditorChanges`: fetches title via `GET /documents/:id` on `joined_doc`; listens for `sync_title`; returns `{ title, isDocJoined, isTitleSyncing }`
+- Initial bidirectional sync on join now uses heartbeat (not one-shot `repair_doc`) — covers both client→server and server→client missed updates in one round trip
 
 ---
 
