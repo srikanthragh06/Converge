@@ -110,6 +110,24 @@ export class PersistenceService {
         };
     }
 
+    // Looks up a user by email. Returns null if no matching row exists.
+    // Used by /auth/me to confirm the user still exists in the DB after JWT verification.
+    async getUserByEmail(email: string): Promise<{ id: number; email: string; displayName?: string; avatarUrl?: string } | null> {
+        const db = servicesStore.databaseService.kysely;
+        const row = await db
+            .selectFrom("users")
+            .select(["id", "email", "display_name", "avatar_url"])
+            .where("email", "=", email)
+            .executeTakeFirst();
+        if (!row) return null;
+        return {
+            id: row.id,
+            email: row.email,
+            displayName: row.display_name ?? undefined,
+            avatarUrl: row.avatar_url ?? undefined,
+        };
+    }
+
     // Returns public metadata (id + title) for a document.
     // Used by GET /documents/:documentId.
     async getDocumentMeta(documentId: number): Promise<{ id: number; title: string }> {
