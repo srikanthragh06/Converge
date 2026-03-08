@@ -235,11 +235,12 @@ export class ControllerService {
                     title,
                 );
 
-                // Broadcast the new title to all clients currently in the document room
-                // so they update in real time without needing a page reload.
-                servicesStore.httpServerService.io
-                    .to(String(documentId))
-                    .emit("sync_title", title);
+                // Publish the new title to the Redis title channel so all servers
+                // broadcast sync_title to their local clients in the document room.
+                await servicesStore.docStoreService.publishTitleUpdate(
+                    String(documentId),
+                    title,
+                );
 
                 res.json({ success: true, data: { id: documentId, title } });
             },
