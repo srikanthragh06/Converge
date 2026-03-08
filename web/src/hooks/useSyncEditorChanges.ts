@@ -97,7 +97,9 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
             setIsDocJoined(true);
             // Fetch the current title from the server now that the doc row is guaranteed to exist.
             try {
-                const res = await axiosClient.get<ApiResponse<DocumentMetaData>>(`/documents/${documentId}`);
+                const res = await axiosClient.get<
+                    ApiResponse<DocumentMetaData>
+                >(`/documents/${documentId}`);
                 if (res.data.success) setTitle(res.data.data.title);
             } catch (err) {
                 console.error("Failed to fetch document title:", err);
@@ -105,8 +107,6 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
         };
         const onLeftOrDisconnect = () => {
             setIsDocJoined(false);
-            // Clear stale title so it doesn't show briefly when joining a different doc.
-            setTitle("");
         };
 
         socket.on("connect", onConnect);
@@ -235,7 +235,9 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
     useEffect(() => {
         const onSyncTitle = (incoming: string) => setTitle(incoming);
         socket.on("sync_title", onSyncTitle);
-        return () => { socket.off("sync_title", onSyncTitle); };
+        return () => {
+            socket.off("sync_title", onSyncTitle);
+        };
     }, []);
 
     return { title };
