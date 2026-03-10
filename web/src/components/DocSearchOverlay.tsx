@@ -2,8 +2,8 @@
 // Renders when isDocSearchOpenAtom is true. Shows a search input:
 // empty → recency-ordered docs from GET /getUserViewedDocs;
 // typed → trigram similarity results from GET /searchUserDocs.
-// Clicking a doc navigates to /note/:id and closes the overlay.
-// Escape key or clicking the backdrop closes the overlay.
+// Clicking or pressing Enter on a focused doc navigates to /note/:id and closes the overlay.
+// Arrow keys move focus through the list; Escape or clicking the backdrop closes it.
 // The loading skeleton is delayed 300ms to avoid a flicker on fast fetches.
 
 import { useEffect, useRef, useState } from "react";
@@ -18,6 +18,7 @@ function DocSearchOverlay() {
     const navigate = useNavigate();
     const { query, setQuery, documents, isLoading } = useDocumentSearch();
     const inputRef = useRef<HTMLInputElement>(null);
+    const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
 
     // Only show the skeleton after 300ms — prevents a flash on fast fetches.
     const [showSkeleton, setShowSkeleton] = useState(false);
@@ -27,23 +28,49 @@ function DocSearchOverlay() {
         return () => clearTimeout(timer);
     }, [isLoading]);
 
-    // Auto-focus the input when the overlay opens; clear query on close.
+    // Which item is keyboard-focused (-1 = none).
+    const [focusedIndex, setFocusedIndex] = useState(-1);
+
+    // Reset focused item whenever the result list changes.
+    useEffect(() => { setFocusedIndex(-1); }, [documents]);
+
+    // Scroll the focused item into view when the index changes.
+    useEffect(() => {
+        if (focusedIndex >= 0) itemRefs.current[focusedIndex]?.scrollIntoView({ block: "nearest" });
+    }, [focusedIndex]);
+
+    // Auto-focus the input when the overlay opens; clear query and focus on close.
     useEffect(() => {
         if (isOpen) {
             setTimeout(() => inputRef.current?.focus(), 50);
         } else {
             setQuery("");
+            setFocusedIndex(-1);
         }
     }, [isOpen]);
 
-    // Close on Escape key.
+    // Keyboard: Escape closes, ArrowDown/Up moves focus, Enter selects.
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") setIsOpen(false);
+            if (e.key === "Escape") { setIsOpen(false); return; }
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setFocusedIndex((prev) => Math.min(prev + 1, documents.length - 1));
+                return;
+            }
+            if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setFocusedIndex((prev) => Math.max(prev - 1, 0));
+                return;
+            }
+            if (e.key === "Enter" && focusedIndex >= 0 && documents[focusedIndex]) {
+                e.preventDefault();
+                handleSelectDoc(documents[focusedIndex]!.id);
+            }
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, []);
+    }, [documents, focusedIndex]);
 
     const handleSelectDoc = (id: number) => {
         navigate(`/note/${id}`);
@@ -85,13 +112,19 @@ function DocSearchOverlay() {
                         </p>
                     ) : (
                         <div className="px-1">
-                            {documents.map((doc) => (
+                            {documents.map((doc, i) => (
                                 <div
                                     key={doc.id}
+                                    ref={(el) => { itemRefs.current[i] = el; }}
                                     onClick={() => handleSelectDoc(doc.id)}
-                                    className="group flex flex-col gap-0.5 px-3 py-2.5 cursor-pointer"
+                                    onMouseEnter={() => setFocusedIndex(i)}
+                                    className={`flex flex-col gap-0.5 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
+                                        i === focusedIndex ? "bg-[#2f2f2f]" : ""
+                                    }`}
                                 >
-                                    <span className="text-sm text-zinc-300 group-hover:text-zinc-100 truncate transition-colors">
+                                    <span className={`text-sm truncate transition-colors ${
+                                        i === focusedIndex ? "text-zinc-100" : "text-zinc-300"
+                                    }`}>
                                         {doc.title || <span className="text-zinc-600 italic">Untitled</span>}
                                     </span>
                                     <span className="text-xs text-zinc-600 truncate">

@@ -1,9 +1,9 @@
 // LibraryPage: shows all documents the current user has viewed, with a search bar
 // and a "New Document" CTA. Search empty → recency order; typed → trigram similarity.
-// Clicking a row navigates to /note/:id. New Document calls POST /documents then navigates.
-// The loading skeleton is delayed 300ms to avoid a flicker on fast loads.
+// Clicking or pressing Enter on a focused item navigates to /note/:id.
+// Arrow keys move focus through the list. The loading skeleton is delayed 300ms.
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import AuthOverlay from "../components/AuthOverlay";
 import useDocumentSearch from "../hooks/useDocumentSearch";
@@ -14,24 +14,52 @@ import { formatRelativeTime } from "../utils/utils";
 function LibraryPage() {
     const navigate = useNavigate();
     const { query, setQuery, documents, isLoading } = useDocumentSearch();
+    const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
 
     // Only show the skeleton after 300ms — prevents a flash on fast fetches.
     const [showSkeleton, setShowSkeleton] = useState(false);
     useEffect(() => {
-        if (!isLoading) {
-            setShowSkeleton(false);
-            return;
-        }
+        if (!isLoading) { setShowSkeleton(false); return; }
         const timer = setTimeout(() => setShowSkeleton(true), 300);
         return () => clearTimeout(timer);
     }, [isLoading]);
 
+    // Which item is keyboard-focused (-1 = none).
+    const [focusedIndex, setFocusedIndex] = useState(-1);
+
+    // Reset focused item whenever the result list changes.
+    useEffect(() => { setFocusedIndex(-1); }, [documents]);
+
+    // Scroll the focused item into view when the index changes.
+    useEffect(() => {
+        if (focusedIndex >= 0) itemRefs.current[focusedIndex]?.scrollIntoView({ block: "nearest" });
+    }, [focusedIndex]);
+
+    // Arrow keys navigate the list; Enter opens the focused doc.
+    // Guard: don't fire if the active element is the search input (let the browser handle typing).
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setFocusedIndex((prev) => Math.min(prev + 1, documents.length - 1));
+                return;
+            }
+            if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setFocusedIndex((prev) => Math.max(prev - 1, 0));
+                return;
+            }
+            if (e.key === "Enter" && focusedIndex >= 0 && documents[focusedIndex]) {
+                navigate(`/note/${documents[focusedIndex]!.id}`);
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [documents, focusedIndex]);
+
     const handleNewDocument = async () => {
         try {
-            const res =
-                await axiosClient.post<ApiResponse<DocumentMetaData>>(
-                    "/documents",
-                );
+            const res = await axiosClient.post<ApiResponse<DocumentMetaData>>("/documents");
             if (res.data.success) navigate(`/note/${res.data.data.id}`);
         } catch (err) {
             console.error("Failed to create document:", err);
@@ -64,10 +92,7 @@ function LibraryPage() {
                 {showSkeleton ? (
                     <div className="flex flex-col gap-2">
                         {[0, 1, 2].map((i) => (
-                            <div
-                                key={i}
-                                className="h-14 bg-[#252525] rounded-xl animate-pulse"
-                            />
+                            <div key={i} className="h-14 bg-[#252525] rounded-xl animate-pulse" />
                         ))}
                     </div>
                 ) : documents.length === 0 ? (
@@ -78,27 +103,27 @@ function LibraryPage() {
                     </p>
                 ) : (
                     <div className="flex flex-col">
-                        {documents.map((doc) => (
+                        {documents.map((doc, i) => (
                             <div
                                 key={doc.id}
+                                ref={(el) => { itemRefs.current[i] = el; }}
                                 onClick={() => navigate(`/note/${doc.id}`)}
-                                className="group flex flex-col gap-0.5 px-3 py-3 cursor-pointer"
+                                onMouseEnter={() => setFocusedIndex(i)}
+                                onMouseLeave={() => setFocusedIndex(-1)}
+                                className={`flex flex-col gap-0.5 px-3 py-3 rounded-xl cursor-pointer transition-colors ${
+                                    i === focusedIndex ? "bg-[#252525]" : ""
+                                }`}
                             >
-                                {/* Title */}
-                                <span className="text-sm text-zinc-300 group-hover:text-zinc-100 truncate transition-colors">
-                                    {doc.title || (
-                                        <span className="text-zinc-600 italic">
-                                            Untitled
-                                        </span>
-                                    )}
+                                <span className={`font-extrabold text-sm truncate transition-colors ${
+                                    i === focusedIndex ? "text-zinc-100" : "text-zinc-300"
+                                }`}>
+                                    {doc.title || <span className="text-zinc-600 italic">Untitled</span>}
                                 </span>
-                                {/* Metadata line */}
                                 <span className="text-xs text-zinc-600 truncate">
                                     {[
                                         doc.createdByName,
                                         `Viewed ${formatRelativeTime(doc.lastViewedAt)}`,
-                                        doc.lastEditedAt &&
-                                            `Edited ${formatRelativeTime(doc.lastEditedAt)}`,
+                                        doc.lastEditedAt && `Edited ${formatRelativeTime(doc.lastEditedAt)}`,
                                     ]
                                         .filter(Boolean)
                                         .join(" · ")}
