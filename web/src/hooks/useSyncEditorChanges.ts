@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSetAtom, useAtomValue } from "jotai";
 import * as Y from "yjs";
 import { IndexeddbPersistence } from "y-indexeddb";
+import { useCreateBlockNote } from "@blocknote/react";
 import { socket } from "../sockets/socket";
 import { axiosClient } from "../lib/axiosClient";
 import { ApiResponse, DocumentMetaData } from "../types/api";
@@ -25,13 +26,14 @@ import {
     isSocketConnectedAtom,
 } from "../atoms/uiAtoms";
 
-// Wires the local Y.Doc to the server via Socket.IO.
+// Wires the local Y.Doc and BlockNote editor to the server via Socket.IO.
+// Owns the Y.Doc and editor so they are always co-created and co-bound.
+// When documentId changes, useMemo produces a fresh Y.Doc and useCreateBlockNote
+// (which accepts a deps array) produces a fresh editor bound to the new fragment —
+// no component remount needed; BlockNoteView simply receives the new editor prop.
 // Handles batched outgoing updates, incoming sync, and the repair protocol.
-// Manages the doc join lifecycle: emits join_doc on socket connect, listens for
-// joined_doc to gate all sync operations, and emits leave_doc on cleanup.
 // IndexedDB persistence via y-indexeddb ensures offline edits survive disconnects.
-// Returns { title } — the document title fetched from the server on each join.
-const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
+const useSyncEditorChanges = (documentId: number) => {
     const navigate = useNavigate();
     // Accumulate local Y.Doc updates between flushes
     const pendingUpdates = useRef<Uint8Array[]>([]);
@@ -40,7 +42,7 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
     const restoringTimerId = useRef<ReturnType<typeof setTimeout> | null>(null);
     const applyingTimerId = useRef<ReturnType<typeof setTimeout> | null>(null);
     // True once y-indexeddb has applied the local IndexedDB snapshot to the Y.Doc.
-    // Gates the initial repair_doc so we send an accurate SV with all offline edits included.
+    // Gates the heartbeat so we send an accurate SV with all offline edits included.
     const [isIndexedDBSynced, setIsIndexedDBSynced] = useState(false);
     // True once the server confirms joined_doc — gates all sync events so no
     // sync traffic flows before the server has loaded the right Y.Doc for this room.
@@ -54,6 +56,30 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
     const setIsRestoring = useSetAtom(isRestoringSyncAtom);
     const setIsApplying = useSetAtom(isApplyingUpdatesAtom);
     const isSocketConnected = useAtomValue(isSocketConnectedAtom);
+
+    // Fresh Y.Doc for each documentId — useMemo reruns synchronously on change so all
+    // downstream effects see the new instance on the same render cycle.
+    const yDoc = useMemo(() => new Y.Doc(), [documentId]);
+
+    // BlockNote editor bound to this Y.Doc's XML fragment.
+    // useCreateBlockNote accepts a deps array (second arg) and recreates the editor when
+    // deps change — same trigger as yDoc above so they stay in lockstep.
+    // pasteHandler intercepts plain-text pastes and converts them from markdown to blocks.
+    const editor = useCreateBlockNote(
+        {
+            collaboration: {
+                fragment: yDoc.getXmlFragment("blocknote"),
+            } as any,
+            pasteHandler: ({ event, editor: e, defaultPasteHandler }) => {
+                if (event.clipboardData?.types.includes("text/plain")) {
+                    e.pasteMarkdown(event.clipboardData.getData("text/plain"));
+                    return true;
+                }
+                return defaultPasteHandler();
+            },
+        },
+        [documentId],
+    );
 
     // Minimum time (ms) each status indicator stays visible, even if the underlying
     // operation completes faster. Resets the timer whenever called again.
@@ -80,9 +106,25 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
         );
     };
 
+    // Reset all per-document state when the document switches so stale values from the
+    // previous document don't bleed through. Also discard any batched updates queued for
+    // the previous document before they can be flushed to the new document's room.
+    useEffect(() => {
+        setIsDocJoined(false);
+        setIsIndexedDBSynced(false);
+        setTitle("");
+        setIsTitleSyncing(false);
+        pendingUpdates.current = [];
+        if (timeoutId.current) {
+            clearTimeout(timeoutId.current);
+            timeoutId.current = null;
+        }
+    }, [documentId]);
+
     // Set up IndexedDB persistence scoped to this document.
     // Loads the local snapshot into the Y.Doc on mount before any server sync fires.
     // y-indexeddb automatically persists all future Y.Doc updates — no manual writes needed.
+    // Reruns when yDoc changes (i.e. when documentId changes) to bind to the new instance.
     useEffect(() => {
         const persistence = new IndexeddbPersistence(String(documentId), yDoc);
         persistence.on("synced", () => {
@@ -91,7 +133,7 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
         return () => {
             persistence.destroy();
         };
-    }, [yDoc]);
+    }, [yDoc, documentId]);
 
     // Doc join lifecycle: emit join_doc on connect; listen for joined_doc/left_doc/disconnect
     // to keep isDocJoined accurate. Emits leave_doc on cleanup so the server clears its state.
@@ -185,7 +227,6 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
         };
     }, [yDoc]);
 
-
     // Receive repair_doc from server — compute and send back the diff from the server's SV.
     useEffect(() => {
         const onRepairDoc = (serverSV: Uint8Array) => {
@@ -264,7 +305,7 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
         };
     }, []);
 
-    return { title, isDocJoined, isTitleSyncing };
+    return { title, isDocJoined, isTitleSyncing, yDoc, editor };
 };
 
 export default useSyncEditorChanges;

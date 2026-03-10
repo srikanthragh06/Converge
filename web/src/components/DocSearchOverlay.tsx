@@ -23,7 +23,10 @@ function DocSearchOverlay() {
     // Only show the skeleton after 300ms — prevents a flash on fast fetches.
     const [showSkeleton, setShowSkeleton] = useState(false);
     useEffect(() => {
-        if (!isLoading) { setShowSkeleton(false); return; }
+        if (!isLoading) {
+            setShowSkeleton(false);
+            return;
+        }
         const timer = setTimeout(() => setShowSkeleton(true), 300);
         return () => clearTimeout(timer);
     }, [isLoading]);
@@ -32,11 +35,16 @@ function DocSearchOverlay() {
     const [focusedIndex, setFocusedIndex] = useState(-1);
 
     // Reset focused item whenever the result list changes.
-    useEffect(() => { setFocusedIndex(-1); }, [documents]);
+    useEffect(() => {
+        setFocusedIndex(-1);
+    }, [documents]);
 
     // Scroll the focused item into view when the index changes.
     useEffect(() => {
-        if (focusedIndex >= 0) itemRefs.current[focusedIndex]?.scrollIntoView({ block: "nearest" });
+        if (focusedIndex >= 0)
+            itemRefs.current[focusedIndex]?.scrollIntoView({
+                block: "nearest",
+            });
     }, [focusedIndex]);
 
     // Auto-focus the input when the overlay opens; clear query and focus on close.
@@ -52,10 +60,15 @@ function DocSearchOverlay() {
     // Keyboard: Escape closes, ArrowDown/Up moves focus, Enter selects.
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") { setIsOpen(false); return; }
+            if (e.key === "Escape") {
+                setIsOpen(false);
+                return;
+            }
             if (e.key === "ArrowDown") {
                 e.preventDefault();
-                setFocusedIndex((prev) => Math.min(prev + 1, documents.length - 1));
+                setFocusedIndex((prev) =>
+                    Math.min(prev + 1, documents.length - 1),
+                );
                 return;
             }
             if (e.key === "ArrowUp") {
@@ -63,7 +76,11 @@ function DocSearchOverlay() {
                 setFocusedIndex((prev) => Math.max(prev - 1, 0));
                 return;
             }
-            if (e.key === "Enter" && focusedIndex >= 0 && documents[focusedIndex]) {
+            if (
+                e.key === "Enter" &&
+                focusedIndex >= 0 &&
+                documents[focusedIndex]
+            ) {
                 e.preventDefault();
                 handleSelectDoc(documents[focusedIndex]!.id);
             }
@@ -103,35 +120,51 @@ function DocSearchOverlay() {
                     {showSkeleton ? (
                         <div className="flex flex-col gap-1 px-2 py-1">
                             {[0, 1, 2].map((i) => (
-                                <div key={i} className="h-9 bg-[#2f2f2f] rounded-lg animate-pulse" />
+                                <div
+                                    key={i}
+                                    className="h-9 bg-[#2f2f2f] rounded-lg animate-pulse"
+                                />
                             ))}
                         </div>
                     ) : documents.length === 0 ? (
                         <p className="text-sm text-zinc-600 text-center py-6">
-                            {query.trim().length > 0 ? "No documents matched." : "No documents yet."}
+                            {query.trim().length > 0
+                                ? "No documents matched."
+                                : "No documents yet."}
                         </p>
                     ) : (
                         <div className="px-1">
                             {documents.map((doc, i) => (
                                 <div
                                     key={doc.id}
-                                    ref={(el) => { itemRefs.current[i] = el; }}
+                                    ref={(el) => {
+                                        itemRefs.current[i] = el;
+                                    }}
                                     onClick={() => handleSelectDoc(doc.id)}
                                     onMouseEnter={() => setFocusedIndex(i)}
                                     className={`flex flex-col gap-0.5 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
                                         i === focusedIndex ? "bg-[#2f2f2f]" : ""
                                     }`}
                                 >
-                                    <span className={`text-sm truncate transition-colors ${
-                                        i === focusedIndex ? "text-zinc-100" : "text-zinc-300"
-                                    }`}>
-                                        {doc.title || <span className="text-zinc-600 italic">Untitled</span>}
+                                    <span
+                                        className={`text-sm truncate transition-colors ${
+                                            i === focusedIndex
+                                                ? "text-zinc-100"
+                                                : "text-zinc-300"
+                                        }`}
+                                    >
+                                        {doc.title || (
+                                            <span className="text-zinc-600 italic">
+                                                Untitled
+                                            </span>
+                                        )}
                                     </span>
                                     <span className="text-xs text-zinc-600 truncate">
                                         {[
                                             doc.createdByName,
                                             `Viewed ${formatRelativeTime(doc.lastViewedAt)}`,
-                                            doc.lastEditedAt && `Edited ${formatRelativeTime(doc.lastEditedAt)}`,
+                                            doc.lastEditedAt &&
+                                                `Edited ${formatRelativeTime(doc.lastEditedAt)}`,
                                         ]
                                             .filter(Boolean)
                                             .join(" · ")}
