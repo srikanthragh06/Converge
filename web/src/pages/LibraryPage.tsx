@@ -79,13 +79,13 @@ function LibraryPage() {
                 ) : (
                     <div className="flex flex-col">
                         {documents.map((doc) => (
-                            <button
+                            <div
                                 key={doc.id}
                                 onClick={() => navigate(`/note/${doc.id}`)}
-                                className="group w-full flex flex-col gap-0.5 px-3 py-3 text-left bg-transparent hover:bg-[#252525] active:bg-[#2a2a2a] rounded-xl transition-colors cursor-pointer"
+                                className="group flex flex-col gap-0.5 px-3 py-3 cursor-pointer"
                             >
                                 {/* Title */}
-                                <span className="text-sm text-zinc-200 group-hover:text-zinc-100 truncate transition-colors">
+                                <span className="text-sm text-zinc-300 group-hover:text-zinc-100 truncate transition-colors">
                                     {doc.title || (
                                         <span className="text-zinc-600 italic">
                                             Untitled
@@ -103,7 +103,7 @@ function LibraryPage() {
                                         .filter(Boolean)
                                         .join(" · ")}
                                 </span>
-                            </button>
+                            </div>
                         ))}
                     </div>
                 )}

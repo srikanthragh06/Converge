@@ -86,12 +86,12 @@ function DocSearchOverlay() {
                     ) : (
                         <div className="px-1">
                             {documents.map((doc) => (
-                                <button
+                                <div
                                     key={doc.id}
                                     onClick={() => handleSelectDoc(doc.id)}
-                                    className="group w-full flex flex-col gap-0.5 px-3 py-2.5 text-left bg-transparent hover:bg-[#2f2f2f] active:bg-[#363636] rounded-lg transition-colors cursor-pointer"
+                                    className="group flex flex-col gap-0.5 px-3 py-2.5 cursor-pointer"
                                 >
-                                    <span className="text-sm text-zinc-200 group-hover:text-zinc-100 truncate transition-colors">
+                                    <span className="text-sm text-zinc-300 group-hover:text-zinc-100 truncate transition-colors">
                                         {doc.title || <span className="text-zinc-600 italic">Untitled</span>}
                                     </span>
                                     <span className="text-xs text-zinc-600 truncate">
@@ -103,7 +103,7 @@ function DocSearchOverlay() {
                                             .filter(Boolean)
                                             .join(" · ")}
                                     </span>
-                                </button>
+                                </div>
                             ))}
                         </div>
                     )}
