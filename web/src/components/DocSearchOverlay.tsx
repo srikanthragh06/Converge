@@ -86,7 +86,7 @@ function DocSearchOverlay() {
                             <button
                                 key={doc.id}
                                 onClick={() => handleSelectDoc(doc.id)}
-                                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-[#333] active:bg-[#3a3a3a] transition-colors cursor-pointer"
+                                className="w-full flex items-center justify-between px-4 py-3 text-left bg-transparent hover:bg-[#333] active:bg-[#3a3a3a] transition-colors cursor-pointer"
                             >
                                 <span className="text-sm text-zinc-100 truncate font-medium">
                                     {doc.title || <span className="text-zinc-500 italic">Untitled</span>}

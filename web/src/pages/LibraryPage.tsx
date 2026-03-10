@@ -83,7 +83,7 @@ function LibraryPage() {
                             <button
                                 key={doc.id}
                                 onClick={() => handleOpenDoc(doc.id)}
-                                className="w-full grid grid-cols-[2fr_1fr_1fr_1fr] gap-4 px-4 py-3 text-left hover:bg-[#2a2a2a] active:bg-[#303030] border-t border-zinc-800 transition-colors cursor-pointer"
+                                className="w-full grid grid-cols-[2fr_1fr_1fr_1fr] gap-4 px-4 py-3 text-left bg-transparent hover:bg-[#2a2a2a] active:bg-[#303030] border-t border-zinc-800 transition-colors cursor-pointer"
                             >
                                 <span className="text-sm text-zinc-100 truncate font-medium">
                                     {doc.title || <span className="text-zinc-500 italic">Untitled</span>}
