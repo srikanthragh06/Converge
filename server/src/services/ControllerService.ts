@@ -11,6 +11,7 @@ import {
     VerifyGoogleAuthData,
     MeData,
     DocumentMetaData,
+    DocumentLibraryData,
 } from "../types/api";
 import { JWT_EXPIRES_IN, JWT_COOKIE_MAX_AGE_MS } from "../constants/constants";
 import { JwtPayload } from "../types/types";
@@ -149,6 +150,78 @@ export class ControllerService {
                         },
                     },
                 });
+            },
+        );
+
+        // POST /documents — creates a new document owned by the current user.
+        // Returns the new document's id and empty title.
+        // The client navigates to /note/:id after receiving the response.
+        app.post(
+            "/documents",
+            async (
+                req: Request,
+                res: Response<ApiResponse<DocumentMetaData>>,
+            ) => {
+                const payload = this.requireAuth(req);
+                if (!payload) {
+                    res.status(401).json({
+                        success: false,
+                        error: "Not authenticated",
+                    });
+                    return;
+                }
+
+                const documentId = await servicesStore.persistenceService.createDoc(payload.id);
+                res.status(201).json({ success: true, data: { id: documentId, title: "" } });
+            },
+        );
+
+        // GET /getUserViewedDocs — returns all documents the current user has viewed,
+        // ordered by last_viewed_at DESC (most recent first).
+        app.get(
+            "/getUserViewedDocs",
+            async (
+                req: Request,
+                res: Response<ApiResponse<DocumentLibraryData>>,
+            ) => {
+                const payload = this.requireAuth(req);
+                if (!payload) {
+                    res.status(401).json({
+                        success: false,
+                        error: "Not authenticated",
+                    });
+                    return;
+                }
+
+                const documents = await servicesStore.persistenceService.getUserViewedDocs(payload.id);
+                res.json({ success: true, data: { documents } });
+            },
+        );
+
+        // GET /searchUserDocs?q=<query> — trigram similarity search on document titles,
+        // scoped to documents the current user has viewed.
+        // Falls back to recency order if q is missing or blank.
+        app.get(
+            "/searchUserDocs",
+            async (
+                req: Request,
+                res: Response<ApiResponse<DocumentLibraryData>>,
+            ) => {
+                const payload = this.requireAuth(req);
+                if (!payload) {
+                    res.status(401).json({
+                        success: false,
+                        error: "Not authenticated",
+                    });
+                    return;
+                }
+
+                const q = (req.query["q"] as string | undefined)?.trim() ?? "";
+                const documents = q.length > 0
+                    ? await servicesStore.persistenceService.searchUserViewedDocsByTitle(payload.id, q)
+                    : await servicesStore.persistenceService.getUserViewedDocs(payload.id);
+
+                res.json({ success: true, data: { documents } });
             },
         );
 

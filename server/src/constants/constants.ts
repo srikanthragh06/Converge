@@ -15,3 +15,8 @@ export const JWT_EXPIRES_IN = "7d";
 
 // JWT cookie maxAge in milliseconds — must correspond to JWT_EXPIRES_IN.
 export const JWT_COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Minimum trigram similarity score for a title to appear in search results.
+// 0.05 is permissive — filters out completely unrelated titles while still
+// surfacing partial matches on short or abbreviated title strings.
+export const TITLE_SEARCH_SIMILARITY_THRESHOLD = 0.05;

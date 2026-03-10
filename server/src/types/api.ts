@@ -18,3 +18,17 @@ export type MeData = { user: AuthedUser };
 // GET /documents/:documentId — returns public document metadata (id + title).
 // PATCH /documents/:documentId/title — updates the title, returns updated metadata.
 export type DocumentMetaData = { id: number; title: string };
+
+// A single row in the document library — returned by GET /documents and GET /documents/search.
+// lastEditedAt is null if the user has never made an edit to this document.
+export type DocumentLibraryItem = {
+    id: number;
+    title: string;
+    createdByName: string | null; // display_name of the creator; null for pre-v0.12 docs
+    lastViewedAt: string;         // ISO 8601 timestamp
+    lastEditedAt: string | null;  // ISO 8601 timestamp; null if user never edited
+};
+
+// GET /documents — list of docs the current user has viewed, most recent first.
+// GET /documents/search?q=... — same shape, ordered by trigram similarity score.
+export type DocumentLibraryData = { documents: DocumentLibraryItem[] };

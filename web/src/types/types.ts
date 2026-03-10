@@ -11,6 +11,7 @@ export interface ServerToClientEvents {
     heartbeat_syncack: (diff: Uint8Array, serverSV: Uint8Array) => void;
     socket_pong: (ts: number) => void; // echoed timestamp for RTT measurement
     sync_title: (title: string) => void; // broadcast to room when title is updated via REST
+    join_doc_error: (reason: string) => void; // emitted when join_doc fails (e.g. doc not found)
 }
 
 // Events this client sends to the server

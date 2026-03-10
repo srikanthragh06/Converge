@@ -111,9 +111,14 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
         const onLeftOrDisconnect = () => {
             setIsDocJoined(false);
         };
+        const onJoinDocError = (reason: string) => {
+            console.warn(`join_doc_error for doc ${documentId}: ${reason}`);
+            setIsDocJoined(false);
+        };
 
         socket.on("connect", onConnect);
         socket.on("joined_doc", onJoinedDoc);
+        socket.on("join_doc_error", onJoinDocError);
         socket.on("left_doc", onLeftOrDisconnect);
         socket.on("disconnect", onLeftOrDisconnect);
 
@@ -122,6 +127,7 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
         return () => {
             socket.off("connect", onConnect);
             socket.off("joined_doc", onJoinedDoc);
+            socket.off("join_doc_error", onJoinDocError);
             socket.off("left_doc", onLeftOrDisconnect);
             socket.off("disconnect", onLeftOrDisconnect);
             socket.emit("leave_doc");

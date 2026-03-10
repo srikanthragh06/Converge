@@ -17,11 +17,14 @@ export interface DocumentUpdatesTable {
 // update_count increments on every saveUpdate; never reset.
 // last_compact_count records the 1000-multiple at which the last compaction ran.
 // title is NOT NULL (defaults to '' in Postgres); set via PATCH /documents/:id/title.
+// created_by_id is the users.id of the first person to create the document; nullable for pre-v0.12 docs.
+// document_id is Generated because migration 4 added a sequence default for auto-increment on INSERT.
 export interface DocumentMetaTable {
-    document_id: number;        // primary key
-    update_count: bigint;       // BIGINT maps to JS BigInt via Kysely
-    last_compact_count: bigint; // 0 until first compaction
-    title: string;              // editable document title; empty string = untitled
+    document_id: Generated<number>; // primary key — auto-generated via sequence since v0.12
+    update_count: bigint;           // BIGINT maps to JS BigInt via Kysely
+    last_compact_count: bigint;     // 0 until first compaction
+    title: string;                  // editable document title; empty string = untitled
+    created_by_id: number | null;   // FK → users.id; null for docs created before v0.12
 }
 
 // Row shape for the users table.
@@ -35,10 +38,20 @@ export interface UsersTable {
     updated_at: Generated<Date>;
 }
 
+// Per-user per-document timestamps: when the user last viewed and last edited this doc.
+// Composite PK (document_id, user_id) — one row per (doc, user) pair.
+export interface DocumentUserMetaTable {
+    document_id: number;
+    user_id: number;
+    last_viewed_at: Generated<Date>;
+    last_edited_at: Date | null;
+}
+
 // Root schema passed as a generic to Kysely<DatabaseSchema>.
 // Table names must exactly match the Postgres table names.
 export interface DatabaseSchema {
     document_updates: DocumentUpdatesTable;
     document_meta: DocumentMetaTable;
     users: UsersTable;
+    document_user_meta: DocumentUserMetaTable;
 }
