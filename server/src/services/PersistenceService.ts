@@ -35,11 +35,14 @@ export class PersistenceService {
                 .execute();
 
             // 2. Upsert the counter: create on first insert, increment on subsequent ones.
+            // document_id must be specified explicitly so the ON CONFLICT fires on the right row —
+            // without it the sequence generates a new ID and the conflict never triggers.
             // created_by_id is set on the INSERT path in case createDoc was never called;
             // ON CONFLICT only increments update_count and leaves everything else untouched.
             const result = await trx
                 .insertInto("document_meta")
                 .values({
+                    document_id: documentId,
                     update_count: BigInt(1),
                     last_compact_count: BigInt(0),
                     title: "",
