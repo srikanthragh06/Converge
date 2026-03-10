@@ -10,6 +10,8 @@ import { axiosClient } from "../lib/axiosClient";
 import { ApiResponse, DocumentLibraryData, DocumentLibraryItem, DocumentSearchData } from "../types/api";
 
 const useDocumentSearch = () => {
+    // Number of documents to request per page from the server.
+    const PAGE_SIZE = 20;
     // Debounce window before the search fires after the user stops typing.
     const SEARCH_DEBOUNCE_MS = 300;
 
@@ -39,7 +41,7 @@ const useDocumentSearch = () => {
                     if (requestId !== latestRequestId.current) return;
                     if (res.data.success) setDocuments(res.data.data.documents);
                 } else {
-                    const res = await axiosClient.get<ApiResponse<DocumentLibraryData>>("/getUserViewedDocs");
+                    const res = await axiosClient.get<ApiResponse<DocumentLibraryData>>(`/getUserViewedDocs?limit=${PAGE_SIZE}`);
                     if (requestId !== latestRequestId.current) return;
                     if (res.data.success) {
                         setDocuments(res.data.data.documents);
@@ -65,6 +67,7 @@ const useDocumentSearch = () => {
         setIsLoadingMore(true);
         try {
             const params = new URLSearchParams({
+                limit: String(PAGE_SIZE),
                 lastViewedAt: nextCursor.lastViewedAt,
                 lastId: String(nextCursor.lastId),
             });

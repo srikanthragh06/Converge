@@ -11,9 +11,6 @@ import { servicesStore } from "../store/servicesStore";
 import { REMOTE_ORIGIN, TITLE_SEARCH_SIMILARITY_THRESHOLD } from "../constants/constants";
 
 export class PersistenceService {
-    // Number of documents returned per page for the library and search endpoints.
-    static readonly PAGE_SIZE = 20;
-
     // Atomically inserts the Yjs update and increments the document's update counter.
     // userId is included in the INSERT fallback values so created_by_id is never null
     // if the row somehow does not exist yet (documents are normally pre-created via createDoc).
@@ -147,6 +144,7 @@ export class PersistenceService {
     // nextCursor in the response has both fields for the next page request; null = no more pages.
     async getUserViewedDocs(
         userId: number,
+        limit: number,
         cursor?: { lastViewedAt: string; lastId: number },
     ): Promise<DocumentLibraryData> {
         const db = servicesStore.databaseService.kysely;
@@ -167,7 +165,7 @@ export class PersistenceService {
                   ? sql`AND (dum.last_viewed_at, dm.document_id) < (${cursor.lastViewedAt}::timestamptz, ${cursor.lastId})`
                   : sql``}
             ORDER BY dum.last_viewed_at DESC, dm.document_id DESC
-            LIMIT ${PersistenceService.PAGE_SIZE}
+            LIMIT ${limit}
         `.execute(db);
 
         const documents = rows.rows.map((row) => ({
@@ -178,7 +176,7 @@ export class PersistenceService {
             lastEditedAt: row.last_edited_at ? row.last_edited_at.toISOString() : null,
         }));
         const last = documents[documents.length - 1];
-        const nextCursor = documents.length === PersistenceService.PAGE_SIZE && last
+        const nextCursor = documents.length === limit && last
             ? { lastId: last.id, lastViewedAt: last.lastViewedAt }
             : null;
         return { documents, nextCursor };

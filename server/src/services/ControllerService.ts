@@ -178,8 +178,9 @@ export class ControllerService {
         );
 
         // GET /getUserViewedDocs — paginated list of documents the current user has viewed.
-        // Optional compound cursor query params: lastViewedAt (ISO timestamp) + lastId (integer).
-        // Both must be provided together; omitting both returns the first page.
+        // Required: limit (integer, client-supplied page size).
+        // Optional compound cursor: lastViewedAt (ISO timestamp) + lastId (integer).
+        // Both cursor fields must be provided together; omitting both returns the first page.
         app.get(
             "/getUserViewedDocs",
             async (
@@ -192,6 +193,12 @@ export class ControllerService {
                     return;
                 }
 
+                const limit = parseInt(req.query["limit"] as string, 10);
+                if (isNaN(limit) || limit < 1) {
+                    res.status(400).json({ success: false, error: "limit must be a positive integer" });
+                    return;
+                }
+
                 const lastViewedAt = req.query["lastViewedAt"] as string | undefined;
                 const lastIdRaw = req.query["lastId"] as string | undefined;
                 const lastId = lastIdRaw !== undefined ? parseInt(lastIdRaw, 10) : undefined;
@@ -199,7 +206,7 @@ export class ControllerService {
                     ? { lastViewedAt, lastId }
                     : undefined;
 
-                const data = await servicesStore.persistenceService.getUserViewedDocs(payload.id, cursor);
+                const data = await servicesStore.persistenceService.getUserViewedDocs(payload.id, limit, cursor);
                 res.json({ success: true, data });
             },
         );
