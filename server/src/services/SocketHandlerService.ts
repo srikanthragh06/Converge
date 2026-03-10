@@ -20,6 +20,7 @@ export class SocketHandlerService {
     static readonly JOIN_DOC = "join_doc";
     static readonly JOINED_DOC = "joined_doc";
     static readonly JOIN_DOC_ERROR = "join_doc_error";
+    static readonly DOC_NOT_FOUND = "doc_not_found";
     static readonly LEAVE_DOC = "leave_doc";
     static readonly LEFT_DOC = "left_doc";
     static readonly SYNC_DOC = "sync_doc";
@@ -155,15 +156,21 @@ export class SocketHandlerService {
             console.warn(
                 `join_doc rejected — invalid documentId from ${socket.id}: ${rawDocumentId}`,
             );
-            socket.emit(SocketHandlerService.JOIN_DOC_ERROR, "Invalid document ID");
+            socket.emit(
+                SocketHandlerService.JOIN_DOC_ERROR,
+                "Invalid document ID",
+            );
             return;
         }
 
         // Reject the join if the document does not exist — no silent auto-creation.
-        const exists = await servicesStore.persistenceService.documentExists(documentId);
+        const exists =
+            await servicesStore.persistenceService.documentExists(documentId);
         if (!exists) {
-            console.warn(`join_doc rejected — document ${documentId} not found`);
-            socket.emit(SocketHandlerService.JOIN_DOC_ERROR, "Document not found");
+            console.warn(
+                `join_doc rejected — document ${documentId} not found`,
+            );
+            socket.emit(SocketHandlerService.DOC_NOT_FOUND);
             return;
         }
 

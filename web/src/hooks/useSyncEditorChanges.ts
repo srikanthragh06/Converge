@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useSetAtom, useAtomValue } from "jotai";
 import * as Y from "yjs";
 import { IndexeddbPersistence } from "y-indexeddb";
@@ -31,6 +32,7 @@ import {
 // IndexedDB persistence via y-indexeddb ensures offline edits survive disconnects.
 // Returns { title } — the document title fetched from the server on each join.
 const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
+    const navigate = useNavigate();
     // Accumulate local Y.Doc updates between flushes
     const pendingUpdates = useRef<Uint8Array[]>([]);
     const timeoutId = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -115,10 +117,15 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
             console.warn(`join_doc_error for doc ${documentId}: ${reason}`);
             setIsDocJoined(false);
         };
+        const onDocNotFound = () => {
+            // Server confirmed the document does not exist — navigate to the 404 page.
+            navigate("/not-found");
+        };
 
         socket.on("connect", onConnect);
         socket.on("joined_doc", onJoinedDoc);
         socket.on("join_doc_error", onJoinDocError);
+        socket.on("doc_not_found", onDocNotFound);
         socket.on("left_doc", onLeftOrDisconnect);
         socket.on("disconnect", onLeftOrDisconnect);
 
@@ -128,6 +135,7 @@ const useSyncEditorChanges = (yDoc: Y.Doc, documentId: number) => {
             socket.off("connect", onConnect);
             socket.off("joined_doc", onJoinedDoc);
             socket.off("join_doc_error", onJoinDocError);
+            socket.off("doc_not_found", onDocNotFound);
             socket.off("left_doc", onLeftOrDisconnect);
             socket.off("disconnect", onLeftOrDisconnect);
             socket.emit("leave_doc");
