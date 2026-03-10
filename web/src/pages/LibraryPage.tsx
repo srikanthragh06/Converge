@@ -72,17 +72,17 @@ function LibraryPage() {
 
             <div className="max-w-2xl mx-auto px-6 pt-12 pb-8">
                 {/* Toolbar: search + new doc CTA */}
-                <div className="flex items-center gap-3 mb-8">
+                <div className="flex items-center gap-2 mb-8">
                     <input
                         type="text"
                         placeholder="Search documents..."
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        className="flex-1 px-3 py-2 bg-[#2a2a2a] rounded-lg text-zinc-200 placeholder-zinc-600 text-sm outline-none transition-colors"
+                        className="flex-1 px-3 py-1.5 bg-transparent border border-zinc-800 focus:border-zinc-600 rounded-md text-zinc-300 placeholder-zinc-600 text-sm outline-none transition-colors"
                     />
                     <button
                         onClick={handleNewDocument}
-                        className="shrink-0 px-3 py-2 bg-[#2a2a2a] hover:bg-[#323232] active:bg-[#2f2f2f] text-zinc-300 text-sm rounded-lg transition-colors cursor-pointer"
+                        className="shrink-0 px-3 py-1.5 text-zinc-500 hover:text-zinc-300 text-sm transition-colors cursor-pointer"
                     >
                         New Document
                     </button>
