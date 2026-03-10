@@ -243,14 +243,24 @@ Single-doc scope through v0.1. Multi-doc, auth, document library, access control
 
 ---
 
-## v0.12 — Document Library
-**Goal:** Users can see all their documents and create or delete them from a dashboard.
+## v0.12 — Document Library ✅
+**Goal:** Users can see all their documents and create new ones from a dashboard.
+**Branch:** `library-v0.12` | **Status:** COMPLETE
 
-- New `/library` route — full-page document list view
-- Library table columns: document title, created by, last edited at
-- "New document" CTA — creates a `document_meta` row, redirects to `/note/:docId`
-- Delete document — confirm dialog; removes all `document_updates` rows and the `document_meta` row in a transaction
-- `document_meta` extended: add `created_by` (FK to `users`), `created_at`, `last_edited_at` (updated on every `saveYDocUpdate`)
+### Delivered
+- Migration `4_document_library.ts`: `pg_trgm` extension, sequence default on `document_meta.document_id`, `created_by_id` FK on `document_meta`, `document_user_meta` table (per-user `last_viewed_at` / `last_edited_at`), GIN trigram index on `document_meta.title`, B-tree index on `document_user_meta.last_viewed_at`
+- `POST /documents`: creates a new `document_meta` row with `created_by_id`, returns `{ id, title: "" }`, frontend navigates to `/note/:id`
+- `GET /getUserViewedDocs?limit=N[&lastViewedAt=&lastId=]`: paginated (compound cursor), sorted by `last_viewed_at DESC, document_id DESC`
+- `GET /searchUserDocs?q=<query>`: trigram similarity search (not paginated), threshold `0.05` constant, ordered by similarity DESC
+- `join_doc` now checks `documentExists` (no auto-creation); emits `doc_not_found` event if missing — client navigates to `/not-found`; `upsertLastViewedAt` called fire-and-forget on join
+- `handleSyncDoc` calls `upsertLastEditedAt` fire-and-forget after persist
+- `DocumentLibraryData` type: `{ documents, nextCursor: { lastId, lastViewedAt } | null }`; `DocumentSearchData` type: `{ documents }` (no cursor)
+- `document_user_meta` table replaces per-row view tracking; composite PK `(document_id, user_id)`
+- `/library` route — `LibraryPage`: search input + ghost-style "New Document" CTA, two-line doc items (title + metadata), 300ms skeleton delay, arrow key navigation with `focusedIndex` + `itemRefs`, `IntersectionObserver` sentinel triggers `loadMore` on scroll, spinner while loading next page
+- `DocSearchOverlay` (Ctrl+P): same design; first page of recency list shown; searching returns all results unpaginated
+- `useDocumentSearch` hook: shared between `LibraryPage` and `DocSearchOverlay`; debounced 300ms; split fetch paths for library (paginated) vs search (not paginated); `loadMore` appends next page using compound cursor; `PAGE_SIZE = 20` constant lives in the hook (client-supplied via `?limit=` param)
+- `useDocSearchShortcut` hook: global Ctrl+P / Cmd+P listener, toggles `isDocSearchOpenAtom`
+- Bug fix: `useSyncEditorChanges` — `yDoc` via `useMemo([documentId])` and `editor` via `useCreateBlockNote(..., [documentId])` so both refresh on doc switch without component remount; reset effect clears stale state on `documentId` change
 
 ---
 
