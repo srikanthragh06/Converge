@@ -6,11 +6,14 @@
 import * as Y from "yjs";
 import { sql } from "kysely";
 import { SaveUpdateResult } from "../types/types";
-import { DocumentLibraryItem } from "../types/api";
+import { DocumentLibraryData, DocumentSearchData } from "../types/api";
 import { servicesStore } from "../store/servicesStore";
 import { REMOTE_ORIGIN, TITLE_SEARCH_SIMILARITY_THRESHOLD } from "../constants/constants";
 
 export class PersistenceService {
+    // Number of documents returned per page for the library and search endpoints.
+    static readonly PAGE_SIZE = 20;
+
     // Atomically inserts the Yjs update and increments the document's update counter.
     // userId is included in the INSERT fallback values so created_by_id is never null
     // if the row somehow does not exist yet (documents are normally pre-created via createDoc).
@@ -139,9 +142,13 @@ export class PersistenceService {
             .execute();
     }
 
-    // Returns all documents the user has viewed, ordered by last_viewed_at DESC.
-    // Used by GET /documents for the library page recency list.
-    async getUserViewedDocs(userId: number): Promise<DocumentLibraryItem[]> {
+    // Returns a page of documents the user has viewed, sorted by last_viewed_at DESC, document_id DESC.
+    // Uses a compound cursor (lastViewedAt, lastId) for stable keyset pagination.
+    // nextCursor in the response has both fields for the next page request; null = no more pages.
+    async getUserViewedDocs(
+        userId: number,
+        cursor?: { lastViewedAt: string; lastId: number },
+    ): Promise<DocumentLibraryData> {
         const db = servicesStore.databaseService.kysely;
         const rows = await sql<{
             document_id: number;
@@ -156,22 +163,31 @@ export class PersistenceService {
             JOIN document_meta dm ON dm.document_id = dum.document_id
             LEFT JOIN users u ON u.id = dm.created_by_id
             WHERE dum.user_id = ${userId}
-            ORDER BY dum.last_viewed_at DESC
+              ${cursor !== undefined
+                  ? sql`AND (dum.last_viewed_at, dm.document_id) < (${cursor.lastViewedAt}::timestamptz, ${cursor.lastId})`
+                  : sql``}
+            ORDER BY dum.last_viewed_at DESC, dm.document_id DESC
+            LIMIT ${PersistenceService.PAGE_SIZE}
         `.execute(db);
 
-        return rows.rows.map((row) => ({
+        const documents = rows.rows.map((row) => ({
             id: row.document_id,
             title: row.title,
             createdByName: row.created_by_name,
             lastViewedAt: row.last_viewed_at.toISOString(),
             lastEditedAt: row.last_edited_at ? row.last_edited_at.toISOString() : null,
         }));
+        const last = documents[documents.length - 1];
+        const nextCursor = documents.length === PersistenceService.PAGE_SIZE && last
+            ? { lastId: last.id, lastViewedAt: last.lastViewedAt }
+            : null;
+        return { documents, nextCursor };
     }
 
     // Trigram similarity search on titles scoped to docs the user has viewed.
-    // Results below TITLE_SEARCH_SIMILARITY_THRESHOLD are filtered out.
-    // Used by GET /documents/search?q=... for the library search bar and Ctrl+P overlay.
-    async searchUserViewedDocsByTitle(userId: number, query: string): Promise<DocumentLibraryItem[]> {
+    // Results below TITLE_SEARCH_SIMILARITY_THRESHOLD are filtered out, ordered by similarity DESC.
+    // Not paginated — search results are expected to be small enough to return in full.
+    async searchUserViewedDocsByTitle(userId: number, query: string): Promise<DocumentSearchData> {
         const db = servicesStore.databaseService.kysely;
         const rows = await sql<{
             document_id: number;
@@ -190,13 +206,14 @@ export class PersistenceService {
             ORDER BY similarity(dm.title, ${query}) DESC
         `.execute(db);
 
-        return rows.rows.map((row) => ({
+        const documents = rows.rows.map((row) => ({
             id: row.document_id,
             title: row.title,
             createdByName: row.created_by_name,
             lastViewedAt: row.last_viewed_at.toISOString(),
             lastEditedAt: row.last_edited_at ? row.last_edited_at.toISOString() : null,
         }));
+        return { documents };
     }
 
     // Inserts a new user row or updates display_name/avatar_url if email already exists.

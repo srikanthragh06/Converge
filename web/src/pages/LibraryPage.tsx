@@ -1,7 +1,9 @@
 // LibraryPage: shows all documents the current user has viewed, with a search bar
-// and a "New Document" CTA. Search empty → recency order; typed → trigram similarity.
-// Clicking or pressing Enter on a focused item navigates to /note/:id.
-// Arrow keys move focus through the list. The loading skeleton is delayed 300ms.
+// and a "New Document" CTA. Search empty → recency order with scroll pagination;
+// typed → trigram similarity (not paginated). Clicking or pressing Enter on a focused
+// item navigates to /note/:id. Arrow keys move focus through the list.
+// The loading skeleton is delayed 300ms. An IntersectionObserver on a sentinel div
+// at the bottom of the list triggers loadMore when the user scrolls near the end.
 
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -13,8 +15,10 @@ import { formatRelativeTime } from "../utils/utils";
 
 function LibraryPage() {
     const navigate = useNavigate();
-    const { query, setQuery, documents, isLoading } = useDocumentSearch();
+    const { query, setQuery, documents, isLoading, isLoadingMore, hasMore, loadMore } = useDocumentSearch();
     const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+    // Sentinel div observed by IntersectionObserver to trigger pagination.
+    const sentinelRef = useRef<HTMLDivElement | null>(null);
 
     // Only show the skeleton after 300ms — prevents a flash on fast fetches.
     const [showSkeleton, setShowSkeleton] = useState(false);
@@ -36,7 +40,6 @@ function LibraryPage() {
     }, [focusedIndex]);
 
     // Arrow keys navigate the list; Enter opens the focused doc.
-    // Guard: don't fire if the active element is the search input (let the browser handle typing).
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === "ArrowDown") {
@@ -56,6 +59,21 @@ function LibraryPage() {
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [documents, focusedIndex]);
+
+    // IntersectionObserver on the sentinel div — calls loadMore when it becomes visible.
+    // Recreated when hasMore or isLoadingMore changes so it doesn't fire stale callbacks.
+    useEffect(() => {
+        const sentinel = sentinelRef.current;
+        if (!sentinel || !hasMore) return;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0]?.isIntersecting) loadMore();
+            },
+            { threshold: 0.1 },
+        );
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    }, [hasMore, isLoadingMore]);
 
     const handleNewDocument = async () => {
         try {
@@ -130,6 +148,16 @@ function LibraryPage() {
                                 </span>
                             </div>
                         ))}
+
+                        {/* Sentinel observed by IntersectionObserver to trigger loadMore */}
+                        <div ref={sentinelRef} className="h-1" />
+
+                        {/* Spinner shown while fetching the next page */}
+                        {isLoadingMore && (
+                            <div className="flex justify-center py-4">
+                                <div className="w-4 h-4 border border-zinc-700 border-t-zinc-400 rounded-full animate-spin" />
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

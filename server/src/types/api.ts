@@ -29,6 +29,13 @@ export type DocumentLibraryItem = {
     lastEditedAt: string | null;  // ISO 8601 timestamp; null if user never edited
 };
 
-// GET /documents — list of docs the current user has viewed, most recent first.
-// GET /documents/search?q=... — same shape, ordered by trigram similarity score.
-export type DocumentLibraryData = { documents: DocumentLibraryItem[] };
+// GET /getUserViewedDocs — paginated with a compound cursor (lastViewedAt, lastId).
+// nextCursor is null when there are no more pages. Pass both fields as query params
+// (?lastViewedAt=<iso>&lastId=<id>) to fetch the next page.
+export type DocumentLibraryData = {
+    documents: DocumentLibraryItem[];
+    nextCursor: { lastId: number; lastViewedAt: string } | null;
+};
+
+// GET /searchUserDocs — not paginated; returns all matching documents in one response.
+export type DocumentSearchData = { documents: DocumentLibraryItem[] };

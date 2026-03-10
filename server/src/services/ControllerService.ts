@@ -12,6 +12,7 @@ import {
     MeData,
     DocumentMetaData,
     DocumentLibraryData,
+    DocumentSearchData,
 } from "../types/api";
 import { JWT_EXPIRES_IN, JWT_COOKIE_MAX_AGE_MS } from "../constants/constants";
 import { JwtPayload } from "../types/types";
@@ -176,8 +177,9 @@ export class ControllerService {
             },
         );
 
-        // GET /getUserViewedDocs — returns all documents the current user has viewed,
-        // ordered by last_viewed_at DESC (most recent first).
+        // GET /getUserViewedDocs — paginated list of documents the current user has viewed.
+        // Optional compound cursor query params: lastViewedAt (ISO timestamp) + lastId (integer).
+        // Both must be provided together; omitting both returns the first page.
         app.get(
             "/getUserViewedDocs",
             async (
@@ -186,42 +188,39 @@ export class ControllerService {
             ) => {
                 const payload = this.requireAuth(req);
                 if (!payload) {
-                    res.status(401).json({
-                        success: false,
-                        error: "Not authenticated",
-                    });
+                    res.status(401).json({ success: false, error: "Not authenticated" });
                     return;
                 }
 
-                const documents = await servicesStore.persistenceService.getUserViewedDocs(payload.id);
-                res.json({ success: true, data: { documents } });
+                const lastViewedAt = req.query["lastViewedAt"] as string | undefined;
+                const lastIdRaw = req.query["lastId"] as string | undefined;
+                const lastId = lastIdRaw !== undefined ? parseInt(lastIdRaw, 10) : undefined;
+                const cursor = lastViewedAt !== undefined && lastId !== undefined && !isNaN(lastId)
+                    ? { lastViewedAt, lastId }
+                    : undefined;
+
+                const data = await servicesStore.persistenceService.getUserViewedDocs(payload.id, cursor);
+                res.json({ success: true, data });
             },
         );
 
         // GET /searchUserDocs?q=<query> — trigram similarity search on document titles,
-        // scoped to documents the current user has viewed.
-        // Falls back to recency order if q is missing or blank.
+        // scoped to documents the current user has viewed. Not paginated.
         app.get(
             "/searchUserDocs",
             async (
                 req: Request,
-                res: Response<ApiResponse<DocumentLibraryData>>,
+                res: Response<ApiResponse<DocumentSearchData>>,
             ) => {
                 const payload = this.requireAuth(req);
                 if (!payload) {
-                    res.status(401).json({
-                        success: false,
-                        error: "Not authenticated",
-                    });
+                    res.status(401).json({ success: false, error: "Not authenticated" });
                     return;
                 }
 
                 const q = (req.query["q"] as string | undefined)?.trim() ?? "";
-                const documents = q.length > 0
-                    ? await servicesStore.persistenceService.searchUserViewedDocsByTitle(payload.id, q)
-                    : await servicesStore.persistenceService.getUserViewedDocs(payload.id);
-
-                res.json({ success: true, data: { documents } });
+                const data = await servicesStore.persistenceService.searchUserViewedDocsByTitle(payload.id, q);
+                res.json({ success: true, data });
             },
         );
 
