@@ -14,15 +14,15 @@ import useDocumentSearch from "../hooks/useDocumentSearch";
 import { formatRelativeTime } from "../utils/utils";
 import { AccessLevel } from "../types/api";
 
-// Colour for each access level label shown in search results.
-const ACCESS_LEVEL_CLASSES: Record<AccessLevel, string> = {
-    owner: "text-emerald-500",
-    admin: "text-purple-400",
-    editor: "text-blue-400",
-    viewer: "text-zinc-500",
-};
-
 function DocSearchOverlay() {
+    // Colour for each access level label shown in search results.
+    const ACCESS_LEVEL_CLASSES: Record<AccessLevel, string> = {
+        owner: "text-emerald-500",
+        admin: "text-purple-400",
+        editor: "text-blue-400",
+        viewer: "text-zinc-500",
+    };
+
     const [isOpen, setIsOpen] = useAtom(isDocSearchOpenAtom);
     const navigate = useNavigate();
     const { query, setQuery, documents, isLoading } = useDocumentSearch();
