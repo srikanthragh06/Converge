@@ -16,23 +16,6 @@ import {
     DocumentUserSearchData,
 } from "../types/api";
 
-// Maps an access level to a human-readable label shown in the dropdown.
-const ACCESS_LEVEL_LABELS: Record<AccessLevel, string> = {
-    owner: "Owner",
-    admin: "Admin",
-    editor: "Editor",
-    viewer: "Viewer",
-};
-
-// Access level options available when granting or changing access.
-const GRANTABLE_LEVELS: AccessLevel[] = ["admin", "editor", "viewer"];
-
-// Delay (ms) before firing the search after the user stops typing.
-const SEARCH_DEBOUNCE_MS = 300;
-
-// Number of members to load per page in the members list.
-const MEMBERS_PAGE_SIZE = 10;
-
 export default function ShareModal({
     documentId,
     isOpen,
@@ -42,6 +25,11 @@ export default function ShareModal({
     isOpen: boolean;
     onClose: () => void;
 }) {
+    // Delay (ms) before firing the search after the user stops typing.
+    const SEARCH_DEBOUNCE_MS = 300;
+    // Number of members to load per page in the members list.
+    const MEMBERS_PAGE_SIZE = 10;
+
     const currentUser = useAtomValue(currentUserAtom);
 
     // Whether the current user can modify access (owner or admin).
@@ -327,6 +315,16 @@ function UserRow({
     onAccessChange: (level: AccessLevel) => void;
     onRemove: () => void;
 }) {
+    // Maps an access level to a human-readable label shown in the dropdown.
+    const ACCESS_LEVEL_LABELS: Record<AccessLevel, string> = {
+        owner: "Owner",
+        admin: "Admin",
+        editor: "Editor",
+        viewer: "Viewer",
+    };
+    // Access level options available when granting or changing access.
+    const GRANTABLE_LEVELS: AccessLevel[] = ["admin", "editor", "viewer"];
+
     // The dropdown is editable only if: the caller can modify AND the target isn't the owner
     // AND the target isn't the current user (owners can't change their own role).
     const isEditable = canModify && !isOwner && !isCurrentUser;
