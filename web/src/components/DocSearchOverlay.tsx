@@ -12,6 +12,15 @@ import { useAtom } from "jotai";
 import { isDocSearchOpenAtom } from "../atoms/uiAtoms";
 import useDocumentSearch from "../hooks/useDocumentSearch";
 import { formatRelativeTime } from "../utils/utils";
+import { AccessLevel } from "../types/api";
+
+// Colour for each access level label shown in search results.
+const ACCESS_LEVEL_CLASSES: Record<AccessLevel, string> = {
+    owner: "text-emerald-500",
+    admin: "text-purple-400",
+    editor: "text-blue-400",
+    viewer: "text-zinc-500",
+};
 
 function DocSearchOverlay() {
     const [isOpen, setIsOpen] = useAtom(isDocSearchOpenAtom);
@@ -168,6 +177,10 @@ function DocSearchOverlay() {
                                         ]
                                             .filter(Boolean)
                                             .join(" · ")}
+                                    </span>
+                                    {/* Access level label */}
+                                    <span className={`text-xs capitalize ${ACCESS_LEVEL_CLASSES[doc.accessLevel]}`}>
+                                        {doc.accessLevel}
                                     </span>
                                 </div>
                             ))}

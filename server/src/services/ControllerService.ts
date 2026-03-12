@@ -13,8 +13,10 @@ import {
     DocumentMetaData,
     DocumentLibraryData,
     DocumentSearchData,
+    DocumentMembersData,
+    DocumentUserSearchData,
 } from "../types/api";
-import { JWT_EXPIRES_IN, JWT_COOKIE_MAX_AGE_MS } from "../constants/constants";
+import { JWT_EXPIRES_IN, JWT_COOKIE_MAX_AGE_MS, hasAccess } from "../constants/constants";
 import { JwtPayload } from "../types/types";
 import { ValidationService } from "./ValidationService";
 
@@ -232,27 +234,29 @@ export class ControllerService {
         );
 
         // GET /documents/:documentId — returns public metadata (id + title) for a document.
-        // Returns 401 if unauthenticated, 400 if the id is invalid, 404 if not found.
+        // Returns 401 if unauthenticated, 400 if the id is invalid, 403 if no access, 404 if not found.
         app.get(
             "/documents/:documentId",
             async (
                 req: Request,
                 res: Response<ApiResponse<DocumentMetaData>>,
             ) => {
-                if (!this.requireAuth(req)) {
-                    res.status(401).json({
-                        success: false,
-                        error: "Not authenticated",
-                    });
+                const payload = this.requireAuth(req);
+                if (!payload) {
+                    res.status(401).json({ success: false, error: "Not authenticated" });
                     return;
                 }
 
                 const documentId = parseInt(req.params["documentId"] ?? "", 10);
                 if (!Number.isInteger(documentId) || documentId < 1) {
-                    res.status(400).json({
-                        success: false,
-                        error: "Invalid documentId",
-                    });
+                    res.status(400).json({ success: false, error: "Invalid documentId" });
+                    return;
+                }
+
+                // Enforce viewer-level access before returning metadata.
+                const access = await servicesStore.persistenceService.getDocumentAccess(documentId, payload.id);
+                if (!access || !hasAccess(access, "viewer")) {
+                    res.status(403).json({ success: false, error: "Forbidden" });
                     return;
                 }
 
@@ -272,27 +276,29 @@ export class ControllerService {
         );
 
         // PATCH /documents/:documentId/title — overwrites the document title (last-writer-wins).
-        // Requires a valid JWT cookie. Body: { title: string }.
+        // Requires editor access or above.
         app.patch(
             "/documents/:documentId/title",
             async (
                 req: Request,
                 res: Response<ApiResponse<DocumentMetaData>>,
             ) => {
-                if (!this.requireAuth(req)) {
-                    res.status(401).json({
-                        success: false,
-                        error: "Not authenticated",
-                    });
+                const payload = this.requireAuth(req);
+                if (!payload) {
+                    res.status(401).json({ success: false, error: "Not authenticated" });
                     return;
                 }
 
                 const documentId = parseInt(req.params["documentId"] ?? "", 10);
                 if (!Number.isInteger(documentId) || documentId < 1) {
-                    res.status(400).json({
-                        success: false,
-                        error: "Invalid documentId",
-                    });
+                    res.status(400).json({ success: false, error: "Invalid documentId" });
+                    return;
+                }
+
+                // Enforce editor-level access before allowing title changes.
+                const access = await servicesStore.persistenceService.getDocumentAccess(documentId, payload.id);
+                if (!access || !hasAccess(access, "editor")) {
+                    res.status(403).json({ success: false, error: "Forbidden" });
                     return;
                 }
 
@@ -322,6 +328,160 @@ export class ControllerService {
                 );
 
                 res.json({ success: true, data: { id: documentId, title } });
+            },
+        );
+
+        // GET /documents/:documentId/access/members — paginated list of users with access.
+        // Requires viewer access to see who else has access to the document.
+        app.get(
+            "/documents/:documentId/access/members",
+            async (req: Request, res: Response<ApiResponse<DocumentMembersData>>) => {
+                const payload = this.requireAuth(req);
+                if (!payload) {
+                    res.status(401).json({ success: false, error: "Not authenticated" });
+                    return;
+                }
+
+                const documentId = parseInt(req.params["documentId"] ?? "", 10);
+                if (!Number.isInteger(documentId) || documentId < 1) {
+                    res.status(400).json({ success: false, error: "Invalid documentId" });
+                    return;
+                }
+
+                const access = await servicesStore.persistenceService.getDocumentAccess(documentId, payload.id);
+                if (!access || !hasAccess(access, "viewer")) {
+                    res.status(403).json({ success: false, error: "Forbidden" });
+                    return;
+                }
+
+                const limit = parseInt(req.query["limit"] as string ?? "20", 10);
+                const cursorRaw = req.query["cursor"] as string | undefined;
+                const cursor = cursorRaw !== undefined ? parseInt(cursorRaw, 10) : undefined;
+
+                const data = await servicesStore.persistenceService.getDocumentMembers(
+                    documentId,
+                    isNaN(limit) || limit < 1 ? 20 : limit,
+                    cursor !== undefined && !isNaN(cursor) ? cursor : undefined,
+                );
+                res.json({ success: true, data });
+            },
+        );
+
+        // GET /documents/:documentId/access/users?q= — search users to invite (up to 5 results).
+        // Requires admin or owner access — only they can grant access.
+        app.get(
+            "/documents/:documentId/access/users",
+            async (req: Request, res: Response<ApiResponse<DocumentUserSearchData>>) => {
+                const payload = this.requireAuth(req);
+                if (!payload) {
+                    res.status(401).json({ success: false, error: "Not authenticated" });
+                    return;
+                }
+
+                const documentId = parseInt(req.params["documentId"] ?? "", 10);
+                if (!Number.isInteger(documentId) || documentId < 1) {
+                    res.status(400).json({ success: false, error: "Invalid documentId" });
+                    return;
+                }
+
+                const access = await servicesStore.persistenceService.getDocumentAccess(documentId, payload.id);
+                if (!access || !hasAccess(access, "admin")) {
+                    res.status(403).json({ success: false, error: "Forbidden" });
+                    return;
+                }
+
+                const q = ((req.query["q"] as string | undefined) ?? "").trim();
+                if (q.length === 0) {
+                    res.json({ success: true, data: { users: [] } });
+                    return;
+                }
+
+                const data = await servicesStore.persistenceService.searchUsersForDoc(documentId, q, 5);
+                res.json({ success: true, data });
+            },
+        );
+
+        // PUT /documents/:documentId/access — grant or update a user's access level.
+        // Requires admin or owner access. The owner's own role cannot be changed.
+        // Body: { userId: number, accessLevel: 'owner'|'admin'|'editor'|'viewer' }
+        app.put(
+            "/documents/:documentId/access",
+            async (req: Request, res: Response<ApiResponse<{ ok: boolean }>>) => {
+                const payload = this.requireAuth(req);
+                if (!payload) {
+                    res.status(401).json({ success: false, error: "Not authenticated" });
+                    return;
+                }
+
+                const documentId = parseInt(req.params["documentId"] ?? "", 10);
+                if (!Number.isInteger(documentId) || documentId < 1) {
+                    res.status(400).json({ success: false, error: "Invalid documentId" });
+                    return;
+                }
+
+                const callerAccess = await servicesStore.persistenceService.getDocumentAccess(documentId, payload.id);
+                if (!callerAccess || !hasAccess(callerAccess, "admin")) {
+                    res.status(403).json({ success: false, error: "Forbidden" });
+                    return;
+                }
+
+                const parsed = ValidationService.upsertDocumentAccess.safeParse(req.body);
+                if (!parsed.success) {
+                    res.status(400).json({
+                        success: false,
+                        error: parsed.error.issues[0]?.message ?? "Invalid request body",
+                    });
+                    return;
+                }
+
+                const { userId, accessLevel } = parsed.data;
+
+                // Prevent changing the owner's role — ownership is permanent.
+                const targetAccess = await servicesStore.persistenceService.getDocumentAccess(documentId, userId);
+                if (targetAccess === "owner") {
+                    res.status(403).json({ success: false, error: "Cannot change the owner's role" });
+                    return;
+                }
+
+                await servicesStore.persistenceService.upsertDocumentAccess(documentId, userId, accessLevel);
+                res.json({ success: true, data: { ok: true } });
+            },
+        );
+
+        // DELETE /documents/:documentId/access/:userId — revoke a user's access.
+        // Requires admin or owner access. The document owner cannot be removed.
+        app.delete(
+            "/documents/:documentId/access/:userId",
+            async (req: Request, res: Response<ApiResponse<{ ok: boolean }>>) => {
+                const payload = this.requireAuth(req);
+                if (!payload) {
+                    res.status(401).json({ success: false, error: "Not authenticated" });
+                    return;
+                }
+
+                const documentId = parseInt(req.params["documentId"] ?? "", 10);
+                const targetUserId = parseInt(req.params["userId"] ?? "", 10);
+                if (!Number.isInteger(documentId) || documentId < 1 ||
+                    !Number.isInteger(targetUserId) || targetUserId < 1) {
+                    res.status(400).json({ success: false, error: "Invalid documentId or userId" });
+                    return;
+                }
+
+                const callerAccess = await servicesStore.persistenceService.getDocumentAccess(documentId, payload.id);
+                if (!callerAccess || !hasAccess(callerAccess, "admin")) {
+                    res.status(403).json({ success: false, error: "Forbidden" });
+                    return;
+                }
+
+                // Prevent removing the owner — at least one owner must remain.
+                const targetAccess = await servicesStore.persistenceService.getDocumentAccess(documentId, targetUserId);
+                if (targetAccess === "owner") {
+                    res.status(403).json({ success: false, error: "Cannot remove the document owner" });
+                    return;
+                }
+
+                await servicesStore.persistenceService.removeDocumentAccess(documentId, targetUserId);
+                res.json({ success: true, data: { ok: true } });
             },
         );
     }

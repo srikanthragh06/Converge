@@ -13,7 +13,7 @@ import * as Y from "yjs";
 import { TypedSocket } from "../types/types";
 import { safeSocketHandler, mapsEqual } from "../utils/utils";
 import { servicesStore } from "../store/servicesStore";
-import { REMOTE_ORIGIN } from "../constants/constants";
+import { REMOTE_ORIGIN, hasAccess } from "../constants/constants";
 
 export class SocketHandlerService {
     // Socket.IO event names — must match the client-side constants exactly.
@@ -174,19 +174,29 @@ export class SocketHandlerService {
             return;
         }
 
+        // Reject the join if the user has no access row or insufficient access (viewer minimum).
+        const userId = socket.data.user!.id;
+        const accessLevel = await servicesStore.persistenceService.getDocumentAccess(documentId, userId);
+        if (!accessLevel || !hasAccess(accessLevel, "viewer")) {
+            console.warn(`join_doc rejected — ${socket.id} (user ${userId}) has no access to doc ${documentId}`);
+            socket.emit(SocketHandlerService.JOIN_DOC_ERROR, "forbidden");
+            return;
+        }
+
         // Preload Y.Doc so all subsequent sync handlers get a cache hit.
         await servicesStore.docStoreService.getYDocByDocID(String(documentId));
         socket.join(String(documentId));
         socket.data.documentId = documentId;
+        socket.data.accessLevel = accessLevel;
 
         // Fire-and-forget: record that this user viewed the document now.
         // A failed write must not block or undo the join.
         servicesStore.persistenceService
-            .upsertLastViewedAt(documentId, socket.data.user!.id)
+            .upsertLastViewedAt(documentId, userId)
             .catch((err) => console.error("upsertLastViewedAt failed:", err));
 
-        console.log(`${socket.id} joined doc ${documentId}`);
-        socket.emit(SocketHandlerService.JOINED_DOC, documentId);
+        console.log(`${socket.id} joined doc ${documentId} as ${accessLevel}`);
+        socket.emit(SocketHandlerService.JOINED_DOC, documentId, accessLevel);
     }
 
     // leave_doc: leaves the socket room and clears socket.data so sync handlers
@@ -197,16 +207,19 @@ export class SocketHandlerService {
         socket.leave(String(socket.data.documentId));
         console.log(`${socket.id} left doc ${socket.data.documentId}`);
         socket.data.documentId = undefined;
+        socket.data.accessLevel = undefined;
         socket.emit(SocketHandlerService.LEFT_DOC);
     }
 
     // sync_doc: publish → apply → relay → persist → SV divergence check.
+    // Requires editor access — viewers cannot push updates.
     private async handleSyncDoc(
         socket: TypedSocket,
         update: Uint8Array,
         clientSV: Uint8Array,
     ): Promise<void> {
         if (!this.assertAuthed(socket)) return;
+        if (!this.assertEditorAccess(socket)) return;
         if (socket.data.documentId === undefined) return;
         const documentId = socket.data.documentId;
         const userId = socket.data.user!.id;
@@ -277,11 +290,13 @@ export class SocketHandlerService {
     }
 
     // repair_response: relay, publish, persist, then apply locally.
+    // Requires editor access — clients send content they hold that the server is missing.
     private async handleRepairResponse(
         socket: TypedSocket,
         diff: Uint8Array,
     ): Promise<void> {
         if (!this.assertAuthed(socket)) return;
+        if (!this.assertEditorAccess(socket)) return;
         if (socket.data.documentId === undefined) return;
         const documentId = socket.data.documentId;
         const yDoc = await servicesStore.docStoreService.getYDocByDocID(
@@ -342,11 +357,13 @@ export class SocketHandlerService {
     }
 
     // heartbeat_ack: publish, relay, persist, then apply what the server was missing.
+    // Requires editor access — the client is sending content the server is missing.
     private async handleHeartbeatAck(
         socket: TypedSocket,
         diff: Uint8Array,
     ): Promise<void> {
         if (!this.assertAuthed(socket)) return;
+        if (!this.assertEditorAccess(socket)) return;
         if (socket.data.documentId === undefined) return;
         const documentId = socket.data.documentId;
         const yDoc = await servicesStore.docStoreService.getYDocByDocID(
@@ -393,6 +410,20 @@ export class SocketHandlerService {
     private assertAuthed(socket: TypedSocket): boolean {
         if (!socket.data.user) {
             socket.disconnect();
+            return false;
+        }
+        return true;
+    }
+
+    // Returns true if the socket's joined document access level is editor or above.
+    // Returns false and logs a warning if the user is a viewer or has no access level set.
+    // Does NOT disconnect — the user has a valid session and valid viewer access; they just
+    // attempted a write operation beyond their permission level.
+    private assertEditorAccess(socket: TypedSocket): boolean {
+        if (!socket.data.accessLevel || !hasAccess(socket.data.accessLevel, "editor")) {
+            console.warn(
+                `${socket.id} attempted write without editor access (level: ${socket.data.accessLevel ?? "none"})`,
+            );
             return false;
         }
         return true;

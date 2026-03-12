@@ -4,6 +4,29 @@
 import * as Y from "yjs";
 import { Socket } from "socket.io";
 
+// Per-document access role. Stored in document_user_meta.access_level.
+// Enforced by a CHECK constraint in migration 5.
+// owner > admin > editor > viewer — rank used by hasAccess() in constants.ts.
+export type AccessLevel = "owner" | "admin" | "editor" | "viewer";
+
+// Per-member record returned by the access management list endpoint.
+export interface DocumentMember {
+    userId: number;
+    displayName: string | null;
+    avatarUrl: string | null;
+    accessLevel: AccessLevel;
+}
+
+// User search result returned by the doc-scoped user search endpoint.
+// accessLevel is null when the user has no access row for this document.
+export interface UserSearchResult {
+    id: number;
+    displayName: string | null;
+    avatarUrl: string | null;
+    email: string;
+    accessLevel: AccessLevel | null;
+}
+
 // Registry entry for an in-memory document (DocStoreService).
 export interface DocEntry {
     yDoc: Y.Doc;
@@ -38,7 +61,7 @@ export interface ClientToServerEvents {
 
 // Events the server sends to clients
 export interface ServerToClientEvents {
-    joined_doc: (documentId: number) => void; // confirmation that the client joined the room
+    joined_doc: (documentId: number, accessLevel: AccessLevel) => void; // confirmation that the client joined the room, includes the user's access level
     left_doc: () => void; // confirmation that the client left the room
     sync_doc: (update: Uint8Array, serverSV: Uint8Array) => void;
     repair_doc: (serverSV: Uint8Array) => void;
@@ -68,10 +91,11 @@ export interface AuthedUser {
 }
 
 // Per-connection state stored in socket.data after a successful join_doc.
-// user is set by Socket.IO middleware on every connection; documentId is set by join_doc.
+// user is set by Socket.IO middleware on every connection; documentId and accessLevel are set by join_doc.
 export interface SocketData {
-    documentId?: number; // numeric Postgres primary key for the joined document
-    user?: AuthedUser;   // populated from JWT cookie on connect; undefined = unauthenticated
+    documentId?: number;       // numeric Postgres primary key for the joined document
+    user?: AuthedUser;         // populated from JWT cookie on connect; undefined = unauthenticated
+    accessLevel?: AccessLevel; // the user's role on the joined document; set alongside documentId
 }
 
 // Convenience alias used throughout the server socket handlers

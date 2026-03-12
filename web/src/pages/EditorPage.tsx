@@ -25,6 +25,7 @@ function EditorPage() {
     );
     usePing();
 
+
     if (!isValidDocumentId) {
         return <NotFoundPage />;
     }
@@ -33,7 +34,7 @@ function EditorPage() {
         // Full-screen column: fixed header + scrollable editor area below
         <div className="flex flex-col h-screen bg-[#1f1f1f] gap-2">
             <AuthOverlay />
-            <Navbar />
+            <Navbar isDocJoined={isDocJoined} documentId={documentId} />
 
             {/* Scrollable area: title above editor, both share the same scroll container */}
             <div className="flex-1 overflow-auto flex flex-col">

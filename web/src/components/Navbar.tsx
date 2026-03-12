@@ -1,6 +1,8 @@
-// Top navigation bar: sync status indicator, ping display, and offline badge.
+// Top navigation bar: sync status indicator, ping display, offline badge, and Share button.
 // "Restoring sync" takes priority over "Applying updates" when both are active.
 // When the socket is disconnected, an offline badge replaces the ping indicator.
+// The Share button is visible when the user is joined to a document (isDocJoined=true).
+import { useState } from "react";
 import { useAtomValue } from "jotai";
 import {
     pingMsAtom,
@@ -10,12 +12,22 @@ import {
 } from "../atoms/uiAtoms";
 import PingDot from "./PingDot";
 import SyncStatus from "./SyncStatus";
+import ShareModal from "./ShareModal";
 
-export default function Navbar() {
+export default function Navbar({
+    isDocJoined = false,
+    documentId,
+}: {
+    isDocJoined?: boolean;
+    documentId?: number;
+}) {
     const pingMs = useAtomValue(pingMsAtom);
     const isRestoring = useAtomValue(isRestoringSyncAtom);
     const isApplying = useAtomValue(isApplyingUpdatesAtom);
     const isSocketConnected = useAtomValue(isSocketConnectedAtom);
+
+    // Local state for the Share modal — page-level concern, not a global atom.
+    const [isShareOpen, setIsShareOpen] = useState(false);
 
     // "Restoring sync" takes priority over "Applying updates"
     let syncLabel: string | null = null;
@@ -30,6 +42,16 @@ export default function Navbar() {
                 <div className="mr-6">
                     <SyncStatus label={syncLabel} />
                 </div>
+
+                {/* Share button — only visible when joined to a document */}
+                {isDocJoined && documentId !== undefined && (
+                    <button
+                        onClick={() => setIsShareOpen(true)}
+                        className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+                    >
+                        Share
+                    </button>
+                )}
 
                 {/* Offline badge replaces ping indicator when disconnected */}
                 {!isSocketConnected ? (
@@ -49,6 +71,15 @@ export default function Navbar() {
                     </div>
                 )}
             </div>
+
+            {/* Share modal — rendered outside the flex row so it overlays correctly */}
+            {documentId !== undefined && (
+                <ShareModal
+                    documentId={documentId}
+                    isOpen={isShareOpen}
+                    onClose={() => setIsShareOpen(false)}
+                />
+            )}
         </header>
     );
 }

@@ -10,8 +10,16 @@ import { useNavigate } from "react-router-dom";
 import AuthOverlay from "../components/AuthOverlay";
 import useDocumentSearch from "../hooks/useDocumentSearch";
 import { axiosClient } from "../lib/axiosClient";
-import { ApiResponse, DocumentMetaData } from "../types/api";
+import { ApiResponse, DocumentMetaData, AccessLevel } from "../types/api";
 import { formatRelativeTime } from "../utils/utils";
+
+// Pill colour for each access level badge in the document list.
+const ACCESS_LEVEL_CLASSES: Record<AccessLevel, string> = {
+    owner: "text-emerald-500",
+    admin: "text-purple-400",
+    editor: "text-blue-400",
+    viewer: "text-zinc-500",
+};
 
 function LibraryPage() {
     const navigate = useNavigate();
@@ -145,6 +153,10 @@ function LibraryPage() {
                                     ]
                                         .filter(Boolean)
                                         .join(" · ")}
+                                </span>
+                                {/* Access level badge */}
+                                <span className={`text-xs capitalize ${ACCESS_LEVEL_CLASSES[doc.accessLevel]}`}>
+                                    {doc.accessLevel}
                                 </span>
                             </div>
                         ))}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react"; // useRef retained for pendingUpdates/timeoutId/indicator timers
 import { useNavigate } from "react-router-dom";
 import { useSetAtom, useAtomValue } from "jotai";
 import * as Y from "yjs";
@@ -6,7 +6,7 @@ import { IndexeddbPersistence } from "y-indexeddb";
 import { useCreateBlockNote } from "@blocknote/react";
 import { socket } from "../sockets/socket";
 import { axiosClient } from "../lib/axiosClient";
-import { ApiResponse, DocumentMetaData } from "../types/api";
+import { ApiResponse, DocumentMetaData, AccessLevel } from "../types/api";
 import {
     SYNC_DOC,
     REPAIR_DOC,
@@ -51,6 +51,14 @@ const useSyncEditorChanges = (documentId: number) => {
     const [title, setTitle] = useState("");
     // Briefly true when a remote sync_title arrives — drives the dim effect in DocumentTitle.
     const [isTitleSyncing, setIsTitleSyncing] = useState(false);
+    // The current user's access level on this document. Set from the joined_doc payload.
+    // null until joined, then 'owner' | 'admin' | 'editor' | 'viewer'.
+    const [documentAccessLevel, setDocumentAccessLevel] =
+        useState<AccessLevel | null>(null);
+
+    // Returns true if the given access level permits write operations (editor or above).
+    const isEditorOrAbove = (level: AccessLevel | null): boolean =>
+        level === "editor" || level === "admin" || level === "owner";
 
     // useSetAtom avoids subscribing this hook to atom value changes (no extra re-renders)
     const setIsRestoring = useSetAtom(isRestoringSyncAtom);
@@ -114,6 +122,7 @@ const useSyncEditorChanges = (documentId: number) => {
         setIsIndexedDBSynced(false);
         setTitle("");
         setIsTitleSyncing(false);
+        setDocumentAccessLevel(null);
         pendingUpdates.current = [];
         if (timeoutId.current) {
             clearTimeout(timeoutId.current);
@@ -140,8 +149,9 @@ const useSyncEditorChanges = (documentId: number) => {
     // If isSocketConnected is true when this effect runs, fire join_doc immediately.
     useEffect(() => {
         const onConnect = () => socket.emit("join_doc", documentId);
-        const onJoinedDoc = async () => {
+        const onJoinedDoc = async (_docId: number, accessLevel: AccessLevel) => {
             setIsDocJoined(true);
+            setDocumentAccessLevel(accessLevel);
             // Fetch the current title from the server now that the doc row is guaranteed to exist.
             try {
                 const res = await axiosClient.get<
@@ -154,6 +164,7 @@ const useSyncEditorChanges = (documentId: number) => {
         };
         const onLeftOrDisconnect = () => {
             setIsDocJoined(false);
+            setDocumentAccessLevel(null);
         };
         const onJoinDocError = (reason: string) => {
             console.warn(`join_doc_error for doc ${documentId}: ${reason}`);
@@ -184,19 +195,22 @@ const useSyncEditorChanges = (documentId: number) => {
         };
     }, [documentId, isSocketConnected]);
 
-    // Merge and emit all pending updates to the server as a single batched update
-    const flushPendingUpdates = () => {
-        if (pendingUpdates.current.length === 0) return;
-        const updates = pendingUpdates.current;
-        pendingUpdates.current = [];
-        const merged = Y.mergeUpdates(updates);
-        // Piggyback the client's current SV so the server can compare and detect divergence
-        socket.emit(SYNC_DOC, merged, Y.encodeStateVector(yDoc));
-    };
-
     // Observe local Y.Doc changes — batch and send to server after BATCH_MS debounce.
     // Skips updates that originated remotely to prevent re-broadcasting.
+    // Skips flush entirely if the user only has viewer access — writes are not permitted.
     useEffect(() => {
+        // Merge and emit all pending updates to the server as a single batched update.
+        // Guarded by isEditorOrAbove so viewers never push content to the server.
+        const flushPendingUpdates = () => {
+            if (pendingUpdates.current.length === 0) return;
+            if (!isEditorOrAbove(documentAccessLevel)) return;
+            const updates = pendingUpdates.current;
+            pendingUpdates.current = [];
+            const merged = Y.mergeUpdates(updates);
+            // Piggyback the client's current SV so the server can compare and detect divergence
+            socket.emit(SYNC_DOC, merged, Y.encodeStateVector(yDoc));
+        };
+
         const onUpdate = (update: Uint8Array, origin: unknown) => {
             if (origin === REMOTE_ORIGIN) return;
             pendingUpdates.current.push(update);
@@ -205,7 +219,7 @@ const useSyncEditorChanges = (documentId: number) => {
         };
         yDoc.on("update", onUpdate);
         return () => yDoc.off("update", onUpdate);
-    }, [yDoc]);
+    }, [yDoc, documentAccessLevel]);
 
     // Receive sync_doc from server — apply to local Y.Doc tagged as remote.
     // Server piggybacks its current SV on every relay. After applying, compare
@@ -228,9 +242,11 @@ const useSyncEditorChanges = (documentId: number) => {
     }, [yDoc]);
 
     // Receive repair_doc from server — compute and send back the diff from the server's SV.
+    // Viewers skip the emit — they cannot push content to the server.
     useEffect(() => {
         const onRepairDoc = (serverSV: Uint8Array) => {
             flashRestoring();
+            if (!isEditorOrAbove(documentAccessLevel)) return;
             const diff = Y.encodeStateAsUpdate(yDoc, new Uint8Array(serverSV));
             socket.emit(REPAIR_RESPONSE, diff);
         };
@@ -238,7 +254,7 @@ const useSyncEditorChanges = (documentId: number) => {
         return () => {
             socket.off(REPAIR_DOC, onRepairDoc);
         };
-    }, [yDoc]);
+    }, [yDoc, documentAccessLevel]);
 
     // Receive repair_response — apply the diff the server computed from our state vector.
     useEffect(() => {
@@ -274,10 +290,12 @@ const useSyncEditorChanges = (documentId: number) => {
     }, [yDoc, isDocJoined, isIndexedDBSynced]);
 
     // heartbeat_syncack: server sends what we're missing plus its own SV.
-    // Apply the diff, then send back what the server is missing.
+    // Apply the diff (always — viewers also need to stay up to date), then send back
+    // what the server is missing only if the user has editor access or above.
     useEffect(() => {
         const onSyncAck = (diff: Uint8Array, serverSV: Uint8Array) => {
             Y.applyUpdate(yDoc, new Uint8Array(diff), REMOTE_ORIGIN);
+            if (!isEditorOrAbove(documentAccessLevel)) return;
             const diffForServer = Y.encodeStateAsUpdate(
                 yDoc,
                 new Uint8Array(serverSV),
@@ -288,7 +306,7 @@ const useSyncEditorChanges = (documentId: number) => {
         return () => {
             socket.off(HEARTBEAT_SYNCACK, onSyncAck);
         };
-    }, [yDoc]);
+    }, [yDoc, documentAccessLevel]);
 
     // sync_title: server broadcasts when any client PATCHes the title.
     // Update local title state so all connected clients stay in sync in real time.
@@ -305,7 +323,7 @@ const useSyncEditorChanges = (documentId: number) => {
         };
     }, []);
 
-    return { title, isDocJoined, isTitleSyncing, yDoc, editor };
+    return { title, isDocJoined, isTitleSyncing, documentAccessLevel, yDoc, editor };
 };
 
 export default useSyncEditorChanges;

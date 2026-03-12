@@ -5,8 +5,8 @@
 
 import * as Y from "yjs";
 import { sql } from "kysely";
-import { SaveUpdateResult } from "../types/types";
-import { DocumentLibraryData, DocumentSearchData } from "../types/api";
+import { SaveUpdateResult, AccessLevel, DocumentMember, UserSearchResult } from "../types/types";
+import { DocumentLibraryData, DocumentSearchData, DocumentMembersData, DocumentUserSearchData } from "../types/api";
 import { servicesStore } from "../store/servicesStore";
 import { REMOTE_ORIGIN, TITLE_SEARCH_SIMILARITY_THRESHOLD } from "../constants/constants";
 
@@ -68,23 +68,40 @@ export class PersistenceService {
         });
     }
 
-    // Creates a new document row and returns its auto-generated document_id.
-    // The sequence default added in migration 4 provides the ID — no manual specification needed.
-    // createdById is the user who initiated the creation via POST /documents.
+    // Creates a new document row and a corresponding owner access row in a single transaction.
+    // The sequence default added in migration 4 provides the document_id automatically.
+    // createdById is granted 'owner' access immediately so they can join the doc.
     async createDoc(createdById: number): Promise<number> {
         const db = servicesStore.databaseService.kysely;
-        const row = await db
-            .insertInto("document_meta")
-            .values({
-                update_count: BigInt(0),
-                last_compact_count: BigInt(0),
-                title: "",
-                created_by_id: createdById,
-            })
-            .returning("document_id")
-            .executeTakeFirstOrThrow();
-        console.log(`createDoc: created document ${row.document_id} for user ${createdById}`);
-        return row.document_id;
+        return db.transaction().execute(async (trx) => {
+            // 1. Insert the document_meta row and get the auto-generated document_id.
+            const row = await trx
+                .insertInto("document_meta")
+                .values({
+                    update_count: BigInt(0),
+                    last_compact_count: BigInt(0),
+                    title: "",
+                    created_by_id: createdById,
+                })
+                .returning("document_id")
+                .executeTakeFirstOrThrow();
+
+            // 2. Create the owner access row for the creator.
+            // last_viewed_at and last_edited_at are set to now() so the doc appears in the library immediately.
+            await trx
+                .insertInto("document_user_meta")
+                .values({
+                    document_id: row.document_id,
+                    user_id: createdById,
+                    access_level: "owner",
+                    last_viewed_at: sql`now()`,
+                    last_edited_at: sql`now()`,
+                })
+                .execute();
+
+            console.log(`createDoc: created document ${row.document_id} for user ${createdById}`);
+            return row.document_id;
+        });
     }
 
     // Checks whether a document_meta row exists for the given documentId.
@@ -99,49 +116,48 @@ export class PersistenceService {
         return row !== undefined;
     }
 
-    // Upserts last_viewed_at for (documentId, userId) to now().
+    // Returns the user's access level for a document, or null if they have no access row.
+    // Used by socket handlers and REST endpoints to enforce per-document authorization.
+    async getDocumentAccess(documentId: number, userId: number): Promise<AccessLevel | null> {
+        const db = servicesStore.databaseService.kysely;
+        const row = await db
+            .selectFrom("document_user_meta")
+            .select("access_level")
+            .where("document_id", "=", documentId)
+            .where("user_id", "=", userId)
+            .executeTakeFirst();
+        return row ? (row.access_level as AccessLevel) : null;
+    }
+
+    // Updates last_viewed_at to now() for an existing (documentId, userId) access row.
+    // Pure UPDATE (no INSERT) — access must be granted explicitly via upsertDocumentAccess.
     // Called fire-and-forget from handleJoinDoc — a failed write must not block the join.
     async upsertLastViewedAt(documentId: number, userId: number): Promise<void> {
         const db = servicesStore.databaseService.kysely;
         await db
-            .insertInto("document_user_meta")
-            .values({
-                document_id: documentId,
-                user_id: userId,
-                last_viewed_at: sql`now()`,
-                last_edited_at: null,
-            })
-            .onConflict((oc) =>
-                oc.columns(["document_id", "user_id"]).doUpdateSet({
-                    last_viewed_at: sql`now()`,
-                }),
-            )
+            .updateTable("document_user_meta")
+            .set({ last_viewed_at: sql`now()` })
+            .where("document_id", "=", documentId)
+            .where("user_id", "=", userId)
             .execute();
     }
 
-    // Upserts last_edited_at (and last_viewed_at on first insert) for (documentId, userId) to now().
+    // Updates last_edited_at to now() for an existing (documentId, userId) access row.
+    // Pure UPDATE (no INSERT) — access must be granted explicitly via upsertDocumentAccess.
     // Called fire-and-forget from handleSyncDoc — a failed write must not block the relay.
     async upsertLastEditedAt(documentId: number, userId: number): Promise<void> {
         const db = servicesStore.databaseService.kysely;
         await db
-            .insertInto("document_user_meta")
-            .values({
-                document_id: documentId,
-                user_id: userId,
-                last_viewed_at: sql`now()`,
-                last_edited_at: sql`now()`,
-            })
-            .onConflict((oc) =>
-                oc.columns(["document_id", "user_id"]).doUpdateSet({
-                    last_edited_at: sql`now()`,
-                }),
-            )
+            .updateTable("document_user_meta")
+            .set({ last_edited_at: sql`now()` })
+            .where("document_id", "=", documentId)
+            .where("user_id", "=", userId)
             .execute();
     }
 
-    // Returns a page of documents the user has viewed, sorted by last_viewed_at DESC, document_id DESC.
+    // Returns a page of documents the user has access to, sorted by last_viewed_at DESC, document_id DESC.
     // Uses a compound cursor (lastViewedAt, lastId) for stable keyset pagination.
-    // nextCursor in the response has both fields for the next page request; null = no more pages.
+    // Only includes docs where a document_user_meta row exists (i.e. the user has been granted access).
     async getUserViewedDocs(
         userId: number,
         limit: number,
@@ -154,9 +170,10 @@ export class PersistenceService {
             created_by_name: string | null;
             last_viewed_at: Date;
             last_edited_at: Date | null;
+            access_level: string;
         }>`
             SELECT dm.document_id, dm.title, u.display_name AS created_by_name,
-                   dum.last_viewed_at, dum.last_edited_at
+                   dum.last_viewed_at, dum.last_edited_at, dum.access_level
             FROM document_user_meta dum
             JOIN document_meta dm ON dm.document_id = dum.document_id
             LEFT JOIN users u ON u.id = dm.created_by_id
@@ -174,6 +191,7 @@ export class PersistenceService {
             createdByName: row.created_by_name,
             lastViewedAt: row.last_viewed_at.toISOString(),
             lastEditedAt: row.last_edited_at ? row.last_edited_at.toISOString() : null,
+            accessLevel: row.access_level as AccessLevel,
         }));
         const last = documents[documents.length - 1];
         const nextCursor = documents.length === limit && last
@@ -182,7 +200,7 @@ export class PersistenceService {
         return { documents, nextCursor };
     }
 
-    // Trigram similarity search on titles scoped to docs the user has viewed.
+    // Trigram similarity search on titles scoped to docs the user has access to.
     // Results below TITLE_SEARCH_SIMILARITY_THRESHOLD are filtered out, ordered by similarity DESC.
     // Not paginated — search results are expected to be small enough to return in full.
     async searchUserViewedDocsByTitle(userId: number, query: string): Promise<DocumentSearchData> {
@@ -193,9 +211,10 @@ export class PersistenceService {
             created_by_name: string | null;
             last_viewed_at: Date;
             last_edited_at: Date | null;
+            access_level: string;
         }>`
             SELECT dm.document_id, dm.title, u.display_name AS created_by_name,
-                   dum.last_viewed_at, dum.last_edited_at
+                   dum.last_viewed_at, dum.last_edited_at, dum.access_level
             FROM document_user_meta dum
             JOIN document_meta dm ON dm.document_id = dum.document_id
             LEFT JOIN users u ON u.id = dm.created_by_id
@@ -210,8 +229,117 @@ export class PersistenceService {
             createdByName: row.created_by_name,
             lastViewedAt: row.last_viewed_at.toISOString(),
             lastEditedAt: row.last_edited_at ? row.last_edited_at.toISOString() : null,
+            accessLevel: row.access_level as AccessLevel,
         }));
         return { documents };
+    }
+
+    // Returns a paginated list of users who have access to a document.
+    // Sorted by user_id ASC with a simple integer cursor for stable pagination.
+    async getDocumentMembers(
+        documentId: number,
+        limit: number,
+        cursor?: number,
+    ): Promise<DocumentMembersData> {
+        const db = servicesStore.databaseService.kysely;
+        const rows = await sql<{
+            user_id: number;
+            display_name: string | null;
+            avatar_url: string | null;
+            access_level: string;
+        }>`
+            SELECT dum.user_id, u.display_name, u.avatar_url, dum.access_level
+            FROM document_user_meta dum
+            JOIN users u ON u.id = dum.user_id
+            WHERE dum.document_id = ${documentId}
+              ${cursor !== undefined ? sql`AND dum.user_id > ${cursor}` : sql``}
+            ORDER BY dum.user_id ASC
+            LIMIT ${limit}
+        `.execute(db);
+
+        const members: DocumentMember[] = rows.rows.map((row) => ({
+            userId: row.user_id,
+            displayName: row.display_name,
+            avatarUrl: row.avatar_url,
+            accessLevel: row.access_level as AccessLevel,
+        }));
+        const nextCursor = members.length === limit && members[members.length - 1]
+            ? members[members.length - 1]!.userId
+            : null;
+        return { members, nextCursor };
+    }
+
+    // Grants or updates access for a user on a document.
+    // Inserts a new row if none exists; updates access_level if the row already exists.
+    // last_viewed_at defaults to now() on INSERT; not touched on UPDATE.
+    async upsertDocumentAccess(
+        documentId: number,
+        userId: number,
+        accessLevel: AccessLevel,
+    ): Promise<void> {
+        const db = servicesStore.databaseService.kysely;
+        await db
+            .insertInto("document_user_meta")
+            .values({
+                document_id: documentId,
+                user_id: userId,
+                access_level: accessLevel,
+                last_viewed_at: sql`now()`,
+                last_edited_at: null,
+            })
+            .onConflict((oc) =>
+                oc.columns(["document_id", "user_id"]).doUpdateSet({
+                    access_level: accessLevel,
+                }),
+            )
+            .execute();
+    }
+
+    // Revokes a user's access to a document by deleting their document_user_meta row.
+    // Callers must ensure the target user is not the owner before calling this.
+    async removeDocumentAccess(documentId: number, userId: number): Promise<void> {
+        const db = servicesStore.databaseService.kysely;
+        await db
+            .deleteFrom("document_user_meta")
+            .where("document_id", "=", documentId)
+            .where("user_id", "=", userId)
+            .execute();
+    }
+
+    // Searches the users table by display_name or email (case-insensitive ILIKE).
+    // Returns up to `limit` results, each decorated with the user's current access level
+    // on `documentId` (null if they have no row in document_user_meta for that doc).
+    async searchUsersForDoc(
+        documentId: number,
+        query: string,
+        limit: number,
+    ): Promise<DocumentUserSearchData> {
+        const db = servicesStore.databaseService.kysely;
+        const pattern = `%${query}%`;
+        const rows = await sql<{
+            id: number;
+            display_name: string | null;
+            avatar_url: string | null;
+            email: string;
+            access_level: string | null;
+        }>`
+            SELECT u.id, u.display_name, u.avatar_url, u.email, dum.access_level
+            FROM users u
+            LEFT JOIN document_user_meta dum
+              ON dum.user_id = u.id AND dum.document_id = ${documentId}
+            WHERE u.display_name ILIKE ${pattern}
+               OR u.email ILIKE ${pattern}
+            LIMIT ${limit}
+        `.execute(db);
+
+        const users: UserSearchResult[] = rows.rows.map((row) => ({
+            id: row.id,
+            displayName: row.display_name,
+            avatarUrl: row.avatar_url,
+            email: row.email,
+            accessLevel: row.access_level ? (row.access_level as AccessLevel) : null,
+        }));
+        return { users };
     }
 
     // Inserts a new user row or updates display_name/avatar_url if email already exists.

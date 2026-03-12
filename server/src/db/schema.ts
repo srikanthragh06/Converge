@@ -38,13 +38,15 @@ export interface UsersTable {
     updated_at: Generated<Date>;
 }
 
-// Per-user per-document timestamps: when the user last viewed and last edited this doc.
+// Per-user per-document record: view/edit timestamps and the user's access role on the doc.
 // Composite PK (document_id, user_id) — one row per (doc, user) pair.
+// access_level is constrained by a CHECK in migration 5 to 'owner'|'admin'|'editor'|'viewer'.
 export interface DocumentUserMetaTable {
     document_id: number;
     user_id: number;
     last_viewed_at: Generated<Date>;
     last_edited_at: Date | null;
+    access_level: string; // 'owner' | 'admin' | 'editor' | 'viewer' — enforced by DB CHECK
 }
 
 // Root schema passed as a generic to Kysely<DatabaseSchema>.

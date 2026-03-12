@@ -1,9 +1,13 @@
 // Socket.IO typed event interfaces — defines the protocol contract between client and server.
 // Keep in sync with server/src/types.ts (no shared package yet).
 
+// Per-document access role — mirrors AccessLevel on the server.
+// owner > admin > editor > viewer.
+export type AccessLevel = "owner" | "admin" | "editor" | "viewer";
+
 // Events the server sends to this client
 export interface ServerToClientEvents {
-    joined_doc: (documentId: number) => void; // confirmation that the client joined the room
+    joined_doc: (documentId: number, accessLevel: AccessLevel) => void; // confirmation that the client joined the room, includes the user's access level
     left_doc: () => void; // confirmation that the client left the room
     sync_doc: (update: Uint8Array, serverSV: Uint8Array) => void;
     repair_doc: (serverSV: Uint8Array) => void;
