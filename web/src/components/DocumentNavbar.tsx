@@ -14,7 +14,7 @@ import PingDot from "./PingDot";
 import SyncStatus from "./SyncStatus";
 import ShareModal from "./ShareModal";
 
-export default function Navbar({
+export default function DocumentNavbar({
     isDocJoined = false,
     documentId,
 }: {

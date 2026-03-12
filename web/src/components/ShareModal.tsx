@@ -1,7 +1,7 @@
 // ShareModal: per-document access management overlay.
 // Owner and admin can search users, grant/change/remove access.
 // Viewers and editors can see who has access but cannot modify it.
-// Opens from the Share button in Navbar. Closes on Escape or backdrop click.
+// Opens from the Share button in DocumentNavbar. Closes on Escape or backdrop click.
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useAtomValue } from "jotai";
