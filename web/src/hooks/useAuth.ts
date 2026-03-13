@@ -16,7 +16,8 @@ const useAuth = () => {
     useEffect(() => {
         const checkAuth = async () => {
             try {
-                const res = await axiosClient.get<ApiResponse<MeData>>("/auth/me");
+                const res =
+                    await axiosClient.get<ApiResponse<MeData>>("/auth/me");
                 const body = res.data;
 
                 if (!body.success) return;
@@ -24,6 +25,7 @@ const useAuth = () => {
                 setIsAuthed(true);
                 setCurrentUser(body.data.user);
             } catch {
+                console.error("Auth failed");
                 // No existing session — AuthOverlay will prompt sign-in.
             }
         };

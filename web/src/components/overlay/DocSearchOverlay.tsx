@@ -9,10 +9,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAtom } from "jotai";
-import { isDocSearchOpenAtom } from "../atoms/uiAtoms";
-import useDocumentSearch from "../hooks/useDocumentSearch";
-import { formatRelativeTime } from "../utils/utils";
-import { AccessLevel } from "../types/api";
+import { isDocSearchOpenAtom } from "../../atoms/uiAtoms";
+import useDocumentSearch from "../../hooks/useDocumentSearch";
+import { formatRelativeTime } from "../../utils/utils";
+import { AccessLevel } from "../../types/api";
 
 function DocSearchOverlay() {
     // Colour for each access level label shown in search results.
@@ -95,7 +95,9 @@ function DocSearchOverlay() {
             }
         };
         window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
+        return () => {
+            window.removeEventListener("keydown", handleKeyDown);
+        };
     }, [documents, focusedIndex]);
 
     const handleSelectDoc = (id: number) => {
@@ -179,7 +181,9 @@ function DocSearchOverlay() {
                                             .join(" · ")}
                                     </span>
                                     {/* Access level label */}
-                                    <span className={`text-xs capitalize ${ACCESS_LEVEL_CLASSES[doc.accessLevel]}`}>
+                                    <span
+                                        className={`text-xs capitalize ${ACCESS_LEVEL_CLASSES[doc.accessLevel]}`}
+                                    >
                                         {doc.accessLevel}
                                     </span>
                                 </div>

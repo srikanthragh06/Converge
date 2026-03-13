@@ -4,8 +4,8 @@
 
 import { useAtomValue } from "jotai";
 import { FcGoogle } from "react-icons/fc";
-import { supabase } from "../lib/supabase";
-import { isAuthedAtom } from "../atoms/uiAtoms";
+import { supabase } from "../../lib/supabase";
+import { isAuthedAtom } from "../../atoms/uiAtoms";
 
 function AuthOverlay() {
     const isAuthed = useAtomValue(isAuthedAtom);

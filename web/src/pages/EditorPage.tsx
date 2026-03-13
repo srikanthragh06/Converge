@@ -4,10 +4,11 @@ import { useParams } from "react-router-dom";
 import { BlockNoteView } from "@blocknote/mantine";
 import useSyncEditorChanges from "../hooks/useSyncEditorChanges";
 import usePing from "../hooks/usePing";
-import AuthOverlay from "../components/AuthOverlay";
+import AuthOverlay from "../components/overlay/AuthOverlay";
 import DocumentNavbar from "../components/DocumentNavbar";
 import DocumentTitle from "../components/DocumentTitle";
 import NotFoundPage from "./NotFoundPage";
+import DocSearchOverlay from "../components/overlay/DocSearchOverlay";
 
 // EditorPage: collaborative editor for a single document identified by URL param.
 // The Y.Doc and BlockNote editor are owned by useSyncEditorChanges and are recreated
@@ -25,7 +26,6 @@ function EditorPage() {
     );
     usePing();
 
-
     if (!isValidDocumentId) {
         return <NotFoundPage />;
     }
@@ -34,6 +34,7 @@ function EditorPage() {
         // Full-screen column: fixed header + scrollable editor area below
         <div className="flex flex-col h-screen bg-[#1f1f1f] gap-2">
             <AuthOverlay />
+            <DocSearchOverlay />
             <DocumentNavbar isDocJoined={isDocJoined} documentId={documentId} />
 
             {/* Scrollable area: title above editor, both share the same scroll container */}

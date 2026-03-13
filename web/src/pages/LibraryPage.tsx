@@ -5,8 +5,7 @@
 // The loading skeleton is delayed 300ms. An IntersectionObserver on a sentinel div
 // at the bottom of the list triggers loadMore when the user scrolls near the end.
 
-import { useNavigate } from "react-router-dom";
-import AuthOverlay from "../components/AuthOverlay";
+import AuthOverlay from "../components/overlay/AuthOverlay";
 import useLibrary from "../hooks/useLibrary";
 import { AccessLevel } from "../types/api";
 import { formatRelativeTime } from "../utils/utils";
@@ -61,7 +60,10 @@ function LibraryPage() {
                 {showSkeleton ? (
                     <div className="flex flex-col gap-2">
                         {[0, 1, 2].map((i) => (
-                            <div key={i} className="h-14 bg-[#252525] rounded-xl animate-pulse" />
+                            <div
+                                key={i}
+                                className="h-14 bg-[#252525] rounded-xl animate-pulse"
+                            />
                         ))}
                     </div>
                 ) : documents.length === 0 ? (
@@ -75,7 +77,9 @@ function LibraryPage() {
                         {documents.map((doc, i) => (
                             <div
                                 key={doc.id}
-                                ref={(el) => { itemRefs.current[i] = el; }}
+                                ref={(el) => {
+                                    itemRefs.current[i] = el;
+                                }}
                                 onClick={() => navigate(`/note/${doc.id}`)}
                                 onMouseEnter={() => setFocusedIndex(i)}
                                 onMouseLeave={() => setFocusedIndex(-1)}
@@ -83,22 +87,33 @@ function LibraryPage() {
                                     i === focusedIndex ? "bg-[#252525]" : ""
                                 }`}
                             >
-                                <span className={`font-extrabold text-sm truncate transition-colors ${
-                                    i === focusedIndex ? "text-zinc-100" : "text-zinc-300"
-                                }`}>
-                                    {doc.title || <span className="text-zinc-600 italic">Untitled</span>}
+                                <span
+                                    className={`font-extrabold text-sm truncate transition-colors ${
+                                        i === focusedIndex
+                                            ? "text-zinc-100"
+                                            : "text-zinc-300"
+                                    }`}
+                                >
+                                    {doc.title || (
+                                        <span className="text-zinc-600 italic">
+                                            Untitled
+                                        </span>
+                                    )}
                                 </span>
                                 <span className="text-xs text-zinc-600 truncate">
                                     {[
                                         doc.createdByName,
                                         `Viewed ${formatRelativeTime(doc.lastViewedAt)}`,
-                                        doc.lastEditedAt && `Edited ${formatRelativeTime(doc.lastEditedAt)}`,
+                                        doc.lastEditedAt &&
+                                            `Edited ${formatRelativeTime(doc.lastEditedAt)}`,
                                     ]
                                         .filter(Boolean)
                                         .join(" · ")}
                                 </span>
                                 {/* Access level badge */}
-                                <span className={`text-xs capitalize ${ACCESS_LEVEL_CLASSES[doc.accessLevel]}`}>
+                                <span
+                                    className={`text-xs capitalize ${ACCESS_LEVEL_CLASSES[doc.accessLevel]}`}
+                                >
                                     {doc.accessLevel}
                                 </span>
                             </div>

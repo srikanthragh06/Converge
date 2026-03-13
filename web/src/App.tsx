@@ -4,7 +4,6 @@ import AuthPage from "./pages/AuthPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
 import LibraryPage from "./pages/LibraryPage";
 import NotFoundPage from "./pages/NotFoundPage";
-import DocSearchOverlay from "./components/DocSearchOverlay";
 import useAuth from "./hooks/useAuth";
 import useSocket from "./hooks/useSocket";
 import useDocSearchShortcut from "./hooks/useDocSearchShortcut";
@@ -38,9 +37,6 @@ function App() {
                 <Route path="/note/:documentId" element={<EditorPage />} />
                 <Route path="*" element={<NotFoundPage />} />
             </Routes>
-
-            {/* Always mounted — visibility driven by isDocSearchOpenAtom */}
-            <DocSearchOverlay />
         </>
     );
 }
