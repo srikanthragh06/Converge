@@ -14,12 +14,17 @@ import {
     DocumentUserSearchData,
 } from "../types/api";
 
-function useShareModal(documentId: number, isOpen: boolean, onClose: () => void) {
+function useShareModal(
+    documentId: number,
+    isOpen: boolean,
+    onClose: () => void,
+) {
     // Delay (ms) before firing the search after the user stops typing.
     const SEARCH_DEBOUNCE_MS = 300;
     // Number of members to load per page in the members list.
     const MEMBERS_PAGE_SIZE = 10;
 
+    // Needed to identify the current user's own row and determine canModify.
     const currentUser = useAtomValue(currentUserAtom);
 
     // Whether the current user can modify access (owner or admin).
@@ -31,8 +36,13 @@ function useShareModal(documentId: number, isOpen: boolean, onClose: () => void)
 
     // Members loaded for the empty-search view.
     const [members, setMembers] = useState<DocumentMember[]>([]);
-    const [membersNextCursor, setMembersNextCursor] = useState<number | null>(null);
+    // Cursor for the next page of members; null means no more pages.
+    const [membersNextCursor, setMembersNextCursor] = useState<number | null>(
+        null,
+    );
+    // True while the first page of members is loading.
     const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+    // True while a subsequent page of members is loading.
     const [isLoadingMoreMembers, setIsLoadingMoreMembers] = useState(false);
 
     // User search results for the typed-query view.
@@ -41,8 +51,12 @@ function useShareModal(documentId: number, isOpen: boolean, onClose: () => void)
 
     // Sentinel ref for IntersectionObserver pagination on the members list.
     const sentinelRef = useRef<HTMLDivElement | null>(null);
+    // Ref for the search input — used to auto-focus when the modal opens.
     const inputRef = useRef<HTMLInputElement | null>(null);
-    const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Holds the active debounce timer so it can be cancelled on rapid keystrokes.
+    const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
+        null,
+    );
 
     // Load the first page of members — called on open and after access mutations.
     const loadMembers = useCallback(async () => {
@@ -55,8 +69,13 @@ function useShareModal(documentId: number, isOpen: boolean, onClose: () => void)
                 setMembers(res.data.data.members);
                 setMembersNextCursor(res.data.data.nextCursor);
                 // Determine if the current user can modify access by finding their row.
-                const myEntry = res.data.data.members.find((m) => m.userId === currentUser?.id);
-                setCanModify(myEntry?.accessLevel === "owner" || myEntry?.accessLevel === "admin");
+                const myEntry = res.data.data.members.find(
+                    (m) => m.userId === currentUser?.id,
+                );
+                setCanModify(
+                    myEntry?.accessLevel === "owner" ||
+                        myEntry?.accessLevel === "admin",
+                );
             }
         } catch (err) {
             console.error("Failed to load members:", err);
@@ -85,28 +104,39 @@ function useShareModal(documentId: number, isOpen: boolean, onClose: () => void)
     }, [documentId, membersNextCursor, isLoadingMoreMembers]);
 
     // Search users by name/email for the typed-query view.
-    const searchUsers = useCallback(async (q: string) => {
-        if (!q.trim()) {
-            setSearchResults([]);
-            return;
-        }
-        setIsLoadingSearch(true);
-        try {
-            const res = await axiosClient.get<ApiResponse<DocumentUserSearchData>>(
-                `/documents/${documentId}/access/users?q=${encodeURIComponent(q)}`,
-            );
-            if (res.data.success) setSearchResults(res.data.data.users);
-        } catch (err) {
-            console.error("User search failed:", err);
-        } finally {
-            setIsLoadingSearch(false);
-        }
-    }, [documentId]);
+    const searchUsers = useCallback(
+        async (q: string) => {
+            if (!q.trim()) {
+                setSearchResults([]);
+                return;
+            }
+            setIsLoadingSearch(true);
+            try {
+                const res = await axiosClient.get<
+                    ApiResponse<DocumentUserSearchData>
+                >(
+                    `/documents/${documentId}/access/users?q=${encodeURIComponent(q)}`,
+                );
+                if (res.data.success) setSearchResults(res.data.data.users);
+            } catch (err) {
+                console.error("User search failed:", err);
+            } finally {
+                setIsLoadingSearch(false);
+            }
+        },
+        [documentId],
+    );
 
     // Update a user's access level or grant access for the first time.
-    const handleAccessChange = async (userId: number, accessLevel: AccessLevel) => {
+    const handleAccessChange = async (
+        userId: number,
+        accessLevel: AccessLevel,
+    ) => {
         try {
-            await axiosClient.put(`/documents/${documentId}/access`, { userId, accessLevel });
+            await axiosClient.put(`/documents/${documentId}/access`, {
+                userId,
+                accessLevel,
+            });
             // Refresh both views after mutation.
             await loadMembers();
             if (searchQuery.trim()) searchUsers(searchQuery);
@@ -118,7 +148,9 @@ function useShareModal(documentId: number, isOpen: boolean, onClose: () => void)
     // Remove a user's access entirely.
     const handleRemoveAccess = async (userId: number) => {
         try {
-            await axiosClient.delete(`/documents/${documentId}/access/${userId}`);
+            await axiosClient.delete(
+                `/documents/${documentId}/access/${userId}`,
+            );
             await loadMembers();
             if (searchQuery.trim()) searchUsers(searchQuery);
         } catch (err) {
@@ -147,16 +179,20 @@ function useShareModal(documentId: number, isOpen: boolean, onClose: () => void)
             SEARCH_DEBOUNCE_MS,
         );
         return () => {
-            if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+            if (searchDebounceRef.current)
+                clearTimeout(searchDebounceRef.current);
         };
     }, [searchQuery]);
 
     // IntersectionObserver on sentinel div — triggers loadMoreMembers when visible.
     useEffect(() => {
         const sentinel = sentinelRef.current;
-        if (!sentinel || membersNextCursor === null || searchQuery.trim()) return;
+        if (!sentinel || membersNextCursor === null || searchQuery.trim())
+            return;
         const observer = new IntersectionObserver(
-            (entries) => { if (entries[0]?.isIntersecting) loadMoreMembers(); },
+            (entries) => {
+                if (entries[0]?.isIntersecting) loadMoreMembers();
+            },
             { threshold: 0.1 },
         );
         observer.observe(sentinel);
