@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSetAtom } from "jotai";
-import { supabase } from "../lib/supabase";
-import { axiosClient } from "../lib/axiosClient";
-import { isAuthedAtom, currentUserAtom } from "../atoms/uiAtoms";
-import { ApiResponse, VerifyGoogleAuthData } from "../types/api";
-import AnimatedDots from "../components/style/AnimatedDots";
+import { supabase } from "../../lib/supabase";
+import { axiosClient } from "../../lib/axiosClient";
+import { isAuthedAtom, currentUserAtom } from "../../atoms/uiAtoms";
+import { ApiResponse, VerifyGoogleAuthData } from "../../types/api";
+import AnimatedDots from "../../components/style/AnimatedDots";
 
 // AuthCallbackPage: handles the redirect from Google OAuth.
 // Supabase exchanges the URL code for a session automatically on mount.

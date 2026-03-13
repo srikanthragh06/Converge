@@ -1,9 +1,9 @@
 import { Routes, Route } from "react-router-dom";
-import EditorPage from "./pages/EditorPage";
-import AuthPage from "./pages/AuthPage";
-import AuthCallbackPage from "./pages/AuthCallbackPage";
-import LibraryPage from "./pages/LibraryPage";
-import NotFoundPage from "./pages/NotFoundPage";
+import EditorPage from "./pages/editor/EditorPage";
+import AuthPage from "./pages/auth/AuthPage";
+import AuthCallbackPage from "./pages/authCallback/AuthCallbackPage";
+import LibraryPage from "./pages/library/LibraryPage";
+import NotFoundPage from "./pages/notFound/NotFoundPage";
 import useAuth from "./hooks/useAuth";
 import useSocket from "./hooks/useSocket";
 

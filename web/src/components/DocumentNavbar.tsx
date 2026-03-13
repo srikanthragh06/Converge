@@ -31,6 +31,7 @@ export default function DocumentNavbar({
 
     // "Restoring sync" takes priority over "Applying updates"
     let syncLabel: string | null = null;
+
     if (isRestoring) syncLabel = "Restoring sync";
     else if (isApplying) syncLabel = "Applying updates";
 

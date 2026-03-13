@@ -9,7 +9,7 @@ export default function AnimatedDots() {
     useEffect(() => {
         const id = setInterval(() => {
             setCount((c) => (c + 1) % 4);
-        }, 400);
+        }, 200);
         return () => clearInterval(id);
     }, []);
 

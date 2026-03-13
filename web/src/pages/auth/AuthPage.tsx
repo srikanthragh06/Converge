@@ -1,7 +1,7 @@
 // AuthPage: login page for Google OAuth.
 
 import { FcGoogle } from "react-icons/fc";
-import { supabase } from "../lib/supabase";
+import { supabase } from "../../lib/supabase";
 
 // Shown at /auth — users click "Sign in with Google" to begin the OAuth flow.
 function AuthPage() {

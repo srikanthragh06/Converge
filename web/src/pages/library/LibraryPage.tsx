@@ -5,10 +5,10 @@
 // The loading skeleton is delayed 300ms. An IntersectionObserver on a sentinel div
 // at the bottom of the list triggers loadMore when the user scrolls near the end.
 
-import AuthOverlay from "../components/overlay/AuthOverlay";
-import useLibrary from "../hooks/useLibrary";
-import { AccessLevel } from "../types/api";
-import { formatRelativeTime } from "../utils/utils";
+import AuthOverlay from "../../components/overlay/AuthOverlay";
+import useLibrary from "../../hooks/useLibrary";
+import { AccessLevel } from "../../types/api";
+import { formatRelativeTime } from "../../utils/utils";
 
 function LibraryPage() {
     // Pill colour for each access level badge in the document list.
