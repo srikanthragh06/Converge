@@ -9,9 +9,9 @@ import {
     isRestoringSyncAtom,
     isApplyingUpdatesAtom,
     isSocketConnectedAtom,
-} from "../atoms/uiAtoms";
-import PingDot from "./PingDot";
-import SyncStatus from "./SyncStatus";
+} from "../../atoms/uiAtoms";
+import PingDot from "../../components/PingDot";
+import SyncStatus from "../../components/SyncStatus";
 import ShareModal from "./ShareModal";
 
 export default function DocumentNavbar({

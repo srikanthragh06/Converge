@@ -5,7 +5,7 @@ import { BlockNoteView } from "@blocknote/mantine";
 import useSyncEditorChanges from "../../hooks/useSyncEditorChanges";
 import usePing from "../../hooks/usePing";
 import AuthOverlay from "../../components/overlay/AuthOverlay";
-import DocumentNavbar from "../../components/DocumentNavbar";
+import DocumentNavbar from "./DocumentNavbar";
 import DocumentTitle from "../../components/DocumentTitle";
 import NotFoundPage from "../notFound/NotFoundPage";
 import DocSearchOverlay from "../../components/overlay/DocSearchOverlay";
