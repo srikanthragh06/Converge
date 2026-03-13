@@ -3,7 +3,7 @@
 // The selector is editable only when canModify is true and the target is not the owner
 // or the current user.
 
-import { AccessLevel } from "../types/api";
+import { AccessLevel } from "../../types/api";
 
 export default function UserRow({
     name,
@@ -43,7 +43,11 @@ export default function UserRow({
             {/* Avatar — first initial or img */}
             <div className="w-7 h-7 rounded-full bg-zinc-700 shrink-0 flex items-center justify-center overflow-hidden">
                 {avatarUrl ? (
-                    <img src={avatarUrl} alt={name} className="w-full h-full object-cover" />
+                    <img
+                        src={avatarUrl}
+                        alt={name}
+                        className="w-full h-full object-cover"
+                    />
                 ) : (
                     <span className="text-xs text-zinc-300 font-medium">
                         {name.charAt(0).toUpperCase()}
@@ -52,7 +56,9 @@ export default function UserRow({
             </div>
 
             {/* Name */}
-            <span className="flex-1 text-sm text-zinc-300 truncate">{name}</span>
+            <span className="flex-1 text-sm text-zinc-300 truncate">
+                {name}
+            </span>
 
             {/* Access level selector */}
             {isEditable ? (
@@ -74,12 +80,16 @@ export default function UserRow({
                         <option value="remove">Remove</option>
                     )}
                     {accessLevel === null && (
-                        <option value="" disabled>No access</option>
+                        <option value="" disabled>
+                            No access
+                        </option>
                     )}
                 </select>
             ) : (
                 <span className="text-xs text-zinc-600 shrink-0">
-                    {accessLevel ? ACCESS_LEVEL_LABELS[accessLevel] : "No access"}
+                    {accessLevel
+                        ? ACCESS_LEVEL_LABELS[accessLevel]
+                        : "No access"}
                 </span>
             )}
         </div>

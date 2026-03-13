@@ -10,8 +10,8 @@ import {
     isApplyingUpdatesAtom,
     isSocketConnectedAtom,
 } from "../../atoms/uiAtoms";
-import PingDot from "../../components/PingDot";
-import SyncStatus from "../../components/SyncStatus";
+import PingDot from "./PingDot";
+import SyncStatus from "./SyncStatus";
 import ShareModal from "./ShareModal";
 
 export default function DocumentNavbar({

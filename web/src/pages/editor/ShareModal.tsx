@@ -4,7 +4,7 @@
 // Opens from the Share button in DocumentNavbar. Closes on Escape or backdrop click.
 
 import { AccessLevel } from "../../types/api";
-import UserRow from "../../components/UserRow";
+import UserRow from "./UserRow";
 import useShareModal from "../../hooks/useShareModal";
 
 export default function ShareModal({
