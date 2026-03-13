@@ -1,7 +1,7 @@
 // Displays a sync status label with a fade-in / fade-out transition and animated dots.
 // Stays mounted briefly after the label clears so the fade-out animation can complete.
 import { useEffect, useState } from "react";
-import AnimatedDots from "./AnimatedDots";
+import AnimatedDots from "./style/AnimatedDots";
 
 export default function SyncStatus({ label }: { label: string | null }) {
     // Duration in ms for the opacity transition (must match Tailwind `duration-500`)

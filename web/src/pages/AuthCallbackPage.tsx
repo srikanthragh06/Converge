@@ -5,7 +5,7 @@ import { supabase } from "../lib/supabase";
 import { axiosClient } from "../lib/axiosClient";
 import { isAuthedAtom, currentUserAtom } from "../atoms/uiAtoms";
 import { ApiResponse, VerifyGoogleAuthData } from "../types/api";
-import AnimatedDots from "../components/AnimatedDots";
+import AnimatedDots from "../components/style/AnimatedDots";
 
 // AuthCallbackPage: handles the redirect from Google OAuth.
 // Supabase exchanges the URL code for a session automatically on mount.
@@ -23,7 +23,9 @@ function AuthCallbackPage() {
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        const from = new URLSearchParams(window.location.search).get("from") ?? "/note/1";
+        const from =
+            new URLSearchParams(window.location.search).get("from") ??
+            "/note/1";
 
         const verifyWithBackend = async () => {
             // Supabase has already exchanged the code in the URL for a session by this point.
@@ -36,7 +38,9 @@ function AuthCallbackPage() {
             }
 
             // Send the access token to the backend — backend sets the JWT cookie in the response.
-            const res = await axiosClient.post<ApiResponse<VerifyGoogleAuthData>>("/auth/verifyGoogleAuth", { accessToken });
+            const res = await axiosClient.post<
+                ApiResponse<VerifyGoogleAuthData>
+            >("/auth/verifyGoogleAuth", { accessToken });
             const body = res.data;
 
             if (!body.success) {
@@ -64,7 +68,8 @@ function AuthCallbackPage() {
                 <p className="text-sm text-zinc-200">Sign in successful</p>
             ) : (
                 <p className="text-sm">
-                    Signing you in<AnimatedDots />
+                    Signing you in
+                    <AnimatedDots />
                 </p>
             )}
         </div>
