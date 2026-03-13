@@ -5,8 +5,8 @@
 // Last-writer-wins — no conflict resolution.
 
 import { useEffect, useRef, useState } from "react";
-import { axiosClient } from "../lib/axiosClient";
-import { ApiResponse, DocumentMetaData } from "../types/api";
+import { axiosClient } from "../../lib/axiosClient";
+import { ApiResponse, DocumentMetaData } from "../../types/api";
 
 export default function DocumentTitle({
     documentId,
@@ -20,7 +20,7 @@ export default function DocumentTitle({
     isTitleSyncing: boolean;
 }) {
     // How long after the last keystroke before the PATCH fires (ms).
-    const DEBOUNCE_MS = 500;
+    const DEBOUNCE_MS = 250;
     // Maximum number of characters allowed in the title — must match server-side validation.
     const MAX_TITLE_LENGTH = 32;
 
@@ -30,18 +30,6 @@ export default function DocumentTitle({
     const [isSaving, setIsSaving] = useState(false);
     // Debounce timer ref — reset on every keystroke, fires PATCH after DEBOUNCE_MS of silence.
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    // Sync local value when the server-loaded title prop changes (join / rejoin).
-    useEffect(() => {
-        setValue(title);
-    }, [title]);
-
-    // Cancel any pending debounce timer on unmount to avoid state updates on stale instances.
-    useEffect(() => {
-        return () => {
-            if (debounceRef.current) clearTimeout(debounceRef.current);
-        };
-    }, []);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const next = e.target.value;
@@ -63,6 +51,18 @@ export default function DocumentTitle({
             }
         }, DEBOUNCE_MS);
     };
+
+    // Sync local value when the server-loaded title prop changes (join / rejoin).
+    useEffect(() => {
+        setValue(title);
+    }, [title]);
+
+    // Cancel any pending debounce timer on unmount to avoid state updates on stale instances.
+    useEffect(() => {
+        return () => {
+            if (debounceRef.current) clearTimeout(debounceRef.current);
+        };
+    }, []);
 
     return (
         <div className="px-14 pt-8 pb-2">
