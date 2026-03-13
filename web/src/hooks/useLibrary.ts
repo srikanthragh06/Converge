@@ -9,9 +9,20 @@ import { ApiResponse, DocumentMetaData } from "../types/api";
 
 function useLibrary() {
     const navigate = useNavigate();
-    const { query, setQuery, documents, isLoading, isLoadingMore, hasMore, loadMore } =
-        useDocumentSearch();
+    const {
+        query,
+        setQuery,
+        documents,
+        isLoading,
+        isLoadingMore,
+        hasMore,
+        loadMore,
+    } = useDocumentSearch();
+
+    // Refs for each list row — used to scroll the keyboard-focused item into view.
     const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+    // Ref for the sentinel div at the bottom of the list — watched by IntersectionObserver.
     const sentinelRef = useRef<HTMLDivElement | null>(null);
 
     // Only show the skeleton after 300ms — prevents a flash on fast fetches.
@@ -19,18 +30,40 @@ function useLibrary() {
     // Which item is keyboard-focused (-1 = none).
     const [focusedIndex, setFocusedIndex] = useState(-1);
 
+    // Creates a new document via POST /documents and navigates directly to it.
+    const handleNewDocument = async () => {
+        try {
+            const res =
+                await axiosClient.post<ApiResponse<DocumentMetaData>>(
+                    "/documents",
+                );
+            if (res.data.success) navigate(`/note/${res.data.data.id}`);
+        } catch (err) {
+            console.error("Failed to create document:", err);
+        }
+    };
+
+    // Only show the loading skeleton after 300ms — prevents a flash on fast fetches.
     useEffect(() => {
-        if (!isLoading) { setShowSkeleton(false); return; }
+        if (!isLoading) {
+            setShowSkeleton(false);
+            return;
+        }
         const timer = setTimeout(() => setShowSkeleton(true), 300);
         return () => clearTimeout(timer);
     }, [isLoading]);
 
     // Reset focused item whenever the result list changes.
-    useEffect(() => { setFocusedIndex(-1); }, [documents]);
+    useEffect(() => {
+        setFocusedIndex(-1);
+    }, [documents]);
 
     // Scroll the focused item into view when the index changes.
     useEffect(() => {
-        if (focusedIndex >= 0) itemRefs.current[focusedIndex]?.scrollIntoView({ block: "nearest" });
+        if (focusedIndex >= 0)
+            itemRefs.current[focusedIndex]?.scrollIntoView({
+                block: "nearest",
+            });
     }, [focusedIndex]);
 
     // Arrow keys navigate the list; Enter opens the focused doc.
@@ -38,7 +71,9 @@ function useLibrary() {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === "ArrowDown") {
                 e.preventDefault();
-                setFocusedIndex((prev) => Math.min(prev + 1, documents.length - 1));
+                setFocusedIndex((prev) =>
+                    Math.min(prev + 1, documents.length - 1),
+                );
                 return;
             }
             if (e.key === "ArrowUp") {
@@ -46,7 +81,11 @@ function useLibrary() {
                 setFocusedIndex((prev) => Math.max(prev - 1, 0));
                 return;
             }
-            if (e.key === "Enter" && focusedIndex >= 0 && documents[focusedIndex]) {
+            if (
+                e.key === "Enter" &&
+                focusedIndex >= 0 &&
+                documents[focusedIndex]
+            ) {
                 navigate(`/note/${documents[focusedIndex]!.id}`);
             }
         };
@@ -68,15 +107,6 @@ function useLibrary() {
         observer.observe(sentinel);
         return () => observer.disconnect();
     }, [hasMore, isLoadingMore]);
-
-    const handleNewDocument = async () => {
-        try {
-            const res = await axiosClient.post<ApiResponse<DocumentMetaData>>("/documents");
-            if (res.data.success) navigate(`/note/${res.data.data.id}`);
-        } catch (err) {
-            console.error("Failed to create document:", err);
-        }
-    };
 
     return {
         navigate,
