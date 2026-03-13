@@ -47,15 +47,17 @@ const useDocumentSearch = () => {
                         ApiResponse<DocumentSearchData>
                     >(`/searchUserDocs?q=${encodeURIComponent(trimmed)}`);
                     if (requestId !== latestRequestId.current) return;
-                    if (res.data.success) setDocuments(res.data.data.documents);
+                    const body = res.data;
+                    if (body.success) setDocuments(body.data.documents);
                 } else {
                     const res = await axiosClient.get<
                         ApiResponse<DocumentLibraryData>
                     >(`/getUserViewedDocs?limit=${PAGE_SIZE}`);
                     if (requestId !== latestRequestId.current) return;
-                    if (res.data.success) {
-                        setDocuments(res.data.data.documents);
-                        setNextCursor(res.data.data.nextCursor);
+                    const body = res.data;
+                    if (body.success) {
+                        setDocuments(body.data.documents);
+                        setNextCursor(body.data.nextCursor);
                     }
                 }
             } catch (err) {
@@ -84,9 +86,10 @@ const useDocumentSearch = () => {
             const res = await axiosClient.get<ApiResponse<DocumentLibraryData>>(
                 `/getUserViewedDocs?${params.toString()}`,
             );
-            if (res.data.success) {
-                setDocuments((prev) => [...prev, ...res.data.data.documents]);
-                setNextCursor(res.data.data.nextCursor);
+            const body = res.data;
+            if (body.success) {
+                setDocuments((prev) => [...prev, ...body.data.documents]);
+                setNextCursor(body.data.nextCursor);
             }
         } catch (err) {
             console.error("useDocumentSearch loadMore failed:", err);
