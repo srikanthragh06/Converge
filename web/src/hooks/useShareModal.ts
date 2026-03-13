@@ -92,9 +92,10 @@ function useShareModal(
             const res = await axiosClient.get<ApiResponse<DocumentMembersData>>(
                 `/documents/${documentId}/access/members?limit=${MEMBERS_PAGE_SIZE}&cursor=${membersNextCursor}`,
             );
-            if (res.data.success) {
-                setMembers((prev) => [...prev, ...res.data.data.members]);
-                setMembersNextCursor(res.data.data.nextCursor);
+            const body = res.data;
+            if (body.success) {
+                setMembers((prev) => [...prev, ...body.data.members]);
+                setMembersNextCursor(body.data.nextCursor);
             }
         } catch (err) {
             console.error("Failed to load more members:", err);
