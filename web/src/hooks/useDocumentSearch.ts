@@ -20,32 +20,43 @@ const useDocumentSearch = () => {
     // Debounce window before the search fires after the user stops typing.
     const SEARCH_DEBOUNCE_MS = 300;
 
+    // Current search input — empty string means "show recency list".
     const [query, setQuery] = useState("");
+
+    // The result set currently displayed — replaced on every new fetch, appended on loadMore.
     const [documents, setDocuments] = useState<DocumentLibraryItem[]>([]);
+
+    // True while the initial fetch (or a new query fetch) is in flight.
     const [isLoading, setIsLoading] = useState(false);
+
+    // True while a loadMore (next-page) fetch is in flight.
     const [isLoadingMore, setIsLoadingMore] = useState(false);
+
     // Compound cursor for the next page; null means no more pages (or search mode).
     const [nextCursor, setNextCursor] = useState<{
         lastId: number;
         lastViewedAt: string;
     } | null>(null);
+
     // Track the latest fetch request so stale responses are discarded.
     const latestRequestId = useRef(0);
 
     // Reset and fetch the first page whenever the query changes.
     useEffect(() => {
+        // Stamp this request so responses from superseded fetches can be discarded.
         const requestId = ++latestRequestId.current;
 
+        // Inner async function — useEffect callbacks cannot be async directly.
         const fetchDocs = async () => {
             setIsLoading(true);
             setDocuments([]);
             setNextCursor(null);
             try {
-                const trimmed = query.trim();
-                if (trimmed.length > 0) {
+                const trimmedQuery = query.trim();
+                if (trimmedQuery.length > 0) {
                     const res = await axiosClient.get<
                         ApiResponse<DocumentSearchData>
-                    >(`/searchUserDocs?q=${encodeURIComponent(trimmed)}`);
+                    >(`/searchUserDocs?q=${encodeURIComponent(trimmedQuery)}`);
                     if (requestId !== latestRequestId.current) return;
                     const body = res.data;
                     if (body.success) setDocuments(body.data.documents);
