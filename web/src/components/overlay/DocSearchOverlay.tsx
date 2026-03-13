@@ -1,4 +1,5 @@
-// DocSearchOverlay: global Ctrl+P document search overlay.
+// DocSearchOverlay: Ctrl+P document search overlay, mounted inside EditorPage.
+// Registers the Ctrl+P / Cmd+P shortcut itself — no separate hook needed.
 // Renders when isDocSearchOpenAtom is true. Shows a search input:
 // empty → recency-ordered docs from GET /getUserViewedDocs;
 // typed → trigram similarity results from GET /searchUserDocs.
@@ -8,7 +9,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
 import { isDocSearchOpenAtom } from "../../atoms/uiAtoms";
 import useDocumentSearch from "../../hooks/useDocumentSearch";
 import { formatRelativeTime } from "../../utils/utils";
@@ -31,6 +32,16 @@ function DocSearchOverlay() {
 
     // Only show the skeleton after 300ms — prevents a flash on fast fetches.
     const [showSkeleton, setShowSkeleton] = useState(false);
+
+    // Write-only setter for the Ctrl+P toggle effect — useSetAtom avoids subscribing
+    // the effect closure to atom changes, preventing unnecessary re-runs.
+    const setIsDocSearchOpen = useSetAtom(isDocSearchOpenAtom);
+
+    const handleSelectDoc = (id: number) => {
+        navigate(`/note/${id}`);
+        setIsOpen(false);
+    };
+
     useEffect(() => {
         if (!isLoading) {
             setShowSkeleton(false);
@@ -100,10 +111,17 @@ function DocSearchOverlay() {
         };
     }, [documents, focusedIndex]);
 
-    const handleSelectDoc = (id: number) => {
-        navigate(`/note/${id}`);
-        setIsOpen(false);
-    };
+    // Ctrl+P / Cmd+P toggles this overlay; prevents the browser's print dialog.
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === "p") {
+                e.preventDefault();
+                setIsDocSearchOpen((prev) => !prev);
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, []);
 
     if (!isOpen) return null;
 

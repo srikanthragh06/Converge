@@ -6,7 +6,6 @@ import LibraryPage from "./pages/LibraryPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import useAuth from "./hooks/useAuth";
 import useSocket from "./hooks/useSocket";
-import useDocSearchShortcut from "./hooks/useDocSearchShortcut";
 
 // App defines the client-side route structure.
 // useAuth and useSocket are app-level hooks — auth is checked on every mount
@@ -16,7 +15,7 @@ import useDocSearchShortcut from "./hooks/useDocSearchShortcut";
 // /library renders the document library (user's viewed documents + search).
 // /note/:documentId renders the collaborative editor for that document.
 // All other paths render the not-found page.
-// DocSearchOverlay is mounted globally so Ctrl+P works on every page.
+// DocSearchOverlay and its Ctrl+P shortcut are scoped to EditorPage.
 function App() {
     // Verify JWT cookie via /auth/me on mount — sets isAuthedAtom / currentUserAtom
     // or redirects to /auth if unauthenticated.
@@ -24,9 +23,6 @@ function App() {
 
     // Connect the socket only after isAuthedAtom is true.
     useSocket();
-
-    // Global Ctrl+P shortcut — toggles the document search overlay.
-    useDocSearchShortcut();
 
     return (
         <>

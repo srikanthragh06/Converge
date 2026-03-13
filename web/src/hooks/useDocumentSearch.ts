@@ -7,7 +7,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import { axiosClient } from "../lib/axiosClient";
-import { ApiResponse, DocumentLibraryData, DocumentLibraryItem, DocumentSearchData } from "../types/api";
+import {
+    ApiResponse,
+    DocumentLibraryData,
+    DocumentLibraryItem,
+    DocumentSearchData,
+} from "../types/api";
 
 const useDocumentSearch = () => {
     // Number of documents to request per page from the server.
@@ -20,7 +25,10 @@ const useDocumentSearch = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     // Compound cursor for the next page; null means no more pages (or search mode).
-    const [nextCursor, setNextCursor] = useState<{ lastId: number; lastViewedAt: string } | null>(null);
+    const [nextCursor, setNextCursor] = useState<{
+        lastId: number;
+        lastViewedAt: string;
+    } | null>(null);
     // Track the latest fetch request so stale responses are discarded.
     const latestRequestId = useRef(0);
 
@@ -35,13 +43,15 @@ const useDocumentSearch = () => {
             try {
                 const trimmed = query.trim();
                 if (trimmed.length > 0) {
-                    const res = await axiosClient.get<ApiResponse<DocumentSearchData>>(
-                        `/searchUserDocs?q=${encodeURIComponent(trimmed)}`,
-                    );
+                    const res = await axiosClient.get<
+                        ApiResponse<DocumentSearchData>
+                    >(`/searchUserDocs?q=${encodeURIComponent(trimmed)}`);
                     if (requestId !== latestRequestId.current) return;
                     if (res.data.success) setDocuments(res.data.data.documents);
                 } else {
-                    const res = await axiosClient.get<ApiResponse<DocumentLibraryData>>(`/getUserViewedDocs?limit=${PAGE_SIZE}`);
+                    const res = await axiosClient.get<
+                        ApiResponse<DocumentLibraryData>
+                    >(`/getUserViewedDocs?limit=${PAGE_SIZE}`);
                     if (requestId !== latestRequestId.current) return;
                     if (res.data.success) {
                         setDocuments(res.data.data.documents);
@@ -85,7 +95,15 @@ const useDocumentSearch = () => {
         }
     };
 
-    return { query, setQuery, documents, isLoading, isLoadingMore, hasMore: nextCursor !== null, loadMore };
+    return {
+        query,
+        setQuery,
+        documents,
+        isLoading,
+        isLoadingMore,
+        hasMore: nextCursor !== null,
+        loadMore,
+    };
 };
 
 export default useDocumentSearch;
