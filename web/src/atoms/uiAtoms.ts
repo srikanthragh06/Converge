@@ -1,7 +1,7 @@
 // Jotai atoms for UI state — auth state, ping latency, sync status indicators, and access control.
 // These are separate from Y.Doc (collaborative content) state.
 import { atom } from "jotai";
-import { AuthedUser, AccessLevel } from "../types/api";
+import { AuthedUser } from "../types/api";
 
 // Whether the current user is authenticated (JWT cookie verified via /auth/me).
 // Set to true by useAuth on success; false until verified or on 401.
