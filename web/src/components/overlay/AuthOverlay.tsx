@@ -10,8 +10,6 @@ import { isAuthedAtom } from "../../atoms/uiAtoms";
 function AuthOverlay() {
     const isAuthed = useAtomValue(isAuthedAtom);
 
-    if (isAuthed) return null;
-
     const handleSignIn = async () => {
         // Pass the current path as ?from= so AuthCallbackPage can navigate back after sign-in.
         const from = encodeURIComponent(window.location.pathname);
@@ -22,6 +20,8 @@ function AuthOverlay() {
             },
         });
     };
+
+    if (isAuthed) return null;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/90">

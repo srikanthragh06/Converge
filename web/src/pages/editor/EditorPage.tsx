@@ -45,21 +45,23 @@ function EditorPage() {
 
             {/* Scrollable area: title above editor, both share the same scroll container */}
             <div className="flex-1 overflow-auto flex flex-col">
-                {/* Hidden until joined — avoids rendering title before the server confirms the join */}
+                {/* Hidden until joined — title and editor only render after the server confirms the join */}
                 {isDocJoined && documentId !== undefined && (
-                    <DocumentTitle
-                        documentId={documentId}
-                        title={title}
-                        isTitleSyncing={isTitleSyncing}
-                    />
+                    <>
+                        <DocumentTitle
+                            documentId={documentId}
+                            title={title}
+                            isTitleSyncing={isTitleSyncing}
+                        />
+                        <div className="flex-1">
+                            <BlockNoteView
+                                editor={editor}
+                                theme="dark"
+                                className="h-full"
+                            />
+                        </div>
+                    </>
                 )}
-                <div className="flex-1">
-                    <BlockNoteView
-                        editor={editor}
-                        theme="dark"
-                        className="h-full"
-                    />
-                </div>
             </div>
         </div>
     );
