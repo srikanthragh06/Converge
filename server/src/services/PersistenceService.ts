@@ -309,13 +309,15 @@ export class PersistenceService {
     // Searches the users table by display_name or email (case-insensitive ILIKE).
     // Returns up to `limit` results, each decorated with the user's current access level
     // on `documentId` (null if they have no row in document_user_meta for that doc).
+    // Uses similarity() on display_name backed by the GIN trigram index (migration 6).
+    // GIN indexes don't store NULLs so the IS NOT NULL guard is for clarity only — not a
+    // separate filtering step. Results ordered by score so best matches appear first.
     async searchUsersForDoc(
         documentId: number,
         query: string,
         limit: number,
     ): Promise<DocumentUserSearchData> {
         const db = servicesStore.databaseService.kysely;
-        const pattern = `%${query}%`;
         const rows = await sql<{
             id: number;
             display_name: string | null;
@@ -327,8 +329,9 @@ export class PersistenceService {
             FROM users u
             LEFT JOIN document_user_meta dum
               ON dum.user_id = u.id AND dum.document_id = ${documentId}
-            WHERE u.display_name ILIKE ${pattern}
-               OR u.email ILIKE ${pattern}
+            WHERE u.display_name IS NOT NULL
+              AND similarity(u.display_name, ${query}) > 0.1
+            ORDER BY similarity(u.display_name, ${query}) DESC
             LIMIT ${limit}
         `.execute(db);
 
