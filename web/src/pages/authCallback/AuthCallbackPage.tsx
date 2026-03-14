@@ -14,7 +14,7 @@ import AnimatedDots from "../../components/style/AnimatedDots";
 //   2. Upsert the user in the DB
 //   3. Issue an httpOnly JWT cookie
 // On success, navigates back to the page the user came from (?from= param),
-// falling back to /note/1 if no origin page was specified.
+// falling back to /library if no origin page was specified.
 function AuthCallbackPage() {
     const navigate = useNavigate();
     const setIsAuthed = useSetAtom(isAuthedAtom);
@@ -25,7 +25,7 @@ function AuthCallbackPage() {
     useEffect(() => {
         const from =
             new URLSearchParams(window.location.search).get("from") ??
-            "/note/1";
+            "/library";
 
         const verifyWithBackend = async () => {
             // Supabase has already exchanged the code in the URL for a session by this point.
@@ -54,7 +54,7 @@ function AuthCallbackPage() {
             setVerified(true);
 
             // Brief pause so the user sees the success state before navigating back.
-            setTimeout(() => navigate(from, { replace: true }), 800);
+            setTimeout(() => navigate(from, { replace: true }), 1200);
         };
 
         verifyWithBackend();
