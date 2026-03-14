@@ -24,6 +24,8 @@ function EditorPage() {
         isAccessForbidden,
         isEditorOrAbove,
     } = useSyncEditorChanges();
+
+    // Starts the socket ping/pong interval for RTT measurement.
     usePing();
 
     // Server confirmed the user has no access row — show inline message instead of the editor.
