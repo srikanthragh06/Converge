@@ -71,6 +71,7 @@ export interface ServerToClientEvents {
     sync_title: (title: string) => void; // broadcast to room when title is updated via REST
     join_doc_error: (reason: string) => void; // emitted when join_doc fails due to invalid ID or other error
     doc_not_found: () => void;               // emitted when the requested document does not exist in the DB
+    join_doc_forbidden: () => void;          // emitted when the user is authenticated but has no access row for this document
 }
 
 // Payload embedded in every JWT issued after Google auth.

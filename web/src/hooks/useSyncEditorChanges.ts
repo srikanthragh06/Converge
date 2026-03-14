@@ -61,6 +61,8 @@ const useSyncEditorChanges = () => {
     // null until joined, then 'owner' | 'admin' | 'editor' | 'viewer'.
     const [documentAccessLevel, setDocumentAccessLevel] =
         useState<AccessLevel | null>(null);
+    // True when the server emits join_doc_forbidden — user is authenticated but has no access row.
+    const [isAccessForbidden, setIsAccessForbidden] = useState(false);
 
     // Returns true if the given access level permits write operations (editor or above).
     const isEditorOrAbove = (level: AccessLevel | null): boolean =>
@@ -129,6 +131,7 @@ const useSyncEditorChanges = () => {
         setTitle("");
         setIsTitleSyncing(false);
         setDocumentAccessLevel(null);
+        setIsAccessForbidden(false);
         pendingUpdates.current = [];
         if (timeoutId.current) {
             clearTimeout(timeoutId.current);
@@ -150,12 +153,7 @@ const useSyncEditorChanges = () => {
             navigate("/not-found");
             return;
         }
-        // If we've joined the doc but don't have a valid access level navigate to 404
-        if (isDocJoined && documentAccessLevel === null) {
-            navigate("/not-found");
-            return;
-        }
-    }, [navigate, documentIdStr, documentId, isDocJoined, documentAccessLevel]);
+    }, [navigate, documentIdStr, documentId]);
 
     // Set up IndexedDB persistence scoped to this document.
     // Loads the local snapshot into the Y.Doc on mount before any server sync fires.
@@ -208,11 +206,16 @@ const useSyncEditorChanges = () => {
             // Server confirmed the document does not exist — navigate to the 404 page.
             navigate("/not-found");
         };
+        const onJoinDocForbidden = () => {
+            // Server confirmed the user has no access row for this document.
+            setIsAccessForbidden(true);
+        };
 
         socket.on("connect", onConnect);
         socket.on("joined_doc", onJoinedDoc);
         socket.on("join_doc_error", onJoinDocError);
         socket.on("doc_not_found", onDocNotFound);
+        socket.on("join_doc_forbidden", onJoinDocForbidden);
         socket.on("left_doc", onLeftOrDisconnect);
         socket.on("disconnect", onLeftOrDisconnect);
 
@@ -223,6 +226,7 @@ const useSyncEditorChanges = () => {
             socket.off("joined_doc", onJoinedDoc);
             socket.off("join_doc_error", onJoinDocError);
             socket.off("doc_not_found", onDocNotFound);
+            socket.off("join_doc_forbidden", onJoinDocForbidden);
             socket.off("left_doc", onLeftOrDisconnect);
             socket.off("disconnect", onLeftOrDisconnect);
             socket.emit("leave_doc");
@@ -365,6 +369,7 @@ const useSyncEditorChanges = () => {
         yDoc,
         editor,
         documentId,
+        isAccessForbidden,
     };
 };
 

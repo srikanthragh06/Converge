@@ -14,10 +14,19 @@ import DocSearchOverlay from "../../components/overlay/DocSearchOverlay";
 // carries over between documents.
 function EditorPage() {
     // Validation and navigation live inside useSyncEditorChanges — it reads the URL
-    // param directly and redirects to /not-found if the ID is invalid or access is denied.
-    const { title, isDocJoined, isTitleSyncing, editor, documentId } =
+    // param directly and redirects to /not-found if the ID is invalid.
+    const { title, isDocJoined, isTitleSyncing, editor, documentId, isAccessForbidden } =
         useSyncEditorChanges();
     usePing();
+
+    // Server confirmed the user has no access row — show inline message instead of the editor.
+    if (isAccessForbidden) {
+        return (
+            <div className="flex flex-col items-center justify-center h-screen bg-[#1f1f1f] text-zinc-400">
+                <p className="text-sm">You don't have access to this document.</p>
+            </div>
+        );
+    }
 
     return (
         // Full-screen column: fixed header + scrollable editor area below

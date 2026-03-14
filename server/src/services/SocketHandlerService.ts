@@ -21,6 +21,7 @@ export class SocketHandlerService {
     static readonly JOINED_DOC = "joined_doc";
     static readonly JOIN_DOC_ERROR = "join_doc_error";
     static readonly DOC_NOT_FOUND = "doc_not_found";
+    static readonly JOIN_DOC_FORBIDDEN = "join_doc_forbidden"; // user is authenticated but has no access row for this document
     static readonly LEAVE_DOC = "leave_doc";
     static readonly LEFT_DOC = "left_doc";
     static readonly SYNC_DOC = "sync_doc";
@@ -143,9 +144,10 @@ export class SocketHandlerService {
     }
 
     // join_doc: validates the numeric documentId, checks the document exists
-    // (returns join_doc_error if not), preloads the Y.Doc into memory, joins the
-    // socket room, stores documentId in socket.data, and confirms with joined_doc.
-    // Documents must be created via POST /documents — no auto-creation here.
+    // (emits doc_not_found if not), checks the user's access level
+    // (emits join_doc_forbidden if no row or access < viewer), preloads the Y.Doc,
+    // joins the socket room, stores documentId+accessLevel in socket.data, and
+    // confirms with joined_doc. Documents must be created via POST /documents — no auto-creation here.
     private async handleJoinDoc(
         socket: TypedSocket,
         rawDocumentId: number,
@@ -179,7 +181,7 @@ export class SocketHandlerService {
         const accessLevel = await servicesStore.persistenceService.getDocumentAccess(documentId, userId);
         if (!accessLevel || !hasAccess(accessLevel, "viewer")) {
             console.warn(`join_doc rejected — ${socket.id} (user ${userId}) has no access to doc ${documentId}`);
-            socket.emit(SocketHandlerService.JOIN_DOC_ERROR, "forbidden");
+            socket.emit(SocketHandlerService.JOIN_DOC_FORBIDDEN);
             return;
         }
 
