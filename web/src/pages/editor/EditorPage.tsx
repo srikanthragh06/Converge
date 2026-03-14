@@ -50,6 +50,7 @@ function EditorPage() {
                 {isDocJoined && documentId !== undefined && (
                     <>
                         <DocumentTitle
+                            isEditorOrAbove={isEditorOrAbove}
                             documentId={documentId}
                             title={title}
                             isTitleSyncing={isTitleSyncing}

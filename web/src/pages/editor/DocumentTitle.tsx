@@ -1,4 +1,4 @@
-// DocumentTitle: large bold editable title displayed above the editor.
+// DocumentTitle: large bold title displayed above the editor. Editable only when isEditorOrAbove is true.
 // Controlled input with immediate local state update on every keystroke.
 // Debounces the PATCH call after the last keystroke so network traffic is minimal.
 // Syncs from the server-loaded `title` prop whenever it changes (e.g. on reconnect).
@@ -12,10 +12,12 @@ export default function DocumentTitle({
     documentId,
     title,
     isTitleSyncing,
+    isEditorOrAbove,
 }: {
     documentId: number;
     title: string;
     isTitleSyncing: boolean;
+    isEditorOrAbove: boolean;
 }) {
     // How long after the last keystroke before the PATCH fires (ms).
     const DEBOUNCE_MS = 250;
@@ -69,6 +71,7 @@ export default function DocumentTitle({
                 value={value}
                 onChange={handleChange}
                 placeholder="Untitled"
+                disabled={!isEditorOrAbove}
                 maxLength={MAX_TITLE_LENGTH}
                 className={`w-full bg-transparent outline-none border-none text-6xl font-bold text-white placeholder-white/30 transition-opacity duration-300 rounded-lg ${
                     isSaving || isTitleSyncing
