@@ -22,6 +22,7 @@ function EditorPage() {
         editor,
         documentId,
         isAccessForbidden,
+        isEditorOrAbove,
     } = useSyncEditorChanges();
     usePing();
 
@@ -58,6 +59,7 @@ function EditorPage() {
                                 editor={editor}
                                 theme="dark"
                                 className="h-full"
+                                editable={isEditorOrAbove}
                             />
                         </div>
                     </>

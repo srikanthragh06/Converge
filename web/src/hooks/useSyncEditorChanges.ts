@@ -64,10 +64,6 @@ const useSyncEditorChanges = () => {
     // True when the server emits join_doc_forbidden — user is authenticated but has no access row.
     const [isAccessForbidden, setIsAccessForbidden] = useState(false);
 
-    // Returns true if the given access level permits write operations (editor or above).
-    const isEditorOrAbove = (level: AccessLevel | null): boolean =>
-        level === "editor" || level === "admin" || level === "owner";
-
     // useSetAtom avoids subscribing this hook to atom value changes (no extra re-renders)
     const setIsRestoring = useSetAtom(isRestoringSyncAtom);
     const setIsApplying = useSetAtom(isApplyingUpdatesAtom);
@@ -101,6 +97,12 @@ const useSyncEditorChanges = () => {
     // operation completes faster. Resets the timer whenever called again.
     const RESTORING_DISPLAY_MS = 1200;
     const APPLYING_DISPLAY_MS = 1200;
+
+    // True when the current access level permits write operations (editor or above).
+    const isEditorOrAbove =
+        documentAccessLevel === "editor" ||
+        documentAccessLevel === "admin" ||
+        documentAccessLevel === "owner";
 
     // Helper: show "Restoring sync" for at least RESTORING_DISPLAY_MS then auto-clear.
     const flashRestoring = () => {
@@ -241,7 +243,7 @@ const useSyncEditorChanges = () => {
         // Guarded by isEditorOrAbove so viewers never push content to the server.
         const flushPendingUpdates = () => {
             if (pendingUpdates.current.length === 0) return;
-            if (!isEditorOrAbove(documentAccessLevel)) return;
+            if (!isEditorOrAbove) return;
             const updates = pendingUpdates.current;
             pendingUpdates.current = [];
             const merged = Y.mergeUpdates(updates);
@@ -284,7 +286,7 @@ const useSyncEditorChanges = () => {
     useEffect(() => {
         const onRepairDoc = (serverSV: Uint8Array) => {
             flashRestoring();
-            if (!isEditorOrAbove(documentAccessLevel)) return;
+            if (!isEditorOrAbove) return;
             const diff = Y.encodeStateAsUpdate(yDoc, new Uint8Array(serverSV));
             socket.emit(REPAIR_RESPONSE, diff);
         };
@@ -333,7 +335,7 @@ const useSyncEditorChanges = () => {
     useEffect(() => {
         const onSyncAck = (diff: Uint8Array, serverSV: Uint8Array) => {
             Y.applyUpdate(yDoc, new Uint8Array(diff), REMOTE_ORIGIN);
-            if (!isEditorOrAbove(documentAccessLevel)) return;
+            if (!isEditorOrAbove) return;
             const diffForServer = Y.encodeStateAsUpdate(
                 yDoc,
                 new Uint8Array(serverSV),
@@ -370,6 +372,7 @@ const useSyncEditorChanges = () => {
         editor,
         documentId,
         isAccessForbidden,
+        isEditorOrAbove,
     };
 };
 
