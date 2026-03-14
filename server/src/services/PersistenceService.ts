@@ -8,7 +8,7 @@ import { sql } from "kysely";
 import { SaveUpdateResult, AccessLevel, DocumentMember, UserSearchResult } from "../types/types";
 import { DocumentLibraryData, DocumentSearchData, DocumentMembersData, DocumentUserSearchData } from "../types/api";
 import { servicesStore } from "../store/servicesStore";
-import { REMOTE_ORIGIN, TITLE_SEARCH_SIMILARITY_THRESHOLD } from "../constants/constants";
+import { REMOTE_ORIGIN, TITLE_SEARCH_SIMILARITY_THRESHOLD, USER_SEARCH_SIMILARITY_THRESHOLD } from "../constants/constants";
 
 export class PersistenceService {
     // Atomically inserts the Yjs update and increments the document's update counter.
@@ -330,7 +330,7 @@ export class PersistenceService {
             LEFT JOIN document_user_meta dum
               ON dum.user_id = u.id AND dum.document_id = ${documentId}
             WHERE u.display_name IS NOT NULL
-              AND similarity(u.display_name, ${query}) > 0.1
+              AND similarity(u.display_name, ${query}) > ${USER_SEARCH_SIMILARITY_THRESHOLD}
             ORDER BY similarity(u.display_name, ${query}) DESC
             LIMIT ${limit}
         `.execute(db);
