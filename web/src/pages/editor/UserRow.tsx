@@ -1,7 +1,6 @@
 // UserRow: a single row in the ShareModal members list or search results.
 // Shows avatar initial or image, display name, and an access level selector.
-// The selector is editable only when canModify is true and the target is not the owner
-// or the current user.
+// The selector is editable only when canModifyAccess is true and the target is not the owner.
 
 import { AccessLevel } from "../../types/api";
 
@@ -10,8 +9,7 @@ export default function UserRow({
     avatarUrl,
     accessLevel,
     isOwner,
-    isCurrentUser,
-    canModify,
+    canModifyAccess,
     onAccessChange,
     onRemove,
 }: {
@@ -19,8 +17,7 @@ export default function UserRow({
     avatarUrl: string | null;
     accessLevel: AccessLevel | null;
     isOwner: boolean;
-    isCurrentUser: boolean;
-    canModify: boolean;
+    canModifyAccess: boolean;
     onAccessChange: (level: AccessLevel) => void;
     onRemove: () => void;
 }) {
@@ -34,9 +31,9 @@ export default function UserRow({
     // Access level options available when granting or changing access.
     const GRANTABLE_LEVELS: AccessLevel[] = ["admin", "editor", "viewer"];
 
-    // The dropdown is editable only if: the caller can modify AND the target isn't the owner
-    // AND the target isn't the current user (owners can't change their own role).
-    const isEditable = canModify && !isOwner && !isCurrentUser;
+    // The dropdown is editable only if: the caller has modify rights AND the target isn't the owner
+    // (owner's role is locked — it can only be transferred, never downgraded by another user).
+    const isEditable = canModifyAccess && !isOwner;
 
     return (
         <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-[#252525] transition-colors">

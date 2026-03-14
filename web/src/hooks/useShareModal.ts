@@ -29,7 +29,7 @@ function useShareModal(
 
     // Whether the current user can modify access (owner or admin).
     // Derived by checking their own entry in the loaded members list.
-    const [canModify, setCanModify] = useState(false);
+    const [canModifyAccess, setCanModifyAccess] = useState(false);
 
     // Search bar query.
     const [searchQuery, setSearchQuery] = useState("");
@@ -72,7 +72,7 @@ function useShareModal(
                 const myEntry = res.data.data.members.find(
                     (m) => m.userId === currentUser?.id,
                 );
-                setCanModify(
+                setCanModifyAccess(
                     myEntry?.accessLevel === "owner" ||
                         myEntry?.accessLevel === "admin",
                 );
@@ -211,7 +211,7 @@ function useShareModal(
 
     return {
         currentUser,
-        canModify,
+        canModifyAccess,
         searchQuery,
         setSearchQuery,
         members,

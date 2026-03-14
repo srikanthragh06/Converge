@@ -17,8 +17,7 @@ export default function ShareModal({
     onClose: () => void;
 }) {
     const {
-        currentUser,
-        canModify,
+        canModifyAccess,
         searchQuery,
         setSearchQuery,
         members,
@@ -57,7 +56,7 @@ export default function ShareModal({
                         ref={inputRef}
                         type="text"
                         placeholder={
-                            canModify
+                            canModifyAccess
                                 ? "Search people to invite..."
                                 : "Search members..."
                         }
@@ -93,10 +92,7 @@ export default function ShareModal({
                                         avatarUrl={user.avatarUrl}
                                         accessLevel={user.accessLevel}
                                         isOwner={user.accessLevel === "owner"}
-                                        isCurrentUser={
-                                            user.id === currentUser?.id
-                                        }
-                                        canModify={canModify}
+                                        canModifyAccess={canModifyAccess}
                                         onAccessChange={(level: AccessLevel) =>
                                             handleAccessChange(user.id, level)
                                         }
@@ -133,10 +129,7 @@ export default function ShareModal({
                                     avatarUrl={member.avatarUrl}
                                     accessLevel={member.accessLevel}
                                     isOwner={member.accessLevel === "owner"}
-                                    isCurrentUser={
-                                        member.userId === currentUser?.id
-                                    }
-                                    canModify={canModify}
+                                    canModifyAccess={canModifyAccess}
                                     onAccessChange={(level: AccessLevel) =>
                                         handleAccessChange(member.userId, level)
                                     }
