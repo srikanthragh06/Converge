@@ -11,7 +11,7 @@ import { isDocSearchOpenAtom } from "../atoms/uiAtoms";
 const useDocSearchOverlay = () => {
     const navigate = useNavigate();
 
-        // Driven by isDocSearchOpenAtom — toggled by Ctrl+P and closed by Escape/backdrop.
+    // Driven by isDocSearchOpenAtom — toggled by Ctrl+P and closed by Escape/backdrop.
     const [isOpen, setIsOpen] = useAtom(isDocSearchOpenAtom);
 
     const { query, setQuery, documents, isLoading } = useDocumentSearch();
@@ -39,26 +39,30 @@ const useDocSearchOverlay = () => {
 
     // Only show the loading skeleton after 300ms — prevents a flash on fast fetches.
     useEffect(() => {
+        if (!isOpen) return;
+
         if (!isLoading) {
             setShowSkeleton(false);
             return;
         }
         const timer = setTimeout(() => setShowSkeleton(true), 300);
         return () => clearTimeout(timer);
-    }, [isLoading]);
+    }, [isLoading, isOpen]);
 
     // Reset focused item whenever the result list changes.
     useEffect(() => {
+        if (!isOpen) return;
         setFocusedIndex(-1);
-    }, [documents]);
+    }, [documents, isOpen]);
 
     // Scroll the focused item into view when the index changes.
     useEffect(() => {
+        if (!isOpen) return;
         if (focusedIndex >= 0)
             itemRefs.current[focusedIndex]?.scrollIntoView({
                 block: "nearest",
             });
-    }, [focusedIndex]);
+    }, [focusedIndex, isOpen]);
 
     // Auto-focus the input when the overlay opens; clear query and focus on close.
     useEffect(() => {
@@ -72,6 +76,7 @@ const useDocSearchOverlay = () => {
 
     // Keyboard: Escape closes, ArrowDown/Up moves focus, Enter selects.
     useEffect(() => {
+        if (!isOpen) return;
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === "Escape") {
                 setIsOpen(false);
@@ -102,7 +107,7 @@ const useDocSearchOverlay = () => {
         return () => {
             window.removeEventListener("keydown", handleKeyDown);
         };
-    }, [documents, focusedIndex]);
+    }, [documents, focusedIndex, isOpen]);
 
     // Ctrl+P / Cmd+P toggles this overlay; prevents the browser's print dialog.
     useEffect(() => {

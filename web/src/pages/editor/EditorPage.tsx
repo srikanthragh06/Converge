@@ -13,6 +13,9 @@ import DocSearchOverlay from "../../components/overlay/DocSearchOverlay";
 // whenever documentId changes — no component remount needed, and no stale Yjs state
 // carries over between documents.
 function EditorPage() {
+    // Starts the socket ping/pong interval for RTT measurement.
+    usePing();
+
     // Validation and navigation live inside useSyncEditorChanges — it reads the URL
     // param directly and redirects to /not-found if the ID is invalid.
     const {
@@ -24,9 +27,6 @@ function EditorPage() {
         isAccessForbidden,
         isEditorOrAbove,
     } = useSyncEditorChanges();
-
-    // Starts the socket ping/pong interval for RTT measurement.
-    usePing();
 
     // Server confirmed the user has no access row — show inline message instead of the editor.
     if (isAccessForbidden) {
