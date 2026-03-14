@@ -1,13 +1,11 @@
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
-import { useParams } from "react-router-dom";
 import { BlockNoteView } from "@blocknote/mantine";
 import useSyncEditorChanges from "../../hooks/useSyncEditorChanges";
 import usePing from "../../hooks/usePing";
 import AuthOverlay from "../../components/overlay/AuthOverlay";
 import DocumentNavbar from "./DocumentNavbar";
 import DocumentTitle from "./DocumentTitle";
-import NotFoundPage from "../notFound/NotFoundPage";
 import DocSearchOverlay from "../../components/overlay/DocSearchOverlay";
 
 // EditorPage: collaborative editor for a single document identified by URL param.
@@ -15,20 +13,11 @@ import DocSearchOverlay from "../../components/overlay/DocSearchOverlay";
 // whenever documentId changes — no component remount needed, and no stale Yjs state
 // carries over between documents.
 function EditorPage() {
-    const { documentId: documentIdStr } = useParams<{ documentId: string }>();
-    const documentId = parseInt(documentIdStr ?? "", 10);
-    const isValidDocumentId = Number.isInteger(documentId) && documentId >= 1;
-
-    // Hooks are always called — React requires unconditional hook invocation.
-    // For invalid IDs, join_doc is rejected by the server so no sync occurs.
-    const { title, isDocJoined, isTitleSyncing, editor } = useSyncEditorChanges(
-        isValidDocumentId ? documentId : -1,
-    );
+    // Validation and navigation live inside useSyncEditorChanges — it reads the URL
+    // param directly and redirects to /not-found if the ID is invalid or access is denied.
+    const { title, isDocJoined, isTitleSyncing, editor, documentId } =
+        useSyncEditorChanges();
     usePing();
-
-    if (!isValidDocumentId) {
-        return <NotFoundPage />;
-    }
 
     return (
         // Full-screen column: fixed header + scrollable editor area below
@@ -39,12 +28,15 @@ function EditorPage() {
 
             {/* Scrollable area: title above editor, both share the same scroll container */}
             <div className="flex-1 overflow-auto flex flex-col">
-                <DocumentTitle
-                    documentId={documentId}
-                    title={title}
-                    isDocJoined={isDocJoined}
-                    isTitleSyncing={isTitleSyncing}
-                />
+                {/* Gated on documentId being parsed — avoids passing undefined to DocumentTitle */}
+                {documentId !== undefined && (
+                    <DocumentTitle
+                        documentId={documentId}
+                        title={title}
+                        isDocJoined={isDocJoined}
+                        isTitleSyncing={isTitleSyncing}
+                    />
+                )}
                 <div className="flex-1">
                     <BlockNoteView
                         editor={editor}

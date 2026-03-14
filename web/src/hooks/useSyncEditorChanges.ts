@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"; // useRef retained for pendingUpdates/timeoutId/indicator timers
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useSetAtom, useAtomValue } from "jotai";
 import * as Y from "yjs";
 import { IndexeddbPersistence } from "y-indexeddb";
@@ -33,8 +33,14 @@ import {
 // no component remount needed; BlockNoteView simply receives the new editor prop.
 // Handles batched outgoing updates, incoming sync, and the repair protocol.
 // IndexedDB persistence via y-indexeddb ensures offline edits survive disconnects.
-const useSyncEditorChanges = (documentId: number) => {
+const useSyncEditorChanges = () => {
+    // Extract and validate documentId from the URL params — if invalid, navigate to 404 page.
+    const { documentId: documentIdStr } = useParams<{ documentId: string }>();
+
     const navigate = useNavigate();
+
+    const [documentId, setDocumentId] = useState<number | undefined>(undefined);
+
     // Accumulate local Y.Doc updates between flushes
     const pendingUpdates = useRef<Uint8Array[]>([]);
     const timeoutId = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -130,11 +136,34 @@ const useSyncEditorChanges = (documentId: number) => {
         }
     }, [documentId]);
 
+    // Parse and validate the URL param on every change. Navigates to /not-found for
+    // non-integer or out-of-range IDs. Also redirects if the doc was joined but the
+    // server never provided an access level (join_doc_error path).
+    useEffect(() => {
+        const parsedDocId = parseInt(documentIdStr ?? "", 10);
+        setDocumentId(parsedDocId);
+        const isValidDocumentId =
+            Number.isInteger(parsedDocId) && parsedDocId >= 1;
+
+        // If the documentId is invalid, navigate to the 404 page.
+        if (!isValidDocumentId) {
+            navigate("/not-found");
+            return;
+        }
+        // If we've joined the doc but don't have a valid access level navigate to 404
+        if (isDocJoined && documentAccessLevel === null) {
+            navigate("/not-found");
+            return;
+        }
+    }, [navigate, documentIdStr, documentId, isDocJoined, documentAccessLevel]);
+
     // Set up IndexedDB persistence scoped to this document.
     // Loads the local snapshot into the Y.Doc on mount before any server sync fires.
     // y-indexeddb automatically persists all future Y.Doc updates — no manual writes needed.
     // Reruns when yDoc changes (i.e. when documentId changes) to bind to the new instance.
     useEffect(() => {
+        if (documentId === undefined) return; // documentId is not ready yet
+
         const persistence = new IndexeddbPersistence(String(documentId), yDoc);
         persistence.on("synced", () => {
             setIsIndexedDBSynced(true);
@@ -148,8 +177,13 @@ const useSyncEditorChanges = (documentId: number) => {
     // to keep isDocJoined accurate. Emits leave_doc on cleanup so the server clears its state.
     // If isSocketConnected is true when this effect runs, fire join_doc immediately.
     useEffect(() => {
+        if (documentId === undefined) return; // documentId is not ready yet
+
         const onConnect = () => socket.emit("join_doc", documentId);
-        const onJoinedDoc = async (_docId: number, accessLevel: AccessLevel) => {
+        const onJoinedDoc = async (
+            _docId: number,
+            accessLevel: AccessLevel,
+        ) => {
             setIsDocJoined(true);
             setDocumentAccessLevel(accessLevel);
             // Fetch the current title from the server now that the doc row is guaranteed to exist.
@@ -323,7 +357,15 @@ const useSyncEditorChanges = (documentId: number) => {
         };
     }, []);
 
-    return { title, isDocJoined, isTitleSyncing, documentAccessLevel, yDoc, editor };
+    return {
+        title,
+        isDocJoined,
+        isTitleSyncing,
+        documentAccessLevel,
+        yDoc,
+        editor,
+        documentId,
+    };
 };
 
 export default useSyncEditorChanges;
