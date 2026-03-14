@@ -15,15 +15,23 @@ import DocSearchOverlay from "../../components/overlay/DocSearchOverlay";
 function EditorPage() {
     // Validation and navigation live inside useSyncEditorChanges — it reads the URL
     // param directly and redirects to /not-found if the ID is invalid.
-    const { title, isDocJoined, isTitleSyncing, editor, documentId, isAccessForbidden } =
-        useSyncEditorChanges();
+    const {
+        title,
+        isDocJoined,
+        isTitleSyncing,
+        editor,
+        documentId,
+        isAccessForbidden,
+    } = useSyncEditorChanges();
     usePing();
 
     // Server confirmed the user has no access row — show inline message instead of the editor.
     if (isAccessForbidden) {
         return (
             <div className="flex flex-col items-center justify-center h-screen bg-[#1f1f1f] text-zinc-400">
-                <p className="text-sm">You don't have access to this document.</p>
+                <p className="text-sm">
+                    You don't have access to this document.
+                </p>
             </div>
         );
     }
@@ -37,12 +45,11 @@ function EditorPage() {
 
             {/* Scrollable area: title above editor, both share the same scroll container */}
             <div className="flex-1 overflow-auto flex flex-col">
-                {/* Gated on documentId being parsed — avoids passing undefined to DocumentTitle */}
-                {documentId !== undefined && (
+                {/* Hidden until joined — avoids rendering title before the server confirms the join */}
+                {isDocJoined && documentId !== undefined && (
                     <DocumentTitle
                         documentId={documentId}
                         title={title}
-                        isDocJoined={isDocJoined}
                         isTitleSyncing={isTitleSyncing}
                     />
                 )}
