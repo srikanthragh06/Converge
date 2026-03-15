@@ -97,11 +97,13 @@ Full detail: `ROADMAP.md`
 
 ### v0.13
 - **Migration 5**: use raw `sql` template with inline `CHECK (access_level IN (...))` — Kysely `.addColumn()` doesn't support CHECK constraints
-- **`createDoc` transaction**: inserts `document_meta` + `document_user_meta` (owner row) atomically
+- **`createDoc` transaction**: inserts `document_meta` + `document_access` (owner row) atomically
 - **`upsertLastViewedAt/EditedAt`**: pure `UPDATE` only — access rows created only via explicit `upsertDocumentAccess`
 - **`assertEditorAccess`**: private helper in `SocketHandlerService`; logs warning and returns false (does not disconnect) if access < editor
-- **`documentAccessLevel`**: local `useState` in `useSyncEditorChanges` (not a global atom); `isEditorOrAbove` defined as arrow function inside the hook; added to effect dep arrays so closures capture fresh value
+- **`documentAccessLevel`**: local `useState` in `useSyncEditorChanges` (not a global atom); `isEditorOrAbove` derived inline; added to effect dep arrays so closures capture fresh value
 - **Zod `z.enum`**: use `message: "..."` directly — `errorMap` property doesn't exist in the installed version
+- **Undo/redo fix**: `undoManager.destroy()` is called when `isDocJoined` flips false (BlockNoteView unmounts). It removes `afterTransactionHandler` from the Y.Doc and the UndoManager from its own `trackedOrigins`. On rejoin, TipTap reuses the dead UndoManager via `state.reconfigure()`. Fix: `useEffect([isDocJoined, editor, yDoc])` re-registers the handler and re-adds the UndoManager to `trackedOrigins` each time the doc is joined
+- **React 18 + BlockNote 0.45**: downgraded from React 19 and BlockNote 0.47 for compatibility
 
 ### v0.12
 - **Compound cursor**: `(lastViewedAt, id)` pair for stable scroll pagination — timestamp alone isn't unique

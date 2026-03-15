@@ -264,15 +264,26 @@ Single-doc scope through v0.1. Multi-doc, auth, document library, access control
 
 ---
 
-## v0.13 — Access Management
+## v0.13 — Access Management ✅
 **Goal:** Document owners control who can view or edit each document.
+**Branch:** `access-v0.13` | **Status:** COMPLETE
 
-- New `document_access` table: `(document_id, user_id, role ENUM('owner','editor','viewer'))`
-- Owner set to the creating user at doc creation time
-- Owner can invite other users by email (lookup in `users` table); assign `editor` or `viewer` role
-- Viewer role: socket connection allowed, edits rejected server-side; editor role: full sync
-- Frontend: share button → modal with user list + role picker
-- Library page filtered to docs where the current user has any access role
+### Delivered
+- Migration `5_document_access.ts`: `document_access` table with `(document_id, user_id, access_level CHECK('owner','admin','editor','viewer'))` — raw `sql` template used for inline CHECK constraint (Kysely `.addColumn()` doesn't support it)
+- `createDoc` runs a transaction inserting `document_meta` + `document_access` (owner row) atomically
+- `join_doc` checks access level via `getDocumentAccessLevel()`; emits `join_doc_forbidden` if no row found; emits `joined_doc` with the user's `accessLevel`
+- `assertEditorAccess()` private helper in `SocketHandlerService` — returns false and logs warning (does not disconnect) for viewer/missing access on write events
+- `ACCESS_LEVEL_RANK` map + `hasAccess()` helper in shared `constants.ts` for rank-based access comparisons
+- `GET /users/search?q=&documentId=` — searches `users` by `display_name`/`email`, excludes users already on the doc; requires editor+ access
+- `POST /documents/:id/access` — upserts an access row (invite or role change); owner-only for promoting to admin, editor+ for viewers/editors
+- `DELETE /documents/:id/access/:userId` — removes access row; owners can remove anyone, admins can remove editors/viewers
+- `GET /library` filtered to documents where the current user has any `document_access` row
+- `ShareModal` component: opens from DocumentNavbar share button; lists current members with role badges; search-as-you-type user lookup (300ms debounce); add user from results; remove member
+- `useShareModal` hook: owns all ShareModal state and API calls
+- `isEditorOrAbove` derived from `documentAccessLevel` in `useSyncEditorChanges`; gates `BlockNoteView` `editable` prop and `DocumentTitle`
+- `isAccessForbidden` state set on `join_doc_forbidden`; EditorPage renders inline "no access" message instead of the editor
+- **Undo/redo fix**: BlockNote/TipTap lifecycle bug where `isDocJoined` flipping false triggers `undoManager.destroy()`, removing `afterTransactionHandler` from the Y.Doc and the UndoManager from its own `trackedOrigins`. On rejoin, TipTap's `createView()` reuses the dead UndoManager via `state.reconfigure()` without re-running `yUndoPlugin.init`. Fix: `useEffect([isDocJoined, editor, yDoc])` re-registers the handler and re-adds the UndoManager to `trackedOrigins` on each join
+- Downgraded React 19 → 18.3.1 and BlockNote 0.47 → 0.45 for compatibility
 
 ---
 
