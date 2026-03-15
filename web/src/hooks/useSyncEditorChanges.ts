@@ -3,7 +3,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useSetAtom, useAtomValue } from "jotai";
 import * as Y from "yjs";
 import { IndexeddbPersistence } from "y-indexeddb";
-import { useCreateBlockNote } from "@blocknote/react";
 import { socket } from "../sockets/socket";
 import { axiosClient } from "../lib/axiosClient";
 import { ApiResponse, DocumentMetaData, AccessLevel } from "../types/api";
@@ -25,6 +24,8 @@ import {
     isRestoringSyncAtom,
     isSocketConnectedAtom,
 } from "../atoms/uiAtoms";
+import { BlockNoteEditor } from "@blocknote/core";
+import { yUndoPluginKey } from "y-prosemirror";
 
 // Wires the local Y.Doc and BlockNote editor to the server via Socket.IO.
 // Owns the Y.Doc and editor so they are always co-created and co-bound.
@@ -73,25 +74,37 @@ const useSyncEditorChanges = () => {
     // downstream effects see the new instance on the same render cycle.
     const yDoc = useMemo(() => new Y.Doc(), [documentId]);
 
-    // BlockNote editor bound to this Y.Doc's XML fragment.
-    // useCreateBlockNote accepts a deps array (second arg) and recreates the editor when
-    // deps change — same trigger as yDoc above so they stay in lockstep.
-    // pasteHandler intercepts plain-text pastes and converts them from markdown to blocks.
-    const editor = useCreateBlockNote(
-        {
+    // Stable fragment reference derived from the Y.Doc — recreated only when documentId changes.
+    const fragment = useMemo(() => {
+        if (documentId === undefined) return null;
+        else {
+            return yDoc.getXmlFragment("blocknote");
+        }
+    }, [documentId]);
+
+    // BlockNote editor bound to this Y.Doc's XML fragment — recreated only when documentId
+    // changes, keeping it in lockstep with yDoc and fragment. provider: {} satisfies the
+    // collaboration option type without enabling cursor awareness; pasteHandler converts
+    // plain-text pastes from markdown to BlockNote blocks.
+    const editor = useMemo(() => {
+        if (documentId === undefined || fragment === null) return null;
+
+        return BlockNoteEditor.create({
             collaboration: {
-                fragment: yDoc.getXmlFragment("blocknote"),
-            } as any,
+                fragment,
+                provider: {},
+                user: { name: "", color: "" },
+            },
             pasteHandler: ({ event, editor: e, defaultPasteHandler }) => {
                 if (event.clipboardData?.types.includes("text/plain")) {
                     e.pasteMarkdown(event.clipboardData.getData("text/plain"));
                     return true;
                 }
+
                 return defaultPasteHandler();
             },
-        },
-        [documentId],
-    );
+        });
+    }, [documentId, fragment]);
 
     // Minimum time (ms) each status indicator stays visible, even if the underlying
     // operation completes faster. Resets the timer whenever called again.
@@ -141,12 +154,40 @@ const useSyncEditorChanges = () => {
         }
     }, [documentId]);
 
+    // Workaround for a BlockNote/TipTap lifecycle bug that breaks undo and redo.
+    //
+    // When isDocJoined flips false (socket disconnect), BlockNoteView unmounts and TipTap
+    // calls editor.unmount() → editorView.destroy() → yUndoPlugin.view.destroy() →
+    // undoManager.destroy(). destroy() does two things that break undo/redo:
+    //   1. Removes afterTransactionHandler from the Y.Doc — so no transactions are ever
+    //      captured into undoStack, leaving it permanently empty.
+    //   2. Removes the UndoManager from its own trackedOrigins — so undo transactions
+    //      (origin = undoManager) are not recorded into redoStack, breaking redo.
+    //
+    // On rejoin, TipTap calls createView() which reuses the old plugin state via
+    // state.reconfigure() without calling yUndoPlugin.init again — so the dead
+    // UndoManager stays in place with neither fix applied automatically.
+    //
+    // Fix: each time isDocJoined becomes true, re-register the handler on the Y.Doc
+    // and re-add the UndoManager to its own trackedOrigins.
+    useEffect(() => {
+        if (!isDocJoined || !editor || !yDoc) return;
+        const undoManager = yUndoPluginKey.getState(
+            editor._tiptapEditor.state,
+        )?.undoManager;
+        if (!undoManager) return;
+        const handler = undoManager.afterTransactionHandler;
+        if (!handler) return;
+        yDoc.off("afterTransaction", handler);
+        yDoc.on("afterTransaction", handler);
+        undoManager.trackedOrigins.add(undoManager);
+    }, [isDocJoined, editor, yDoc]);
+
     // Parse and validate the URL param on every change. Navigates to /not-found for
     // non-integer or out-of-range IDs. Also redirects if the doc was joined but the
     // server never provided an access level (join_doc_error path).
     useEffect(() => {
         const parsedDocId = parseInt(documentIdStr ?? "", 10);
-        setDocumentId(parsedDocId);
         const isValidDocumentId =
             Number.isInteger(parsedDocId) && parsedDocId >= 1;
 
@@ -155,6 +196,8 @@ const useSyncEditorChanges = () => {
             navigate("/not-found");
             return;
         }
+
+        setDocumentId(parsedDocId);
     }, [navigate, documentIdStr, documentId]);
 
     // Set up IndexedDB persistence scoped to this document.

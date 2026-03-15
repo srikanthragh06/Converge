@@ -49,7 +49,7 @@ function EditorPage() {
             {/* Scrollable area: title above editor, both share the same scroll container */}
             <div className="flex-1 overflow-auto flex flex-col">
                 {/* Hidden until joined — title and editor only render after the server confirms the join */}
-                {isDocJoined && documentId !== undefined && (
+                {isDocJoined && documentId !== undefined && editor !== null && (
                     <>
                         <DocumentTitle
                             isEditorOrAbove={isEditorOrAbove}
