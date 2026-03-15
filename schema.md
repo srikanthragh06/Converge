@@ -1,6 +1,6 @@
 # Database Schema
 
-> Last updated: **v0.125**
+> Last updated: **v0.13**
 > Source of truth: `server/src/migrations/` (Kysely migration files)
 > TypeScript interfaces: `server/src/db/schema.ts`
 
@@ -67,13 +67,14 @@ One row per authenticated user. Populated on first Google OAuth login via Supaba
 
 **Indexes**
 - `users_email_idx` — B-tree on `email` (fast lookup on every login)
+- `users_display_name_trgm_idx` — GIN trigram on `display_name` (fast `similarity()` queries for ShareModal user search; added v0.13)
 
 ---
 
 ### `document_user_meta`
 
-Per-user per-document timestamps. One row per `(document, user)` pair.
-Used by the document library to sort by recency and track edit activity.
+Per-user per-document metadata. One row per `(document, user)` pair.
+Tracks recency timestamps and the user's access level on the document.
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
@@ -81,6 +82,7 @@ Used by the document library to sort by recency and track edit activity.
 | `user_id` | `INTEGER` | NOT NULL, FK → `users.id` ON DELETE CASCADE | |
 | `last_viewed_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `now()` | Updated whenever the user opens the document |
 | `last_edited_at` | `TIMESTAMPTZ` | nullable | null until the user makes their first edit |
+| `access_level` | `TEXT` | NOT NULL DEFAULT 'editor', CHECK IN ('owner','admin','editor','viewer') | Added v0.13; existing rows backfilled — creators promoted to 'owner', all others default to 'editor' |
 
 **Primary key**: `(document_id, user_id)` — composite, prevents duplicate rows per pair.
 
