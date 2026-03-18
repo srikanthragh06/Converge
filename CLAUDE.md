@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # Converge
 
 Collaborative text editor. Multi-doc (`/note/:documentId`), React + BlockNote + Yjs frontend, Node.js + Socket.IO backend, Postgres + Redis.
@@ -15,6 +19,27 @@ Collaborative text editor. Multi-doc (`/note/:documentId`), React + BlockNote + 
 | Persistence | Postgres (incremental updates, in-place compaction) |
 | Server-to-server | Redis pub/sub |
 | Distributed lock | Redis (compaction) |
+
+---
+
+## Commands
+
+```bash
+docker-compose up --build    # start all services (server×2, web, postgres, redis)
+docker-compose up            # start without rebuilding images
+docker-compose down          # stop and remove containers
+```
+
+Services exposed on the host:
+- `web` → http://localhost:5173
+- `server` → http://localhost:5000
+- `server2` → http://localhost:5001 (second node, tests Redis pub/sub horizontal scaling)
+- `postgres` → localhost:5432 (`psql -h 127.0.0.1 -p 5432 -U converge -d converge`)
+- `redis` → localhost:6379
+
+Env files required before first run: `server/.env`, `web/.env`.
+
+No linter or test runner is configured.
 
 ---
 
