@@ -16,7 +16,7 @@ export class PubSubService {
     public static readonly DOCUMENT_UPDATE_CHANNEL = "document_update_channel:";
 
     // Redis pub/sub channel prefix for document title updates.
-    // Plain UTF-8 string payload — the new title text.
+    // JSON payload: { title: string, socketId?: string } — socketId excludes the sender from broadcast.
     public static readonly TITLE_UPDATE_CHANNEL = "title_update_channel:";
 
     // Must be called once at server startup before any client connects.
@@ -42,8 +42,8 @@ export class PubSubService {
 
         if (channel.startsWith(PubSubService.TITLE_UPDATE_CHANNEL)) {
             const docId = channel.slice(PubSubService.TITLE_UPDATE_CHANNEL.length);
-            // rawMessage is the plain title string published by publishTitleUpdate.
-            servicesStore.docStoreService.handleRedisTitleUpdate(docId, rawMessage);
+            const { title, socketId } = JSON.parse(rawMessage);
+            servicesStore.docStoreService.handleRedisTitleUpdate(docId, title, socketId);
         }
     }
 }

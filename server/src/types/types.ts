@@ -49,6 +49,7 @@ export interface SaveUpdateResult {
 
 // Events the server receives from clients
 export interface ClientToServerEvents {
+    update_doc_title: (title: string) => void;
     join_doc: (documentId: number) => void; // request to join a document room
     leave_doc: () => void; // request to leave the current document room
     sync_doc: (update: Uint8Array, sv: Uint8Array) => void;
@@ -69,9 +70,10 @@ export interface ServerToClientEvents {
     heartbeat_syncack: (diff: Uint8Array, serverSV: Uint8Array) => void;
     socket_pong: (ts: number) => void; // echoed timestamp for RTT measurement
     sync_title: (title: string) => void; // broadcast to room when title is updated via REST
+    update_doc_title_error: (reason: string) => void; // emitted when update_doc_title fails validation or DB write
     join_doc_error: (reason: string) => void; // emitted when join_doc fails due to invalid ID or other error
-    doc_not_found: () => void;               // emitted when the requested document does not exist in the DB
-    join_doc_forbidden: () => void;          // emitted when the user is authenticated but has no access row for this document
+    doc_not_found: () => void; // emitted when the requested document does not exist in the DB
+    join_doc_forbidden: () => void; // emitted when the user is authenticated but has no access row for this document
 }
 
 // Payload embedded in every JWT issued after Google auth.
@@ -94,8 +96,8 @@ export interface AuthedUser {
 // Per-connection state stored in socket.data after a successful join_doc.
 // user is set by Socket.IO middleware on every connection; documentId and accessLevel are set by join_doc.
 export interface SocketData {
-    documentId?: number;       // numeric Postgres primary key for the joined document
-    user?: AuthedUser;         // populated from JWT cookie on connect; undefined = unauthenticated
+    documentId?: number; // numeric Postgres primary key for the joined document
+    user?: AuthedUser; // populated from JWT cookie on connect; undefined = unauthenticated
     accessLevel?: AccessLevel; // the user's role on the joined document; set alongside documentId
 }
 

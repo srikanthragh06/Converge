@@ -16,7 +16,11 @@ import {
     DocumentMembersData,
     DocumentUserSearchData,
 } from "../types/api";
-import { JWT_EXPIRES_IN, JWT_COOKIE_MAX_AGE_MS, hasAccess } from "../constants/constants";
+import {
+    JWT_EXPIRES_IN,
+    JWT_COOKIE_MAX_AGE_MS,
+    hasAccess,
+} from "../constants/constants";
 import { JwtPayload } from "../types/types";
 import { ValidationService } from "./ValidationService";
 
@@ -174,8 +178,14 @@ export class ControllerService {
                     return;
                 }
 
-                const documentId = await servicesStore.persistenceService.createDoc(payload.id);
-                res.status(201).json({ success: true, data: { id: documentId, title: "" } });
+                const documentId =
+                    await servicesStore.persistenceService.createDoc(
+                        payload.id,
+                    );
+                res.status(201).json({
+                    success: true,
+                    data: { id: documentId, title: "" },
+                });
             },
         );
 
@@ -191,24 +201,43 @@ export class ControllerService {
             ) => {
                 const payload = this.requireAuth(req);
                 if (!payload) {
-                    res.status(401).json({ success: false, error: "Not authenticated" });
+                    res.status(401).json({
+                        success: false,
+                        error: "Not authenticated",
+                    });
                     return;
                 }
 
                 const limit = parseInt(req.query["limit"] as string, 10);
                 if (isNaN(limit) || limit < 1) {
-                    res.status(400).json({ success: false, error: "limit must be a positive integer" });
+                    res.status(400).json({
+                        success: false,
+                        error: "limit must be a positive integer",
+                    });
                     return;
                 }
 
-                const lastViewedAt = req.query["lastViewedAt"] as string | undefined;
+                const lastViewedAt = req.query["lastViewedAt"] as
+                    | string
+                    | undefined;
                 const lastIdRaw = req.query["lastId"] as string | undefined;
-                const lastId = lastIdRaw !== undefined ? parseInt(lastIdRaw, 10) : undefined;
-                const cursor = lastViewedAt !== undefined && lastId !== undefined && !isNaN(lastId)
-                    ? { lastViewedAt, lastId }
-                    : undefined;
+                const lastId =
+                    lastIdRaw !== undefined
+                        ? parseInt(lastIdRaw, 10)
+                        : undefined;
+                const cursor =
+                    lastViewedAt !== undefined &&
+                    lastId !== undefined &&
+                    !isNaN(lastId)
+                        ? { lastViewedAt, lastId }
+                        : undefined;
 
-                const data = await servicesStore.persistenceService.getUserViewedDocs(payload.id, limit, cursor);
+                const data =
+                    await servicesStore.persistenceService.getUserViewedDocs(
+                        payload.id,
+                        limit,
+                        cursor,
+                    );
                 res.json({ success: true, data });
             },
         );
@@ -223,12 +252,19 @@ export class ControllerService {
             ) => {
                 const payload = this.requireAuth(req);
                 if (!payload) {
-                    res.status(401).json({ success: false, error: "Not authenticated" });
+                    res.status(401).json({
+                        success: false,
+                        error: "Not authenticated",
+                    });
                     return;
                 }
 
                 const q = (req.query["q"] as string | undefined)?.trim() ?? "";
-                const data = await servicesStore.persistenceService.searchUserViewedDocsByTitle(payload.id, q);
+                const data =
+                    await servicesStore.persistenceService.searchUserViewedDocsByTitle(
+                        payload.id,
+                        q,
+                    );
                 res.json({ success: true, data });
             },
         );
@@ -243,20 +279,33 @@ export class ControllerService {
             ) => {
                 const payload = this.requireAuth(req);
                 if (!payload) {
-                    res.status(401).json({ success: false, error: "Not authenticated" });
+                    res.status(401).json({
+                        success: false,
+                        error: "Not authenticated",
+                    });
                     return;
                 }
 
                 const documentId = parseInt(req.params["documentId"] ?? "", 10);
                 if (!Number.isInteger(documentId) || documentId < 1) {
-                    res.status(400).json({ success: false, error: "Invalid documentId" });
+                    res.status(400).json({
+                        success: false,
+                        error: "Invalid documentId",
+                    });
                     return;
                 }
 
                 // Enforce viewer-level access before returning metadata.
-                const access = await servicesStore.persistenceService.getDocumentAccess(documentId, payload.id);
+                const access =
+                    await servicesStore.persistenceService.getDocumentAccess(
+                        documentId,
+                        payload.id,
+                    );
                 if (!access || !hasAccess(access, "viewer")) {
-                    res.status(403).json({ success: false, error: "Forbidden" });
+                    res.status(403).json({
+                        success: false,
+                        error: "Forbidden",
+                    });
                     return;
                 }
 
@@ -285,20 +334,33 @@ export class ControllerService {
             ) => {
                 const payload = this.requireAuth(req);
                 if (!payload) {
-                    res.status(401).json({ success: false, error: "Not authenticated" });
+                    res.status(401).json({
+                        success: false,
+                        error: "Not authenticated",
+                    });
                     return;
                 }
 
                 const documentId = parseInt(req.params["documentId"] ?? "", 10);
                 if (!Number.isInteger(documentId) || documentId < 1) {
-                    res.status(400).json({ success: false, error: "Invalid documentId" });
+                    res.status(400).json({
+                        success: false,
+                        error: "Invalid documentId",
+                    });
                     return;
                 }
 
                 // Enforce editor-level access before allowing title changes.
-                const access = await servicesStore.persistenceService.getDocumentAccess(documentId, payload.id);
+                const access =
+                    await servicesStore.persistenceService.getDocumentAccess(
+                        documentId,
+                        payload.id,
+                    );
                 if (!access || !hasAccess(access, "editor")) {
-                    res.status(403).json({ success: false, error: "Forbidden" });
+                    res.status(403).json({
+                        success: false,
+                        error: "Forbidden",
+                    });
                     return;
                 }
 
@@ -335,34 +397,59 @@ export class ControllerService {
         // Requires viewer access to see who else has access to the document.
         app.get(
             "/documents/:documentId/access/members",
-            async (req: Request, res: Response<ApiResponse<DocumentMembersData>>) => {
+            async (
+                req: Request,
+                res: Response<ApiResponse<DocumentMembersData>>,
+            ) => {
                 const payload = this.requireAuth(req);
                 if (!payload) {
-                    res.status(401).json({ success: false, error: "Not authenticated" });
+                    res.status(401).json({
+                        success: false,
+                        error: "Not authenticated",
+                    });
                     return;
                 }
 
                 const documentId = parseInt(req.params["documentId"] ?? "", 10);
                 if (!Number.isInteger(documentId) || documentId < 1) {
-                    res.status(400).json({ success: false, error: "Invalid documentId" });
+                    res.status(400).json({
+                        success: false,
+                        error: "Invalid documentId",
+                    });
                     return;
                 }
 
-                const access = await servicesStore.persistenceService.getDocumentAccess(documentId, payload.id);
+                const access =
+                    await servicesStore.persistenceService.getDocumentAccess(
+                        documentId,
+                        payload.id,
+                    );
                 if (!access || !hasAccess(access, "viewer")) {
-                    res.status(403).json({ success: false, error: "Forbidden" });
+                    res.status(403).json({
+                        success: false,
+                        error: "Forbidden",
+                    });
                     return;
                 }
 
-                const limit = parseInt(req.query["limit"] as string ?? "20", 10);
-                const cursorRaw = req.query["cursor"] as string | undefined;
-                const cursor = cursorRaw !== undefined ? parseInt(cursorRaw, 10) : undefined;
-
-                const data = await servicesStore.persistenceService.getDocumentMembers(
-                    documentId,
-                    isNaN(limit) || limit < 1 ? 20 : limit,
-                    cursor !== undefined && !isNaN(cursor) ? cursor : undefined,
+                const limit = parseInt(
+                    (req.query["limit"] as string) ?? "20",
+                    10,
                 );
+                const cursorRaw = req.query["cursor"] as string | undefined;
+                const cursor =
+                    cursorRaw !== undefined
+                        ? parseInt(cursorRaw, 10)
+                        : undefined;
+
+                const data =
+                    await servicesStore.persistenceService.getDocumentMembers(
+                        documentId,
+                        isNaN(limit) || limit < 1 ? 20 : limit,
+                        cursor !== undefined && !isNaN(cursor)
+                            ? cursor
+                            : undefined,
+                    );
                 res.json({ success: true, data });
             },
         );
@@ -371,22 +458,38 @@ export class ControllerService {
         // Requires admin or owner access — only they can grant access.
         app.get(
             "/documents/:documentId/access/users",
-            async (req: Request, res: Response<ApiResponse<DocumentUserSearchData>>) => {
+            async (
+                req: Request,
+                res: Response<ApiResponse<DocumentUserSearchData>>,
+            ) => {
                 const payload = this.requireAuth(req);
                 if (!payload) {
-                    res.status(401).json({ success: false, error: "Not authenticated" });
+                    res.status(401).json({
+                        success: false,
+                        error: "Not authenticated",
+                    });
                     return;
                 }
 
                 const documentId = parseInt(req.params["documentId"] ?? "", 10);
                 if (!Number.isInteger(documentId) || documentId < 1) {
-                    res.status(400).json({ success: false, error: "Invalid documentId" });
+                    res.status(400).json({
+                        success: false,
+                        error: "Invalid documentId",
+                    });
                     return;
                 }
 
-                const access = await servicesStore.persistenceService.getDocumentAccess(documentId, payload.id);
+                const access =
+                    await servicesStore.persistenceService.getDocumentAccess(
+                        documentId,
+                        payload.id,
+                    );
                 if (!access || !hasAccess(access, "admin")) {
-                    res.status(403).json({ success: false, error: "Forbidden" });
+                    res.status(403).json({
+                        success: false,
+                        error: "Forbidden",
+                    });
                     return;
                 }
 
@@ -396,7 +499,12 @@ export class ControllerService {
                     return;
                 }
 
-                const data = await servicesStore.persistenceService.searchUsersForDoc(documentId, q, 5);
+                const data =
+                    await servicesStore.persistenceService.searchUsersForDoc(
+                        documentId,
+                        q,
+                        5,
+                    );
                 res.json({ success: true, data });
             },
         );
@@ -406,30 +514,50 @@ export class ControllerService {
         // Body: { userId: number, accessLevel: 'owner'|'admin'|'editor'|'viewer' }
         app.put(
             "/documents/:documentId/access",
-            async (req: Request, res: Response<ApiResponse<{ ok: boolean }>>) => {
+            async (
+                req: Request,
+                res: Response<ApiResponse<{ ok: boolean }>>,
+            ) => {
                 const payload = this.requireAuth(req);
                 if (!payload) {
-                    res.status(401).json({ success: false, error: "Not authenticated" });
+                    res.status(401).json({
+                        success: false,
+                        error: "Not authenticated",
+                    });
                     return;
                 }
 
                 const documentId = parseInt(req.params["documentId"] ?? "", 10);
                 if (!Number.isInteger(documentId) || documentId < 1) {
-                    res.status(400).json({ success: false, error: "Invalid documentId" });
+                    res.status(400).json({
+                        success: false,
+                        error: "Invalid documentId",
+                    });
                     return;
                 }
 
-                const callerAccess = await servicesStore.persistenceService.getDocumentAccess(documentId, payload.id);
+                const callerAccess =
+                    await servicesStore.persistenceService.getDocumentAccess(
+                        documentId,
+                        payload.id,
+                    );
                 if (!callerAccess || !hasAccess(callerAccess, "admin")) {
-                    res.status(403).json({ success: false, error: "Forbidden" });
+                    res.status(403).json({
+                        success: false,
+                        error: "Forbidden",
+                    });
                     return;
                 }
 
-                const parsed = ValidationService.upsertDocumentAccess.safeParse(req.body);
+                const parsed = ValidationService.upsertDocumentAccess.safeParse(
+                    req.body,
+                );
                 if (!parsed.success) {
                     res.status(400).json({
                         success: false,
-                        error: parsed.error.issues[0]?.message ?? "Invalid request body",
+                        error:
+                            parsed.error.issues[0]?.message ??
+                            "Invalid request body",
                     });
                     return;
                 }
@@ -437,13 +565,24 @@ export class ControllerService {
                 const { userId, accessLevel } = parsed.data;
 
                 // Prevent changing the owner's role — ownership is permanent.
-                const targetAccess = await servicesStore.persistenceService.getDocumentAccess(documentId, userId);
+                const targetAccess =
+                    await servicesStore.persistenceService.getDocumentAccess(
+                        documentId,
+                        userId,
+                    );
                 if (targetAccess === "owner") {
-                    res.status(403).json({ success: false, error: "Cannot change the owner's role" });
+                    res.status(403).json({
+                        success: false,
+                        error: "Cannot change the owner's role",
+                    });
                     return;
                 }
 
-                await servicesStore.persistenceService.upsertDocumentAccess(documentId, userId, accessLevel);
+                await servicesStore.persistenceService.upsertDocumentAccess(
+                    documentId,
+                    userId,
+                    accessLevel,
+                );
                 res.json({ success: true, data: { ok: true } });
             },
         );
@@ -452,35 +591,65 @@ export class ControllerService {
         // Requires admin or owner access. The document owner cannot be removed.
         app.delete(
             "/documents/:documentId/access/:userId",
-            async (req: Request, res: Response<ApiResponse<{ ok: boolean }>>) => {
+            async (
+                req: Request,
+                res: Response<ApiResponse<{ ok: boolean }>>,
+            ) => {
                 const payload = this.requireAuth(req);
                 if (!payload) {
-                    res.status(401).json({ success: false, error: "Not authenticated" });
+                    res.status(401).json({
+                        success: false,
+                        error: "Not authenticated",
+                    });
                     return;
                 }
 
                 const documentId = parseInt(req.params["documentId"] ?? "", 10);
                 const targetUserId = parseInt(req.params["userId"] ?? "", 10);
-                if (!Number.isInteger(documentId) || documentId < 1 ||
-                    !Number.isInteger(targetUserId) || targetUserId < 1) {
-                    res.status(400).json({ success: false, error: "Invalid documentId or userId" });
+                if (
+                    !Number.isInteger(documentId) ||
+                    documentId < 1 ||
+                    !Number.isInteger(targetUserId) ||
+                    targetUserId < 1
+                ) {
+                    res.status(400).json({
+                        success: false,
+                        error: "Invalid documentId or userId",
+                    });
                     return;
                 }
 
-                const callerAccess = await servicesStore.persistenceService.getDocumentAccess(documentId, payload.id);
+                const callerAccess =
+                    await servicesStore.persistenceService.getDocumentAccess(
+                        documentId,
+                        payload.id,
+                    );
                 if (!callerAccess || !hasAccess(callerAccess, "admin")) {
-                    res.status(403).json({ success: false, error: "Forbidden" });
+                    res.status(403).json({
+                        success: false,
+                        error: "Forbidden",
+                    });
                     return;
                 }
 
                 // Prevent removing the owner — at least one owner must remain.
-                const targetAccess = await servicesStore.persistenceService.getDocumentAccess(documentId, targetUserId);
+                const targetAccess =
+                    await servicesStore.persistenceService.getDocumentAccess(
+                        documentId,
+                        targetUserId,
+                    );
                 if (targetAccess === "owner") {
-                    res.status(403).json({ success: false, error: "Cannot remove the document owner" });
+                    res.status(403).json({
+                        success: false,
+                        error: "Cannot remove the document owner",
+                    });
                     return;
                 }
 
-                await servicesStore.persistenceService.removeDocumentAccess(documentId, targetUserId);
+                await servicesStore.persistenceService.removeDocumentAccess(
+                    documentId,
+                    targetUserId,
+                );
                 res.json({ success: true, data: { ok: true } });
             },
         );

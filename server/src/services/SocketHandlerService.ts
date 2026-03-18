@@ -14,9 +14,11 @@ import { TypedSocket } from "../types/types";
 import { safeSocketHandler, mapsEqual } from "../utils/utils";
 import { servicesStore } from "../store/servicesStore";
 import { REMOTE_ORIGIN, hasAccess } from "../constants/constants";
+import { ValidationService } from "./ValidationService";
 
 export class SocketHandlerService {
     // Socket.IO event names — must match the client-side constants exactly.
+    static readonly UPDATE_DOC_TITLE = "update_doc_title";
     static readonly JOIN_DOC = "join_doc";
     static readonly JOINED_DOC = "joined_doc";
     static readonly JOIN_DOC_ERROR = "join_doc_error";
@@ -31,6 +33,7 @@ export class SocketHandlerService {
     static readonly HEARTBEAT_SYNCACK = "heartbeat_syncack";
     static readonly HEARTBEAT_ACK = "heartbeat_ack";
     static readonly SYNC_TITLE = "sync_title";
+    static readonly UPDATE_DOC_TITLE_ERROR = "update_doc_title_error";
     static readonly SOCKET_PING = "socket_ping";
     static readonly SOCKET_PONG = "socket_pong";
     // How often the client fires a heartbeat (milliseconds).
@@ -86,6 +89,13 @@ export class SocketHandlerService {
             SocketHandlerService.LEAVE_DOC,
             safeSocketHandler(() => {
                 this.handleLeaveDoc(socket);
+            }),
+        );
+
+        socket.on(
+            SocketHandlerService.UPDATE_DOC_TITLE,
+            safeSocketHandler((title: string) => {
+                this.handleUpdateDocTitle(socket, title);
             }),
         );
 
@@ -178,9 +188,15 @@ export class SocketHandlerService {
 
         // Reject the join if the user has no access row or insufficient access (viewer minimum).
         const userId = socket.data.user!.id;
-        const accessLevel = await servicesStore.persistenceService.getDocumentAccess(documentId, userId);
+        const accessLevel =
+            await servicesStore.persistenceService.getDocumentAccess(
+                documentId,
+                userId,
+            );
         if (!accessLevel || !hasAccess(accessLevel, "viewer")) {
-            console.warn(`join_doc rejected — ${socket.id} (user ${userId}) has no access to doc ${documentId}`);
+            console.warn(
+                `join_doc rejected — ${socket.id} (user ${userId}) has no access to doc ${documentId}`,
+            );
             socket.emit(SocketHandlerService.JOIN_DOC_FORBIDDEN);
             return;
         }
@@ -211,6 +227,44 @@ export class SocketHandlerService {
         socket.data.documentId = undefined;
         socket.data.accessLevel = undefined;
         socket.emit(SocketHandlerService.LEFT_DOC);
+    }
+
+    private async handleUpdateDocTitle(socket: TypedSocket, title: string): Promise<void> {
+        if (!this.assertAuthed(socket)) return;
+        if (!this.assertEditorAccess(socket)) return;
+        if (socket.data.documentId === undefined) return;
+
+        const documentId = socket.data.documentId;
+        const userId = socket.data.user!.id;
+
+        servicesStore.docStoreService.touchYDoc(String(documentId));
+
+        // Enforce editor-level access before allowing title changes.
+        const access = await servicesStore.persistenceService.getDocumentAccess(
+            documentId,
+            userId,
+        );
+        if (!access || !hasAccess(access, "editor")) {
+            socket.emit(SocketHandlerService.UPDATE_DOC_TITLE_ERROR, "Insufficient access");
+            return;
+        }
+
+        const parsed = ValidationService.patchDocumentTitle.safeParse({ title });
+        if (!parsed.success) {
+            socket.emit(SocketHandlerService.UPDATE_DOC_TITLE_ERROR, parsed.error.issues[0]?.message ?? "Invalid title");
+            return;
+        }
+
+        await servicesStore.persistenceService.updateDocumentTitle(
+            documentId,
+            parsed.data.title,
+        );
+
+        servicesStore.docStoreService.publishTitleUpdate(
+            String(documentId),
+            parsed.data.title,
+            socket.id,
+        );
     }
 
     // sync_doc: publish → apply → relay → persist → SV divergence check.
@@ -422,7 +476,10 @@ export class SocketHandlerService {
     // Does NOT disconnect — the user has a valid session and valid viewer access; they just
     // attempted a write operation beyond their permission level.
     private assertEditorAccess(socket: TypedSocket): boolean {
-        if (!socket.data.accessLevel || !hasAccess(socket.data.accessLevel, "editor")) {
+        if (
+            !socket.data.accessLevel ||
+            !hasAccess(socket.data.accessLevel, "editor")
+        ) {
             console.warn(
                 `${socket.id} attempted write without editor access (level: ${socket.data.accessLevel ?? "none"})`,
             );

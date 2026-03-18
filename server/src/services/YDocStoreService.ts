@@ -171,14 +171,27 @@ export class YDocStoreService {
         }
     }
 
-    // Publishes a title update to the doc's title Redis channel.
-    // All servers subscribed to this channel (including this one) will receive it
-    // and broadcast sync_title to their local clients in the document room.
+    // Publishes a title update to the doc's Redis title channel as JSON { title, socketId? }.
+    // All servers receive it and broadcast sync_title to their local clients in the room.
+    // socketId is included so the originating socket can be excluded from the broadcast,
+    // preventing the sender from receiving its own title echo.
     // Fire-and-forget: errors are caught and logged.
-    async publishTitleUpdate(docId: string, title: string): Promise<void> {
+    async publishTitleUpdate(
+        docId: string,
+        title: string,
+        socketId?: string,
+    ): Promise<void> {
         const channel = PubSubService.TITLE_UPDATE_CHANNEL + docId;
         try {
-            await servicesStore.redisService.pub.publish(channel, title);
+            const data: any = {
+                title,
+            };
+            if (socketId) data["socketId"] = socketId;
+
+            await servicesStore.redisService.pub.publish(
+                channel,
+                JSON.stringify(data),
+            );
         } catch (err) {
             console.error(
                 `Redis: publishTitleUpdate failed for ${docId}: ${String(err)}`,
@@ -188,10 +201,21 @@ export class YDocStoreService {
 
     // Called by PubSubService when a title update arrives on the Redis title channel.
     // Broadcasts sync_title to all clients in the document room on this server.
-    handleRedisTitleUpdate(docId: string, title: string): void {
-        servicesStore.httpServerService.io
-            .to(docId)
-            .emit(SocketHandlerService.SYNC_TITLE, title);
+    handleRedisTitleUpdate(
+        docId: string,
+        title: string,
+        socketId?: string,
+    ): void {
+        if (socketId) {
+            servicesStore.httpServerService.io
+                .to(docId)
+                .except(socketId)
+                .emit(SocketHandlerService.SYNC_TITLE, title);
+        } else {
+            servicesStore.httpServerService.io
+                .to(docId)
+                .emit(SocketHandlerService.SYNC_TITLE, title);
+        }
     }
 
     // Removes the subscription entry and unsubscribes from the Redis channel.
@@ -202,8 +226,13 @@ export class YDocStoreService {
         const channel = PubSubService.DOCUMENT_UPDATE_CHANNEL + docId;
         const titleChannel = PubSubService.TITLE_UPDATE_CHANNEL + docId;
         try {
-            await servicesStore.redisService.sub.unsubscribe(channel, titleChannel);
-            console.log(`Redis: unsubscribed from ${channel} and ${titleChannel}`);
+            await servicesStore.redisService.sub.unsubscribe(
+                channel,
+                titleChannel,
+            );
+            console.log(
+                `Redis: unsubscribed from ${channel} and ${titleChannel}`,
+            );
         } catch (err) {
             console.error(
                 `Redis: unsubscribeYDocFromRedis failed for ${docId}: ${String(err)}`,

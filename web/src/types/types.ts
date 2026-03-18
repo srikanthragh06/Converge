@@ -16,8 +16,9 @@ export interface ServerToClientEvents {
     socket_pong: (ts: number) => void; // echoed timestamp for RTT measurement
     sync_title: (title: string) => void; // broadcast to room when title is updated via REST
     join_doc_error: (reason: string) => void; // emitted when join_doc fails due to invalid ID or other error
-    doc_not_found: () => void;               // emitted when the requested document does not exist in the DB
-    join_doc_forbidden: () => void;          // emitted when the user is authenticated but has no access row for this document
+    doc_not_found: () => void; // emitted when the requested document does not exist in the DB
+    join_doc_forbidden: () => void; // emitted when the user is authenticated but has no access row for this document
+    update_doc_title_error: (reason: string) => void;
 }
 
 // Events this client sends to the server
@@ -30,4 +31,5 @@ export interface ClientToServerEvents {
     heartbeat_sync: (clientSV: Uint8Array) => void;
     heartbeat_ack: (diff: Uint8Array) => void;
     socket_ping: (ts: number) => void; // timestamp sent for RTT measurement
+    update_doc_title: (title: string) => void;
 }
