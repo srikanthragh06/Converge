@@ -16,6 +16,7 @@ services:
         working_dir: /server
         env_file:
             - ./server/.env
+            - ./server/.env.dev
         environment:
             # Override .env.local values with docker-internal service hostnames.
             PORT: 5000
@@ -38,6 +39,7 @@ services:
         working_dir: /server
         env_file:
             - ./server/.env
+            - ./server/.env.dev
         environment:
             # Only PORT differs — server2 binds to 5001 while sharing Postgres and Redis.
             PORT: 5001
@@ -61,6 +63,7 @@ services:
         working_dir: /web
         env_file:
             - ./web/.env
+            - ./web/.env.dev
         depends_on:
             - server
             - server2
