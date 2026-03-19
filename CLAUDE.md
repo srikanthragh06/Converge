@@ -25,9 +25,9 @@ Collaborative text editor. Multi-doc (`/note/:documentId`), React + BlockNote + 
 ## Commands
 
 ```bash
-docker-compose up --build    # start all services (server×2, web, postgres, redis)
-docker-compose up            # start without rebuilding images
-docker-compose down          # stop and remove containers
+docker-compose -f docker-compose.dev.yml up --build    # start all services (server×2, web, postgres, redis)
+docker-compose -f docker-compose.dev.yml up            # start without rebuilding images
+docker-compose -f docker-compose.dev.yml down          # stop and remove containers
 ```
 
 Services exposed on the host:
