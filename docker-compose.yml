@@ -5,6 +5,7 @@ services:
         build:
             context: ./server
             dockerfile: Dockerfile
+            target: dev
         ports:
             - "5000:5000"
         volumes:
@@ -28,6 +29,7 @@ services:
         build:
             context: ./server
             dockerfile: Dockerfile
+            target: dev
         ports:
             - "5001:5001"
         volumes:

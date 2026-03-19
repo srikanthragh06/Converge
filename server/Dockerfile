@@ -1,18 +1,37 @@
-# Lightweight Node.js 20 image based on Alpine Linux.
-FROM node:20-alpine
+# ── dev stage ────────────────────────────────────────────────────────────────
+FROM node:20-alpine AS dev
 
 WORKDIR /server
 
-# Copy manifests first so Docker can cache the npm install layer separately
-# from source changes — only re-runs when package*.json changes.
 COPY package*.json ./
 RUN npm install
 
-# Copy source after installing deps. In docker-compose dev mode this is
-# overridden by the volume mount, but it makes the image self-contained.
+# Source is provided via volume mount in docker-compose dev mode.
 COPY . .
 
 EXPOSE 5000
-
-# Runs nodemon via the dev script for hot reload inside the container.
 CMD ["npm", "run", "dev"]
+
+# ── builder stage ─────────────────────────────────────────────────────────────
+FROM node:20-alpine AS builder
+
+WORKDIR /server
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+# ── prod stage ────────────────────────────────────────────────────────────────
+FROM node:20-alpine AS prod
+
+WORKDIR /server
+
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+COPY --from=builder /server/dist ./dist
+
+EXPOSE 5000
+CMD ["npm", "start"]
