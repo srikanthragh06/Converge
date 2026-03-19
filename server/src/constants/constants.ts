@@ -42,3 +42,7 @@ export const TITLE_SEARCH_SIMILARITY_THRESHOLD = 0.05;
 // 0.1 is slightly stricter than title search — names are shorter so a lower threshold
 // would surface too many unrelated results.
 export const USER_SEARCH_SIMILARITY_THRESHOLD = 0.1;
+
+// Valid values for the ENVIRONMENT variable — controls which DB credentials are used.
+export const ENV_DEV = "DEV";
+export const ENV_PROD = "PROD";

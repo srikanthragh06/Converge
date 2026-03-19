@@ -1,6 +1,10 @@
 // Owns the Postgres connection pool and Kysely instance.
 // Exposes waitForDb() and migrate() as instance methods.
-// All Postgres credentials come from environment variables.
+//
+// Pool configuration is split by ENVIRONMENT (ENV_DEV | ENV_PROD):
+//   DEV  — uses POSTGRES_DEV_* vars; connects to the local docker-compose postgres container.
+//   PROD — uses POSTGRES_PROD_* vars; no extra SSL config (handled at the infra level).
+// Throws at construction time if ENVIRONMENT is missing or unrecognised.
 
 import { Pool, types } from "pg";
 import {
@@ -13,6 +17,7 @@ import { promises as fs } from "fs";
 import * as path from "path";
 import { DatabaseSchema } from "../db/schema";
 import { sleep } from "../utils/utils";
+import { ENV_DEV, ENV_PROD } from "../constants/constants";
 
 export class DatabaseService {
     // Public readonly so the container can expose it via services.databaseService.kysely.
@@ -27,14 +32,31 @@ export class DatabaseService {
         // Configure the type parser once here so BigInt arithmetic works correctly at runtime.
         types.setTypeParser(20, (val: string) => BigInt(val));
 
-        // Pool shared across all queries in this process — reads env vars set by dotenv.
-        this.pool = new Pool({
-            host: process.env.POSTGRES_HOST,
-            port: Number(process.env.POSTGRES_PORT),
-            user: process.env.POSTGRES_USERNAME,
-            password: process.env.POSTGRES_PASSWORD,
-            database: process.env.POSTGRES_DBNAME,
-        });
+        const environment = process.env.ENVIRONMENT;
+
+        if (environment === ENV_DEV) {
+            // DEV connects to the local docker-compose postgres container.
+            this.pool = new Pool({
+                host: process.env.POSTGRES_DEV_HOST,
+                port: Number(process.env.POSTGRES_DEV_PORT),
+                user: process.env.POSTGRES_DEV_USERNAME,
+                password: process.env.POSTGRES_DEV_PASSWORD,
+                database: process.env.POSTGRES_DEV_DBNAME,
+            });
+        } else if (environment === ENV_PROD) {
+            // PROD connects to the production database.
+            this.pool = new Pool({
+                host: process.env.POSTGRES_PROD_HOST,
+                user: process.env.POSTGRES_PROD_USERNAME,
+                password: process.env.POSTGRES_PROD_PASSWORD,
+                database: process.env.POSTGRES_PROD_DBNAME,
+            });
+        } else {
+            throw new Error(
+                `Unknown ENVIRONMENT "${environment}" — expected "${ENV_DEV}" or "${ENV_PROD}"`,
+            );
+        }
+
         this.kysely = new Kysely<DatabaseSchema>({
             dialect: new PostgresDialect({ pool: this.pool }),
         });

@@ -16,7 +16,10 @@ export class App {
         // Reads the httpOnly "token" cookie, verifies it, and attaches the decoded
         // user to socket.data. Connections without a valid JWT are rejected.
         servicesStore.httpServerService.io.use((socket, next) => {
-            servicesStore.socketHandlerService.handleSocketMiddleware(socket, next);
+            servicesStore.socketHandlerService.handleSocketMiddleware(
+                socket,
+                next,
+            );
         });
 
         // Wire the connection handler before listen() so no connection can arrive

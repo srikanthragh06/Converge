@@ -13,6 +13,9 @@ services:
             # Anonymous volume preserves the container's node_modules so the host
             # mount above doesn't shadow the deps installed during image build.
             - /server/node_modules
+        environment:
+            # Override .env.dev values for docker-internal networking.
+            PORT: 5000
         working_dir: /server
         env_file:
             - ./server/.env
@@ -31,6 +34,9 @@ services:
             # Same source mount as server — identical code, different port.
             - ./server:/server
             - /server/node_modules
+        environment:
+            # Override .env.dev values for docker-internal networking.
+            PORT: 5001
         working_dir: /server
         env_file:
             - ./server/.env
