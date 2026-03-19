@@ -2,9 +2,15 @@
 // A Redis connection in subscriber mode cannot issue other commands, so two
 // separate clients are required.
 // Both use lazyConnect: true so TCP connections are deferred to waitForRedis().
+//
+// Redis URL is split by ENVIRONMENT (ENV_DEV | ENV_PROD):
+//   DEV  — REDIS_DEV_URL (local docker-compose redis container)
+//   PROD — REDIS_PROD_URL (production Redis, e.g. Upstash)
+// Throws at construction time if ENVIRONMENT is missing or the URL is unset.
 
 import Redis from "ioredis";
 import { sleep } from "../utils/utils";
+import { ENV_DEV, ENV_PROD } from "../constants/constants";
 
 export class RedisService {
     // Public readonly so the container can expose them via services.redisService.pub/.sub.
@@ -15,8 +21,31 @@ export class RedisService {
     private static readonly RETRY_DELAY_MS = 3000;
 
     constructor() {
-        // Read REDIS_URL from environment — same pattern as DatabaseService reading POSTGRES_*.
-        const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
+        const environment = process.env.ENVIRONMENT;
+
+        // Resolve the Redis URL for the current environment.
+        // DEV points to the local docker-compose redis container;
+        // PROD points to a managed Redis (e.g. Upstash), injected via server/.env.
+        let redisUrl: string | undefined = undefined;
+        if (environment === ENV_DEV) {
+            redisUrl = process.env.REDIS_DEV_URL;
+        } else if (environment === ENV_PROD) {
+            redisUrl = process.env.REDIS_PROD_URL;
+        } else {
+            throw new Error(
+                `Unknown ENVIRONMENT "${environment}" — expected "${ENV_DEV}" or "${ENV_PROD}"`,
+            );
+        }
+
+        if (redisUrl === undefined) {
+            throw new Error(
+                `REDIS_${environment}_URL is not set for ENVIRONMENT="${environment}"`,
+            );
+        }
+
+        // Two separate clients are required: ioredis subscriber connections
+        // cannot issue regular commands, so pub and sub must be independent.
+        // lazyConnect: true defers the TCP handshake to waitForRedis().
         this.pub = new Redis(redisUrl, { lazyConnect: true });
         this.sub = new Redis(redisUrl, { lazyConnect: true });
     }
