@@ -1,3 +1,7 @@
+// VITE_ENVIRONMENT values
+export const ENV_DEV = "DEV";
+export const ENV_PROD = "PROD";
+
 // Socket.IO event names — must match the server-side constants exactly
 export const SYNC_DOC = "sync_doc";
 export const REPAIR_DOC = "repair_doc";
