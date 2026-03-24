@@ -7,6 +7,7 @@ import http from "http";
 import { Server as SocketIOServer } from "socket.io";
 import cors from "cors";
 import { ClientToServerEvents, ServerToClientEvents } from "../types/types";
+import { ENV_DEV, ENV_PROD } from "../constants/constants";
 
 export class HttpServerService {
     public readonly expressApp: Express;
@@ -17,15 +18,29 @@ export class HttpServerService {
     >;
 
     constructor() {
-        // WEB_URL must be set in env — used to restrict CORS to the frontend origin.
-        const webUrl = process.env.WEB_URL!;
+        // PROD_WEB_URL / LOCAL_WEB_URL must be set — used to restrict CORS to the frontend origin.
+        const environment = process.env.ENVIRONMENT;
+        let webUrl: string | undefined = undefined;
+        if (environment === ENV_PROD) {
+            webUrl = process.env.PROD_WEB_URL;
+        } else if (environment === ENV_DEV) {
+            webUrl = process.env.LOCAL_WEB_URL;
+        } else {
+            throw new Error(
+                `Unknown ENVIRONMENT "${environment}" — expected "${ENV_DEV}" or "${ENV_PROD}"`,
+            );
+        }
+
+        if (!webUrl) {
+            throw new Error(
+                `${environment === ENV_PROD ? "PROD_WEB_URL" : "LOCAL_WEB_URL"} is not set`,
+            );
+        }
 
         this.expressApp = express();
 
         // credentials: true is required for httpOnly cookies to be sent cross-origin.
-        this.expressApp.use(
-            cors({ origin: webUrl, credentials: true }),
-        );
+        this.expressApp.use(cors({ origin: webUrl, credentials: true }));
 
         // Wrap Express in a raw http.Server so Socket.IO and Express share one port.
         this.httpServer = http.createServer(this.expressApp);
