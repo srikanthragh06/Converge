@@ -1,3 +1,6 @@
+# set -a && source .env && source .env.prod && set +a
+# docker compose -f docker-compose.prod.yml up -d --build
+
 services:
     traefik:
         image: traefik:v3.3
