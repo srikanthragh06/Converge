@@ -3,7 +3,7 @@
 //
 // Pool configuration is split by ENVIRONMENT (ENV_DEV | ENV_PROD):
 //   DEV  — uses POSTGRES_DEV_* vars; connects to the local docker-compose postgres container.
-//   PROD — uses POSTGRES_PROD_* vars; no extra SSL config (handled at the infra level).
+//   PROD — uses POSTGRES_PROD_* vars; ssl: true required for Neon and most managed providers.
 // Throws at construction time if ENVIRONMENT is missing or unrecognised.
 
 import { Pool, types } from "pg";
@@ -45,11 +45,13 @@ export class DatabaseService {
             });
         } else if (environment === ENV_PROD) {
             // PROD connects to the production database.
+            // ssl: true is required for Neon (and most managed Postgres providers).
             this.pool = new Pool({
                 host: process.env.POSTGRES_PROD_HOST,
                 user: process.env.POSTGRES_PROD_USERNAME,
                 password: process.env.POSTGRES_PROD_PASSWORD,
                 database: process.env.POSTGRES_PROD_DBNAME,
+                ssl: true,
             });
         } else {
             throw new Error(
