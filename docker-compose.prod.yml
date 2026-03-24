@@ -1,0 +1,55 @@
+services:
+    traefik:
+        image: traefik:v3.3
+        ports:
+            - "80:80"
+            - "443:443"
+        volumes:
+            # Read-only access to Docker socket so Traefik can discover containers via labels.
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+
+            # Static config file.
+            - ./traefik.yml:/traefik.yml:ro
+
+            # Persists Let's Encrypt certs across restarts.
+            - traefik-certs:/certs
+
+        restart: unless-stopped
+
+    server:
+        build:
+            context: ./server
+            dockerfile: Dockerfile
+            target: prod
+        env_file:
+            - ./server/.env
+            - ./server/.env.prod
+        environment:
+            PORT: 5000
+        labels:
+            # Opt this container into Traefik discovery (required since exposedByDefault is false).
+            - "traefik.enable=true"
+            # Router named "converge" — matches requests where the Host header equals $DOMAIN.
+            - "traefik.http.routers.converge.rule=Host(`${DOMAIN}`)"
+            # This router only activates on the websecure entrypoint (port 443/HTTPS).
+            - "traefik.http.routers.converge.entrypoints=websecure"
+            # Use the letsencrypt cert resolver to auto-provision and renew TLS certificates.
+            - "traefik.http.routers.converge.tls.certresolver=letsencrypt"
+            # Tell Traefik to forward traffic to port 5000 inside each server container.
+            - "traefik.http.services.converge.loadbalancer.server.port=5000"
+            # Enable sticky sessions — ensures a client always hits the same replica.
+            # Required for Socket.IO: the WebSocket upgrade handshake must land on the same server.
+            - "traefik.http.services.converge.loadbalancer.sticky.cookie=true"
+            # Name of the cookie Traefik sets in the browser to track server affinity.
+            - "traefik.http.services.converge.loadbalancer.sticky.cookie.name=converge_sticky"
+            # Cookie is only sent over HTTPS, never plain HTTP.
+            - "traefik.http.services.converge.loadbalancer.sticky.cookie.secure=true"
+            # JavaScript cannot read this cookie, preventing XSS theft.
+            - "traefik.http.services.converge.loadbalancer.sticky.cookie.httpOnly=true"
+        deploy:
+            replicas: 4
+        restart: unless-stopped
+
+volumes:
+    # Named volume so TLS certs survive container restarts and redeployments.
+    traefik-certs:

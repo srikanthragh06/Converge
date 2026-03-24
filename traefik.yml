@@ -1,0 +1,28 @@
+# Traefik static configuration.
+# Dynamic config (routers, services, middlewares) is defined via Docker labels
+# on each server container in docker-compose.prod.yml.
+
+entryPoints:
+    web:
+        address: ":80"
+        # Redirect all HTTP traffic to HTTPS.
+        http:
+            redirections:
+                entryPoint:
+                    to: websecure
+                    scheme: https
+    websecure:
+        address: ":443"
+
+providers:
+    docker:
+        # Only expose containers that explicitly opt in via traefik.enable=true label.
+        exposedByDefault: false
+
+certificatesResolvers:
+    letsencrypt:
+        acme:
+            email: ${ACME_EMAIL}
+            # acme.json is stored in the traefik-certs volume.
+            storage: /certs/acme.json
+            tlsChallenge: {}
