@@ -53,7 +53,6 @@ function EditorPage() {
                     <>
                         <DocumentTitle
                             isEditorOrAbove={isEditorOrAbove}
-                            documentId={documentId}
                             title={title}
                             isTitleSyncing={isTitleSyncing}
                         />
