@@ -46,6 +46,11 @@ export class ControllerService {
         // Parse JSON request bodies for all routes.
         app.use(express.json());
 
+        // GET /health — unauthenticated liveness check for load balancer health probes.
+        app.get("/health", (_req, res) => {
+            res.json({ ok: true });
+        });
+
         // POST /auth/verifyGoogleAuth — verifies a Supabase access token from Google OAuth,
         // upserts the user into the DB, and issues a JWT in an httpOnly cookie.
         // Body: { accessToken: string }
