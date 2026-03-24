@@ -7,6 +7,11 @@ services:
         env_file:
             - ./.env
             - ./.env.prod
+        command:
+            # Explicitly load the static config file (required when overriding the default command).
+            - "--configFile=/traefik.yml"
+            # Pass ACME email via CLI arg — traefik.yml does not support env var substitution.
+            - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
         ports:
             - "80:80"
             - "443:443"

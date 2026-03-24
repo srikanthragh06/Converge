@@ -22,7 +22,7 @@ providers:
 certificatesResolvers:
     letsencrypt:
         acme:
-            email: ${ACME_EMAIL}
+            # email is passed via CLI arg in docker-compose.prod.yml (traefik.yml does not support env var substitution).
             # acme.json is stored in the traefik-certs volume.
             storage: /certs/acme.json
             tlsChallenge: {}
