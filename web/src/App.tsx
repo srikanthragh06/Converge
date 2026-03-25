@@ -12,7 +12,7 @@ import useSocket from "./hooks/useSocket";
 // and the socket lifecycle is tied to the whole app, not individual pages.
 // /auth renders the Google sign-in page.
 // /auth/callback handles the OAuth redirect from Google via Supabase.
-// /library renders the document library (user's viewed documents + search).
+// / and /library both render the document library (user's viewed documents + search).
 // /note/:documentId renders the collaborative editor for that document.
 // All other paths render the not-found page.
 // DocSearchOverlay and its Ctrl+P shortcut are scoped to EditorPage.
@@ -29,6 +29,7 @@ function App() {
             <Routes>
                 <Route path="/auth" element={<AuthPage />} />
                 <Route path="/auth/callback" element={<AuthCallbackPage />} />
+                <Route path="/" element={<LibraryPage />} />
                 <Route path="/library" element={<LibraryPage />} />
                 <Route path="/note/:documentId" element={<EditorPage />} />
                 <Route path="*" element={<NotFoundPage />} />
