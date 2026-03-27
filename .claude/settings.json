@@ -9,6 +9,15 @@
             "command": "/home/sr1k5/myStuff/converge2/.claude/hooks/block-env.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.command' | grep -qE '^git\\s+(push\\s+.*\\bmain\\b|checkout\\s+main|switch\\s+main|reset\\s+.*\\bmain\\b|merge\\s+main|rebase\\s+main)' && echo '{\"continue\": false, \"stopReason\": \"Blocked: do not run git commands targeting the main branch.\"}' || true"
+          }
+        ]
       }
     ]
   }
