@@ -39,6 +39,9 @@
 - Custom BlockNote theme (`src/theme/editorTheme.ts`) built around `#171717` base, referencing `colors.ts`
 - Tailwind config extended with named color tokens (`bg-background-base`, `text-text-primary`, etc.) mirroring `colors.ts`
 
+### Tooling
+- Claude Code hook blocking git commands that target `main` directly (checkout, push, switch, merge, rebase, reset)
+
 ---
 
 ## Upcoming
