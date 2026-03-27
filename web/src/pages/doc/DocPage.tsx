@@ -1,6 +1,9 @@
+import "@blocknote/core/fonts/inter.css";
+import "@blocknote/mantine/style.css";
 import { BlockNoteEditor } from "@blocknote/core";
 import { BlockNoteView } from "@blocknote/mantine";
 import { useMemo } from "react";
+import { convergeTheme } from "../../theme/editorTheme";
 
 const DocPage = () => {
     const editor = useMemo(() => {
@@ -19,9 +22,13 @@ const DocPage = () => {
     }, []);
 
     return (
-        <div className="w-screen h-screen flex flex-col gap-2">
+        <div className="w-screen h-screen flex flex-col">
             <div className="flex-1">
-                <BlockNoteView editor={editor} theme="dark" className="h-full" />
+                <BlockNoteView
+                    editor={editor}
+                    theme={convergeTheme}
+                    className="h-full"
+                />
             </div>
         </div>
     );

@@ -1,15 +1,10 @@
-@import "tailwindcss";
-@import "@blocknote/core/fonts/inter.css";
-@import "@blocknote/react/style.css";
+/* Tailwind component classes and utility classes.
+   @tailwind base (preflight) is intentionally excluded — it conflicts with
+   Mantine/BlockNote's own CSS reset. See tailwind.config.js corePlugins.preflight. */
+@tailwind components;
+@tailwind utilities;
 
-@layer base {
-    body {
-        font-family:
-            -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
-            Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
-    }
-}
-
+/* Manual body reset since preflight is disabled — removes the browser's default 8px margin */
 body {
     margin: 0;
     padding: 0;
