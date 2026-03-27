@@ -1,7 +1,12 @@
+import { Route, Routes } from "react-router-dom";
+import DocPage from "./pages/doc/DocPage";
+
 function App() {
     return (
-        <div>
-            <div className="text-5xl bg-red-600">Hello</div>
+        <div className="bg-zinc-950">
+            <Routes>
+                <Route path="/" element={<DocPage />} />
+            </Routes>
         </div>
     );
 }
