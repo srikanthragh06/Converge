@@ -1,12 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { socket } from "../lib/socket";
 import { SOCKET_EVENTS } from "../lib/socketEvents";
 import { PING_INTERVAL_MS } from "../constants/constants";
+import { useAtom } from "jotai";
+import { isSocketConnectedAtom } from "../atoms/atoms";
 
 // Flow: connect → start ping interval → stop pings on disconnect.
 const useSocket = () => {
-    // Gates the ping effect — pings must not fire before connection is established.
-    const [isSocketConnected, setIsSocketConnected] = useState<boolean>(false);
+    const [isSocketConnected, setIsSocketConnected] = useAtom(
+        isSocketConnectedAtom,
+    );
 
     // Registers listeners before connect() so no events are missed.
     useEffect(() => {

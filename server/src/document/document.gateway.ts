@@ -6,7 +6,6 @@ import {
 } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
 import { wsSuccess } from '../utils/ws-response.util';
-import { DocumentService } from './document.service';
 
 // Handles all document-related WebSocket events.
 // cors origin is a function so process.env.CLIENT_URL is read at connection time, not at startup.

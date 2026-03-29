@@ -1,8 +1,16 @@
 import { BlockNoteEditor } from "@blocknote/core";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as Y from "yjs";
+import { socket } from "../lib/socket";
+import { useAtomValue } from "jotai";
+import { isSocketConnectedAtom } from "../atoms/atoms";
 
 const useEditor = () => {
+    const isSocketConnected = useAtomValue(isSocketConnectedAtom);
+
+    const timeoutIdRef = useRef<number | null>(null);
+    const pendingUpdatesRef = useRef<Uint8Array<ArrayBufferLike>[]>([]);
+
     const yDoc = useMemo(() => new Y.Doc(), []);
 
     const editor = useMemo(() => {
@@ -27,6 +35,36 @@ const useEditor = () => {
             },
         });
     }, []);
+
+    useEffect(() => {
+        if (!isSocketConnected) return;
+
+        const handleNewUserUpdate = (
+            update: Uint8Array<ArrayBufferLike>,
+            origin: string,
+        ) => {
+            if (origin === "REMOTE") return;
+
+            // Debounce rapid keystrokes into a single emission. clientSV lets
+            // the server detect and send back any updates the client has missed.
+            pendingUpdatesRef.current.push(update);
+            if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
+            timeoutIdRef.current = setTimeout(() => {
+                const mergedUpdate = Y.mergeUpdates(pendingUpdatesRef.current);
+                pendingUpdatesRef.current = [];
+                const clientSV = Y.encodeStateVector(yDoc);
+                socket.emit("sync-doc", { update: mergedUpdate, clientSV });
+            }, 300);
+        };
+
+        yDoc.on("update", handleNewUserUpdate);
+
+        return () => {
+            yDoc.off("update", handleNewUserUpdate);
+            if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
+            timeoutIdRef.current = null;
+        };
+    }, [yDoc, isSocketConnected]);
 
     return { editor };
 };
