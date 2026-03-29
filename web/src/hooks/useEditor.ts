@@ -120,11 +120,13 @@ const useEditor = () => {
 
         // Initiate repair on connect to pull any server state the client missed.
         initiateRepairSync();
+        const heartbeatIntervalId = setInterval(initiateRepairSync, 15000);
 
         return () => {
             socket.off("repair-sync-doc", handleRepairSyncDoc);
             socket.off("repair-sync-ack-doc", handleRepairSyncAckDoc);
             socket.off("repair-ack-doc", handleRepairAckDoc);
+            clearInterval(heartbeatIntervalId);
         };
     }, [yDoc, isSocketConnected]);
 
