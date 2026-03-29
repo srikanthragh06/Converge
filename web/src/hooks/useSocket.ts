@@ -16,7 +16,6 @@ const useSocket = () => {
         // Connection errors are async events, not thrown exceptions.
         socket.on(SOCKET_EVENTS.CONNECT, () => {
             setIsSocketConnected(true);
-            console.log("Socket connected");
         });
 
         socket.on(SOCKET_EVENTS.CONNECT_ERROR, (err) => {
@@ -51,7 +50,6 @@ const useSocket = () => {
             ({ data: { pingId } }: { data: { pingId: string } }) => {
                 const pingTime = pingMap.get(pingId);
                 if (pingTime) {
-                    console.log(`Ping-pong ${Date.now() - pingTime}ms`);
                     pingMap.delete(pingId);
                 }
             },

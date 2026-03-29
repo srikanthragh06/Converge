@@ -73,6 +73,64 @@ const useEditor = () => {
     useEffect(() => {
         if (!isSocketConnected) return;
 
+        const initiateRepairSync = () => {
+            const clientSV = Y.encodeStateVector(yDoc);
+            socket.emit("repair-sync-doc", { clientSV: Array.from(clientSV) });
+        };
+
+        // Handles repair initiated by the server — respond with our diff and SV.
+        const handleRepairSyncDoc = ({ serverSV }: { serverSV: number[] }) => {
+            const serverSVBytes = new Uint8Array(serverSV);
+            const diff = Y.encodeStateAsUpdate(yDoc, serverSVBytes);
+            const clientSV = Y.encodeStateVector(yDoc);
+            socket.emit("repair-sync-ack-doc", {
+                diff: Array.from(diff),
+                clientSV: Array.from(clientSV),
+            });
+        };
+
+        // Applies the diff sent by the other side, then sends back our diff.
+        const handleRepairSyncAckDoc = ({
+            diff,
+            serverSV,
+        }: {
+            diff: number[];
+            serverSV: number[];
+        }) => {
+            Y.applyUpdate(yDoc, new Uint8Array(diff), "REMOTE");
+            const diffForServer = Y.encodeStateAsUpdate(
+                yDoc,
+                new Uint8Array(serverSV),
+            );
+            const clientSV = Y.encodeStateVector(yDoc);
+            socket.emit("repair-sync-ack-doc", {
+                diff: Array.from(diffForServer),
+                clientSV: Array.from(clientSV),
+            });
+        };
+
+        // Final step — applies any remaining diff the other side computed for us.
+        const handleRepairAckDoc = ({ diff }: { diff: number[] }) => {
+            Y.applyUpdate(yDoc, new Uint8Array(diff), "REMOTE");
+        };
+
+        socket.on("repair-sync-doc", handleRepairSyncDoc);
+        socket.on("repair-sync-ack-doc", handleRepairSyncAckDoc);
+        socket.on("repair-ack-doc", handleRepairAckDoc);
+
+        // Initiate repair on connect to pull any server state the client missed.
+        initiateRepairSync();
+
+        return () => {
+            socket.off("repair-sync-doc", handleRepairSyncDoc);
+            socket.off("repair-sync-ack-doc", handleRepairSyncAckDoc);
+            socket.off("repair-ack-doc", handleRepairAckDoc);
+        };
+    }, [yDoc, isSocketConnected]);
+
+    useEffect(() => {
+        if (!isSocketConnected) return;
+
         const handleSyncDoc = ({
             update,
             serverSV,
@@ -94,6 +152,9 @@ const useEditor = () => {
                 )
             ) {
                 // if not same initiate repair
+                socket.emit("repair-sync-doc", {
+                    clientSV: Array.from(clientSV),
+                });
             }
         };
 

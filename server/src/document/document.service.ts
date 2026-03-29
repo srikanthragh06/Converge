@@ -22,4 +22,13 @@ export class DocumentService {
       Y.decodeStateVector(clientSV),
     );
   }
+
+  getClientServerDocDiff(clientSV: Uint8Array): {
+    diff: Uint8Array;
+    serverSV: Uint8Array;
+  } {
+    const diff = Y.encodeStateAsUpdate(this.yDoc, clientSV);
+    const serverSV = Y.encodeStateVector(this.yDoc);
+    return { diff, serverSV };
+  }
 }

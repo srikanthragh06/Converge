@@ -53,6 +53,52 @@ export class DocumentGateway {
 
     if (!this.documentService.isClientAndServerDocSynced(clientSV)) {
       // if diff then initiate repair
+      client.emit('repair-sync-doc', { serverSV: Array.from(serverSV) });
     }
+  }
+
+  @SubscribeMessage('repair-sync-doc')
+  handleRepairSyncDoc(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { clientSV: number[] },
+  ) {
+    const clientSVBytes = new Uint8Array(data.clientSV);
+
+    const { serverSV, diff } =
+      this.documentService.getClientServerDocDiff(clientSVBytes);
+
+    client.emit('repair-sync-ack-doc', {
+      serverSV: Array.from(serverSV),
+      diff: Array.from(diff),
+    });
+  }
+
+  @SubscribeMessage('repair-sync-ack-doc')
+  handleRepairSyncAckDoc(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { diff: number[]; clientSV: number[] },
+  ) {
+    const { diff, clientSV } = data;
+    const diffBytes = new Uint8Array(diff);
+    const clientSVBytes = new Uint8Array(clientSV);
+
+    // apply the diff
+    this.documentService.applyYDocUpdate(diffBytes);
+
+    // calculate diff for the client
+    const { diff: diffForClient } =
+      this.documentService.getClientServerDocDiff(clientSVBytes);
+
+    // send him the diff with ack event
+    client.emit('repair-ack-doc', { diff: Array.from(diffForClient) });
+  }
+
+  @SubscribeMessage('repair-ack-doc')
+  handleRepairAckDoc(@MessageBody() data: { diff: number[] }) {
+    const { diff } = data;
+    const diffBytes = new Uint8Array(diff);
+
+    // apply the diff
+    this.documentService.applyYDocUpdate(diffBytes);
   }
 }
