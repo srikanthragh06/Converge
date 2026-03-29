@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './utils/global-exception.filter';
 import { registerProcessHandlers } from './utils/process.handlers';
 import { loadEnv } from './utils/env.loader';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 
 loadEnv();
 
@@ -13,6 +14,9 @@ registerProcessHandlers();
 async function bootstrap() {
   // AppModule is the root module — all feature modules are imported from there.
   const app = await NestFactory.create(AppModule);
+
+  // Attach Socket.io to the same HTTP server so WebSocket and REST share one port.
+  app.useWebSocketAdapter(new IoAdapter(app));
 
   // Global exception filter — catches all unhandled exceptions within NestJS's
   // pipeline (controllers, services, guards, etc.) and returns a proper HTTP response.

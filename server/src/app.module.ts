@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { ConfigModule } from '@nestjs/config';
+import { DocumentModule } from './document/document.module';
 
 // Root module — the entry point of the NestJS DI container.
 // All feature modules (DocumentModule, UserModule, etc.) get imported here.
@@ -13,7 +14,7 @@ import { ConfigModule } from '@nestjs/config';
       envFilePath: [`.env.${process.env.NODE_ENV ?? 'dev'}`, '.env'],
       isGlobal: true,
     }),
-    // Feature modules go here (e.g. DocumentModule, UserModule).
+    DocumentModule,
   ],
   controllers: [AppController],
   providers: [],
