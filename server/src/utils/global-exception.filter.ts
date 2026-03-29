@@ -2,8 +2,11 @@ import {
   ArgumentsHost,
   Catch,
   ExceptionFilter,
-  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
+import { Socket } from 'socket.io';
+import { wsInternalServerError } from './ws-response.util';
+import { httpInternalServerError } from './http-response.util';
 
 // @Catch() with no arguments catches every exception — not just HttpExceptions.
 // This is the global safety net for anything that bubbles up through NestJS's pipeline.
@@ -12,22 +15,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
     console.error('Unhandled exception caught by filter:', exception);
 
-    // The same filter is reused for HTTP, WebSocket, and job contexts.
-    // Only send an HTTP response if we're actually in an HTTP request cycle.
+    // Handle each transport context separately — the response mechanism differs per type.
     if (host.getType() === 'http') {
-      const ctx = host.switchToHttp();
-      const response = ctx.getResponse();
+      const response = host.switchToHttp().getResponse();
 
-      // Preserve the status code for known NestJS HTTP exceptions (e.g. NotFoundException → 404).
-      // Fall back to 500 for anything unexpected.
-      const status =
-        exception instanceof HttpException ? exception.getStatus() : 500;
-      const message =
-        exception instanceof HttpException
-          ? exception.message
-          : 'Internal server error';
-
-      response.status(status).json({ message });
+      response
+        .status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .json(httpInternalServerError());
+    } else if (host.getType() === 'ws') {
+      const client = host.switchToWs().getClient<Socket>();
+      client.emit('error', wsInternalServerError());
     }
   }
 }
