@@ -1,11 +1,7 @@
-import "@blocknote/core/fonts/inter.css";
-import "@blocknote/mantine/style.css";
 import { BlockNoteEditor } from "@blocknote/core";
-import { BlockNoteView } from "@blocknote/mantine";
 import { useMemo } from "react";
-import { convergeTheme } from "../../theme/editorTheme";
 
-const DocPage = () => {
+const useEditor = () => {
     const editor = useMemo(() => {
         return BlockNoteEditor.create({
             // Override the default paste handler so that plain-text pastes are
@@ -21,17 +17,7 @@ const DocPage = () => {
         });
     }, []);
 
-    return (
-        <div className="w-screen h-screen flex flex-col">
-            <div className="flex-1">
-                <BlockNoteView
-                    editor={editor}
-                    theme={convergeTheme}
-                    className="h-full"
-                />
-            </div>
-        </div>
-    );
+    return { editor };
 };
 
-export default DocPage;
+export default useEditor;

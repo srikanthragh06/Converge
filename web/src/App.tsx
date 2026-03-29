@@ -1,5 +1,5 @@
 import { Route, Routes } from "react-router-dom";
-import DocPage from "./pages/doc/DocPage";
+import EditorPage from "./pages/editor/EditorPage";
 import useSocket from "./hooks/useSocket";
 
 function App() {
@@ -8,7 +8,7 @@ function App() {
     return (
         <div className="bg-background-base text-text-primary">
             <Routes>
-                <Route path="/" element={<DocPage />} />
+                <Route path="/" element={<EditorPage />} />
             </Routes>
         </div>
     );

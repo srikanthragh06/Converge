@@ -1,3 +1,6 @@
+@import "@blocknote/core/fonts/inter.css";
+@import "@blocknote/mantine/style.css";
+
 /* Tailwind component classes and utility classes.
    @tailwind base (preflight) is intentionally excluded — it conflicts with
    Mantine/BlockNote's own CSS reset. See tailwind.config.js corePlugins.preflight. */
