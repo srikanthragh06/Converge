@@ -4,6 +4,7 @@ import * as Y from "yjs";
 import { socket } from "../lib/socket";
 import { useAtomValue } from "jotai";
 import { isSocketConnectedAtom } from "../atoms/atoms";
+import { mapsAreEqual } from "../utils/utils";
 
 const useEditor = () => {
     const isSocketConnected = useAtomValue(isSocketConnectedAtom);
@@ -53,7 +54,10 @@ const useEditor = () => {
                 const mergedUpdate = Y.mergeUpdates(pendingUpdatesRef.current);
                 pendingUpdatesRef.current = [];
                 const clientSV = Y.encodeStateVector(yDoc);
-                socket.emit("sync-doc", { update: mergedUpdate, clientSV });
+                socket.emit("sync-doc", {
+                    update: Array.from(mergedUpdate),
+                    clientSV: Array.from(clientSV),
+                });
             }, 300);
         };
 
@@ -63,6 +67,40 @@ const useEditor = () => {
             yDoc.off("update", handleNewUserUpdate);
             if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
             timeoutIdRef.current = null;
+        };
+    }, [yDoc, isSocketConnected]);
+
+    useEffect(() => {
+        if (!isSocketConnected) return;
+
+        const handleSyncDoc = ({
+            update,
+            serverSV,
+        }: {
+            update: number[];
+            serverSV: number[];
+        }) => {
+            const updateBytes = new Uint8Array(update);
+            const serverSVBytes = new Uint8Array(serverSV);
+
+            Y.applyUpdate(yDoc, updateBytes, "REMOTE");
+
+            const clientSV = Y.encodeStateVector(yDoc);
+
+            if (
+                !mapsAreEqual(
+                    Y.decodeStateVector(serverSVBytes),
+                    Y.decodeStateVector(clientSV),
+                )
+            ) {
+                // if not same initiate repair
+            }
+        };
+
+        socket.on("sync-doc", handleSyncDoc);
+
+        return () => {
+            socket.off("sync-doc", handleSyncDoc);
         };
     }, [yDoc, isSocketConnected]);
 
