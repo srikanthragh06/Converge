@@ -19,7 +19,9 @@ Converge is a full-stack Notion-like application (early stage). See ROADMAP.md f
 
 ## Conventions
 
-- All API responses use the `ApiResponse<T>` envelope from `server/src/utils/response.util.ts`.
+- HTTP responses use `HttpResponse<T>` from `server/src/utils/http-response.util.ts`; WebSocket responses use `WsResponse<T>` from `server/src/utils/ws-response.util.ts`.
 - Environment config: `.env.<NODE_ENV>` takes precedence, `.env` is the shared fallback.
 - All color values are defined in `web/src/theme/colors.ts`. Reference them in `editorTheme.ts` and as Tailwind classes — do not hardcode hex values elsewhere.
 - Tailwind's preflight is disabled (`corePlugins.preflight: false`) to avoid conflicts with Mantine/BlockNote styles. Add manual resets in `index.css` when needed.
+- Global client-side state lives in Jotai atoms (`web/src/atoms/atoms.ts`). Prefer atoms over prop-drilling for state shared across hooks and components.
+- All functions, methods, and class attributes must have inline documentation following the standard in the `add-comments` skill.
