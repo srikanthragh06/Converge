@@ -10,14 +10,26 @@ export interface HttpResponse<T> {
   message?: string;
 }
 
+/**
+ * Returns a success response envelope, optionally including a data payload.
+ * @param data - optional payload to include in the response
+ */
 export function httpOK<T>(data?: T): HttpResponse<T> {
   return { success: true, data };
 }
 
+/**
+ * Returns a failure response envelope with a human-readable reason.
+ * @param message - description of why the request failed
+ */
 export function httpFail(message: string): HttpResponse<never> {
   return { success: false, message };
 }
 
+/**
+ * Returns a generic internal server error envelope with a safe,
+ * non-leaking message suitable for sending to clients.
+ */
 export function httpInternalServerError(): HttpResponse<never> {
   return { success: false, message: INTERNAL_SERVER_ERROR_MESSAGE };
 }

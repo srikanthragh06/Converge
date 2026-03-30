@@ -1,3 +1,8 @@
+/**
+ * Attaches global process-level error handlers for unhandled promise rejections
+ * and uncaught exceptions. Should be called once at application startup before
+ * the NestJS app is created.
+ */
 export function registerProcessHandlers() {
   // Fires when a Promise is rejected and no .catch() handler is attached.
   // The process is not necessarily corrupted, so we log and continue.

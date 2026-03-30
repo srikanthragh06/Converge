@@ -1,10 +1,14 @@
 import * as dotenv from 'dotenv';
 
-// Load env files before the NestJS app is created so process.env is fully
-// populated during bootstrap. Must be called at the very top of main.ts.
-// Environment-specific file takes precedence; .env provides shared fallback defaults.
-// dotenv does not overwrite keys already set in process.env.
+/**
+ * Loads environment variables from .env.<NODE_ENV> and .env before the
+ * NestJS app is created. Must be called at the very top of main.ts.
+ * The environment-specific file takes precedence; .env is the shared fallback.
+ * dotenv does not overwrite keys already set in process.env.
+ */
 export function loadEnv() {
+  // load the environment-specific file first so it takes precedence
   dotenv.config({ path: `.env.${process.env.NODE_ENV ?? 'dev'}` });
+  // load the shared fallback; keys already set above are not overwritten
   dotenv.config({ path: '.env' });
 }

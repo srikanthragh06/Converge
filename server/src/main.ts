@@ -11,6 +11,10 @@ loadEnv();
 // These are the last line of defense for errors that escape NestJS entirely.
 registerProcessHandlers();
 
+/**
+ * Bootstraps the NestJS application: creates the app, wires up adapters and
+ * global filters, validates required env vars, then starts listening.
+ */
 async function bootstrap() {
   // AppModule is the root module — all feature modules are imported from there.
   const app = await NestFactory.create(AppModule);
@@ -22,6 +26,7 @@ async function bootstrap() {
   // pipeline (controllers, services, guards, etc.) and returns a proper HTTP response.
   app.useGlobalFilters(new GlobalExceptionFilter());
 
+  // validate PORT early so the error is clear rather than a cryptic bind failure
   const PORT = process.env.PORT;
   if (PORT === undefined) {
     throw new Error('PORT is not defined. Check your .env file.');
