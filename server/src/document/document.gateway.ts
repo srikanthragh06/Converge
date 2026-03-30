@@ -16,12 +16,18 @@ import { DocumentService } from './document.service';
 })
 export class DocumentGateway {
   @WebSocketServer()
-  socketServer!: Server;
+  socketServer!: Server; // the Socket.io server instance, injected by the NestJS WebSocket adapter
 
   constructor(private readonly documentService: DocumentService) {}
 
   // Echoes pingId back so the client can match the response and calculate latency.
   @SubscribeMessage('ping')
+  /**
+   * Responds to a client ping by echoing the pingId back so the client
+   * can calculate round-trip latency.
+   * @param client - the socket that sent the ping
+   * @param data - contains the pingId to echo back
+   */
   handlePing(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { pingId: string },
@@ -31,6 +37,13 @@ export class DocumentGateway {
   }
 
   @SubscribeMessage('sync-doc')
+  /**
+   * Applies a client's Yjs update to the shared doc, broadcasts it to all
+   * other clients, and triggers a repair sync if the sending client's state
+   * vector diverges from the server's after the update.
+   * @param client - the socket that sent the update
+   * @param data - contains the encoded update and the client's state vector
+   */
   handleSyncDoc(
     @ConnectedSocket() client: Socket,
     @MessageBody()
@@ -39,9 +52,11 @@ export class DocumentGateway {
       clientSV: number[];
     },
   ) {
+    // convert number arrays from JSON transport into typed byte arrays
     const update = new Uint8Array(data.update);
     const clientSV = new Uint8Array(data.clientSV);
 
+    // apply the update to the shared doc and get the new server state vector
     const { serverSV } = this.documentService.applyYDocUpdate(update);
 
     // number[] is used instead of Uint8Array because Socket.io deserializes
@@ -51,22 +66,31 @@ export class DocumentGateway {
       serverSV: Array.from(serverSV),
     });
 
+    // if the client is behind, prompt it to start a repair sync
     if (!this.documentService.isClientAndServerDocSynced(clientSV)) {
-      // if diff then initiate repair
       client.emit('repair-sync-doc', { serverSV: Array.from(serverSV) });
     }
   }
 
   @SubscribeMessage('repair-sync-doc')
+  /**
+   * Responds to a repair sync request by computing the updates the client
+   * is missing and sending them back alongside the server's state vector.
+   * @param client - the socket requesting repair
+   * @param data - contains the client's encoded state vector
+   */
   handleRepairSyncDoc(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { clientSV: number[] },
   ) {
+    // convert the client SV from transport format to a typed byte array
     const clientSVBytes = new Uint8Array(data.clientSV);
 
+    // compute the diff the client is missing and the current server SV
     const { serverSV, diff } =
       this.documentService.getClientServerDocDiff(clientSVBytes);
 
+    // send the diff and server SV so the client can apply and respond with its own diff
     client.emit('repair-sync-ack-doc', {
       serverSV: Array.from(serverSV),
       diff: Array.from(diff),
@@ -74,6 +98,12 @@ export class DocumentGateway {
   }
 
   @SubscribeMessage('repair-sync-ack-doc')
+  /**
+   * Applies the diff received from the client during a repair sync, then
+   * computes and sends back the remaining updates the client is still missing.
+   * @param client - the socket that sent the diff
+   * @param data - contains the diff bytes and the client's state vector
+   */
   handleRepairSyncAckDoc(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { diff: number[]; clientSV: number[] },
@@ -94,11 +124,14 @@ export class DocumentGateway {
   }
 
   @SubscribeMessage('repair-ack-doc')
+  /**
+   * Applies the final diff from the client, completing the repair sync round.
+   * @param data - contains the diff bytes to apply to the shared doc
+   */
   handleRepairAckDoc(@MessageBody() data: { diff: number[] }) {
     const { diff } = data;
+    // convert and apply the final diff to bring the server doc fully up to date
     const diffBytes = new Uint8Array(diff);
-
-    // apply the diff
     this.documentService.applyYDocUpdate(diffBytes);
   }
 }
