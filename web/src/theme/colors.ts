@@ -1,3 +1,5 @@
+// Single source of truth for all colour values in the app.
+// Reference these tokens in editorTheme.ts and as Tailwind classes — never hardcode hex values elsewhere.
 export const colors = {
     background: {
         base: "#171717",
