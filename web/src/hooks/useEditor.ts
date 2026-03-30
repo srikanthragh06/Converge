@@ -6,14 +6,20 @@ import { useAtomValue } from "jotai";
 import { isSocketConnectedAtom } from "../atoms/atoms";
 import { mapsAreEqual } from "../utils/utils";
 
+/**
+ * Initialises a BlockNote editor backed by a shared Yjs document and wires
+ * up Socket.io handlers for real-time sync and periodic repair syncs.
+ * Returns the editor instance for use in a React component.
+ */
 const useEditor = () => {
-    const isSocketConnected = useAtomValue(isSocketConnectedAtom);
+    const isSocketConnected = useAtomValue(isSocketConnectedAtom); // read-only view of the global socket connection state
 
-    const timeoutIdRef = useRef<number | null>(null);
-    const pendingUpdatesRef = useRef<Uint8Array<ArrayBufferLike>[]>([]);
+    const timeoutIdRef = useRef<number | null>(null); // stores the debounce timer ID for batching outgoing Yjs updates
+    const pendingUpdatesRef = useRef<Uint8Array<ArrayBufferLike>[]>([]); // accumulates Yjs update chunks between debounce flushes
 
-    const yDoc = useMemo(() => new Y.Doc(), []);
+    const yDoc = useMemo(() => new Y.Doc(), []); // the shared Yjs document that backs the BlockNote editor state
 
+    // the BlockNote editor instance; created once on mount with a stub collaboration config
     const editor = useMemo(() => {
         return BlockNoteEditor.create({
             // Stub collaboration config to wire up the Y.Doc fragment. Provider
@@ -37,22 +43,34 @@ const useEditor = () => {
         });
     }, []);
 
+    // Listens for local Yjs updates and debounces them before emitting to the server.
+    // Runs whenever the socket connection state changes.
     useEffect(() => {
         if (!isSocketConnected) return;
 
+        /**
+         * Called on every local Yjs update. Skips remote-origin updates to avoid
+         * echo loops, then debounces and merges pending updates before emitting
+         * them to the server along with the client state vector.
+         * @param update - the encoded Yjs update bytes produced by the local change
+         * @param origin - the origin tag; "REMOTE" updates are ignored
+         */
         const handleNewUserUpdate = (
             update: Uint8Array<ArrayBufferLike>,
             origin: string,
         ) => {
+            // ignore updates that originated remotely to prevent echo loops
             if (origin === "REMOTE") return;
 
-            // Debounce rapid keystrokes into a single emission. clientSV lets
-            // the server detect and send back any updates the client has missed.
+            // queue the update and reset the debounce timer
             pendingUpdatesRef.current.push(update);
             if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
+
+            // after 300 ms of inactivity, merge all queued updates and emit once
             timeoutIdRef.current = setTimeout(() => {
                 const mergedUpdate = Y.mergeUpdates(pendingUpdatesRef.current);
                 pendingUpdatesRef.current = [];
+                // include client SV so the server can detect any updates the client missed
                 const clientSV = Y.encodeStateVector(yDoc);
                 socket.emit("sync-doc", {
                     update: Array.from(mergedUpdate),
@@ -70,18 +88,35 @@ const useEditor = () => {
         };
     }, [yDoc, isSocketConnected]);
 
+    // Manages the repair sync protocol: initiates a repair on connect and on a
+    // 5-second heartbeat, and handles incoming repair-sync/ack events from the server.
+    // Runs whenever the socket connection state changes.
     useEffect(() => {
         if (!isSocketConnected) return;
 
+        /**
+         * Sends the client's current state vector to the server to kick off a
+         * repair sync, allowing the server to detect and send any missing updates.
+         */
         const initiateRepairSync = () => {
+            // snapshot the current client state vector to send to the server
             const clientSV = Y.encodeStateVector(yDoc);
+            // emit to the server so it can compute what the client is missing
             socket.emit("repair-sync-doc", { clientSV: Array.from(clientSV) });
         };
 
+        /**
+         * Responds to a server-initiated repair sync by computing the local diff
+         * relative to the server's state vector and emitting it back with the client SV.
+         * @param serverSV - the server's encoded state vector as a number array
+         */
         // Handles repair initiated by the server — respond with our diff and SV.
         const handleRepairSyncDoc = ({ serverSV }: { serverSV: number[] }) => {
+            // convert the server SV from transport format to a typed byte array
             const serverSVBytes = new Uint8Array(serverSV);
+            // compute the updates the server is missing relative to its state vector
             const diff = Y.encodeStateAsUpdate(yDoc, serverSVBytes);
+            // snapshot client SV so the server can compute what we're missing in return
             const clientSV = Y.encodeStateVector(yDoc);
             socket.emit("repair-sync-ack-doc", {
                 diff: Array.from(diff),
@@ -89,6 +124,12 @@ const useEditor = () => {
             });
         };
 
+        /**
+         * Applies the diff received from the other side, then computes and sends
+         * back the diff the other side is missing based on their state vector.
+         * @param diff - encoded Yjs update bytes from the other side
+         * @param serverSV - the server's state vector used to compute the return diff
+         */
         // Applies the diff sent by the other side, then sends back our diff.
         const handleRepairSyncAckDoc = ({
             diff,
@@ -97,11 +138,14 @@ const useEditor = () => {
             diff: number[];
             serverSV: number[];
         }) => {
+            // apply the diff we received from the other side to bring our doc up to date
             Y.applyUpdate(yDoc, new Uint8Array(diff), "REMOTE");
+            // compute what the server is still missing based on its state vector
             const diffForServer = Y.encodeStateAsUpdate(
                 yDoc,
                 new Uint8Array(serverSV),
             );
+            // snapshot our updated SV so the server can detect any remaining gaps
             const clientSV = Y.encodeStateVector(yDoc);
             socket.emit("repair-sync-ack-doc", {
                 diff: Array.from(diffForServer),
@@ -109,6 +153,10 @@ const useEditor = () => {
             });
         };
 
+        /**
+         * Applies the final diff sent by the server, completing the repair sync round.
+         * @param diff - encoded Yjs update bytes representing the server's remaining delta
+         */
         // Final step — applies any remaining diff the other side computed for us.
         const handleRepairAckDoc = ({ diff }: { diff: number[] }) => {
             Y.applyUpdate(yDoc, new Uint8Array(diff), "REMOTE");
@@ -130,9 +178,18 @@ const useEditor = () => {
         };
     }, [yDoc, isSocketConnected]);
 
+    // Listens for server-pushed sync-doc events and applies remote Yjs updates.
+    // Triggers a repair sync if the state vectors diverge after applying the update.
+    // Runs whenever the socket connection state changes.
     useEffect(() => {
         if (!isSocketConnected) return;
 
+        /**
+         * Applies a server-pushed Yjs update to the local doc. If the resulting
+         * state vectors diverge, initiates a repair sync to reconcile the difference.
+         * @param update - encoded Yjs update bytes from the server
+         * @param serverSV - the server's state vector after applying the update
+         */
         const handleSyncDoc = ({
             update,
             serverSV,
@@ -140,20 +197,23 @@ const useEditor = () => {
             update: number[];
             serverSV: number[];
         }) => {
+            // convert number arrays from JSON transport into typed byte arrays
             const updateBytes = new Uint8Array(update);
             const serverSVBytes = new Uint8Array(serverSV);
 
+            // apply the server update to the local doc, tagged as REMOTE to avoid re-emitting it
             Y.applyUpdate(yDoc, updateBytes, "REMOTE");
 
+            // capture the client state vector after the update to compare against the server's
             const clientSV = Y.encodeStateVector(yDoc);
 
+            // if state vectors differ, the client is still missing some updates — trigger a repair
             if (
                 !mapsAreEqual(
                     Y.decodeStateVector(serverSVBytes),
                     Y.decodeStateVector(clientSV),
                 )
             ) {
-                // if not same initiate repair
                 socket.emit("repair-sync-doc", {
                     clientSV: Array.from(clientSV),
                 });

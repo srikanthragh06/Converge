@@ -5,11 +5,16 @@ import { PING_INTERVAL_MS } from "../constants/constants";
 import { useAtom } from "jotai";
 import { isSocketConnectedAtom } from "../atoms/atoms";
 
+/**
+ * Manages the Socket.io connection lifecycle and ping-pong latency checks.
+ * Connects on mount, registers connect/error listeners, and periodically
+ * emits pings to measure round-trip latency while connected.
+ */
 // Flow: connect → start ping interval → stop pings on disconnect.
 const useSocket = () => {
     const [isSocketConnected, setIsSocketConnected] = useAtom(
         isSocketConnectedAtom,
-    );
+    ); // mirrors the global atom — true while the socket is open
 
     // Registers listeners before connect() so no events are missed.
     useEffect(() => {
@@ -39,6 +44,10 @@ const useSocket = () => {
         // Maps pingId → timestamp so latency can be calculated when pong arrives.
         const pingMap = new Map<string, number>();
 
+        /**
+         * Emits a ping event with a unique ID and records the send timestamp
+         * so that round-trip latency can be measured when the pong arrives.
+         */
         const sendPing = () => {
             const newPingId = crypto.randomUUID();
             pingMap.set(newPingId, Date.now());
