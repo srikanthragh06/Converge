@@ -12,6 +12,11 @@ export default defineConfig({
             plugins: [tailwindcss(), autoprefixer()],
         },
     },
+    optimizeDeps: {
+        // shared is a local workspace package — Vite skips its normal CJS→ESM
+        // conversion for these, so we force it to include shared explicitly.
+        include: ['@converge/shared'],
+    },
     server: {
         // host: true binds Vite to 0.0.0.0 so it's reachable from outside the
         // container when running via docker-compose. Safe to keep for local dev too.

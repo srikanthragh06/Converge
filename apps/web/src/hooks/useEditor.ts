@@ -4,7 +4,7 @@ import * as Y from "yjs";
 import { socket } from "../lib/socket";
 import { useAtomValue } from "jotai";
 import { isSocketConnectedAtom } from "../atoms/atoms";
-import { mapsAreEqual } from "../utils/utils";
+import { mapsAreEqual } from "@converge/shared";
 
 /**
  * Initialises a BlockNote editor backed by a shared Yjs document and wires

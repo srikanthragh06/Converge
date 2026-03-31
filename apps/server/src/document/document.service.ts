@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as Y from 'yjs';
-import { mapsAreEqual } from '../utils/utils';
+import { mapsAreEqual } from '@converge/shared';
 
 @Injectable()
 export class DocumentService {
