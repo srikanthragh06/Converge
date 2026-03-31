@@ -12,6 +12,6 @@
     "scripts": {
         "dev:web": "pnpm --filter web dev",
         "dev:server": "pnpm --filter server start:dev",
-        "build": "pnpm -r build"
+        "build": "pnpm --filter @converge/shared build && pnpm --filter web build && pnpm --filter server build"
     }
 }
