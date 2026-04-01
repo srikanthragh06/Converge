@@ -1,7 +1,7 @@
 // Consistent response envelope for all WebSocket events.
 // Mirrors the HTTP response util so clients can handle both transports uniformly.
 
-import { INTERNAL_SERVER_ERROR_MESSAGE } from '../constants/constants';
+import { INTERNAL_SERVER_ERROR_MESSAGE } from '@converge/shared';
 
 export interface WsResponse<T = null> {
   success: boolean;

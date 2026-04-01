@@ -2,7 +2,7 @@
 // Every response, success or failure, shares this shape so clients
 // can handle them uniformly without inspecting HTTP status codes alone.
 
-import { INTERNAL_SERVER_ERROR_MESSAGE } from '../constants/constants';
+import { INTERNAL_SERVER_ERROR_MESSAGE } from '@converge/shared';
 
 export interface HttpResponse<T> {
   success: boolean;
