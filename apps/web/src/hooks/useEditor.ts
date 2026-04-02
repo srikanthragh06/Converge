@@ -4,7 +4,13 @@ import * as Y from "yjs";
 import { socket } from "../lib/socket";
 import { useAtomValue } from "jotai";
 import { isSocketConnectedAtom } from "../atoms/atoms";
-import { mapsAreEqual } from "@converge/shared";
+import {
+    mapsAreEqual,
+    SyncDocClientSchema,
+    SyncDocServerSchema,
+} from "@converge/shared";
+import { socketEmit } from "../lib/socket-emit.util";
+import { socketReceive } from "../lib/socket-receive.util";
 
 /**
  * Initialises a BlockNote editor backed by a shared Yjs document and wires
@@ -72,9 +78,12 @@ const useEditor = () => {
                 pendingUpdatesRef.current = [];
                 // include client SV so the server can detect any updates the client missed
                 const clientSV = Y.encodeStateVector(yDoc);
-                socket.emit("sync-doc", {
-                    update: Array.from(mergedUpdate),
-                    clientSV: Array.from(clientSV),
+
+                const updateArray = Array.from(mergedUpdate);
+                const clientSVArray = Array.from(clientSV);
+                socketEmit(socket, "sync-doc-server", SyncDocServerSchema, {
+                    updateArray,
+                    clientSVArray,
                 });
             }, 300);
         };
@@ -190,19 +199,16 @@ const useEditor = () => {
          * @param update - encoded Yjs update bytes from the server
          * @param serverSV - the server's state vector after applying the update
          */
-        const handleSyncDoc = ({
-            update,
-            serverSV,
-        }: {
-            update: number[];
-            serverSV: number[];
-        }) => {
-            // convert number arrays from JSON transport into typed byte arrays
-            const updateBytes = new Uint8Array(update);
-            const serverSVBytes = new Uint8Array(serverSV);
+        const handleSyncDocClient = (data: unknown) => {
+            const res = socketReceive(SyncDocClientSchema, data);
+            if (!res) return;
+            const { updateArray, serverSVArray } = res;
+
+            const update = new Uint8Array(updateArray);
+            const serverSV = new Uint8Array(serverSVArray);
 
             // apply the server update to the local doc, tagged as REMOTE to avoid re-emitting it
-            Y.applyUpdate(yDoc, updateBytes, "REMOTE");
+            Y.applyUpdate(yDoc, update, "REMOTE");
 
             // capture the client state vector after the update to compare against the server's
             const clientSV = Y.encodeStateVector(yDoc);
@@ -210,7 +216,7 @@ const useEditor = () => {
             // if state vectors differ, the client is still missing some updates — trigger a repair
             if (
                 !mapsAreEqual(
-                    Y.decodeStateVector(serverSVBytes),
+                    Y.decodeStateVector(serverSV),
                     Y.decodeStateVector(clientSV),
                 )
             ) {
@@ -220,10 +226,10 @@ const useEditor = () => {
             }
         };
 
-        socket.on("sync-doc", handleSyncDoc);
+        socket.on("sync-doc-client", handleSyncDocClient);
 
         return () => {
-            socket.off("sync-doc", handleSyncDoc);
+            socket.off("sync-doc-client", handleSyncDocClient);
         };
     }, [yDoc, isSocketConnected]);
 

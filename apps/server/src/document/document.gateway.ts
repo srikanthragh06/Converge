@@ -9,9 +9,16 @@ import { UseFilters } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { DocumentService } from './document.service';
 import { ZodValidationPipe } from '../pipes/zod-validation.pipe';
-import { PingSchema, PongSchema, type PingPayload } from '@converge/shared';
+import {
+  PingSchema,
+  PongSchema,
+  type SyncDocServerPayload,
+  SyncDocServerSchema,
+  type PingPayload,
+  SyncDocClientSchema,
+} from '@converge/shared';
 import { GlobalExceptionFilter } from '../utils/global-exception.filter';
-import { socketEmit } from '../utils/ws-emit.util';
+import { socketBroadcast, socketEmit } from '../utils/ws-emit.util';
 
 // Handles all document-related WebSocket events.
 // cors origin is a function so process.env.CLIENT_URL is read at connection time, not at startup.
@@ -49,27 +56,22 @@ export class DocumentGateway {
    * @param client - the socket that sent the update
    * @param data - contains the encoded update and the client's state vector
    */
-  @SubscribeMessage('sync-doc')
+  @SubscribeMessage('sync-doc-server')
   handleSyncDoc(
     @ConnectedSocket() client: Socket,
-    @MessageBody()
-    data: {
-      update: number[];
-      clientSV: number[];
-    },
+    @MessageBody(new ZodValidationPipe(SyncDocServerSchema))
+    { updateArray, clientSVArray }: SyncDocServerPayload,
   ) {
-    // convert number arrays from JSON transport into typed byte arrays
-    const update = new Uint8Array(data.update);
-    const clientSV = new Uint8Array(data.clientSV);
+    const update = new Uint8Array(updateArray);
+    const clientSV = new Uint8Array(clientSVArray);
 
     // apply the update to the shared doc and get the new server state vector
     const { serverSV } = this.documentService.applyYDocUpdate(update);
 
-    // number[] is used instead of Uint8Array because Socket.io deserializes
-    // binary as ArrayBuffer in the browser, which Yjs cannot read directly.
-    client.broadcast.emit('sync-doc', {
-      update: Array.from(update),
-      serverSV: Array.from(serverSV),
+    const serverSVArray = Array.from(serverSV);
+    socketBroadcast(client, 'sync-doc-client', SyncDocClientSchema, {
+      updateArray,
+      serverSVArray,
     });
 
     // if the client is behind, prompt it to start a repair sync

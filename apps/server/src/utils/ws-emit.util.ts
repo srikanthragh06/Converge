@@ -1,5 +1,5 @@
 import { ZodType } from 'zod';
-import { Socket, Server } from 'socket.io';
+import { Socket, Server, BroadcastOperator } from 'socket.io';
 
 /**
  * Validates payload against the provided schema then emits it on the socket or server.
@@ -17,4 +17,23 @@ export function socketEmit<T>(
   payload: T,
 ): void {
   socket.emit(event, schema.parse(payload));
+}
+
+/**
+ * Validates payload against the provided schema then broadcasts it to all
+ * clients in the room except the sender.
+ * Throws if the payload does not satisfy the schema, catching programming errors
+ * at the emit site rather than silently sending a malformed payload.
+ * @param client - the socket whose broadcast operator will be used
+ * @param event - the event name
+ * @param schema - Zod schema the payload must satisfy
+ * @param payload - the data to validate and broadcast
+ */
+export function socketBroadcast<T>(
+  client: Socket,
+  event: string,
+  schema: ZodType<T>,
+  payload: T,
+): void {
+  (client.broadcast as BroadcastOperator<any, any>).emit(event, schema.parse(payload));
 }
