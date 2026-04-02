@@ -111,7 +111,9 @@ const useEditor = () => {
             // snapshot the current client state vector to send to the server
             const clientSV = Y.encodeStateVector(yDoc);
             // emit to the server so it can compute what the client is missing
-            socket.emit("repair-sync-doc", { clientSV: Array.from(clientSV) });
+            socket.emit("repair-sync-doc-server", {
+                clientSV: Array.from(clientSV),
+            });
         };
 
         /**
@@ -127,7 +129,7 @@ const useEditor = () => {
             const diff = Y.encodeStateAsUpdate(yDoc, serverSVBytes);
             // snapshot client SV so the server can compute what we're missing in return
             const clientSV = Y.encodeStateVector(yDoc);
-            socket.emit("repair-sync-ack-doc", {
+            socket.emit("repair-sync-ack-doc-server", {
                 diff: Array.from(diff),
                 clientSV: Array.from(clientSV),
             });
@@ -156,7 +158,7 @@ const useEditor = () => {
             );
             // snapshot our updated SV so the server can detect any remaining gaps
             const clientSV = Y.encodeStateVector(yDoc);
-            socket.emit("repair-sync-ack-doc", {
+            socket.emit("repair-ack-doc-server", {
                 diff: Array.from(diffForServer),
                 clientSV: Array.from(clientSV),
             });
@@ -171,18 +173,18 @@ const useEditor = () => {
             Y.applyUpdate(yDoc, new Uint8Array(diff), "REMOTE");
         };
 
-        socket.on("repair-sync-doc", handleRepairSyncDoc);
-        socket.on("repair-sync-ack-doc", handleRepairSyncAckDoc);
-        socket.on("repair-ack-doc", handleRepairAckDoc);
+        socket.on("repair-sync-doc-client", handleRepairSyncDoc);
+        socket.on("repair-sync-ack-doc-client", handleRepairSyncAckDoc);
+        socket.on("repair-ack-doc-client", handleRepairAckDoc);
 
         // Initiate repair on connect to pull any server state the client missed.
         initiateRepairSync();
         const heartbeatIntervalId = setInterval(initiateRepairSync, 5000);
 
         return () => {
-            socket.off("repair-sync-doc", handleRepairSyncDoc);
-            socket.off("repair-sync-ack-doc", handleRepairSyncAckDoc);
-            socket.off("repair-ack-doc", handleRepairAckDoc);
+            socket.off("repair-sync-doc-client", handleRepairSyncDoc);
+            socket.off("repair-sync-ack-doc-client", handleRepairSyncAckDoc);
+            socket.off("repair-ack-doc-client", handleRepairAckDoc);
             clearInterval(heartbeatIntervalId);
         };
     }, [yDoc, isSocketConnected]);
@@ -220,7 +222,7 @@ const useEditor = () => {
                     Y.decodeStateVector(clientSV),
                 )
             ) {
-                socket.emit("repair-sync-doc", {
+                socket.emit("repair-sync-doc-server", {
                     clientSV: Array.from(clientSV),
                 });
             }

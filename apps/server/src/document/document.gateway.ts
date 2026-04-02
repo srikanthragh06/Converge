@@ -76,7 +76,7 @@ export class DocumentGateway {
 
     // if the client is behind, prompt it to start a repair sync
     if (!this.documentService.isClientAndServerDocSynced(clientSV)) {
-      client.emit('repair-sync-doc', { serverSV: Array.from(serverSV) });
+      client.emit('repair-sync-doc-client', { serverSV: Array.from(serverSV) });
     }
   }
 
@@ -86,7 +86,7 @@ export class DocumentGateway {
    * @param client - the socket requesting repair
    * @param data - contains the client's encoded state vector
    */
-  @SubscribeMessage('repair-sync-doc')
+  @SubscribeMessage('repair-sync-doc-server')
   handleRepairSyncDoc(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { clientSV: number[] },
@@ -99,7 +99,7 @@ export class DocumentGateway {
       this.documentService.getClientServerDocDiff(clientSVBytes);
 
     // send the diff and server SV so the client can apply and respond with its own diff
-    client.emit('repair-sync-ack-doc', {
+    client.emit('repair-sync-ack-doc-client', {
       serverSV: Array.from(serverSV),
       diff: Array.from(diff),
     });
@@ -111,7 +111,7 @@ export class DocumentGateway {
    * @param client - the socket that sent the diff
    * @param data - contains the diff bytes and the client's state vector
    */
-  @SubscribeMessage('repair-sync-ack-doc')
+  @SubscribeMessage('repair-sync-ack-doc-server')
   handleRepairSyncAckDoc(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { diff: number[]; clientSV: number[] },
@@ -128,14 +128,14 @@ export class DocumentGateway {
       this.documentService.getClientServerDocDiff(clientSVBytes);
 
     // send him the diff with ack event
-    client.emit('repair-ack-doc', { diff: Array.from(diffForClient) });
+    client.emit('repair-ack-doc-client', { diff: Array.from(diffForClient) });
   }
 
   /**
    * Applies the final diff from the client, completing the repair sync round.
    * @param data - contains the diff bytes to apply to the shared doc
    */
-  @SubscribeMessage('repair-ack-doc')
+  @SubscribeMessage('repair-ack-doc-server')
   handleRepairAckDoc(@MessageBody() data: { diff: number[] }) {
     const { diff } = data;
     // convert and apply the final diff to bring the server doc fully up to date
