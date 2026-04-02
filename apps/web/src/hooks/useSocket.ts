@@ -4,6 +4,9 @@ import { SOCKET_EVENTS } from "../lib/socketEvents";
 import { PING_INTERVAL_MS } from "../constants/constants";
 import { useAtom } from "jotai";
 import { isSocketConnectedAtom } from "../atoms/atoms";
+import { PingSchema, PongSchema } from "@converge/shared";
+import { socketReceive } from "../lib/socket-receive.util";
+import { socketEmit } from "../lib/socket-emit.util";
 
 /**
  * Manages the Socket.io connection lifecycle and ping-pong latency checks.
@@ -51,18 +54,20 @@ const useSocket = () => {
         const sendPing = () => {
             const newPingId = crypto.randomUUID();
             pingMap.set(newPingId, Date.now());
-            socket.emit(SOCKET_EVENTS.PING, { pingId: newPingId });
+            socketEmit(socket, SOCKET_EVENTS.PING, PingSchema, {
+                pingId: newPingId,
+            });
         };
 
-        socket.on(
-            SOCKET_EVENTS.PONG,
-            ({ data: { pingId } }: { data: { pingId: string } }) => {
-                const pingTime = pingMap.get(pingId);
-                if (pingTime) {
-                    pingMap.delete(pingId);
-                }
-            },
-        );
+        socket.on(SOCKET_EVENTS.PONG, (data) => {
+            const res = socketReceive(PongSchema, data);
+            if (!res) return;
+            const { pingId } = res;
+            const pingTime = pingMap.get(pingId);
+            if (pingTime) {
+                pingMap.delete(pingId);
+            }
+        });
 
         // Send immediately rather than waiting for the first interval tick.
         const interval = setInterval(sendPing, PING_INTERVAL_MS);
@@ -71,6 +76,18 @@ const useSocket = () => {
         return () => {
             clearInterval(interval);
             socket.off(SOCKET_EVENTS.PONG);
+        };
+    }, [isSocketConnected]);
+
+    useEffect(() => {
+        if (!isSocketConnected) return;
+
+        socket.on("error", (error: string) => {
+            console.error(error);
+        });
+
+        return () => {
+            socket.off("error");
         };
     }, [isSocketConnected]);
 };

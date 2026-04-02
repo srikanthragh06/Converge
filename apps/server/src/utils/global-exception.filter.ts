@@ -5,9 +5,9 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Socket } from 'socket.io';
-import { wsError, wsInternalServerError } from './ws-response.util';
 import { httpInternalServerError } from './http-response.util';
 import { WsException } from '@nestjs/websockets';
+import { INTERNAL_SERVER_ERROR_MESSAGE } from '@converge/shared';
 
 // @Catch() with no arguments catches every exception — not just HttpExceptions.
 // This is the global safety net for anything that bubbles up through NestJS's pipeline.
@@ -32,11 +32,11 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     } else if (host.getType() === 'ws') {
       const client = host.switchToWs().getClient<Socket>();
       if (exception instanceof WsException) {
-        // validation error — has a meaningful message worth sending back
-        client.emit('error', wsError(exception.message));
+        // intentional error — message was explicitly set by the server, safe to surface to the client
+        client.emit('error', exception.message);
       } else {
         // unknown exception — send generic safe message
-        client.emit('error', wsInternalServerError());
+        client.emit('error', { error: INTERNAL_SERVER_ERROR_MESSAGE });
       }
     }
   }

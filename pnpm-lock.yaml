@@ -46,6 +46,9 @@ importers:
       yjs:
         specifier: ^13.6.30
         version: 13.6.30
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       '@eslint/eslintrc':
         specifier: ^3.2.0
@@ -137,6 +140,9 @@ importers:
       yjs:
         specifier: ^13.6.30
         version: 13.6.30
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       '@eslint/js':
         specifier: ^9.39.4
@@ -185,6 +191,10 @@ importers:
         version: 8.0.3(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1)(@types/node@24.12.0)(jiti@1.21.7)(terser@5.46.1)
 
   packages/shared:
+    dependencies:
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       socket.io:
         specifier: ^4.8.3

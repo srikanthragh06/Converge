@@ -5,12 +5,19 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
+import { UseFilters } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
-import { wsSuccess } from '../utils/ws-response.util';
 import { DocumentService } from './document.service';
+import { ZodValidationPipe } from '../pipes/zod-validation.pipe';
+import { PingSchema, PongSchema, type PingPayload } from '@converge/shared';
+import { GlobalExceptionFilter } from '../utils/global-exception.filter';
+import { socketEmit } from '../utils/ws-emit.util';
 
 // Handles all document-related WebSocket events.
 // cors origin is a function so process.env.CLIENT_URL is read at connection time, not at startup.
+// @UseFilters overrides NestJS's default WsExceptionsHandler so all exceptions are emitted
+// on the "error" channel via GlobalExceptionFilter rather than the default "exception" channel.
+@UseFilters(GlobalExceptionFilter)
 @WebSocketGateway({
   cors: { origin: (_req, cb) => cb(null, process.env.CLIENT_URL) },
 })
@@ -26,14 +33,13 @@ export class DocumentGateway {
    * @param client - the socket that sent the ping
    * @param data - contains the pingId to echo back
    */
-  // Echoes pingId back so the client can match the response and calculate latency.
   @SubscribeMessage('ping')
   handlePing(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { pingId: string },
+    @MessageBody(new ZodValidationPipe(PingSchema)) data: PingPayload,
   ) {
     const { pingId } = data;
-    client.emit('pong', wsSuccess({ pingId }));
+    socketEmit(client, 'pong', PongSchema, { pingId });
   }
 
   /**

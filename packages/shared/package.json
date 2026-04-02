@@ -18,5 +18,8 @@
     "devDependencies": {
         "socket.io": "^4.8.3",
         "typescript": "^5.0.0"
+    },
+    "dependencies": {
+        "zod": "^4.3.6"
     }
 }
