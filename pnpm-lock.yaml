@@ -186,6 +186,9 @@ importers:
 
   packages/shared:
     devDependencies:
+      socket.io:
+        specifier: ^4.8.3
+        version: 4.8.3
       typescript:
         specifier: ^5.0.0
         version: 5.9.3

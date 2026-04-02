@@ -1,10 +1,11 @@
 // Consistent response envelope for all WebSocket events.
-// Mirrors the HTTP response util so clients can handle both transports uniformly.
+// Distinguishes success from failure by the presence of `error`, rather than a boolean flag.
 
 import { INTERNAL_SERVER_ERROR_MESSAGE } from '@converge/shared';
 
+// Presence of `error` indicates failure; absence indicates success.
+// `success: boolean` is intentionally omitted — the client discriminates by checking `error !== undefined`.
 export interface WsResponse<T = null> {
-  success: boolean;
   data?: T;
   error?: string;
 }
@@ -14,7 +15,7 @@ export interface WsResponse<T = null> {
  * @param data - optional payload to include in the response
  */
 export function wsSuccess<T>(data?: T): WsResponse<T> {
-  return { success: true, data };
+  return { data };
 }
 
 /**
@@ -22,7 +23,7 @@ export function wsSuccess<T>(data?: T): WsResponse<T> {
  * @param message - description of why the event failed
  */
 export function wsError(message: string): WsResponse {
-  return { success: false, error: message };
+  return { error: message };
 }
 
 /**
@@ -30,5 +31,5 @@ export function wsError(message: string): WsResponse {
  * non-leaking message suitable for sending to clients.
  */
 export function wsInternalServerError(): WsResponse {
-  return { success: false, error: INTERNAL_SERVER_ERROR_MESSAGE };
+  return { error: INTERNAL_SERVER_ERROR_MESSAGE };
 }
