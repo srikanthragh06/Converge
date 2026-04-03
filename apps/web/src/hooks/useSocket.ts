@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { socket } from "../lib/socket";
-import { SOCKET_EVENTS } from "../lib/socketEvents";
+import { SOCKET_EVENTS } from "@converge/shared";
 import { PING_INTERVAL_MS } from "../constants/constants";
 import { useAtom } from "jotai";
 import { isSocketConnectedAtom } from "../atoms/atoms";

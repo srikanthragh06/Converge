@@ -14,6 +14,7 @@ import {
     RepairSyncAckDocClientSchema,
     RepairAckDocServerSchema,
     RepairAckDocClientSchema,
+    SOCKET_EVENTS,
 } from "@converge/shared";
 import { socketEmit } from "../lib/socket-emit.util";
 import { socketReceive } from "../lib/socket-receive.util";
@@ -87,7 +88,7 @@ const useEditor = () => {
 
                 const updateArray = Array.from(mergedUpdate);
                 const clientSVArray = Array.from(clientSV);
-                socketEmit(socket, "sync-doc-server", SyncDocServerSchema, {
+                socketEmit(socket, SOCKET_EVENTS.SYNC_DOC_SERVER, SyncDocServerSchema, {
                     updateArray,
                     clientSVArray,
                 });
@@ -117,7 +118,7 @@ const useEditor = () => {
             // snapshot the current client state vector to send to the server
             const clientSVArray = Array.from(Y.encodeStateVector(yDoc));
             // emit to the server so it can compute what the client is missing
-            socketEmit(socket, "repair-sync-doc-server", RepairSyncDocServerSchema, {
+            socketEmit(socket, SOCKET_EVENTS.REPAIR_SYNC_DOC_SERVER, RepairSyncDocServerSchema, {
                 clientSVArray,
             });
         };
@@ -134,7 +135,7 @@ const useEditor = () => {
             const serverSV = new Uint8Array(res.serverSVArray);
             const diffArray = Array.from(Y.encodeStateAsUpdate(yDoc, serverSV));
             const clientSVArray = Array.from(Y.encodeStateVector(yDoc));
-            socketEmit(socket, "repair-sync-ack-doc-server", RepairSyncAckDocServerSchema, {
+            socketEmit(socket, SOCKET_EVENTS.REPAIR_SYNC_ACK_DOC_SERVER, RepairSyncAckDocServerSchema, {
                 diffArray,
                 clientSVArray,
             });
@@ -153,7 +154,7 @@ const useEditor = () => {
             Y.applyUpdate(yDoc, new Uint8Array(res.diffArray), "REMOTE");
             const diffArray = Array.from(Y.encodeStateAsUpdate(yDoc, new Uint8Array(res.serverSVArray)));
             const clientSVArray = Array.from(Y.encodeStateVector(yDoc));
-            socketEmit(socket, "repair-ack-doc-server", RepairAckDocServerSchema, {
+            socketEmit(socket, SOCKET_EVENTS.REPAIR_ACK_DOC_SERVER, RepairAckDocServerSchema, {
                 diffArray,
                 clientSVArray,
             });
@@ -170,18 +171,18 @@ const useEditor = () => {
             Y.applyUpdate(yDoc, new Uint8Array(res.diffArray), "REMOTE");
         };
 
-        socket.on("repair-sync-doc-client", handleRepairSyncDoc);
-        socket.on("repair-sync-ack-doc-client", handleRepairSyncAckDoc);
-        socket.on("repair-ack-doc-client", handleRepairAckDoc);
+        socket.on(SOCKET_EVENTS.REPAIR_SYNC_DOC_CLIENT, handleRepairSyncDoc);
+        socket.on(SOCKET_EVENTS.REPAIR_SYNC_ACK_DOC_CLIENT, handleRepairSyncAckDoc);
+        socket.on(SOCKET_EVENTS.REPAIR_ACK_DOC_CLIENT, handleRepairAckDoc);
 
         // Initiate repair on connect to pull any server state the client missed.
         initiateRepairSync();
         const heartbeatIntervalId = setInterval(initiateRepairSync, 5000);
 
         return () => {
-            socket.off("repair-sync-doc-client", handleRepairSyncDoc);
-            socket.off("repair-sync-ack-doc-client", handleRepairSyncAckDoc);
-            socket.off("repair-ack-doc-client", handleRepairAckDoc);
+            socket.off(SOCKET_EVENTS.REPAIR_SYNC_DOC_CLIENT, handleRepairSyncDoc);
+            socket.off(SOCKET_EVENTS.REPAIR_SYNC_ACK_DOC_CLIENT, handleRepairSyncAckDoc);
+            socket.off(SOCKET_EVENTS.REPAIR_ACK_DOC_CLIENT, handleRepairAckDoc);
             clearInterval(heartbeatIntervalId);
         };
     }, [yDoc, isSocketConnected]);
@@ -219,16 +220,16 @@ const useEditor = () => {
                     Y.decodeStateVector(clientSV),
                 )
             ) {
-                socketEmit(socket, "repair-sync-doc-server", RepairSyncDocServerSchema, {
+                socketEmit(socket, SOCKET_EVENTS.REPAIR_SYNC_DOC_SERVER, RepairSyncDocServerSchema, {
                     clientSVArray: Array.from(clientSV),
                 });
             }
         };
 
-        socket.on("sync-doc-client", handleSyncDocClient);
+        socket.on(SOCKET_EVENTS.SYNC_DOC_CLIENT, handleSyncDocClient);
 
         return () => {
-            socket.off("sync-doc-client", handleSyncDocClient);
+            socket.off(SOCKET_EVENTS.SYNC_DOC_CLIENT, handleSyncDocClient);
         };
     }, [yDoc, isSocketConnected]);
 

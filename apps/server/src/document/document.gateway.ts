@@ -25,6 +25,7 @@ import {
   RepairAckDocServerSchema,
   type RepairAckDocServerPayload,
   RepairAckDocClientSchema,
+  SOCKET_EVENTS,
 } from '@converge/shared';
 import { GlobalExceptionFilter } from '../utils/global-exception.filter';
 import { socketBroadcast, socketEmit } from '../utils/ws-emit.util';
@@ -49,13 +50,13 @@ export class DocumentGateway {
    * @param client - the socket that sent the ping
    * @param data - contains the pingId to echo back
    */
-  @SubscribeMessage('ping')
+  @SubscribeMessage(SOCKET_EVENTS.PING)
   handlePing(
     @ConnectedSocket() client: Socket,
     @MessageBody(new ZodValidationPipe(PingSchema)) data: PingPayload,
   ) {
     const { pingId } = data;
-    socketEmit(client, 'pong', PongSchema, { pingId });
+    socketEmit(client, SOCKET_EVENTS.PONG, PongSchema, { pingId });
   }
 
   /**
@@ -65,7 +66,7 @@ export class DocumentGateway {
    * @param client - the socket that sent the update
    * @param data - contains the encoded update and the client's state vector
    */
-  @SubscribeMessage('sync-doc-server')
+  @SubscribeMessage(SOCKET_EVENTS.SYNC_DOC_SERVER)
   handleSyncDoc(
     @ConnectedSocket() client: Socket,
     @MessageBody(new ZodValidationPipe(SyncDocServerSchema))
@@ -78,14 +79,14 @@ export class DocumentGateway {
     const { serverSV } = this.documentService.applyYDocUpdate(update);
 
     const serverSVArray = Array.from(serverSV);
-    socketBroadcast(client, 'sync-doc-client', SyncDocClientSchema, {
+    socketBroadcast(client, SOCKET_EVENTS.SYNC_DOC_CLIENT, SyncDocClientSchema, {
       updateArray,
       serverSVArray,
     });
 
     // if the client is behind, prompt it to start a repair sync
     if (!this.documentService.isClientAndServerDocSynced(clientSV)) {
-      socketEmit(client, 'repair-sync-doc-client', RepairSyncDocClientSchema, {
+      socketEmit(client, SOCKET_EVENTS.REPAIR_SYNC_DOC_CLIENT, RepairSyncDocClientSchema, {
         serverSVArray: Array.from(serverSV),
       });
     }
@@ -97,7 +98,7 @@ export class DocumentGateway {
    * @param client - the socket requesting repair
    * @param data - contains the client's encoded state vector
    */
-  @SubscribeMessage('repair-sync-doc-server')
+  @SubscribeMessage(SOCKET_EVENTS.REPAIR_SYNC_DOC_SERVER)
   handleRepairSyncDoc(
     @ConnectedSocket() client: Socket,
     @MessageBody(new ZodValidationPipe(RepairSyncDocServerSchema))
@@ -112,7 +113,7 @@ export class DocumentGateway {
     // send the diff and server SV so the client can apply and respond with its own diff
     socketEmit(
       client,
-      'repair-sync-ack-doc-client',
+      SOCKET_EVENTS.REPAIR_SYNC_ACK_DOC_CLIENT,
       RepairSyncAckDocClientSchema,
       {
         serverSVArray: Array.from(serverSV),
@@ -127,7 +128,7 @@ export class DocumentGateway {
    * @param client - the socket that sent the diff
    * @param data - contains the diff bytes and the client's state vector
    */
-  @SubscribeMessage('repair-sync-ack-doc-server')
+  @SubscribeMessage(SOCKET_EVENTS.REPAIR_SYNC_ACK_DOC_SERVER)
   handleRepairSyncAckDoc(
     @ConnectedSocket() client: Socket,
     @MessageBody(new ZodValidationPipe(RepairSyncAckDocServerSchema))
@@ -143,7 +144,7 @@ export class DocumentGateway {
     const { diff: diffForClient } =
       this.documentService.getClientServerDocDiff(clientSV);
 
-    socketEmit(client, 'repair-ack-doc-client', RepairAckDocClientSchema, {
+    socketEmit(client, SOCKET_EVENTS.REPAIR_ACK_DOC_CLIENT, RepairAckDocClientSchema, {
       diffArray: Array.from(diffForClient),
     });
   }
@@ -152,7 +153,7 @@ export class DocumentGateway {
    * Applies the final diff from the client, completing the repair sync round.
    * @param data - contains the diff bytes to apply to the shared doc
    */
-  @SubscribeMessage('repair-ack-doc-server')
+  @SubscribeMessage(SOCKET_EVENTS.REPAIR_ACK_DOC_SERVER)
   handleRepairAckDoc(
     @MessageBody(new ZodValidationPipe(RepairAckDocServerSchema))
     { diffArray, clientSVArray }: RepairAckDocServerPayload,
