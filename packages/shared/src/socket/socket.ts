@@ -3,6 +3,8 @@ import { z } from "zod";
 // Validates Yjs binary data sent over the wire as a number[] of byte values.
 const WireBytes = z.array(z.number().int().min(0).max(255));
 
+// ── Sync Doc ──────────────────────────────────────────────────────────────────
+
 export const SyncDocServerSchema = z.object({
     updateArray: WireBytes,
     clientSVArray: WireBytes,
@@ -17,6 +19,8 @@ export const SyncDocClientSchema = z.object({
 
 export type SyncDocClientPayload = z.infer<typeof SyncDocClientSchema>;
 
+// ── Repair Sync Doc ───────────────────────────────────────────────────────────
+
 export const RepairSyncDocServerSchema = z.object({
     clientSVArray: WireBytes,
 });
@@ -28,6 +32,8 @@ export const RepairSyncDocClientSchema = z.object({
 });
 
 export type RepairSyncDocClientPayload = z.infer<typeof RepairSyncDocClientSchema>;
+
+// ── Repair Sync Ack Doc ───────────────────────────────────────────────────────
 
 export const RepairSyncAckDocServerSchema = z.object({
     diffArray: WireBytes,
@@ -43,6 +49,8 @@ export const RepairSyncAckDocClientSchema = z.object({
 
 export type RepairSyncAckDocClientPayload = z.infer<typeof RepairSyncAckDocClientSchema>;
 
+// ── Repair Ack Doc ────────────────────────────────────────────────────────────
+
 export const RepairAckDocServerSchema = z.object({
     diffArray: WireBytes,
     clientSVArray: WireBytes,
@@ -55,6 +63,8 @@ export const RepairAckDocClientSchema = z.object({
 });
 
 export type RepairAckDocClientPayload = z.infer<typeof RepairAckDocClientSchema>;
+
+// ── Ping / Pong ───────────────────────────────────────────────────────────────
 
 export const PingSchema = z.object({ pingId: z.string() });
 
