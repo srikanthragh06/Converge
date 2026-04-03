@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+    # psql -h 127.0.0.1 -p 5432 -U converge -d converge
+    postgres:
+        image: postgres:16
+        environment:
+            POSTGRES_USER: converge
+            POSTGRES_PASSWORD: converge
+            POSTGRES_DB: converge
+        ports:
+            - "5432:5432"
+        volumes:
+            # Named volume persists data across container restarts.
+            - postgres-data:/var/lib/postgresql/data
+
+volumes:
+    postgres-data:
