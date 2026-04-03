@@ -8,6 +8,12 @@ import {
     mapsAreEqual,
     SyncDocClientSchema,
     SyncDocServerSchema,
+    RepairSyncDocServerSchema,
+    RepairSyncDocClientSchema,
+    RepairSyncAckDocServerSchema,
+    RepairSyncAckDocClientSchema,
+    RepairAckDocServerSchema,
+    RepairAckDocClientSchema,
 } from "@converge/shared";
 import { socketEmit } from "../lib/socket-emit.util";
 import { socketReceive } from "../lib/socket-receive.util";
@@ -109,10 +115,10 @@ const useEditor = () => {
          */
         const initiateRepairSync = () => {
             // snapshot the current client state vector to send to the server
-            const clientSV = Y.encodeStateVector(yDoc);
+            const clientSVArray = Array.from(Y.encodeStateVector(yDoc));
             // emit to the server so it can compute what the client is missing
-            socket.emit("repair-sync-doc-server", {
-                clientSV: Array.from(clientSV),
+            socketEmit(socket, "repair-sync-doc-server", RepairSyncDocServerSchema, {
+                clientSVArray,
             });
         };
 
@@ -122,16 +128,15 @@ const useEditor = () => {
          * @param serverSV - the server's encoded state vector as a number array
          */
         // Handles repair initiated by the server — respond with our diff and SV.
-        const handleRepairSyncDoc = ({ serverSV }: { serverSV: number[] }) => {
-            // convert the server SV from transport format to a typed byte array
-            const serverSVBytes = new Uint8Array(serverSV);
-            // compute the updates the server is missing relative to its state vector
-            const diff = Y.encodeStateAsUpdate(yDoc, serverSVBytes);
-            // snapshot client SV so the server can compute what we're missing in return
-            const clientSV = Y.encodeStateVector(yDoc);
-            socket.emit("repair-sync-ack-doc-server", {
-                diff: Array.from(diff),
-                clientSV: Array.from(clientSV),
+        const handleRepairSyncDoc = (data: unknown) => {
+            const res = socketReceive(RepairSyncDocClientSchema, data);
+            if (!res) return;
+            const serverSV = new Uint8Array(res.serverSVArray);
+            const diffArray = Array.from(Y.encodeStateAsUpdate(yDoc, serverSV));
+            const clientSVArray = Array.from(Y.encodeStateVector(yDoc));
+            socketEmit(socket, "repair-sync-ack-doc-server", RepairSyncAckDocServerSchema, {
+                diffArray,
+                clientSVArray,
             });
         };
 
@@ -142,25 +147,15 @@ const useEditor = () => {
          * @param serverSV - the server's state vector used to compute the return diff
          */
         // Applies the diff sent by the other side, then sends back our diff.
-        const handleRepairSyncAckDoc = ({
-            diff,
-            serverSV,
-        }: {
-            diff: number[];
-            serverSV: number[];
-        }) => {
-            // apply the diff we received from the other side to bring our doc up to date
-            Y.applyUpdate(yDoc, new Uint8Array(diff), "REMOTE");
-            // compute what the server is still missing based on its state vector
-            const diffForServer = Y.encodeStateAsUpdate(
-                yDoc,
-                new Uint8Array(serverSV),
-            );
-            // snapshot our updated SV so the server can detect any remaining gaps
-            const clientSV = Y.encodeStateVector(yDoc);
-            socket.emit("repair-ack-doc-server", {
-                diff: Array.from(diffForServer),
-                clientSV: Array.from(clientSV),
+        const handleRepairSyncAckDoc = (data: unknown) => {
+            const res = socketReceive(RepairSyncAckDocClientSchema, data);
+            if (!res) return;
+            Y.applyUpdate(yDoc, new Uint8Array(res.diffArray), "REMOTE");
+            const diffArray = Array.from(Y.encodeStateAsUpdate(yDoc, new Uint8Array(res.serverSVArray)));
+            const clientSVArray = Array.from(Y.encodeStateVector(yDoc));
+            socketEmit(socket, "repair-ack-doc-server", RepairAckDocServerSchema, {
+                diffArray,
+                clientSVArray,
             });
         };
 
@@ -169,8 +164,10 @@ const useEditor = () => {
          * @param diff - encoded Yjs update bytes representing the server's remaining delta
          */
         // Final step — applies any remaining diff the other side computed for us.
-        const handleRepairAckDoc = ({ diff }: { diff: number[] }) => {
-            Y.applyUpdate(yDoc, new Uint8Array(diff), "REMOTE");
+        const handleRepairAckDoc = (data: unknown) => {
+            const res = socketReceive(RepairAckDocClientSchema, data);
+            if (!res) return;
+            Y.applyUpdate(yDoc, new Uint8Array(res.diffArray), "REMOTE");
         };
 
         socket.on("repair-sync-doc-client", handleRepairSyncDoc);
@@ -222,8 +219,8 @@ const useEditor = () => {
                     Y.decodeStateVector(clientSV),
                 )
             ) {
-                socket.emit("repair-sync-doc-server", {
-                    clientSV: Array.from(clientSV),
+                socketEmit(socket, "repair-sync-doc-server", RepairSyncDocServerSchema, {
+                    clientSVArray: Array.from(clientSV),
                 });
             }
         };

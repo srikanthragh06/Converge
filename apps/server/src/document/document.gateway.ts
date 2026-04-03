@@ -16,6 +16,15 @@ import {
   SyncDocServerSchema,
   type PingPayload,
   SyncDocClientSchema,
+  RepairSyncDocServerSchema,
+  type RepairSyncDocServerPayload,
+  RepairSyncDocClientSchema,
+  RepairSyncAckDocServerSchema,
+  type RepairSyncAckDocServerPayload,
+  RepairSyncAckDocClientSchema,
+  RepairAckDocServerSchema,
+  type RepairAckDocServerPayload,
+  RepairAckDocClientSchema,
 } from '@converge/shared';
 import { GlobalExceptionFilter } from '../utils/global-exception.filter';
 import { socketBroadcast, socketEmit } from '../utils/ws-emit.util';
@@ -76,7 +85,9 @@ export class DocumentGateway {
 
     // if the client is behind, prompt it to start a repair sync
     if (!this.documentService.isClientAndServerDocSynced(clientSV)) {
-      client.emit('repair-sync-doc-client', { serverSV: Array.from(serverSV) });
+      socketEmit(client, 'repair-sync-doc-client', RepairSyncDocClientSchema, {
+        serverSVArray: Array.from(serverSV),
+      });
     }
   }
 
@@ -89,20 +100,25 @@ export class DocumentGateway {
   @SubscribeMessage('repair-sync-doc-server')
   handleRepairSyncDoc(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { clientSV: number[] },
+    @MessageBody(new ZodValidationPipe(RepairSyncDocServerSchema))
+    { clientSVArray }: RepairSyncDocServerPayload,
   ) {
-    // convert the client SV from transport format to a typed byte array
-    const clientSVBytes = new Uint8Array(data.clientSV);
+    const clientSV = new Uint8Array(clientSVArray);
 
     // compute the diff the client is missing and the current server SV
     const { serverSV, diff } =
-      this.documentService.getClientServerDocDiff(clientSVBytes);
+      this.documentService.getClientServerDocDiff(clientSV);
 
     // send the diff and server SV so the client can apply and respond with its own diff
-    client.emit('repair-sync-ack-doc-client', {
-      serverSV: Array.from(serverSV),
-      diff: Array.from(diff),
-    });
+    socketEmit(
+      client,
+      'repair-sync-ack-doc-client',
+      RepairSyncAckDocClientSchema,
+      {
+        serverSVArray: Array.from(serverSV),
+        diffArray: Array.from(diff),
+      },
+    );
   }
 
   /**
@@ -114,21 +130,22 @@ export class DocumentGateway {
   @SubscribeMessage('repair-sync-ack-doc-server')
   handleRepairSyncAckDoc(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { diff: number[]; clientSV: number[] },
+    @MessageBody(new ZodValidationPipe(RepairSyncAckDocServerSchema))
+    { diffArray, clientSVArray }: RepairSyncAckDocServerPayload,
   ) {
-    const { diff, clientSV } = data;
-    const diffBytes = new Uint8Array(diff);
-    const clientSVBytes = new Uint8Array(clientSV);
+    const diff = new Uint8Array(diffArray);
+    const clientSV = new Uint8Array(clientSVArray);
 
     // apply the diff
-    this.documentService.applyYDocUpdate(diffBytes);
+    this.documentService.applyYDocUpdate(diff);
 
-    // calculate diff for the client
+    // calculate the remaining diff the client is still missing
     const { diff: diffForClient } =
-      this.documentService.getClientServerDocDiff(clientSVBytes);
+      this.documentService.getClientServerDocDiff(clientSV);
 
-    // send him the diff with ack event
-    client.emit('repair-ack-doc-client', { diff: Array.from(diffForClient) });
+    socketEmit(client, 'repair-ack-doc-client', RepairAckDocClientSchema, {
+      diffArray: Array.from(diffForClient),
+    });
   }
 
   /**
@@ -136,10 +153,12 @@ export class DocumentGateway {
    * @param data - contains the diff bytes to apply to the shared doc
    */
   @SubscribeMessage('repair-ack-doc-server')
-  handleRepairAckDoc(@MessageBody() data: { diff: number[] }) {
-    const { diff } = data;
+  handleRepairAckDoc(
+    @MessageBody(new ZodValidationPipe(RepairAckDocServerSchema))
+    { diffArray, clientSVArray }: RepairAckDocServerPayload,
+  ) {
+    const diff = new Uint8Array(diffArray);
     // convert and apply the final diff to bring the server doc fully up to date
-    const diffBytes = new Uint8Array(diff);
-    this.documentService.applyYDocUpdate(diffBytes);
+    this.documentService.applyYDocUpdate(diff);
   }
 }
