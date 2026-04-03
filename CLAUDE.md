@@ -8,8 +8,11 @@ Converge is a full-stack Notion-like application (early stage). See ROADMAP.md f
 
 ## Structure
 
-- `web/` — React + Vite + Tailwind CSS v3 frontend
-- `server/` — NestJS + Socket.io backend
+This is a pnpm workspace monorepo.
+
+- `apps/web/` — React + Vite + Tailwind CSS v3 frontend
+- `apps/server/` — NestJS + Socket.io backend
+- `packages/shared/` — shared types, constants, Zod schemas, and utilities (`@converge/shared`)
 
 ## Code Style
 
@@ -25,3 +28,6 @@ Converge is a full-stack Notion-like application (early stage). See ROADMAP.md f
 - Tailwind's preflight is disabled (`corePlugins.preflight: false`) to avoid conflicts with Mantine/BlockNote styles. Add manual resets in `index.css` when needed.
 - Global client-side state lives in Jotai atoms (`web/src/atoms/atoms.ts`). Prefer atoms over prop-drilling for state shared across hooks and components.
 - All functions, methods, and class attributes must have inline documentation following the standard in the `add-comments` skill.
+- Socket event names are defined as constants in `@converge/shared/socket/events` (`SOCKET_EVENTS`). Never hardcode event name strings in `apps/`.
+- Socket event payload types and Zod schemas live in `@converge/shared/socket`. Add new schemas there when adding new events.
+- All code shared between `apps/web` and `apps/server` belongs in `packages/shared`, not in either app.

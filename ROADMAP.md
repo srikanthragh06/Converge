@@ -70,4 +70,25 @@
 
 ---
 
+## v0.04 — Monorepo + Typed Socket Layer ✅
+
+> Branch: `monorepo-config-v0.04`
+
+### Monorepo
+- Repo restructured as a pnpm workspace monorepo: `apps/web`, `apps/server`, `packages/shared`
+- `packages/shared` (`@converge/shared`) is the single source of truth for types, constants, and utilities shared across apps
+- Production build order fixed — `shared` is built before apps
+- `exports` field added to `shared/package.json` for a clean single root entry point
+
+### Shared package
+- `INTERNAL_SERVER_ERROR_MESSAGE` constant migrated from server to `@converge/shared`
+- `WsResponse<T>` envelope type migrated to `@converge/shared`
+- Socket event name constants centralised in `@converge/shared/socket/events` — eliminates string duplication and makes renaming safe
+- Zod schemas for all Socket.io event payloads (`sync-doc`, repair sync family) co-located in `@converge/shared/socket`
+- `socket.ts` organised into labelled sections by event family for readability
+
+### Server
+- Repair sync events renamed with explicit `-server`/`-client` suffix convention — disambiguates direction at the event name level
+- `socketBroadcast` helper extracted for broadcasting to all clients except the sender
+
 ## Upcoming
