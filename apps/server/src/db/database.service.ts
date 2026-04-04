@@ -2,9 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool, types } from 'pg';
 import { sleep } from '../utils/utils';
+import { Kysely, PostgresDialect } from 'kysely';
+import { DatabaseSchema } from './database.schema';
 
 @Injectable()
 export class DatabaseService {
+  public readonly kysely: Kysely<DatabaseSchema>; // type-safe query builder wrapping the pool
   private readonly pool: Pool; // pg connection pool shared across all queries
 
   private static readonly MAX_RETRIES = 10; // total connection attempts before giving up
@@ -23,7 +26,9 @@ export class DatabaseService {
         host: this.configService.getOrThrow<string>('POSTGRES_DEV_HOST'),
         port: this.configService.getOrThrow<number>('POSTGRES_DEV_PORT'),
         user: this.configService.getOrThrow<string>('POSTGRES_DEV_USERNAME'),
-        password: this.configService.getOrThrow<string>('POSTGRES_DEV_PASSWORD'),
+        password: this.configService.getOrThrow<string>(
+          'POSTGRES_DEV_PASSWORD',
+        ),
         database: this.configService.getOrThrow<string>('POSTGRES_DEV_DBNAME'),
       });
     } else if (environment === 'PROD') {
@@ -32,7 +37,9 @@ export class DatabaseService {
       this.pool = new Pool({
         host: this.configService.getOrThrow<string>('POSTGRES_PROD_HOST'),
         user: this.configService.getOrThrow<string>('POSTGRES_PROD_USERNAME'),
-        password: this.configService.getOrThrow<string>('POSTGRES_PROD_PASSWORD'),
+        password: this.configService.getOrThrow<string>(
+          'POSTGRES_PROD_PASSWORD',
+        ),
         database: this.configService.getOrThrow<string>('POSTGRES_PROD_DBNAME'),
         ssl: true,
       });
@@ -40,9 +47,9 @@ export class DatabaseService {
       throw new Error(`Unknown ENVIRONMENT "${environment}"`);
     }
 
-    // this.kysely = new Kysely<DatabaseSchema>({
-    //   dialect: new PostgresDialect({ pool: this.pool }),
-    // });
+    this.kysely = new Kysely<DatabaseSchema>({
+      dialect: new PostgresDialect({ pool: this.pool }),
+    });
   }
 
   /**
