@@ -67,7 +67,7 @@ export class DocumentGateway {
    * @param data - contains the encoded update and the client's state vector
    */
   @SubscribeMessage(SOCKET_EVENTS.SYNC_DOC_SERVER)
-  handleSyncDoc(
+  async handleSyncDoc(
     @ConnectedSocket() client: Socket,
     @MessageBody(new ZodValidationPipe(SyncDocServerSchema))
     { updateArray, clientSVArray }: SyncDocServerPayload,
@@ -76,19 +76,29 @@ export class DocumentGateway {
     const clientSV = new Uint8Array(clientSVArray);
 
     // apply the update to the shared doc and get the new server state vector
-    const { serverSV } = this.documentService.applyYDocUpdate(update);
+    const { serverSV } = await this.documentService.applyYDocUpdate(update);
 
     const serverSVArray = Array.from(serverSV);
-    socketBroadcast(client, SOCKET_EVENTS.SYNC_DOC_CLIENT, SyncDocClientSchema, {
-      updateArray,
-      serverSVArray,
-    });
+    socketBroadcast(
+      client,
+      SOCKET_EVENTS.SYNC_DOC_CLIENT,
+      SyncDocClientSchema,
+      {
+        updateArray,
+        serverSVArray,
+      },
+    );
 
     // if the client is behind, prompt it to start a repair sync
     if (!this.documentService.isClientAndServerDocSynced(clientSV)) {
-      socketEmit(client, SOCKET_EVENTS.REPAIR_SYNC_DOC_CLIENT, RepairSyncDocClientSchema, {
-        serverSVArray: Array.from(serverSV),
-      });
+      socketEmit(
+        client,
+        SOCKET_EVENTS.REPAIR_SYNC_DOC_CLIENT,
+        RepairSyncDocClientSchema,
+        {
+          serverSVArray: Array.from(serverSV),
+        },
+      );
     }
   }
 
@@ -129,7 +139,7 @@ export class DocumentGateway {
    * @param data - contains the diff bytes and the client's state vector
    */
   @SubscribeMessage(SOCKET_EVENTS.REPAIR_SYNC_ACK_DOC_SERVER)
-  handleRepairSyncAckDoc(
+  async handleRepairSyncAckDoc(
     @ConnectedSocket() client: Socket,
     @MessageBody(new ZodValidationPipe(RepairSyncAckDocServerSchema))
     { diffArray, clientSVArray }: RepairSyncAckDocServerPayload,
@@ -138,15 +148,20 @@ export class DocumentGateway {
     const clientSV = new Uint8Array(clientSVArray);
 
     // apply the diff
-    this.documentService.applyYDocUpdate(diff);
+    await this.documentService.applyYDocUpdate(diff);
 
     // calculate the remaining diff the client is still missing
     const { diff: diffForClient } =
       this.documentService.getClientServerDocDiff(clientSV);
 
-    socketEmit(client, SOCKET_EVENTS.REPAIR_ACK_DOC_CLIENT, RepairAckDocClientSchema, {
-      diffArray: Array.from(diffForClient),
-    });
+    socketEmit(
+      client,
+      SOCKET_EVENTS.REPAIR_ACK_DOC_CLIENT,
+      RepairAckDocClientSchema,
+      {
+        diffArray: Array.from(diffForClient),
+      },
+    );
   }
 
   /**
@@ -154,12 +169,12 @@ export class DocumentGateway {
    * @param data - contains the diff bytes to apply to the shared doc
    */
   @SubscribeMessage(SOCKET_EVENTS.REPAIR_ACK_DOC_SERVER)
-  handleRepairAckDoc(
+  async handleRepairAckDoc(
     @MessageBody(new ZodValidationPipe(RepairAckDocServerSchema))
-    { diffArray, clientSVArray }: RepairAckDocServerPayload,
+    { diffArray }: RepairAckDocServerPayload,
   ) {
     const diff = new Uint8Array(diffArray);
     // convert and apply the final diff to bring the server doc fully up to date
-    this.documentService.applyYDocUpdate(diff);
+    await this.documentService.applyYDocUpdate(diff);
   }
 }

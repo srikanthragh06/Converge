@@ -5,6 +5,7 @@ import { registerProcessHandlers } from './utils/process.handlers';
 import { loadEnv } from './utils/env.loader';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { DatabaseService } from './db/database.service';
+import { DocumentService } from './document/document.service';
 
 // Load .env files before the NestJS app is created so process.env is fully
 // populated by the time any module or service constructor runs.
@@ -41,6 +42,9 @@ async function bootstrap() {
   const dbService = app.get(DatabaseService);
   await dbService.verifyDBConnection();
   await dbService.migrate();
+
+  const documentService = app.get(DocumentService);
+  await documentService.populateInMemoryYdoc();
 
   await app.listen(PORT);
 }
