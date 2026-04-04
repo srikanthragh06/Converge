@@ -111,7 +111,10 @@ export class RedisService {
       try {
         message = JSON.parse(raw) as Record<string, unknown>;
       } catch {
-        console.error(`Received malformed JSON on Redis channel "${channel}":`, raw);
+        console.error(
+          `Received malformed JSON on Redis channel "${channel}":`,
+          raw,
+        );
         return;
       }
       // Skip messages published by this server instance.

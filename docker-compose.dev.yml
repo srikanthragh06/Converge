@@ -20,5 +20,73 @@ services:
         ports:
             - "6379:6379"
 
+    server-1:
+        build:
+            context: .
+            dockerfile: apps/server/Dockerfile
+        ports:
+            - "5000:5000"
+        environment:
+            PORT: 5000
+            POSTGRES_DEV_HOST: postgres
+            REDIS_DEV_URL: redis://redis:6379
+        volumes:
+            # Mount source dirs for hot reload — node_modules stay in the image.
+            - ./apps/server/src:/app/apps/server/src
+            - ./packages/shared/src:/app/packages/shared/src
+        depends_on:
+            - postgres
+            - redis
+
+    server-2:
+        build:
+            context: .
+            dockerfile: apps/server/Dockerfile
+        ports:
+            - "5001:5001"
+        environment:
+            PORT: 5001
+            CLIENT_URL: http://localhost:5174
+            POSTGRES_DEV_HOST: postgres
+            REDIS_DEV_URL: redis://redis:6379
+        volumes:
+            - ./apps/server/src:/app/apps/server/src
+            - ./packages/shared/src:/app/packages/shared/src
+        depends_on:
+            - postgres
+            - redis
+
+    web-1:
+        build:
+            context: .
+            dockerfile: apps/web/Dockerfile
+        ports:
+            - "5173:5173"
+        environment:
+            PORT: 5173
+            # Points this web instance at server-1.
+            VITE_SERVER_URL: http://localhost:5000
+        volumes:
+            - ./apps/web/src:/app/apps/web/src
+            - ./packages/shared/src:/app/packages/shared/src
+        depends_on:
+            - server-1
+
+    web-2:
+        build:
+            context: .
+            dockerfile: apps/web/Dockerfile
+        ports:
+            - "5174:5174"
+        environment:
+            PORT: 5174
+            # Points this web instance at server-2.
+            VITE_SERVER_URL: http://localhost:5001
+        volumes:
+            - ./apps/web/src:/app/apps/web/src
+            - ./packages/shared/src:/app/packages/shared/src
+        depends_on:
+            - server-2
+
 volumes:
     postgres-data:

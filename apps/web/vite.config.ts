@@ -21,6 +21,8 @@ export default defineConfig({
         // host: true binds Vite to 0.0.0.0 so it's reachable from outside the
         // container when running via docker-compose. Safe to keep for local dev too.
         host: true,
-        port: 5173,
+        // PORT env var allows docker-compose to run multiple web instances on
+        // different ports without separate Dockerfiles. Falls back to 5173 locally.
+        port: process.env.PORT ? Number(process.env.PORT) : 5173,
     },
 });
