@@ -23,6 +23,7 @@
     "@nestjs/platform-socket.io": "^11.1.17",
     "@nestjs/websockets": "^11.1.17",
     "dotenv": "^17.3.1",
+    "ioredis": "^5.10.1",
     "kysely": "^0.28.15",
     "pg": "^8.20.0",
     "reflect-metadata": "^0.2.2",

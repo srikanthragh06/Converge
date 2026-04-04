@@ -6,6 +6,7 @@ import { loadEnv } from './utils/env.loader';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { DatabaseService } from './db/database.service';
 import { DocumentService } from './document/document.service';
+import { RedisService } from './redis/redis.service';
 
 // Load .env files before the NestJS app is created so process.env is fully
 // populated by the time any module or service constructor runs.
@@ -42,6 +43,11 @@ async function bootstrap() {
   const dbService = app.get(DatabaseService);
   await dbService.verifyDBConnection();
   await dbService.migrate();
+
+  // Verify Redis is reachable before accepting traffic. Retries with backoff;
+  // throws after MAX_RETRIES if the broker never responds.
+  const redisService = app.get(RedisService);
+  await redisService.verifyRedisConnection();
 
   const documentService = app.get(DocumentService);
   await documentService.populateInMemoryYdoc();

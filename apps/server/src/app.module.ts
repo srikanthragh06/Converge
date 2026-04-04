@@ -3,6 +3,7 @@ import { AppController } from './app.controller';
 import { ConfigModule } from '@nestjs/config';
 import { DocumentModule } from './document/document.module';
 import { DatabaseModule } from './db/database.module';
+import { RedisModule } from './redis/redis.module';
 
 // Root module — the entry point of the NestJS DI container.
 // All feature modules (DocumentModule, UserModule, etc.) get imported here.
@@ -19,6 +20,9 @@ import { DatabaseModule } from './db/database.module';
     // DatabaseModule wires up the Kysely/pg connection pool and exports
     // DatabaseService so any feature module can inject it without re-importing.
     DatabaseModule,
+    // RedisModule wires up the ioredis pub/sub clients and exports RedisService
+    // so any feature module can inject it without re-importing.
+    RedisModule,
   ],
   controllers: [AppController],
   providers: [],
