@@ -25,7 +25,10 @@ export class DocumentService {
       .execute();
 
     // Nothing to apply if the table is empty (fresh start).
-    if (rows.length === 0) return;
+    if (rows.length === 0) {
+      console.log('No persisted updates found, starting with empty doc');
+      return;
+    }
 
     const updates = rows.map((row) => new Uint8Array(row.update));
 
@@ -33,6 +36,7 @@ export class DocumentService {
     // than calling Y.applyUpdate in a loop.
     const mergedUpdate = Y.mergeUpdates(updates);
     Y.applyUpdate(this.yDoc, mergedUpdate);
+    console.log(`In-memory doc restored from ${rows.length} persisted updates`);
   }
 
   /**
