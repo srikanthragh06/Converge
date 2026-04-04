@@ -14,15 +14,15 @@ export class RedisService {
    */
   private readonly clientId: string = randomUUID();
 
-  /** Publishes Yjs updates to other server instances. */
-  public readonly pub: Redis;
+  /** Publishes messages to other server instances. */
+  private readonly pub: Redis;
 
   /**
-   * Subscribes to Yjs updates from other server instances.
+   * Listens for messages from other server instances.
    * A Redis connection in subscribe mode cannot issue regular commands,
    * so a separate client is required for publishing.
    */
-  public readonly sub: Redis;
+  private readonly sub: Redis;
 
   /** Maximum number of connection attempts before giving up. */
   private static readonly MAX_RETRIES = 10;
@@ -90,6 +90,33 @@ export class RedisService {
     const message = JSON.stringify({ clientId: this.clientId, ...data });
     this.pub.publish(channel, message).catch((err: unknown) => {
       console.error(`Failed to publish to Redis channel "${channel}":`, err);
+    });
+  }
+
+  /**
+   * Subscribes to a Redis channel and invokes the handler for each incoming
+   * message. Messages published by this server instance are automatically
+   * skipped to prevent echo loops.
+   * @param channel - the Redis pub/sub channel to subscribe to
+   * @param handler - called with the parsed message payload for each foreign message
+   */
+  async subscribe(
+    channel: string,
+    handler: (message: Record<string, unknown>) => void,
+  ): Promise<void> {
+    await this.sub.subscribe(channel);
+    this.sub.on('message', (msgChannel, raw) => {
+      if (msgChannel !== channel) return;
+      let message: Record<string, unknown>;
+      try {
+        message = JSON.parse(raw) as Record<string, unknown>;
+      } catch {
+        console.error(`Received malformed JSON on Redis channel "${channel}":`, raw);
+        return;
+      }
+      // Skip messages published by this server instance.
+      if (message.clientId === this.clientId) return;
+      handler(message);
     });
   }
 }
