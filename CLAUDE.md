@@ -34,3 +34,6 @@ This is a pnpm workspace monorepo.
 - Database migrations live in `apps/server/src/migrations/`, named `<number>_<purpose>.ts` (e.g. `0001_create_document_updates.ts`). Each file exports `up` and `down` functions.
 - `DatabaseService` is provided by `DatabaseModule`. Feature modules that need DB access must import `DatabaseModule` explicitly.
 - Kysely table types are defined in `apps/server/src/db/database.schema.ts`. Add new table interfaces there when adding migrations.
+- Redis channel name constants live in `apps/server/src/redis/redis.events.ts` (`REDIS_EVENTS`). Redis is server-only — do not put Redis constants or utilities in `packages/shared`.
+- `RedisService` is provided by `RedisModule`. Feature modules that need Redis access must import `RedisModule` explicitly.
+- Binary data (e.g. Yjs `Uint8Array`) must be base64-encoded before JSON serialisation. Use `uint8ArrayToBase64` / `base64ToUint8Array` from `apps/server/src/utils/utils.ts`.
