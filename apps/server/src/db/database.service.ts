@@ -2,8 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool, types } from 'pg';
 import { sleep } from '../utils/utils';
-import { Kysely, PostgresDialect } from 'kysely';
+import {
+  FileMigrationProvider,
+  Kysely,
+  Migrator,
+  PostgresDialect,
+} from 'kysely';
 import { DatabaseSchema } from './database.schema';
+import path from 'path';
+import { promises as fs } from 'fs';
 
 @Injectable()
 export class DatabaseService {
@@ -81,5 +88,40 @@ export class DatabaseService {
         }
       }
     }
+  }
+
+  /**
+   * Runs all pending migrations to latest using Kysely's Migrator.
+   * Logs the result of each individual migration file and throws if any
+   * migration fails, so a broken schema change prevents the app from starting.
+   */
+  async migrate(): Promise<void> {
+    const migrator = new Migrator({
+      db: this.kysely,
+      provider: new FileMigrationProvider({
+        fs,
+        path,
+        // Absolute path to the migrations directory — works for both
+        // ts-node/tsx (dev) and compiled JS (prod) because __dirname
+        // resolves relative to this file in both cases.
+        migrationFolder: path.join(__dirname, '../migrations'),
+      }),
+    });
+
+    const { error, results } = await migrator.migrateToLatest();
+
+    for (const result of results ?? []) {
+      if (result.status === 'Success') {
+        console.log(`Migration "${result.migrationName}" applied successfully`);
+      } else if (result.status === 'Error') {
+        console.error(`Migration "${result.migrationName}" failed`);
+      }
+    }
+
+    if (error) {
+      throw new Error(`Migration failed: ${String(error)}`);
+    }
+
+    console.log('All migrations complete');
   }
 }

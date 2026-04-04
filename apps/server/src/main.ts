@@ -36,9 +36,11 @@ async function bootstrap() {
   }
 
   // Verify the database is reachable before accepting traffic. Retries with
-  // backoff; throws after MAX_RETRIES if Postgres never responds.
+  // backoff; throws after MAX_RETRIES if Postgres never responds. Then run
+  // pending migrations so the schema is always up to date before requests land.
   const dbService = app.get(DatabaseService);
   await dbService.verifyDBConnection();
+  await dbService.migrate();
 
   await app.listen(PORT);
 }
