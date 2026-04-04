@@ -1,11 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'node:crypto';
 import Redis from 'ioredis';
 import { sleep } from '../utils/utils';
 
 /** Manages the two ioredis connections used for pub/sub messaging. */
 @Injectable()
 export class RedisService {
+  /**
+   * Unique identifier for this server instance, generated once at startup.
+   * Included in every published message so subscribers can detect and skip
+   * their own echoed messages.
+   */
+  private readonly clientId: string = randomUUID();
+
   /** Publishes Yjs updates to other server instances. */
   public readonly pub: Redis;
 
@@ -68,5 +76,20 @@ export class RedisService {
         }
       }
     }
+  }
+
+  /**
+   * Publishes a message to the given channel, automatically attaching this
+   * server's clientId so subscribers can skip their own echoed messages.
+   * Errors are logged but not re-thrown — a publish failure should not
+   * affect the client that triggered the update.
+   * @param channel - the Redis pub/sub channel to publish to
+   * @param data - the payload to include alongside the clientId
+   */
+  publish(channel: string, data: Record<string, unknown>): void {
+    const message = JSON.stringify({ clientId: this.clientId, ...data });
+    this.pub.publish(channel, message).catch((err: unknown) => {
+      console.error(`Failed to publish to Redis channel "${channel}":`, err);
+    });
   }
 }

@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import * as Y from 'yjs';
 import { mapsAreEqual } from '@converge/shared';
+import { REDIS_EVENTS } from '../redis/redis.events';
 import { DatabaseService } from '../db/database.service';
+import { RedisService } from '../redis/redis.service';
+import { uint8ArrayToBase64 } from '../utils/utils';
 
 @Injectable()
 export class DocumentService {
@@ -9,7 +12,10 @@ export class DocumentService {
   // per-document persistence is introduced.
   private readonly yDoc = new Y.Doc();
 
-  constructor(private readonly dbService: DatabaseService) {}
+  constructor(
+    private readonly dbService: DatabaseService,
+    private readonly redisService: RedisService,
+  ) {}
 
   /**
    * Loads all persisted Yjs updates from the database and applies them to the
@@ -61,6 +67,13 @@ export class DocumentService {
       .execute();
 
     Y.applyUpdate(this.yDoc, update);
+
+    // Publish to other server instances via Redis pub/sub so their in-memory
+    // docs stay in sync. The update is base64-encoded because Uint8Array does
+    // not survive JSON.stringify.
+    this.redisService.publish(REDIS_EVENTS.documentUpdate, {
+      updateBase64: uint8ArrayToBase64(update),
+    });
 
     // return the update unchanged alongside the new server state vector
     return { update, serverSV: Y.encodeStateVector(this.yDoc) };
