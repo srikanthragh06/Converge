@@ -45,14 +45,18 @@ export class DocumentService {
     update: Uint8Array;
     serverSV: Uint8Array;
   }> {
-    // merge the client's update into the server-side shared doc
-    Y.applyUpdate(this.yDoc, update);
-
+    // Persist before applying to memory. If the insert fails, the in-memory doc
+    // simply misses this update — the repair sync protocol will eventually
+    // reconcile the divergence. The reverse (apply then failed insert) is worse:
+    // the update would exist in memory but never be persisted, so it would be
+    // permanently lost on restart.
     const db = this.dbService.kysely;
     await db
       .insertInto('document_updates')
       .values({ update: Buffer.from(update) })
       .execute();
+
+    Y.applyUpdate(this.yDoc, update);
 
     // return the update unchanged alongside the new server state vector
     return { update, serverSV: Y.encodeStateVector(this.yDoc) };
