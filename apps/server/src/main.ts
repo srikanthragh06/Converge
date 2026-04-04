@@ -4,7 +4,10 @@ import { GlobalExceptionFilter } from './utils/global-exception.filter';
 import { registerProcessHandlers } from './utils/process.handlers';
 import { loadEnv } from './utils/env.loader';
 import { IoAdapter } from '@nestjs/platform-socket.io';
+import { DatabaseService } from './db/database.service';
 
+// Load .env files before the NestJS app is created so process.env is fully
+// populated by the time any module or service constructor runs.
 loadEnv();
 
 // Register process-level error handlers before anything else starts.
@@ -31,6 +34,11 @@ async function bootstrap() {
   if (PORT === undefined) {
     throw new Error('PORT is not defined. Check your .env file.');
   }
+
+  // Verify the database is reachable before accepting traffic. Retries with
+  // backoff; throws after MAX_RETRIES if Postgres never responds.
+  const dbService = app.get(DatabaseService);
+  await dbService.verifyDBConnection();
 
   await app.listen(PORT);
 }
