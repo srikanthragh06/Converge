@@ -31,3 +31,6 @@ This is a pnpm workspace monorepo.
 - Socket event names are defined as constants in `@converge/shared/socket/events` (`SOCKET_EVENTS`). Never hardcode event name strings in `apps/`.
 - Socket event payload types and Zod schemas live in `@converge/shared/socket`. Add new schemas there when adding new events.
 - All code shared between `apps/web` and `apps/server` belongs in `packages/shared`, not in either app.
+- Database migrations live in `apps/server/src/migrations/`, named `<number>_<purpose>.ts` (e.g. `0001_create_document_updates.ts`). Each file exports `up` and `down` functions.
+- `DatabaseService` is provided by `DatabaseModule`. Feature modules that need DB access must import `DatabaseModule` explicitly.
+- Kysely table types are defined in `apps/server/src/db/database.schema.ts`. Add new table interfaces there when adding migrations.
