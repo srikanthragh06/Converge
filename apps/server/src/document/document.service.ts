@@ -80,6 +80,19 @@ export class DocumentService {
   }
 
   /**
+   * Applies a Yjs update directly to the in-memory doc without persisting to
+   * the database or publishing to Redis. Used when receiving updates from other
+   * server instances via Redis pub/sub — persistence and publishing were already
+   * handled by the originating server.
+   * @param update - encoded Yjs update bytes
+   * @returns the server state vector after the update
+   */
+  applyUpdateToMemory(update: Uint8Array): Uint8Array {
+    Y.applyUpdate(this.yDoc, update);
+    return Y.encodeStateVector(this.yDoc);
+  }
+
+  /**
    * Returns true if the client's state vector matches the server's,
    * indicating the two documents are fully in sync.
    * @param clientSV - the client's encoded state vector

@@ -5,7 +5,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { UseFilters } from '@nestjs/common';
+import { OnApplicationBootstrap, UseFilters } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { DocumentService } from './document.service';
 import { ZodValidationPipe } from '../pipes/zod-validation.pipe';
@@ -29,6 +29,9 @@ import {
 } from '@converge/shared';
 import { GlobalExceptionFilter } from '../utils/global-exception.filter';
 import { socketBroadcast, socketEmit } from '../utils/ws-emit.util';
+import { RedisService } from '../redis/redis.service';
+import { REDIS_EVENTS } from '../redis/redis.events';
+import { base64ToUint8Array } from '../utils/utils';
 
 // Handles all document-related WebSocket events.
 // cors origin is a function so process.env.CLIENT_URL is read at connection time, not at startup.
@@ -38,11 +41,39 @@ import { socketBroadcast, socketEmit } from '../utils/ws-emit.util';
 @WebSocketGateway({
   cors: { origin: (_req, cb) => cb(null, process.env.CLIENT_URL) },
 })
-export class DocumentGateway {
+export class DocumentGateway implements OnApplicationBootstrap {
   @WebSocketServer()
   socketServer!: Server; // the Socket.io server instance, injected by the NestJS WebSocket adapter
 
-  constructor(private readonly documentService: DocumentService) {}
+  constructor(
+    private readonly documentService: DocumentService,
+    private readonly redisService: RedisService,
+  ) {}
+
+  /**
+   * Subscribes to the Redis document update channel once the app is fully
+   * initialised. Applies incoming updates to the in-memory doc and broadcasts
+   * them to all locally connected clients so they stay in sync with edits
+   * made on other server instances.
+   */
+  async onApplicationBootstrap(): Promise<void> {
+    await this.redisService.subscribe(
+      REDIS_EVENTS.documentUpdate,
+      (message) => {
+        const update = base64ToUint8Array(message.updateBase64 as string);
+        const serverSV = this.documentService.applyUpdateToMemory(update);
+        socketEmit(
+          this.socketServer,
+          SOCKET_EVENTS.SYNC_DOC_CLIENT,
+          SyncDocClientSchema,
+          {
+            updateArray: Array.from(update),
+            serverSVArray: Array.from(serverSV),
+          },
+        );
+      },
+    );
+  }
 
   /**
    * Responds to a client ping by echoing the pingId back so the client
