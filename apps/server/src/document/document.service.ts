@@ -7,14 +7,14 @@ import { RedisService } from '../redis/redis.service';
 import { uint8ArrayToBase64 } from '../utils/utils';
 import { sql } from 'kysely';
 
-/** Number of updates since the last compaction that triggers a new compaction. */
-const COMPACTION_THRESHOLD = 50;
-
 @Injectable()
 export class DocumentService {
   // Single in-memory Y.Doc shared across all clients. Temporary until
   // per-document persistence is introduced.
   private readonly yDoc = new Y.Doc();
+
+  /** Number of updates since the last compaction that triggers a new compaction. */
+  private readonly COMPACTION_THRESHOLD = 50;
 
   constructor(
     private readonly dbService: DatabaseService,
@@ -97,7 +97,7 @@ export class DocumentService {
           update_count: updateCount,
           last_compact_count: lastCompactCount,
         } = updatedRows[0];
-        if (updateCount >= lastCompactCount + COMPACTION_THRESHOLD) {
+        if (updateCount >= lastCompactCount + this.COMPACTION_THRESHOLD) {
           compactionRequired = true;
         }
       }
@@ -194,7 +194,7 @@ export class DocumentService {
           last_compact_count: lastCompactCount,
         } = row;
 
-        if (updateCount < lastCompactCount + COMPACTION_THRESHOLD) return;
+        if (updateCount < lastCompactCount + this.COMPACTION_THRESHOLD) return;
 
         const maxUpdateIdRow = await tx
           .selectFrom('document_updates')
