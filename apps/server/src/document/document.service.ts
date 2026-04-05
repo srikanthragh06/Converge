@@ -7,6 +7,9 @@ import { RedisService } from '../redis/redis.service';
 import { uint8ArrayToBase64 } from '../utils/utils';
 import { sql } from 'kysely';
 
+/** Number of updates since the last compaction that triggers a new compaction. */
+const COMPACTION_THRESHOLD = 50;
+
 @Injectable()
 export class DocumentService {
   // Single in-memory Y.Doc shared across all clients. Temporary until
@@ -63,6 +66,8 @@ export class DocumentService {
     // permanently lost on restart.
     const db = this.dbService.kysely;
 
+    let compactionRequired = false;
+
     await db.transaction().execute(async (tx) => {
       // Append the raw Yjs update bytes to the persistent update log.
       await tx
@@ -81,14 +86,28 @@ export class DocumentService {
       }
 
       // Increment update_count so the compaction logic can detect when the threshold is crossed.
-      await tx
+      const updatedRows = await tx
         .updateTable('documents')
         .set({ update_count: sql`update_count + 1` })
+        .returning(['update_count', 'last_compact_count'])
         .execute();
+
+      if (updatedRows.length > 0) {
+        const {
+          update_count: updateCount,
+          last_compact_count: lastCompactCount,
+        } = updatedRows[0];
+        if (updateCount >= lastCompactCount + COMPACTION_THRESHOLD) {
+          compactionRequired = true;
+        }
+      }
     });
 
     // apply the update locally
     Y.applyUpdate(this.yDoc, update);
+
+    // Fire-and-forget compaction check — not awaited so it does not block the write path.
+    if (compactionRequired) this.compactUpdatesIfRequired();
 
     // Publish to other server instances via Redis pub/sub so their in-memory
     // docs stay in sync. The update is base64-encoded because Uint8Array does
@@ -143,5 +162,92 @@ export class DocumentService {
     // snapshot the server SV so the client can detect any remaining gaps
     const serverSV = Y.encodeStateVector(this.yDoc);
     return { diff, serverSV };
+  }
+
+  /**
+   * Compacts persisted Yjs updates into a single merged blob if the number of
+   * updates since the last compaction has crossed the threshold. All updates up
+   * to the current max id are merged and replaced atomically within a
+   * transaction, so any updates written concurrently are unaffected.
+   * Errors are caught internally — a failed compaction is non-fatal and will be
+   * retried the next time the threshold is crossed.
+   */
+  async compactUpdatesIfRequired(): Promise<void> {
+    try {
+      const db = this.dbService.kysely;
+
+      await db.transaction().execute(async (tx) => {
+        const row = await tx
+          .selectFrom('documents')
+          .select(['update_count', 'last_compact_count'])
+          .executeTakeFirst();
+
+        if (row === undefined) {
+          console.log(
+            'compactUpdatesIfRequired: no documents row found, skipping compaction',
+          );
+          return;
+        }
+
+        const {
+          update_count: updateCount,
+          last_compact_count: lastCompactCount,
+        } = row;
+
+        if (updateCount < lastCompactCount + COMPACTION_THRESHOLD) return;
+
+        const maxUpdateIdRow = await tx
+          .selectFrom('document_updates')
+          .select(sql<string | null>`max(id)`.as('maxUpdateId'))
+          .executeTakeFirst();
+
+        if (
+          maxUpdateIdRow === undefined ||
+          maxUpdateIdRow.maxUpdateId === null
+        ) {
+          console.log(
+            'compactUpdatesIfRequired: no updates found, skipping compaction',
+          );
+          return;
+        }
+
+        const maxId = BigInt(maxUpdateIdRow.maxUpdateId);
+
+        // Fetch all updates up to and including maxId in insertion order.
+        const updateRows = await tx
+          .selectFrom('document_updates')
+          .select('update')
+          .where('id', '<=', maxId)
+          .orderBy('id', 'asc')
+          .execute();
+
+        // Merge into a single Yjs update blob.
+        const merged = Y.mergeUpdates(
+          updateRows.map((r) => new Uint8Array(r.update)),
+        );
+
+        // Insert the merged blob before deleting the originals — if the insert
+        // fails the originals are still intact and no data is lost.
+        await tx
+          .insertInto('document_updates')
+          .values({ update: Buffer.from(merged) })
+          .execute();
+
+        // Remove all individual updates that were folded into the merged blob.
+        await tx
+          .deleteFrom('document_updates')
+          .where('id', '<=', maxId)
+          .execute();
+
+        // Record the update_count at the time of compaction so the threshold
+        // check is relative to the next batch of updates, not the total count.
+        await tx
+          .updateTable('documents')
+          .set({ last_compact_count: updateCount })
+          .execute();
+      });
+    } catch (err) {
+      console.error('compactUpdatesIfRequired: compaction failed:', err);
+    }
   }
 }
