@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as Y from 'yjs';
 import { mapsAreEqual } from '@converge/shared';
-import { REDIS_EVENTS } from '../redis/redis.events';
+import { REDIS_EVENTS, REDIS_LOCKS } from '../redis/redis.events';
 import { DatabaseService } from '../db/database.service';
 import { RedisService } from '../redis/redis.service';
 import { uint8ArrayToBase64 } from '../utils/utils';
@@ -15,6 +15,9 @@ export class DocumentService {
 
   /** Number of updates since the last compaction that triggers a new compaction. */
   private readonly COMPACTION_THRESHOLD = 50;
+
+  /** TTL for the distributed compaction lock in milliseconds. */
+  private readonly COMPACTION_LOCK_TTL_MS = 60 * 60 * 1000;
 
   constructor(
     private readonly dbService: DatabaseService,
@@ -173,7 +176,20 @@ export class DocumentService {
    * retried the next time the threshold is crossed.
    */
   async compactUpdatesIfRequired(): Promise<void> {
+    let lockAcquired = false;
     try {
+      lockAcquired = await this.redisService.acquireLock(
+        REDIS_LOCKS.compaction,
+        this.COMPACTION_LOCK_TTL_MS,
+      );
+
+      if (!lockAcquired) {
+        console.log(
+          'compactUpdatesIfRequired: lock already held by another server, skipping',
+        );
+        return;
+      }
+
       const db = this.dbService.kysely;
 
       await db.transaction().execute(async (tx) => {
@@ -248,6 +264,9 @@ export class DocumentService {
       });
     } catch (err) {
       console.error('compactUpdatesIfRequired: compaction failed:', err);
+    } finally {
+      if (lockAcquired)
+        await this.redisService.releaseLock(REDIS_LOCKS.compaction);
     }
   }
 }

@@ -100,6 +100,29 @@ export class RedisService {
    * @param channel - the Redis pub/sub channel to subscribe to
    * @param handler - called with the parsed message payload for each foreign message
    */
+  /**
+   * Attempts to acquire a distributed lock by setting a Redis key with NX and
+   * a TTL. Returns true if the lock was acquired, false if another server
+   * already holds it. The TTL is a safety net — the lock should always be
+   * released explicitly via releaseLock, but will expire automatically if the
+   * holder crashes before releasing.
+   * @param key - the Redis key to use as the lock
+   * @param ttlMs - how long the lock can be held before it expires automatically
+   * @returns true if the lock was acquired, false if it is already held
+   */
+  async acquireLock(key: string, ttlMs: number): Promise<boolean> {
+    const result = await this.pub.set(key, '1', 'PX', ttlMs, 'NX');
+    return result === 'OK';
+  }
+
+  /**
+   * Releases a distributed lock by deleting its Redis key.
+   * @param key - the Redis key used as the lock
+   */
+  async releaseLock(key: string): Promise<void> {
+    await this.pub.del(key);
+  }
+
   async subscribe(
     channel: string,
     handler: (message: Record<string, unknown>) => void,
