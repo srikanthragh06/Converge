@@ -136,7 +136,4 @@
 - `applyYDocUpdate` renamed to `applyDocUpdate` and `applyUpdateToMemory` renamed to `applyDocUpdateToMemory` in `DocumentService` for naming consistency
 - Confirmed `RedisService.publish()` already handles its own errors internally; confirmed `verifyRedisConnection` and `populateInMemoryYdoc` are intentional crash-on-failure startup paths
 
-### Tooling
-- `review-and-commit` skill updated with an explicit async error handling checklist item: callbacks, event listeners, and fire-and-forget calls outside the NestJS pipeline must have their own try-catch or `.catch()`
-
 ## Upcoming
