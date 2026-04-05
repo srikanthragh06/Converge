@@ -5,6 +5,7 @@ import { REDIS_EVENTS } from '../redis/redis.events';
 import { DatabaseService } from '../db/database.service';
 import { RedisService } from '../redis/redis.service';
 import { uint8ArrayToBase64 } from '../utils/utils';
+import { sql } from 'kysely';
 
 @Injectable()
 export class DocumentService {
@@ -61,11 +62,31 @@ export class DocumentService {
     // the update would exist in memory but never be persisted, so it would be
     // permanently lost on restart.
     const db = this.dbService.kysely;
-    await db
-      .insertInto('document_updates')
-      .values({ update: Buffer.from(update) })
-      .execute();
 
+    await db.transaction().execute(async (tx) => {
+      // Append the raw Yjs update bytes to the persistent update log.
+      await tx
+        .insertInto('document_updates')
+        .values({ update: Buffer.from(update) })
+        .execute();
+
+      // If the documents row does not exist yet, seed it with default values.
+      const row = await tx
+        .selectFrom('documents')
+        .select('id')
+        .executeTakeFirst();
+      if (row === undefined) {
+        await tx.insertInto('documents').defaultValues().execute();
+      }
+
+      // Increment update_count so the compaction logic can detect when the threshold is crossed.
+      await tx
+        .updateTable('documents')
+        .set({ update_count: sql`update_count + 1` })
+        .execute();
+    });
+
+    // apply the update locally
     Y.applyUpdate(this.yDoc, update);
 
     // Publish to other server instances via Redis pub/sub so their in-memory
