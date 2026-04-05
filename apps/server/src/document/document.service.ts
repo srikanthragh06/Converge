@@ -14,7 +14,7 @@ export class DocumentService {
   private readonly yDoc = new Y.Doc();
 
   /** Number of updates since the last compaction that triggers a new compaction. */
-  private readonly COMPACTION_THRESHOLD = 50;
+  private readonly COMPACTION_THRESHOLD = 5000;
 
   /** TTL for the distributed compaction lock in milliseconds. */
   private readonly COMPACTION_LOCK_TTL_MS = 60 * 60 * 1000;
