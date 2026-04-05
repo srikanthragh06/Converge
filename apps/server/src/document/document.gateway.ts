@@ -60,17 +60,21 @@ export class DocumentGateway implements OnApplicationBootstrap {
     await this.redisService.subscribe(
       REDIS_EVENTS.documentUpdate,
       (message) => {
-        const update = base64ToUint8Array(message.updateBase64 as string);
-        const serverSV = this.documentService.applyUpdateToMemory(update);
-        socketEmit(
-          this.socketServer,
-          SOCKET_EVENTS.SYNC_DOC_CLIENT,
-          SyncDocClientSchema,
-          {
-            updateArray: Array.from(update),
-            serverSVArray: Array.from(serverSV),
-          },
-        );
+        try {
+          const update = base64ToUint8Array(message.updateBase64 as string);
+          const serverSV = this.documentService.applyDocUpdateToMemory(update);
+          socketEmit(
+            this.socketServer,
+            SOCKET_EVENTS.SYNC_DOC_CLIENT,
+            SyncDocClientSchema,
+            {
+              updateArray: Array.from(update),
+              serverSVArray: Array.from(serverSV),
+            },
+          );
+        } catch (err) {
+          console.error('Failed to process Redis document update:', err);
+        }
       },
     );
   }
@@ -107,7 +111,7 @@ export class DocumentGateway implements OnApplicationBootstrap {
     const clientSV = new Uint8Array(clientSVArray);
 
     // apply the update to the shared doc and get the new server state vector
-    const { serverSV } = await this.documentService.applyYDocUpdate(update);
+    const { serverSV } = await this.documentService.applyDocUpdate(update);
 
     const serverSVArray = Array.from(serverSV);
     socketBroadcast(
@@ -179,7 +183,7 @@ export class DocumentGateway implements OnApplicationBootstrap {
     const clientSV = new Uint8Array(clientSVArray);
 
     // apply the diff
-    await this.documentService.applyYDocUpdate(diff);
+    await this.documentService.applyDocUpdate(diff);
 
     // calculate the remaining diff the client is still missing
     const { diff: diffForClient } =
@@ -206,6 +210,6 @@ export class DocumentGateway implements OnApplicationBootstrap {
   ) {
     const diff = new Uint8Array(diffArray);
     // convert and apply the final diff to bring the server doc fully up to date
-    await this.documentService.applyYDocUpdate(diff);
+    await this.documentService.applyDocUpdate(diff);
   }
 }

@@ -51,7 +51,7 @@ export class DocumentService {
    * @param update - encoded Yjs update bytes from the client
    * @returns the applied update and the server state vector after the update
    */
-  async applyYDocUpdate(update: Uint8Array): Promise<{
+  async applyDocUpdate(update: Uint8Array): Promise<{
     update: Uint8Array;
     serverSV: Uint8Array;
   }> {
@@ -87,7 +87,7 @@ export class DocumentService {
    * @param update - encoded Yjs update bytes
    * @returns the server state vector after the update
    */
-  applyUpdateToMemory(update: Uint8Array): Uint8Array {
+  applyDocUpdateToMemory(update: Uint8Array): Uint8Array {
     Y.applyUpdate(this.yDoc, update);
     return Y.encodeStateVector(this.yDoc);
   }
