@@ -71,6 +71,7 @@ export class DocumentService {
         .execute();
 
       // If the documents row does not exist yet, seed it with default values.
+      // Temporary — will be removed once multi-document support is introduced.
       const row = await tx
         .selectFrom('documents')
         .select('id')
