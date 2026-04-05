@@ -107,7 +107,7 @@
 
 ## v0.06 — Multi-Server Yjs Sync ✅
 
-> Branch: `multi-server-v0.05`
+> Branch: `multi-server-v0.06`
 
 ### Server (NestJS backend)
 - `RedisService` added — manages two ioredis connections: `pub` for publishing and `sub` for subscribing (Redis subscribe mode prevents regular commands on the same connection)
@@ -125,5 +125,18 @@
 - `docker-compose.dev.yml` now spins up two server instances (`server-1` on port 5000, `server-2` on port 5001) and two web instances (`web-1` on port 5173, `web-2` on port 5174) for end-to-end multi-server testing
 - `apps/server/Dockerfile` and `apps/web/Dockerfile` added — build context is the monorepo root; `packages/shared` is built once during image build then kept up to date via `build:watch` at runtime
 - Vite dev server port made configurable via `PORT` env var so multiple web instances can run on different ports from the same image
+
+## v0.065 — Server Error Handling ✅
+
+> Branch: `error-handling-v0.065`
+
+### Server (NestJS backend)
+- Audited all server code for async errors that bypass `GlobalExceptionFilter` — the filter only covers the NestJS HTTP/WebSocket pipeline; callbacks and fire-and-forget calls outside it are not protected
+- Redis subscriber callback in `DocumentGateway.onApplicationBootstrap` wrapped in try-catch with `console.error` logging — an unhandled throw there would crash the process since it runs outside the pipeline
+- `applyYDocUpdate` renamed to `applyDocUpdate` and `applyUpdateToMemory` renamed to `applyDocUpdateToMemory` in `DocumentService` for naming consistency
+- Confirmed `RedisService.publish()` already handles its own errors internally; confirmed `verifyRedisConnection` and `populateInMemoryYdoc` are intentional crash-on-failure startup paths
+
+### Tooling
+- `review-and-commit` skill updated with an explicit async error handling checklist item: callbacks, event listeners, and fire-and-forget calls outside the NestJS pipeline must have their own try-catch or `.catch()`
 
 ## Upcoming

@@ -37,3 +37,4 @@ This is a pnpm workspace monorepo.
 - Redis channel name constants live in `apps/server/src/redis/redis.events.ts` (`REDIS_EVENTS`). Redis is server-only — do not put Redis constants or utilities in `packages/shared`.
 - `RedisService` is provided by `RedisModule`. Feature modules that need Redis access must import `RedisModule` explicitly.
 - Binary data (e.g. Yjs `Uint8Array`) must be base64-encoded before JSON serialisation. Use `uint8ArrayToBase64` / `base64ToUint8Array` from `apps/server/src/utils/utils.ts`.
+- Async code outside the NestJS pipeline (Redis pub/sub callbacks, `setTimeout`/`setInterval`, `EventEmitter` listeners, fire-and-forget calls) must have its own try-catch or `.catch()`. `GlobalExceptionFilter` only covers `@SubscribeMessage` and HTTP handlers — unhandled errors elsewhere crash the process.
