@@ -62,7 +62,8 @@ export class DocumentGateway implements OnApplicationBootstrap {
       (message) => {
         try {
           const update = base64ToUint8Array(message.updateBase64 as string);
-          const serverSV = this.documentService.applyDocUpdateToMemory(update);
+          const serverSV =
+            this.documentService.applyDocUpdateOnlyToLocalMemory(update);
           socketEmit(
             this.socketServer,
             SOCKET_EVENTS.SYNC_DOC_CLIENT,

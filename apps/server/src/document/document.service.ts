@@ -87,7 +87,7 @@ export class DocumentService {
    * @param update - encoded Yjs update bytes
    * @returns the server state vector after the update
    */
-  applyDocUpdateToMemory(update: Uint8Array): Uint8Array {
+  applyDocUpdateOnlyToLocalMemory(update: Uint8Array): Uint8Array {
     Y.applyUpdate(this.yDoc, update);
     return Y.encodeStateVector(this.yDoc);
   }
