@@ -136,4 +136,17 @@
 - `applyYDocUpdate` renamed to `applyDocUpdate` and `applyUpdateToMemory` renamed to `applyDocUpdateToMemory` in `DocumentService` for naming consistency
 - Confirmed `RedisService.publish()` already handles its own errors internally; confirmed `verifyRedisConnection` and `populateInMemoryYdoc` are intentional crash-on-failure startup paths
 
+## v0.07 — Yjs Update Compaction ✅
+
+> Branch: `update-compaction-v0.07`
+
+### Server (NestJS backend)
+- `documents` table added (migration `0002_create_documents`) — tracks `update_count` and `last_compact_count` per document to drive threshold-based compaction without a full table scan
+- `applyDocUpdate` now runs inside a DB transaction that atomically appends the update and increments `update_count`, keeping the counter in sync with persisted updates
+- `compactUpdatesIfRequired` added to `DocumentService` — merges all `document_updates` rows up to the current max id into a single Yjs blob and replaces them atomically; triggered fire-and-forget after each write when `update_count >= last_compact_count + COMPACTION_THRESHOLD`
+- Compaction threshold (`COMPACTION_THRESHOLD = 5000`) and lock TTL (`COMPACTION_LOCK_TTL_MS = 1 hour`) extracted as private class constants
+- `acquireLock` and `releaseLock` added to `RedisService` using `SET NX PX` and `DEL` — used by compaction to ensure only one server instance compacts at a time
+- `REDIS_LOCKS` constants added to `redis.events.ts` alongside `REDIS_EVENTS`
+- `applyDocUpdateToMemory` renamed to `applyDocUpdateOnlyToLocalMemory` for clarity — makes explicit that the method only touches this server's in-memory doc
+
 ## Upcoming
