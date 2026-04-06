@@ -1,6 +1,8 @@
 import { Route, Routes } from "react-router-dom";
 import EditorPage from "./pages/editor/EditorPage";
 import useSocket from "./hooks/useSocket";
+import AuthPage from "./pages/auth/AuthPage";
+import NotFoundPage from "./pages/not-found/NotFoundPage";
 
 /**
  * Root application component. Initialises the socket connection and
@@ -13,6 +15,8 @@ function App() {
         <div className="bg-background-base text-text-primary">
             <Routes>
                 <Route path="/" element={<EditorPage />} />
+                <Route path="/auth" element={<AuthPage />} />
+                <Route path="*" element={<NotFoundPage />} />
             </Routes>
         </div>
     );
