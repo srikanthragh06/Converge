@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { DocumentModule } from './document/document.module';
 import { DatabaseModule } from './db/database.module';
 import { RedisModule } from './redis/redis.module';
+import { AuthModule } from './auth/auth.module';
 
 // Root module — the entry point of the NestJS DI container.
 // All feature modules (DocumentModule, UserModule, etc.) get imported here.
@@ -23,6 +24,7 @@ import { RedisModule } from './redis/redis.module';
     // RedisModule wires up the ioredis pub/sub clients and exports RedisService
     // so any feature module can inject it without re-importing.
     RedisModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [],

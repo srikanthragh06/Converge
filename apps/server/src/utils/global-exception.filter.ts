@@ -2,10 +2,11 @@ import {
   ArgumentsHost,
   Catch,
   ExceptionFilter,
+  HttpException,
   HttpStatus,
 } from '@nestjs/common';
 import { Socket } from 'socket.io';
-import { httpInternalServerError } from './http-response.util';
+import { httpFail, httpInternalServerError } from './http-response.util';
 import { WsException } from '@nestjs/websockets';
 import { INTERNAL_SERVER_ERROR_MESSAGE } from '@converge/shared';
 
@@ -25,6 +26,14 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     // Handle each transport context separately — the response mechanism differs per type.
     if (host.getType() === 'http') {
       const response = host.switchToHttp().getResponse();
+
+      if (exception instanceof HttpException) {
+        // Known HTTP exception — use its status code and message directly.
+        response
+          .status(exception.getStatus())
+          .json(httpFail(exception.message));
+        return;
+      }
 
       response
         .status(HttpStatus.INTERNAL_SERVER_ERROR)

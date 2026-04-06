@@ -19,7 +19,6 @@ const AuthPage = () => {
             response_type: "code",
             access_type: "offline",
             scope: "openid email profile",
-            prompt: "consent",
             state,
         });
 
