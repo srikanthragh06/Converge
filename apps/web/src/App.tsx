@@ -3,6 +3,7 @@ import EditorPage from "./pages/editor/EditorPage";
 import useSocket from "./hooks/useSocket";
 import AuthPage from "./pages/auth/AuthPage";
 import NotFoundPage from "./pages/not-found/NotFoundPage";
+import AuthCallbackPage from "./pages/authCallback/AuthCallback";
 
 /**
  * Root application component. Initialises the socket connection and
@@ -16,6 +17,7 @@ function App() {
             <Routes>
                 <Route path="/" element={<EditorPage />} />
                 <Route path="/auth" element={<AuthPage />} />
+                <Route path="/auth/callback" element={<AuthCallbackPage />} />
                 <Route path="*" element={<NotFoundPage />} />
             </Routes>
         </div>
