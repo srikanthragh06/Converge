@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import apiClient from "../lib/http";
+import type { GoogleAuthDto } from "@converge/shared";
 
 const useGoogleAuthCallback = () => {
     const navigate = useNavigate();
@@ -42,7 +43,7 @@ const useGoogleAuthCallback = () => {
 
                 await apiClient.post("/auth/google", {
                     code,
-                });
+                } satisfies GoogleAuthDto);
 
                 setAuthStatus("SUCCESSFUL");
             } catch (err) {
