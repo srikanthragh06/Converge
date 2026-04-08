@@ -26,7 +26,8 @@ async function bootstrap() {
 
   // Restrict CORS to the known client origin so browsers block cross-origin
   // requests from untrusted domains.
-  app.enableCors({ origin: [process.env.CLIENT_URL] });
+  // credentials: true is required for the browser to accept Set-Cookie on cross-origin responses.
+  app.enableCors({ origin: [process.env.CLIENT_URL], credentials: true });
 
   // Attach Socket.io to the same HTTP server so WebSocket and REST share one port.
   app.useWebSocketAdapter(new IoAdapter(app));
