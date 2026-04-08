@@ -35,6 +35,8 @@ services:
             # Mount source dirs for hot reload — node_modules stay in the image.
             - ./apps/server/src:/app/apps/server/src
             - ./packages/shared/src:/app/packages/shared/src
+            # Mount shared dist so local TypeScript tooling picks up compiled output.
+            - ./packages/shared/dist:/app/packages/shared/dist
         depends_on:
             - postgres
             - redis
@@ -53,6 +55,7 @@ services:
         volumes:
             - ./apps/server/src:/app/apps/server/src
             - ./packages/shared/src:/app/packages/shared/src
+            - ./packages/shared/dist:/app/packages/shared/dist
         depends_on:
             - postgres
             - redis
@@ -70,6 +73,7 @@ services:
         volumes:
             - ./apps/web/src:/app/apps/web/src
             - ./packages/shared/src:/app/packages/shared/src
+            - ./packages/shared/dist:/app/packages/shared/dist
         depends_on:
             - server-1
 
@@ -86,6 +90,7 @@ services:
         volumes:
             - ./apps/web/src:/app/apps/web/src
             - ./packages/shared/src:/app/packages/shared/src
+            - ./packages/shared/dist:/app/packages/shared/dist
         depends_on:
             - server-2
 
