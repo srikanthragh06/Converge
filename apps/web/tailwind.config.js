@@ -3,6 +3,9 @@ export default {
     content: ["./index.html", "./src/**/*.{ts,tsx}"],
     theme: {
         extend: {
+            fontFamily: {
+                montserrat: ["'Montserrat'", "sans-serif"],
+            },
             // Mirror src/theme/colors.ts so the same palette is available as Tailwind classes.
             colors: {
                 background: {

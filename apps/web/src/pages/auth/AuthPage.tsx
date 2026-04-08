@@ -39,6 +39,9 @@ const AuthPage = () => {
 
     return (
         <div className="w-screen h-screen flex flex-col items-center justify-center">
+            <h1 className="sm:text-6xl text-4xl font-normal tracking-tight text-text-primary font-montserrat">
+                Converge
+            </h1>
             <button
                 className="text-lg px-3 py-2 cursor-pointer"
                 onClick={handleSignInWithGoogle}
