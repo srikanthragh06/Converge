@@ -8,7 +8,7 @@ import {
 import { OnApplicationBootstrap, UseFilters } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { DocumentService } from './document.service';
-import { ZodSocketValidationPipe } from '../pipes/zod-validation.pipe';
+import { ZodSocketValidationPipe } from '../pipes/zod-socket-validation.pipe';
 import {
   PingSchema,
   PongSchema,
