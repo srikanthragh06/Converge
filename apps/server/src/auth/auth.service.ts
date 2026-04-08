@@ -7,38 +7,29 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 
+import * as jwt from 'jsonwebtoken';
+import { DatabaseService } from '../db/database.service';
+
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly httpService: HttpService,
-    private readonly configService: ConfigService,
+    private readonly httpService: HttpService, // Used to POST the authorisation code to Google's token endpoint.
+    private readonly configService: ConfigService, // Supplies OAuth credentials and redirect URI from environment config.
+    private readonly dbService: DatabaseService, // Persists and upserts authenticated user records.
   ) {}
 
-  async exchangeCodeWithGoogleAuth(code: string): Promise<void> {
+  /**
+   * Exchanges a Google authorization code for an ID token, decodes it, and
+   * upserts the user in the database — creating a new record on first login
+   * or updating profile fields if the user already exists.
+   */
+  async addUserFromGoogleAuth(code: string): Promise<void> {
+    // Exchange the one-time code for Google token data; map axios errors to
+    // appropriate HTTP exceptions before they reach the NestJS pipeline.
+    let data: any;
     try {
-      const { data } = await firstValueFrom(
-        this.httpService.post('https://oauth2.googleapis.com/token', {
-          code,
-          client_id: this.configService.get<string>('GOOGLE_CLIENT_ID'),
-          client_secret: this.configService.get<string>('GOOGLE_CLIENT_SECRET'),
-          grant_type: 'authorization_code',
-          redirect_uri: this.configService.get<string>(
-            'GOOGLE_AUTH_CLIENT_CALLBACK_URL',
-          ),
-        }),
-      );
-
-      if (!data.id_token) {
-        throw new InternalServerErrorException(
-          'Google did not return an ID token.',
-        );
-      }
+      data = await this.exchangeCodeWithGoogleAuth(code);
     } catch (err) {
-      // Re-throw NestJS exceptions — they already carry the correct status code.
-      if (err instanceof BadRequestException || err instanceof InternalServerErrorException) {
-        throw err;
-      }
-
       const error = err as Record<string, unknown>;
       if (error?.response) {
         // Google responded but rejected the code — treat as a bad client request.
@@ -47,5 +38,75 @@ export class AuthService {
       // No response at all — network failure or Google is unreachable.
       throw new InternalServerErrorException('Failed to reach Google.');
     }
+
+    // Verify that Google included an ID token in the response.
+    const { id_token: idToken } = data;
+    if (!idToken) {
+      throw new InternalServerErrorException(
+        'Google did not return an ID token.',
+      );
+    }
+
+    // Decode the JWT and assert that all required profile claims are present.
+    // jwt.decode does not verify the signature; we trust Google's HTTPS endpoint
+    // for authenticity and only need the payload contents here.
+    const decoded = jwt.decode(idToken);
+    const isValid =
+      typeof decoded === 'object' &&
+      decoded !== null &&
+      'sub' in decoded &&
+      'email' in decoded &&
+      'name' in decoded &&
+      'picture' in decoded;
+
+    if (!isValid) {
+      throw new InternalServerErrorException(
+        'Failed to decode Google ID token.',
+      );
+    }
+
+    const { sub, email, name, picture } = decoded as {
+      sub: string;
+      email: string;
+      name: string;
+      picture: string;
+    };
+
+    // Upsert the user record, keying on google_id so that email changes on the
+    // Google account side are reflected without creating duplicate rows.
+    await this.dbService.kysely
+      .insertInto('users')
+      .values({ google_id: sub, email, name, avatar_url: picture })
+      .onConflict((oc) =>
+        // On subsequent logins, keep profile fields in sync with Google.
+        oc
+          .column('google_id')
+          .doUpdateSet({ email, name, avatar_url: picture }),
+      )
+      .execute();
+  }
+
+  /**
+   * POSTs the authorisation code to Google's token endpoint and returns the
+   * raw token response data. Throws an axios error on any non-2xx response or
+   * network failure — callers are responsible for error mapping.
+   *
+   * @param code - The one-time authorisation code received from Google's OAuth redirect.
+   * @returns The raw response body from Google's token endpoint, including `id_token`.
+   */
+  async exchangeCodeWithGoogleAuth(code: string): Promise<any> {
+    const { data } = await firstValueFrom(
+      this.httpService.post('https://oauth2.googleapis.com/token', {
+        code,
+        client_id: this.configService.get<string>('GOOGLE_CLIENT_ID'),
+        client_secret: this.configService.get<string>('GOOGLE_CLIENT_SECRET'),
+        grant_type: 'authorization_code',
+        redirect_uri: this.configService.get<string>(
+          'GOOGLE_AUTH_CLIENT_CALLBACK_URL',
+        ),
+      }),
+    );
+
+    return data;
   }
 }
