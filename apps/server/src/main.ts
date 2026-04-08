@@ -24,6 +24,10 @@ async function bootstrap() {
   // AppModule is the root module — all feature modules are imported from there.
   const app = await NestFactory.create(AppModule);
 
+  // Restrict CORS to the known client origin so browsers block cross-origin
+  // requests from untrusted domains.
+  app.enableCors({ origin: [process.env.CLIENT_URL] });
+
   // Attach Socket.io to the same HTTP server so WebSocket and REST share one port.
   app.useWebSocketAdapter(new IoAdapter(app));
 

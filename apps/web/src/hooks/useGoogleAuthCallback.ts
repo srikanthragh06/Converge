@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import apiClient from "../lib/http";
 
 const useGoogleAuthCallback = () => {
+    const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const state = searchParams.get("state");
     const code = searchParams.get("code");
@@ -38,6 +40,10 @@ const useGoogleAuthCallback = () => {
                 // State is single-use — remove it now that it has been validated.
                 localStorage.removeItem("authCSRFState");
 
+                await apiClient.post("/auth/google", {
+                    code,
+                });
+
                 setAuthStatus("SUCCESSFUL");
             } catch (err) {
                 setAuthStatus("FAILED");
@@ -47,6 +53,14 @@ const useGoogleAuthCallback = () => {
 
         handleAuth();
     }, []);
+
+    useEffect(() => {
+        if (authStatus !== "SUCCESSFUL") return;
+
+        // Delay navigation so the success message is briefly visible.
+        const timer = setTimeout(() => navigate("/"), 1200);
+        return () => clearTimeout(timer);
+    }, [authStatus, navigate]);
 
     return { authStatus };
 };
