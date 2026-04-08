@@ -9,6 +9,7 @@ import { firstValueFrom } from 'rxjs';
 
 import * as jwt from 'jsonwebtoken';
 import { DatabaseService } from '../db/database.service';
+import { type GoogleAuthResponseDto } from '@converge/shared';
 
 @Injectable()
 export class AuthService {
@@ -26,9 +27,11 @@ export class AuthService {
    * or updating profile fields if the user already exists.
    *
    * @param code - The one-time authorisation code from Google's OAuth redirect.
-   * @returns A signed JWT for the authenticated user.
+   * @returns The signed JWT and the user's profile details.
    */
-  async authorizeGoogleUserAndGenerateJWT(code: string): Promise<string> {
+  async authorizeGoogleUserAndGenerateJWT(
+    code: string,
+  ): Promise<{ authToken: string; userDetails: GoogleAuthResponseDto }> {
     // Exchange the one-time code for Google token data; map axios errors to
     // appropriate HTTP exceptions before they reach the NestJS pipeline.
     let data: any;
@@ -88,13 +91,23 @@ export class AuthService {
           .column('google_id')
           .doUpdateSet({ email, name, avatar_url: picture }),
       )
-      .returning(['id', 'email'])
+      .returning(['id', 'email', 'avatar_url', 'created_at', 'name'])
       .execute();
 
     if (rows.length === 0)
       throw new InternalServerErrorException('Failed to upsert user.');
 
-    return this.prepareUserJWT(rows[0].id, rows[0].email);
+    const authToken = this.prepareUserJWT(rows[0].id, rows[0].email);
+
+    const userDetails: GoogleAuthResponseDto = {
+      id: rows[0].id.toString(), // bigint is not JSON-serialisable — convert to string.
+      email: rows[0].email,
+      name: rows[0].name,
+      avatarUrl: rows[0].avatar_url,
+      createdAt: rows[0].created_at,
+    };
+
+    return { authToken, userDetails };
   }
 
   /**

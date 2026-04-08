@@ -1,60 +1,78 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import apiClient from "../lib/http";
-import type { GoogleAuthRequestDto } from "@converge/shared";
+import {
+    type GoogleAuthResponseDto,
+    type GoogleAuthRequestDto,
+} from "@converge/shared";
+import { AUTH_CSRF_STATE } from "../constants/constants";
+import { useSetAtom } from "jotai";
+import { isAuthAtom, userDetailsAtom } from "../atoms/auth";
 
+/**
+ * Handles the Google OAuth callback by validating the CSRF state token,
+ * exchanging the authorisation code with the server, and navigating to the
+ * app on success. Exposes `authStatus` to drive UI feedback.
+ *
+ * @returns `authStatus` — the current stage of the auth flow: PENDING, SUCCESSFUL, or FAILED.
+ */
 const useGoogleAuthCallback = () => {
-    const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
-    const state = searchParams.get("state");
-    const code = searchParams.get("code");
+    const navigate = useNavigate(); // Used to redirect to the app on successful login.
+    const [searchParams] = useSearchParams(); // Reads `code` and `state` from the Google redirect URL.
+    const state = searchParams.get("state"); // The CSRF state token echoed back by Google.
+    const code = searchParams.get("code"); // The one-time authorisation code from Google.
+
+    const setIsAuth = useSetAtom(isAuthAtom); // Updates the global auth flag on login or failure.
+    const setUserDetails = useSetAtom(userDetailsAtom); // Stores or clears the authenticated user's profile.
 
     const [authStatus, setAuthStatus] = useState<
         "PENDING" | "FAILED" | "SUCCESSFUL"
-    >("PENDING");
+    >("PENDING"); // Tracks the current stage of the OAuth exchange to drive UI feedback.
 
+    // Runs once on mount — validates the CSRF state and exchanges the code with the server.
     useEffect(() => {
         const handleAuth = async () => {
             try {
                 setAuthStatus("PENDING");
 
                 if (!code) {
-                    console.error("Auth callback missing code parameter.");
-                    setAuthStatus("FAILED");
-                    return;
+                    throw new Error("Auth callback missing code parameter.");
                 }
                 if (!state) {
-                    console.error("Auth callback missing state parameter.");
-                    setAuthStatus("FAILED");
-                    return;
+                    throw new Error("Auth callback missing state parameter.");
                 }
 
-                const origState = localStorage.getItem("authCSRFState");
+                const origState = localStorage.getItem(AUTH_CSRF_STATE);
                 if (!origState || origState !== state) {
-                    console.error(
-                        "Auth callback CSRF state mismatch — possible CSRF attack.",
-                    );
-                    setAuthStatus("FAILED");
-                    return;
+                    throw new Error("Auth callback CSRF state mismatch — possible CSRF attack.");
                 }
 
                 // State is single-use — remove it now that it has been validated.
-                localStorage.removeItem("authCSRFState");
+                localStorage.removeItem(AUTH_CSRF_STATE);
 
-                await apiClient.post("/auth/google", {
-                    code,
-                } satisfies GoogleAuthRequestDto);
+                // `res.data` is the HttpResponse envelope; `.data` inside it is the user payload.
+                const res = await apiClient.post<{
+                    success: boolean;
+                    data: GoogleAuthResponseDto;
+                }>("/auth/google", { code } satisfies GoogleAuthRequestDto);
+
+                setIsAuth(true);
+                setUserDetails(res.data.data);
 
                 setAuthStatus("SUCCESSFUL");
             } catch (err) {
-                setAuthStatus("FAILED");
                 console.error(err);
+                setAuthStatus("FAILED");
+                setIsAuth(false);
+                setUserDetails(null);
             }
         };
 
         handleAuth();
     }, []);
 
+    // Navigates to the app after a short delay once auth succeeds, so the
+    // success message is briefly visible before the redirect.
     useEffect(() => {
         if (authStatus !== "SUCCESSFUL") return;
 

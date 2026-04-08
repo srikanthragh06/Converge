@@ -1,6 +1,6 @@
 export { mapsAreEqual } from "./utils/utils";
-export { GoogleAuthRequestSchema } from "./http/auth";
-export type { GoogleAuthRequestDto } from "./http/auth";
+export { GoogleAuthRequestSchema, GoogleAuthResponseSchema } from "./http/auth";
+export type { GoogleAuthRequestDto, GoogleAuthResponseDto } from "./http/auth";
 export { INTERNAL_SERVER_ERROR_MESSAGE } from "./constants/constants";
 export { SOCKET_EVENTS } from "./socket/events";
 export {

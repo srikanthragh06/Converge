@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef } from "react";
 import * as Y from "yjs";
 import { socket } from "../lib/socket";
 import { useAtomValue } from "jotai";
-import { isSocketConnectedAtom } from "../atoms/atoms";
+import { isSocketConnectedAtom } from "../atoms/socket";
 import {
     mapsAreEqual,
     SyncDocClientSchema,
@@ -88,10 +88,15 @@ const useEditor = () => {
 
                 const updateArray = Array.from(mergedUpdate);
                 const clientSVArray = Array.from(clientSV);
-                socketEmit(socket, SOCKET_EVENTS.SYNC_DOC_SERVER, SyncDocServerSchema, {
-                    updateArray,
-                    clientSVArray,
-                });
+                socketEmit(
+                    socket,
+                    SOCKET_EVENTS.SYNC_DOC_SERVER,
+                    SyncDocServerSchema,
+                    {
+                        updateArray,
+                        clientSVArray,
+                    },
+                );
             }, 300);
         };
 
@@ -118,9 +123,14 @@ const useEditor = () => {
             // snapshot the current client state vector to send to the server
             const clientSVArray = Array.from(Y.encodeStateVector(yDoc));
             // emit to the server so it can compute what the client is missing
-            socketEmit(socket, SOCKET_EVENTS.REPAIR_SYNC_DOC_SERVER, RepairSyncDocServerSchema, {
-                clientSVArray,
-            });
+            socketEmit(
+                socket,
+                SOCKET_EVENTS.REPAIR_SYNC_DOC_SERVER,
+                RepairSyncDocServerSchema,
+                {
+                    clientSVArray,
+                },
+            );
         };
 
         /**
@@ -135,10 +145,15 @@ const useEditor = () => {
             const serverSV = new Uint8Array(res.serverSVArray);
             const diffArray = Array.from(Y.encodeStateAsUpdate(yDoc, serverSV));
             const clientSVArray = Array.from(Y.encodeStateVector(yDoc));
-            socketEmit(socket, SOCKET_EVENTS.REPAIR_SYNC_ACK_DOC_SERVER, RepairSyncAckDocServerSchema, {
-                diffArray,
-                clientSVArray,
-            });
+            socketEmit(
+                socket,
+                SOCKET_EVENTS.REPAIR_SYNC_ACK_DOC_SERVER,
+                RepairSyncAckDocServerSchema,
+                {
+                    diffArray,
+                    clientSVArray,
+                },
+            );
         };
 
         /**
@@ -152,12 +167,19 @@ const useEditor = () => {
             const res = socketReceive(RepairSyncAckDocClientSchema, data);
             if (!res) return;
             Y.applyUpdate(yDoc, new Uint8Array(res.diffArray), "REMOTE");
-            const diffArray = Array.from(Y.encodeStateAsUpdate(yDoc, new Uint8Array(res.serverSVArray)));
+            const diffArray = Array.from(
+                Y.encodeStateAsUpdate(yDoc, new Uint8Array(res.serverSVArray)),
+            );
             const clientSVArray = Array.from(Y.encodeStateVector(yDoc));
-            socketEmit(socket, SOCKET_EVENTS.REPAIR_ACK_DOC_SERVER, RepairAckDocServerSchema, {
-                diffArray,
-                clientSVArray,
-            });
+            socketEmit(
+                socket,
+                SOCKET_EVENTS.REPAIR_ACK_DOC_SERVER,
+                RepairAckDocServerSchema,
+                {
+                    diffArray,
+                    clientSVArray,
+                },
+            );
         };
 
         /**
@@ -172,7 +194,10 @@ const useEditor = () => {
         };
 
         socket.on(SOCKET_EVENTS.REPAIR_SYNC_DOC_CLIENT, handleRepairSyncDoc);
-        socket.on(SOCKET_EVENTS.REPAIR_SYNC_ACK_DOC_CLIENT, handleRepairSyncAckDoc);
+        socket.on(
+            SOCKET_EVENTS.REPAIR_SYNC_ACK_DOC_CLIENT,
+            handleRepairSyncAckDoc,
+        );
         socket.on(SOCKET_EVENTS.REPAIR_ACK_DOC_CLIENT, handleRepairAckDoc);
 
         // Initiate repair on connect to pull any server state the client missed.
@@ -180,8 +205,14 @@ const useEditor = () => {
         const heartbeatIntervalId = setInterval(initiateRepairSync, 5000);
 
         return () => {
-            socket.off(SOCKET_EVENTS.REPAIR_SYNC_DOC_CLIENT, handleRepairSyncDoc);
-            socket.off(SOCKET_EVENTS.REPAIR_SYNC_ACK_DOC_CLIENT, handleRepairSyncAckDoc);
+            socket.off(
+                SOCKET_EVENTS.REPAIR_SYNC_DOC_CLIENT,
+                handleRepairSyncDoc,
+            );
+            socket.off(
+                SOCKET_EVENTS.REPAIR_SYNC_ACK_DOC_CLIENT,
+                handleRepairSyncAckDoc,
+            );
             socket.off(SOCKET_EVENTS.REPAIR_ACK_DOC_CLIENT, handleRepairAckDoc);
             clearInterval(heartbeatIntervalId);
         };
@@ -220,9 +251,14 @@ const useEditor = () => {
                     Y.decodeStateVector(clientSV),
                 )
             ) {
-                socketEmit(socket, SOCKET_EVENTS.REPAIR_SYNC_DOC_SERVER, RepairSyncDocServerSchema, {
-                    clientSVArray: Array.from(clientSV),
-                });
+                socketEmit(
+                    socket,
+                    SOCKET_EVENTS.REPAIR_SYNC_DOC_SERVER,
+                    RepairSyncDocServerSchema,
+                    {
+                        clientSVArray: Array.from(clientSV),
+                    },
+                );
             }
         };
 

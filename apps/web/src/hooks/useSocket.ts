@@ -3,7 +3,7 @@ import { socket } from "../lib/socket";
 import { SOCKET_EVENTS } from "@converge/shared";
 import { PING_INTERVAL_MS } from "../constants/constants";
 import { useAtom } from "jotai";
-import { isSocketConnectedAtom } from "../atoms/atoms";
+import { isSocketConnectedAtom } from "../atoms/socket";
 import { PingSchema, PongSchema } from "@converge/shared";
 import { socketReceive } from "../lib/socket-receive.util";
 import { socketEmit } from "../lib/socket-emit.util";
