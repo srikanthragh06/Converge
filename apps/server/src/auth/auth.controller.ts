@@ -26,15 +26,16 @@ export class AuthController {
     { code }: GoogleAuthRequestDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { authToken, userDetails } =
-      await this.authService.authorizeGoogleUserAndGenerateJWT(code);
-    // httpOnly prevents client-side JS from reading the token, mitigating XSS theft.
-    res.cookie('authToken', authToken, {
-      httpOnly: true,
-      sameSite: 'strict',
-      // maxAge is in milliseconds — must match the JWT's own expiry.
-      maxAge: AuthService.AUTH_EXPIRY_TTL_SECONDS * 1000,
-    });
-    return httpOK(userDetails);
+    try {
+      const { authToken, userDetails } =
+        await this.authService.authorizeGoogleUserAndGenerateJWT(code);
+      this.authService.setAuthCookie(res, authToken);
+      return httpOK(userDetails);
+    } catch (err) {
+      // Clear any stale auth cookie from a previous session so the client
+      // doesn't remain partially authenticated after a failed re-auth attempt.
+      this.authService.clearAuthCookie(res);
+      throw err;
+    }
   }
 }

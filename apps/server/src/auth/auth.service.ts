@@ -10,6 +10,7 @@ import { firstValueFrom } from 'rxjs';
 import * as jwt from 'jsonwebtoken';
 import { DatabaseService } from '../db/database.service';
 import { type GoogleAuthResponseDto } from '@converge/shared';
+import type { Response } from 'express';
 
 @Injectable()
 export class AuthService {
@@ -148,5 +149,30 @@ export class AuthService {
     return jwt.sign({ userId: userId.toString(), userEmail }, secret!, {
       expiresIn: AuthService.AUTH_EXPIRY_TTL_SECONDS,
     });
+  }
+
+  /**
+   * Sets the auth JWT as an httpOnly cookie on the response.
+   *
+   * @param res - The Express response object to attach the cookie to.
+   * @param token - The signed JWT to store in the cookie.
+   */
+  setAuthCookie(res: Response, token: string): void {
+    // httpOnly prevents client-side JS from reading the token, mitigating XSS theft.
+    res.cookie('authToken', token, {
+      httpOnly: true,
+      sameSite: 'strict',
+      // maxAge is in milliseconds — must match the JWT's own expiry.
+      maxAge: AuthService.AUTH_EXPIRY_TTL_SECONDS * 1000,
+    });
+  }
+
+  /**
+   * Clears the auth cookie from the response, effectively logging the user out.
+   *
+   * @param res - The Express response object to clear the cookie on.
+   */
+  clearAuthCookie(res: Response): void {
+    res.clearCookie('authToken');
   }
 }
