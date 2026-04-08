@@ -149,4 +149,31 @@
 - `REDIS_LOCKS` constants added to `redis.events.ts` alongside `REDIS_EVENTS`
 - `applyDocUpdateToMemory` renamed to `applyDocUpdateOnlyToLocalMemory` for clarity — makes explicit that the method only touches this server's in-memory doc
 
+## v0.08 — Google OAuth Authentication ✅
+
+> Branch: `auth-v0.08`
+
+### Web (React frontend)
+- `AuthPage` added at `/auth` — generates a random CSRF state token, stores it in `localStorage`, then redirects to Google's OAuth authorisation endpoint
+- `AuthCallbackPage` and `useGoogleAuthCallback` hook handle the OAuth return: validate the CSRF state, exchange the authorisation code with the server, store the returned user profile in Jotai atoms, then navigate to the app after a short success delay
+- `isAuthAtom` and `userDetailsAtom` added to `atoms/auth.ts` — make the authenticated user's identity available across the app without prop-drilling
+- `atoms/atoms.ts` split into domain files: `atoms/auth.ts` and `atoms/socket.ts`
+- `AUTH_CSRF_STATE` localStorage key extracted to `constants/constants.ts` to eliminate hardcoded strings
+- `withCredentials: true` added to the axios client so the browser sends and receives cookies on cross-origin requests
+- 404 Not Found page added
+
+### Server (NestJS backend)
+- `AuthModule`, `AuthController`, and `AuthService` added for Google OAuth server-side flow
+- `AuthService.authorizeGoogleUserAndGenerateJWT` — exchanges the authorisation code with Google's token endpoint, decodes the ID token, validates required claims (`sub`, `email`, `name`, `picture`), and upserts the user into the `users` table keyed on `google_id` so profile changes stay in sync without duplicates
+- `users` table added (migration `0003_create_users`) — `bigserial` PK, unique constraints on `google_id` and `email`, profile fields (`name`, `avatar_url`), `created_at`
+- JWT issued via `jsonwebtoken` and set as an `httpOnly`, `sameSite: strict` cookie with a 7-day expiry (`AUTH_EXPIRY_TTL_SECONDS`) — token is never exposed to client-side JS
+- `setAuthCookie` and `clearAuthCookie` helpers on `AuthService` centralise cookie configuration so name, flags, and TTL are defined in one place
+- `ZodHttpValidationPipe` added for Zod-based validation of HTTP request bodies, distinct from the existing `ZodSocketValidationPipe`
+- `credentials: true` added to CORS config so the browser accepts `Set-Cookie` on cross-origin responses
+- `httpOK` simplified to return the data payload directly instead of wrapping it in a `{ success: true, data }` envelope
+
+### Shared package
+- `GoogleAuthRequestSchema` / `GoogleAuthRequestDto` added to `@converge/shared/http/auth` — shared Zod schema for the auth request body, used by both server validation and client type-checking
+- `GoogleAuthResponseSchema` / `GoogleAuthResponseDto` added — shared type for the user profile returned from the auth endpoint
+
 ## Upcoming
