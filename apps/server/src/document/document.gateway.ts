@@ -8,7 +8,7 @@ import {
 import { OnApplicationBootstrap, UseFilters } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { DocumentService } from './document.service';
-import { ZodValidationPipe } from '../pipes/zod-validation.pipe';
+import { ZodSocketValidationPipe } from '../pipes/zod-validation.pipe';
 import {
   PingSchema,
   PongSchema,
@@ -89,7 +89,7 @@ export class DocumentGateway implements OnApplicationBootstrap {
   @SubscribeMessage(SOCKET_EVENTS.PING)
   handlePing(
     @ConnectedSocket() client: Socket,
-    @MessageBody(new ZodValidationPipe(PingSchema)) data: PingPayload,
+    @MessageBody(new ZodSocketValidationPipe(PingSchema)) data: PingPayload,
   ) {
     const { pingId } = data;
     socketEmit(client, SOCKET_EVENTS.PONG, PongSchema, { pingId });
@@ -105,7 +105,7 @@ export class DocumentGateway implements OnApplicationBootstrap {
   @SubscribeMessage(SOCKET_EVENTS.SYNC_DOC_SERVER)
   async handleSyncDoc(
     @ConnectedSocket() client: Socket,
-    @MessageBody(new ZodValidationPipe(SyncDocServerSchema))
+    @MessageBody(new ZodSocketValidationPipe(SyncDocServerSchema))
     { updateArray, clientSVArray }: SyncDocServerPayload,
   ) {
     const update = new Uint8Array(updateArray);
@@ -147,7 +147,7 @@ export class DocumentGateway implements OnApplicationBootstrap {
   @SubscribeMessage(SOCKET_EVENTS.REPAIR_SYNC_DOC_SERVER)
   handleRepairSyncDoc(
     @ConnectedSocket() client: Socket,
-    @MessageBody(new ZodValidationPipe(RepairSyncDocServerSchema))
+    @MessageBody(new ZodSocketValidationPipe(RepairSyncDocServerSchema))
     { clientSVArray }: RepairSyncDocServerPayload,
   ) {
     const clientSV = new Uint8Array(clientSVArray);
@@ -177,7 +177,7 @@ export class DocumentGateway implements OnApplicationBootstrap {
   @SubscribeMessage(SOCKET_EVENTS.REPAIR_SYNC_ACK_DOC_SERVER)
   async handleRepairSyncAckDoc(
     @ConnectedSocket() client: Socket,
-    @MessageBody(new ZodValidationPipe(RepairSyncAckDocServerSchema))
+    @MessageBody(new ZodSocketValidationPipe(RepairSyncAckDocServerSchema))
     { diffArray, clientSVArray }: RepairSyncAckDocServerPayload,
   ) {
     const diff = new Uint8Array(diffArray);
@@ -206,7 +206,7 @@ export class DocumentGateway implements OnApplicationBootstrap {
    */
   @SubscribeMessage(SOCKET_EVENTS.REPAIR_ACK_DOC_SERVER)
   async handleRepairAckDoc(
-    @MessageBody(new ZodValidationPipe(RepairAckDocServerSchema))
+    @MessageBody(new ZodSocketValidationPipe(RepairAckDocServerSchema))
     { diffArray }: RepairAckDocServerPayload,
   ) {
     const diff = new Uint8Array(diffArray);

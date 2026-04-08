@@ -3,7 +3,7 @@ import { WsException } from '@nestjs/websockets';
 import { ZodType } from 'zod';
 
 @Injectable()
-export class ZodValidationPipe implements PipeTransform {
+export class ZodSocketValidationPipe implements PipeTransform {
   constructor(private schema: ZodType) {}
 
   transform(value: unknown) {
@@ -11,6 +11,6 @@ export class ZodValidationPipe implements PipeTransform {
     if (!result.success) {
       throw new WsException(result.error.message);
     }
-    return result.data; // already transformed — Uint8Arrays ready to use
+    return result.data;
   }
 }
