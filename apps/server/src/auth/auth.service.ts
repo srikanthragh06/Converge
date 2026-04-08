@@ -12,6 +12,8 @@ import { DatabaseService } from '../db/database.service';
 
 @Injectable()
 export class AuthService {
+  static readonly AUTH_EXPIRY_TTL_SECONDS = 60 * 60 * 24 * 7; // Lifetime of the auth JWT and its cookie, in seconds (7 days).
+
   constructor(
     private readonly httpService: HttpService, // Used to POST the authorisation code to Google's token endpoint.
     private readonly configService: ConfigService, // Supplies OAuth credentials and redirect URI from environment config.
@@ -22,8 +24,11 @@ export class AuthService {
    * Exchanges a Google authorization code for an ID token, decodes it, and
    * upserts the user in the database — creating a new record on first login
    * or updating profile fields if the user already exists.
+   *
+   * @param code - The one-time authorisation code from Google's OAuth redirect.
+   * @returns A signed JWT for the authenticated user.
    */
-  async addUserFromGoogleAuth(code: string): Promise<void> {
+  async authorizeGoogleUserAndGenerateJWT(code: string): Promise<string> {
     // Exchange the one-time code for Google token data; map axios errors to
     // appropriate HTTP exceptions before they reach the NestJS pipeline.
     let data: any;
@@ -74,7 +79,7 @@ export class AuthService {
 
     // Upsert the user record, keying on google_id so that email changes on the
     // Google account side are reflected without creating duplicate rows.
-    await this.dbService.kysely
+    const rows = await this.dbService.kysely
       .insertInto('users')
       .values({ google_id: sub, email, name, avatar_url: picture })
       .onConflict((oc) =>
@@ -83,7 +88,13 @@ export class AuthService {
           .column('google_id')
           .doUpdateSet({ email, name, avatar_url: picture }),
       )
+      .returning(['id', 'email'])
       .execute();
+
+    if (rows.length === 0)
+      throw new InternalServerErrorException('Failed to upsert user.');
+
+    return this.prepareUserJWT(rows[0].id, rows[0].email);
   }
 
   /**
@@ -108,5 +119,21 @@ export class AuthService {
     );
 
     return data;
+  }
+
+  /**
+   * Signs and returns a JWT containing the user's ID and email, using the
+   * secret from environment config.
+   *
+   * @param userId - The internal database ID of the authenticated user (bigint, serialised to string in the payload).
+   * @param userEmail - The email address of the authenticated user.
+   * @returns A signed JWT string to be sent to the client.
+   */
+  prepareUserJWT(userId: bigint, userEmail: string): string {
+    const secret = this.configService.get<string>('JWT_SECRET');
+    // Serialize userId as a string — bigint is not JSON-serialisable.
+    return jwt.sign({ userId: userId.toString(), userEmail }, secret!, {
+      expiresIn: AuthService.AUTH_EXPIRY_TTL_SECONDS,
+    });
   }
 }
