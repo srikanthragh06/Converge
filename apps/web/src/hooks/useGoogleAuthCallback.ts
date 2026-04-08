@@ -50,14 +50,14 @@ const useGoogleAuthCallback = () => {
                 // State is single-use — remove it now that it has been validated.
                 localStorage.removeItem(AUTH_CSRF_STATE);
 
-                // `res.data` is the HttpResponse envelope; `.data` inside it is the user payload.
-                const res = await apiClient.post<{
-                    success: boolean;
-                    data: GoogleAuthResponseDto;
-                }>("/auth/google", { code } satisfies GoogleAuthRequestDto);
+                const { data: userDetails } =
+                    await apiClient.post<GoogleAuthResponseDto>(
+                        "/auth/google",
+                        { code } satisfies GoogleAuthRequestDto,
+                    );
 
                 setIsAuth(true);
-                setUserDetails(res.data.data);
+                setUserDetails(userDetails);
 
                 setAuthStatus("SUCCESSFUL");
             } catch (err) {

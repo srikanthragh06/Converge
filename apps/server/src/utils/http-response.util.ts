@@ -11,11 +11,11 @@ export interface HttpResponse<T> {
 }
 
 /**
- * Returns a success response envelope, optionally including a data payload.
- * @param data - optional payload to include in the response
+ * Returns the data payload directly as the HTTP response body, or undefined for empty responses.
+ * @param data - optional payload to return
  */
-export function httpOK<T>(data?: T): HttpResponse<T> {
-  return { success: true, data };
+export function httpOK<T>(data?: T): T | undefined {
+  return data;
 }
 
 /**
