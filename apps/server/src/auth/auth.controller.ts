@@ -1,5 +1,8 @@
 import { Body, Controller, Post } from '@nestjs/common';
-import { type GoogleAuthDto, GoogleAuthSchema } from '@converge/shared';
+import {
+  type GoogleAuthRequestDto,
+  GoogleAuthRequestSchema,
+} from '@converge/shared';
 import { AuthService } from './auth.service';
 import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe';
 import { httpOK } from '../utils/http-response.util';
@@ -10,7 +13,8 @@ export class AuthController {
 
   @Post('/google')
   async handleGoogleAuth(
-    @Body(new ZodHttpValidationPipe(GoogleAuthSchema)) { code }: GoogleAuthDto,
+    @Body(new ZodHttpValidationPipe(GoogleAuthRequestSchema))
+    { code }: GoogleAuthRequestDto,
   ) {
     await this.authService.exchangeCodeWithGoogleAuth(code);
     return httpOK();

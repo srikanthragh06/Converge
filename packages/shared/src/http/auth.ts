@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-export const GoogleAuthSchema = z.object({
+export const GoogleAuthRequestSchema = z.object({
     code: z.string().min(1),
 });
 
-export type GoogleAuthDto = z.infer<typeof GoogleAuthSchema>;
+export type GoogleAuthRequestDto = z.infer<typeof GoogleAuthRequestSchema>;
