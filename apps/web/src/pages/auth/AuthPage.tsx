@@ -45,7 +45,7 @@ const AuthPage = () => {
                 Converge
             </h1>
             <p className="text-lg text-center text-text-secondary max-w-[250px] sm:max-w-[800px]">
-                Sign in to get started working with Converge
+                Sign in to get started with Converge
             </p>
             <button
                 className="flex items-center gap-3 px-5 py-3 rounded-lg cursor-pointer
