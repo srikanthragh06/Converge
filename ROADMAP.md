@@ -176,4 +176,15 @@
 - `GoogleAuthRequestSchema` / `GoogleAuthRequestDto` added to `@converge/shared/http/auth` — shared Zod schema for the auth request body, used by both server validation and client type-checking
 - `GoogleAuthResponseSchema` / `GoogleAuthResponseDto` added — shared type for the user profile returned from the auth endpoint
 
+## v0.085 — UI Components & Auth Page Polish ✅
+
+> Branch: `ui-components-v0.085`
+
+### Web (React frontend)
+- `AuthPage` redesigned — Montserrat title, subtitle copy, and a styled Google sign-in button (white card with border, shadow, and `FcGoogle` icon from `react-icons`)
+- Roboto set as the default sans-serif font app-wide: loaded via Google Fonts, registered as the Tailwind `sans` base, and applied to `body` in `index.css` (manual reset needed since Tailwind preflight is disabled)
+- `Page` component extracted to `src/components/Page.tsx` — shared full-viewport flex column shell (`w-screen h-screen flex flex-col overflow-x-hidden`) adopted by all top-level routes, eliminating boilerplate repetition
+- Custom scrollbar styling added globally — slim 6px pill-shaped thumb using theme palette colours (`#404040` idle, `#525252` hover) with a transparent track
+- BlockNote editor font size reduced to 12px on screens narrower than 640px via a `.bn-default-styles` CSS override
+
 ## Upcoming
