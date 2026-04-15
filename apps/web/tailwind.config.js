@@ -4,6 +4,7 @@ export default {
     theme: {
         extend: {
             fontFamily: {
+                sans: ["'Roboto'", "sans-serif"],
                 montserrat: ["'Montserrat'", "sans-serif"],
             },
             // Mirror src/theme/colors.ts so the same palette is available as Tailwind classes.

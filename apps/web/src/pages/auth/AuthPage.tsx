@@ -1,4 +1,5 @@
 import { AUTH_CSRF_STATE } from "../../constants/constants";
+import { FcGoogle } from "react-icons/fc";
 
 /**
  * Landing page that initiates the Google OAuth flow. Renders a sign-in button
@@ -38,15 +39,21 @@ const AuthPage = () => {
     };
 
     return (
-        <div className="w-screen h-screen flex flex-col items-center justify-center">
-            <h1 className="sm:text-6xl text-4xl font-normal tracking-tight text-text-primary font-montserrat">
+        <div className="w-screen h-screen flex flex-col space-y-8 items-center justify-center">
+            <h1 className="sm:text-7xl text-6xl font-normal text-text-primary font-montserrat">
                 Converge
             </h1>
+            <p className="text-lg text-center text-text-secondary max-w-[250px] sm:max-w-[800px]">
+                Sign in to get started working with Converge
+            </p>
             <button
-                className="text-lg px-3 py-2 cursor-pointer"
+                className="flex items-center gap-3 px-5 py-3 rounded-lg cursor-pointer
+                            bg-white text-zinc-700 shadow-sm border border-zinc-200
+                            hover:shadow-md transition-shadow duration-150"
                 onClick={handleSignInWithGoogle}
             >
-                Sign in with Google
+                <FcGoogle className="w-6 h-6 shrink-0" />
+                <span className="text-lg font-medium">Sign in with Google</span>
             </button>
         </div>
     );
