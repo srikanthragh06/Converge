@@ -1,6 +1,7 @@
 import { BlockNoteView } from "@blocknote/mantine";
 import { convergeTheme } from "../../theme/editorTheme";
 import useEditor from "../../hooks/useEditor";
+import Page from "../../components/Page";
 
 /**
  * Full-screen editor page. Mounts the BlockNote editor with the Converge
@@ -10,7 +11,7 @@ const EditorPage = () => {
     const { editor } = useEditor(); // BlockNote editor instance wired to the shared Yjs doc
 
     return (
-        <div className="w-screen h-screen flex flex-col overflow-x-hidden">
+        <Page>
             <div className="flex-1">
                 <BlockNoteView
                     editor={editor}
@@ -18,7 +19,7 @@ const EditorPage = () => {
                     className="h-full"
                 />
             </div>
-        </div>
+        </Page>
     );
 };
 

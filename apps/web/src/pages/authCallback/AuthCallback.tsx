@@ -1,16 +1,19 @@
+import Page from "../../components/Page";
 import useGoogleAuthCallback from "../../hooks/useGoogleAuthCallback";
 
+/**
+ * Handles the redirect back from Google's OAuth flow. Renders a status
+ * message while the callback hook exchanges the code for a session.
+ */
 const AuthCallbackPage = () => {
-    const { authStatus } = useGoogleAuthCallback();
+    const { authStatus } = useGoogleAuthCallback(); // Current state of the OAuth exchange: PENDING, SUCCESSFUL, or FAILED
 
     return (
-        <div className="w-screen h-screen flex flex-col items-center justify-center">
+        <Page className="items-center justify-center">
             {authStatus === "PENDING" && <div>Signing you in...</div>}
             {authStatus === "FAILED" && <div>Sign in failed :(</div>}
-            {authStatus === "SUCCESSFUL" && (
-                <div>Sign in successful</div>
-            )}
-        </div>
+            {authStatus === "SUCCESSFUL" && <div>Sign in successful</div>}
+        </Page>
     );
 };
 

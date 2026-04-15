@@ -1,3 +1,4 @@
+import Page from "../../components/Page";
 import { AUTH_CSRF_STATE } from "../../constants/constants";
 import { FcGoogle } from "react-icons/fc";
 
@@ -39,7 +40,7 @@ const AuthPage = () => {
     };
 
     return (
-        <div className="w-screen h-screen flex flex-col space-y-8 items-center justify-center">
+        <Page className="space-y-8 items-center justify-center">
             <h1 className="sm:text-7xl text-6xl font-normal text-text-primary font-montserrat">
                 Converge
             </h1>
@@ -55,7 +56,7 @@ const AuthPage = () => {
                 <FcGoogle className="w-6 h-6 shrink-0" />
                 <span className="text-lg font-medium">Sign in with Google</span>
             </button>
-        </div>
+        </Page>
     );
 };
 
