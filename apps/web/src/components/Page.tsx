@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { type ReactNode } from "react";
 
 /**
  * Full-viewport page shell shared across all top-level routes. Renders a
