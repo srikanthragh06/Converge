@@ -10,7 +10,7 @@ const EditorPage = () => {
     const { editor } = useEditor(); // BlockNote editor instance wired to the shared Yjs doc
 
     return (
-        <div className="w-screen h-screen flex flex-col">
+        <div className="w-screen h-screen flex flex-col overflow-x-hidden">
             <div className="flex-1">
                 <BlockNoteView
                     editor={editor}
