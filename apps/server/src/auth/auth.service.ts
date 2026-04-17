@@ -3,6 +3,7 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
@@ -10,7 +11,7 @@ import { firstValueFrom } from 'rxjs';
 import * as jwt from 'jsonwebtoken';
 import { DatabaseService } from '../db/database.service';
 import { type GoogleAuthResponseDto } from '@converge/shared';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 
 @Injectable()
 export class AuthService {
@@ -101,7 +102,7 @@ export class AuthService {
     const authToken = this.prepareUserJWT(rows[0].id, rows[0].email);
 
     const userDetails: GoogleAuthResponseDto = {
-      id: rows[0].id.toString(), // bigint is not JSON-serialisable — convert to string.
+      id: rows[0].id.toString(), // convert to string for consistent serialisation across all API consumers.
       email: rows[0].email,
       name: rows[0].name,
       avatarUrl: rows[0].avatar_url,
@@ -133,6 +134,60 @@ export class AuthService {
     );
 
     return data;
+  }
+
+  /**
+   * Verifies the auth JWT from the request cookie, checks the user exists in
+   * the database, and stamps the numeric user ID onto the request object so
+   * downstream handlers can read it without re-querying.
+   * Throws UnauthorizedException on any validation failure so NestJS returns 401.
+   *
+   * @param req - The Express request object carrying the authToken cookie.
+   */
+  async verifyReqAuthAndAttachUserToReq(req: Request): Promise<void> {
+    const authToken = req.cookies.authToken as string;
+    if (!authToken)
+      throw new UnauthorizedException(
+        'No authToken present in request cookies',
+      );
+
+    const secret = this.configService.get<string>('JWT_SECRET');
+    const payload = jwt.verify(authToken, secret!);
+
+    if (typeof payload === 'string') {
+      throw new UnauthorizedException('Invalid token payload.');
+    }
+
+    const { userId, userEmail } = payload;
+
+    // Ensure both claims are non-empty strings before any further checks.
+    if (typeof userId !== 'string' || !userId) {
+      throw new UnauthorizedException('Invalid userId in auth token.');
+    }
+    if (typeof userEmail !== 'string' || !userEmail) {
+      throw new UnauthorizedException('Invalid userEmail in auth token.');
+    }
+
+    // userId was serialised as a string when signing — ensure it parses to a valid number.
+    const numericUserId = Number(userId);
+    if (isNaN(numericUserId)) {
+      throw new UnauthorizedException('userId in auth token is not a valid number.');
+    }
+
+    const db = this.dbService.kysely;
+    const user = await db
+      .selectFrom('users')
+      .select('users.id')
+      .where('users.id', '=', numericUserId)
+      .where('users.email', '=', userEmail)
+      .executeTakeFirst();
+
+    if (!user) {
+      throw new UnauthorizedException(
+        'User not found — token may belong to a deleted account.',
+      );
+    }
+    (req as any).userId = user.id;
   }
 
   /**

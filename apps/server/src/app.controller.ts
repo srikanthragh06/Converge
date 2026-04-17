@@ -10,6 +10,6 @@ export class AppController {
    */
   @Get('health')
   health() {
-    return httpOK();
+    return httpOK({});
   }
 }

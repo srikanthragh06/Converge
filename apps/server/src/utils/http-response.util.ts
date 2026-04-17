@@ -11,10 +11,10 @@ export interface HttpResponse<T> {
 }
 
 /**
- * Returns the data payload directly as the HTTP response body, or undefined for empty responses.
- * @param data - optional payload to return
+ * Returns the data payload directly as the HTTP response body.
+ * @param data - the payload to return
  */
-export function httpOK<T>(data?: T): T | undefined {
+export function httpOK<T>(data: T): T {
   return data;
 }
 

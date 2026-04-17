@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import * as Y from 'yjs';
 import { mapsAreEqual } from '@converge/shared';
 import { REDIS_EVENTS, REDIS_LOCKS } from '../redis/redis.events';
@@ -307,5 +307,23 @@ export class DocumentService {
 
     this.yDocsMap.set(documentId, newYDoc);
     return newYDoc;
+  }
+
+  /**
+   * Inserts a new document row owned by the given user and returns its ID.
+   *
+   * @param userId - The ID of the authenticated user who will own the document.
+   * @returns The newly created document's ID.
+   */
+  async createNewDocument(userId: number): Promise<number> {
+    const db = this.dbService.kysely;
+    const row = await db
+      .insertInto('documents')
+      .values({ creator_id: userId })
+      .returning('documents.id')
+      .executeTakeFirst();
+    if (!row) throw new InternalServerErrorException('Failed to create document.');
+
+    return row.id;
   }
 }

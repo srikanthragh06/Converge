@@ -2,6 +2,7 @@ import { Body, Controller, Post, Res } from '@nestjs/common';
 import {
   type GoogleAuthRequestDto,
   GoogleAuthRequestSchema,
+  type GoogleAuthResponseDto,
 } from '@converge/shared';
 import { AuthService } from './auth.service';
 import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe';
@@ -25,7 +26,7 @@ export class AuthController {
     @Body(new ZodHttpValidationPipe(GoogleAuthRequestSchema))
     { code }: GoogleAuthRequestDto,
     @Res({ passthrough: true }) res: Response,
-  ) {
+  ): Promise<GoogleAuthResponseDto> {
     try {
       const { authToken, userDetails } =
         await this.authService.authorizeGoogleUserAndGenerateJWT(code);
