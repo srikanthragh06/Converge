@@ -9,9 +9,9 @@ import { sql } from 'kysely';
 
 @Injectable()
 export class DocumentService {
-  // Single in-memory Y.Doc shared across all clients. Temporary until
-  // per-document persistence is introduced.
-  private readonly yDoc = new Y.Doc();
+  // In-memory registry of live Y.Doc instances, keyed by document ID.
+  // Acts as the source of truth for whether a document is loaded and subscribed.
+  private readonly yDocsMap = new Map<number, Y.Doc>();
 
   /** Number of updates since the last compaction that triggers a new compaction. */
   private readonly COMPACTION_THRESHOLD = 5000;
@@ -25,43 +25,21 @@ export class DocumentService {
   ) {}
 
   /**
-   * Loads all persisted Yjs updates from the database and applies them to the
-   * in-memory doc. Called once at startup before the server accepts connections,
-   * so the in-memory state reflects the last saved document state.
-   */
-  async populateInMemoryYdoc(): Promise<void> {
-    const db = this.dbService.kysely;
-    const rows = await db
-      .selectFrom('document_updates')
-      .select('update')
-      .orderBy('created_at', 'asc')
-      .execute();
-
-    // Nothing to apply if the table is empty (fresh start).
-    if (rows.length === 0) {
-      console.log('No persisted updates found, starting with empty doc');
-      return;
-    }
-
-    const updates = rows.map((row) => new Uint8Array(row.update));
-
-    // Merge all incremental updates into one before applying — more efficient
-    // than calling Y.applyUpdate in a loop.
-    const mergedUpdate = Y.mergeUpdates(updates);
-    Y.applyUpdate(this.yDoc, mergedUpdate);
-    console.log(`In-memory doc restored from ${rows.length} persisted updates`);
-  }
-
-  /**
    * Applies a Yjs update to the shared document and returns the update
    * along with the server's new state vector.
+   * @param documentId - the document to apply the update to
    * @param update - encoded Yjs update bytes from the client
    * @returns the applied update and the server state vector after the update
    */
-  async applyDocUpdate(update: Uint8Array): Promise<{
+  async applyDocUpdate(
+    documentId: number,
+    update: Uint8Array,
+  ): Promise<{
     update: Uint8Array;
     serverSV: Uint8Array;
   }> {
+    const yDoc = await this.loadDoc(documentId);
+
     // Persist before applying to memory. If the insert fails, the in-memory doc
     // simply misses this update — the repair sync protocol will eventually
     // reconcile the divergence. The reverse (apply then failed insert) is worse:
@@ -75,23 +53,14 @@ export class DocumentService {
       // Append the raw Yjs update bytes to the persistent update log.
       await tx
         .insertInto('document_updates')
-        .values({ update: Buffer.from(update) })
+        .values({ update: Buffer.from(update), document_id: documentId })
         .execute();
-
-      // If the documents row does not exist yet, seed it with default values.
-      // Temporary — will be removed once multi-document support is introduced.
-      const row = await tx
-        .selectFrom('documents')
-        .select('id')
-        .executeTakeFirst();
-      if (row === undefined) {
-        await tx.insertInto('documents').defaultValues().execute();
-      }
 
       // Increment update_count so the compaction logic can detect when the threshold is crossed.
       const updatedRows = await tx
         .updateTable('documents')
         .set({ update_count: sql`update_count + 1` })
+        .where('documents.id', '=', documentId)
         .returning(['update_count', 'last_compact_count'])
         .execute();
 
@@ -107,20 +76,20 @@ export class DocumentService {
     });
 
     // apply the update locally
-    Y.applyUpdate(this.yDoc, update);
+    Y.applyUpdate(yDoc, update);
 
     // Fire-and-forget compaction check — not awaited so it does not block the write path.
-    if (compactionRequired) this.compactUpdatesIfRequired();
+    if (compactionRequired) this.compactUpdatesIfRequired(documentId);
 
     // Publish to other server instances via Redis pub/sub so their in-memory
     // docs stay in sync. The update is base64-encoded because Uint8Array does
     // not survive JSON.stringify.
-    this.redisService.publish(REDIS_EVENTS.documentUpdate, {
+    this.redisService.publish(REDIS_EVENTS.documentUpdate(documentId), {
       updateBase64: uint8ArrayToBase64(update),
     });
 
     // return the update unchanged alongside the new server state vector
-    return { update, serverSV: Y.encodeStateVector(this.yDoc) };
+    return { update, serverSV: Y.encodeStateVector(yDoc) };
   }
 
   /**
@@ -128,24 +97,35 @@ export class DocumentService {
    * the database or publishing to Redis. Used when receiving updates from other
    * server instances via Redis pub/sub — persistence and publishing were already
    * handled by the originating server.
+   * @param documentId - the document to apply the update to
    * @param update - encoded Yjs update bytes
    * @returns the server state vector after the update
    */
-  applyDocUpdateOnlyToLocalMemory(update: Uint8Array): Uint8Array {
-    Y.applyUpdate(this.yDoc, update);
-    return Y.encodeStateVector(this.yDoc);
+  async applyDocUpdateOnlyToLocalMemory(
+    documentId: number,
+    update: Uint8Array,
+  ) {
+    const yDoc = await this.loadDoc(documentId);
+    Y.applyUpdate(yDoc, update);
+    return Y.encodeStateVector(yDoc);
   }
 
   /**
    * Returns true if the client's state vector matches the server's,
    * indicating the two documents are fully in sync.
+   * @param documentId - the document to check sync status for
    * @param clientSV - the client's encoded state vector
    * @returns true if both state vectors are equal entry-for-entry
    */
-  isClientAndServerDocSynced(clientSV: Uint8Array): boolean {
+  async isClientAndServerDocSynced(
+    documentId: number,
+    clientSV: Uint8Array,
+  ): Promise<boolean> {
+    const yDoc = await this.loadDoc(documentId);
+
     // decode both state vectors into Maps and compare them entry-for-entry
     return mapsAreEqual(
-      Y.decodeStateVector(Y.encodeStateVector(this.yDoc)),
+      Y.decodeStateVector(Y.encodeStateVector(yDoc)),
       Y.decodeStateVector(clientSV),
     );
   }
@@ -153,17 +133,23 @@ export class DocumentService {
   /**
    * Computes the updates the client is missing relative to its state vector
    * and returns them alongside the server's current state vector.
+   * @param documentId - the document to compute the diff for
    * @param clientSV - the client's encoded state vector
    * @returns the diff the client needs and the server's current state vector
    */
-  getClientServerDocDiff(clientSV: Uint8Array): {
+  async getClientServerDocDiff(
+    documentId: number,
+    clientSV: Uint8Array,
+  ): Promise<{
     diff: Uint8Array;
     serverSV: Uint8Array;
-  } {
+  }> {
+    const yDoc = await this.loadDoc(documentId);
+
     // encode only the updates the client has not yet seen
-    const diff = Y.encodeStateAsUpdate(this.yDoc, clientSV);
+    const diff = Y.encodeStateAsUpdate(yDoc, clientSV);
     // snapshot the server SV so the client can detect any remaining gaps
-    const serverSV = Y.encodeStateVector(this.yDoc);
+    const serverSV = Y.encodeStateVector(yDoc);
     return { diff, serverSV };
   }
 
@@ -175,17 +161,17 @@ export class DocumentService {
    * Errors are caught internally — a failed compaction is non-fatal and will be
    * retried the next time the threshold is crossed.
    */
-  async compactUpdatesIfRequired(): Promise<void> {
+  async compactUpdatesIfRequired(documentId: number): Promise<void> {
     let lockAcquired = false;
     try {
       lockAcquired = await this.redisService.acquireLock(
-        REDIS_LOCKS.compaction,
+        REDIS_LOCKS.compaction(documentId),
         this.COMPACTION_LOCK_TTL_MS,
       );
 
       if (!lockAcquired) {
         console.log(
-          'compactUpdatesIfRequired: lock already held by another server, skipping',
+          `compactUpdatesIfRequired: lock already held by another server, skipping for ${documentId}`,
         );
         return;
       }
@@ -195,12 +181,13 @@ export class DocumentService {
       await db.transaction().execute(async (tx) => {
         const row = await tx
           .selectFrom('documents')
+          .where('documents.id', '=', documentId)
           .select(['update_count', 'last_compact_count'])
           .executeTakeFirst();
 
         if (row === undefined) {
           console.log(
-            'compactUpdatesIfRequired: no documents row found, skipping compaction',
+            `compactUpdatesIfRequired: no documents row found, skipping compaction for ${documentId}`,
           );
           return;
         }
@@ -214,6 +201,7 @@ export class DocumentService {
 
         const maxUpdateIdRow = await tx
           .selectFrom('document_updates')
+          .where('document_updates.document_id', '=', documentId)
           .select(sql<string | null>`max(id)`.as('maxUpdateId'))
           .executeTakeFirst();
 
@@ -227,12 +215,13 @@ export class DocumentService {
           return;
         }
 
-        const maxId = BigInt(maxUpdateIdRow.maxUpdateId);
+        const maxId = Number(maxUpdateIdRow.maxUpdateId);
 
         // Fetch all updates up to and including maxId in insertion order.
         const updateRows = await tx
           .selectFrom('document_updates')
           .select('update')
+          .where('document_updates.document_id', '=', documentId)
           .where('id', '<=', maxId)
           .orderBy('id', 'asc')
           .execute();
@@ -246,13 +235,14 @@ export class DocumentService {
         // fails the originals are still intact and no data is lost.
         await tx
           .insertInto('document_updates')
-          .values({ update: Buffer.from(merged) })
+          .values({ update: Buffer.from(merged), document_id: documentId })
           .execute();
 
         // Remove all individual updates that were folded into the merged blob.
         await tx
           .deleteFrom('document_updates')
           .where('id', '<=', maxId)
+          .where('document_id', '=', documentId)
           .execute();
 
         // Record the update_count at the time of compaction so the threshold
@@ -260,13 +250,62 @@ export class DocumentService {
         await tx
           .updateTable('documents')
           .set({ last_compact_count: updateCount })
+          .where('documents.id', '=', documentId)
           .execute();
       });
     } catch (err) {
       console.error('compactUpdatesIfRequired: compaction failed:', err);
     } finally {
       if (lockAcquired)
-        await this.redisService.releaseLock(REDIS_LOCKS.compaction);
+        await this.redisService.releaseLock(REDIS_LOCKS.compaction(documentId));
     }
+  }
+
+  /**
+   * Returns true if a document with the given ID exists in the database.
+   * @param documentId - the document ID to check
+   * @returns true if the document row exists, false otherwise
+   */
+  async doesDocumentExist(documentId: number): Promise<boolean> {
+    const db = this.dbService.kysely;
+
+    const isExists = await db
+      .selectFrom('documents')
+      .select('documents.id')
+      .where('id', '=', documentId)
+      .executeTakeFirst();
+
+    return !!isExists;
+  }
+
+  /**
+   * Returns the in-memory Y.Doc for the given document, loading and caching it
+   * from the database on first access. Subsequent calls return the cached instance.
+   * @param documentId - the document to load
+   * @returns the live Y.Doc instance for this document
+   */
+  async loadDoc(documentId: number): Promise<Y.Doc> {
+    const yDoc = this.yDocsMap.get(documentId);
+    if (yDoc) return yDoc;
+
+    const db = this.dbService.kysely;
+    const rows = await db
+      .selectFrom('document_updates')
+      .select('update')
+      .where('document_id', '=', documentId)
+      .orderBy('created_at', 'asc')
+      .execute();
+
+    const newYDoc = new Y.Doc();
+
+    const updates = rows.map((row) => new Uint8Array(row.update));
+
+    // Merge all incremental updates into one before applying — more efficient
+    // than calling Y.applyUpdate in a loop.
+    const mergedUpdate = Y.mergeUpdates(updates);
+    Y.applyUpdate(newYDoc, mergedUpdate);
+
+    this.yDocsMap.set(documentId, newYDoc);
+    return newYDoc;
   }
 }

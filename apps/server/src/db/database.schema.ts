@@ -5,9 +5,9 @@ import { Generated } from 'kysely';
  * BYTEA columns deserialise to Buffer via the pg driver.
  */
 export interface DocumentUpdatesTable {
-  id: Generated<bigint>;
+  id: Generated<number>;
   /** FK to documents.id — scopes this update row to a specific document. */
-  document_id: bigint;
+  document_id: number;
   /** Raw Yjs update binary, stored as BYTEA and deserialised to Buffer by pg. */
   update: Buffer;
   created_at: Generated<Date>;
@@ -15,9 +15,9 @@ export interface DocumentUpdatesTable {
 
 /** Row shape for the documents table. */
 export interface DocumentsTable {
-  id: Generated<bigint>;
+  id: Generated<number>;
   /** FK to users.id — the user who created this document. */
-  creator_id: bigint;
+  creator_id: number;
   /** Monotonically incrementing counter, increased on every persisted Yjs update. */
   update_count: Generated<number>;
   /** Value of update_count at the time of the last compaction. */
@@ -27,7 +27,7 @@ export interface DocumentsTable {
 
 /** Row shape for the users table. */
 export interface UsersTable {
-  id: Generated<bigint>;
+  id: Generated<number>;
   /** Stable Google user identifier from the `sub` claim of the ID token. */
   google_id: string;
   email: string;

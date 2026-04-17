@@ -1,11 +1,12 @@
 import {
   ConnectedSocket,
   MessageBody,
+  OnGatewayConnection,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { OnApplicationBootstrap, UseFilters } from '@nestjs/common';
+import { UseFilters } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { DocumentService } from './document.service';
 import { ZodSocketValidationPipe } from '../pipes/zod-socket-validation.pipe';
@@ -28,7 +29,7 @@ import {
   SOCKET_EVENTS,
 } from '@converge/shared';
 import { GlobalExceptionFilter } from '../utils/global-exception.filter';
-import { socketBroadcast, socketEmit } from '../utils/ws-emit.util';
+import { socketEmit, socketEmitRoom } from '../utils/ws-emit.util';
 import { RedisService } from '../redis/redis.service';
 import { REDIS_EVENTS } from '../redis/redis.events';
 import { base64ToUint8Array } from '../utils/utils';
@@ -41,9 +42,11 @@ import { base64ToUint8Array } from '../utils/utils';
 @WebSocketGateway({
   cors: { origin: (_req, cb) => cb(null, process.env.CLIENT_URL) },
 })
-export class DocumentGateway implements OnApplicationBootstrap {
+export class DocumentGateway implements OnGatewayConnection {
   @WebSocketServer()
   socketServer!: Server; // the Socket.io server instance, injected by the NestJS WebSocket adapter
+
+  private readonly subscribedDocs = new Set<number>(); // tracks which document IDs have an active Redis subscription, preventing duplicate handlers
 
   constructor(
     private readonly documentService: DocumentService,
@@ -51,33 +54,84 @@ export class DocumentGateway implements OnApplicationBootstrap {
   ) {}
 
   /**
-   * Subscribes to the Redis document update channel once the app is fully
-   * initialised. Applies incoming updates to the in-memory doc and broadcasts
-   * them to all locally connected clients so they stay in sync with edits
-   * made on other server instances.
+   * Validates the connecting client's documentId, stamps it on the socket, joins
+   * the document room, loads the Y.Doc into memory, and sets up the Redis
+   * subscription for cross-server updates on the first connection to this document.
+   * Disconnects the client if the documentId is missing, invalid, or not found.
+   * @param client - the newly connected socket
    */
-  async onApplicationBootstrap(): Promise<void> {
-    await this.redisService.subscribe(
-      REDIS_EVENTS.documentUpdate,
-      (message) => {
-        try {
-          const update = base64ToUint8Array(message.updateBase64 as string);
-          const serverSV =
-            this.documentService.applyDocUpdateOnlyToLocalMemory(update);
-          socketEmit(
-            this.socketServer,
-            SOCKET_EVENTS.SYNC_DOC_CLIENT,
-            SyncDocClientSchema,
-            {
-              updateArray: Array.from(update),
-              serverSVArray: Array.from(serverSV),
-            },
-          );
-        } catch (err) {
-          console.error('Failed to process Redis document update:', err);
-        }
-      },
-    );
+  async handleConnection(client: Socket): Promise<void> {
+    try {
+      // get documentId from client handshake query
+      const { documentId: documentIdStr } = client.handshake.query;
+
+      // reject if documentId is missing or an array (only a single string is valid)
+      if (!documentIdStr || Array.isArray(documentIdStr)) {
+        console.log('Connection rejected: missing or invalid documentId');
+        client.disconnect();
+        return;
+      }
+
+      // parse the string to a number — Number() returns NaN for non-numeric strings
+      const documentId = Number(documentIdStr);
+
+      if (isNaN(documentId)) {
+        console.log('Connection rejected: documentId is not a valid number');
+        client.disconnect();
+        return;
+      }
+
+      // reject if no document with this id exists in the database
+      const doesDocumentExist =
+        await this.documentService.doesDocumentExist(documentId);
+      if (!doesDocumentExist) {
+        console.log(`Connection rejected: document ${documentId} not found`);
+        client.disconnect();
+        return;
+      }
+
+      // stamp the socket so all handlers can read documentId without trusting the client
+      client.data.documentId = documentId;
+
+      // join the document room — broadcasts are scoped to this room
+      client.join(String(documentId));
+
+      // load the Y.Doc into memory if not already loaded
+      await this.documentService.loadDoc(documentId);
+
+      // subscribe once per document — the Set prevents duplicate handlers across client connections
+      if (!this.subscribedDocs.has(documentId)) {
+        await this.redisService.subscribe(
+          REDIS_EVENTS.documentUpdate(documentId),
+          async (message) => {
+            try {
+              const update = base64ToUint8Array(message.updateBase64 as string);
+              const serverSV =
+                await this.documentService.applyDocUpdateOnlyToLocalMemory(
+                  documentId,
+                  update,
+                );
+              socketEmitRoom(
+                this.socketServer,
+                String(documentId),
+                SOCKET_EVENTS.SYNC_DOC_CLIENT,
+                SyncDocClientSchema,
+                {
+                  updateArray: Array.from(update),
+                  serverSVArray: Array.from(serverSV),
+                },
+              );
+            } catch (err) {
+              console.error('Failed to process Redis document update:', err);
+            }
+          },
+        );
+        this.subscribedDocs.add(documentId);
+      }
+    } catch (err) {
+      console.error(err);
+      client.disconnect();
+    }
   }
 
   /**
@@ -103,20 +157,26 @@ export class DocumentGateway implements OnApplicationBootstrap {
    * @param data - contains the encoded update and the client's state vector
    */
   @SubscribeMessage(SOCKET_EVENTS.SYNC_DOC_SERVER)
-  async handleSyncDoc(
+  async handleSyncDocServer(
     @ConnectedSocket() client: Socket,
     @MessageBody(new ZodSocketValidationPipe(SyncDocServerSchema))
     { updateArray, clientSVArray }: SyncDocServerPayload,
   ) {
+    const documentId = client.data.documentId as number;
+
     const update = new Uint8Array(updateArray);
     const clientSV = new Uint8Array(clientSVArray);
 
     // apply the update to the shared doc and get the new server state vector
-    const { serverSV } = await this.documentService.applyDocUpdate(update);
+    const { serverSV } = await this.documentService.applyDocUpdate(
+      documentId,
+      update,
+    );
 
     const serverSVArray = Array.from(serverSV);
-    socketBroadcast(
+    socketEmitRoom(
       client,
+      String(documentId),
       SOCKET_EVENTS.SYNC_DOC_CLIENT,
       SyncDocClientSchema,
       {
@@ -126,7 +186,11 @@ export class DocumentGateway implements OnApplicationBootstrap {
     );
 
     // if the client is behind, prompt it to start a repair sync
-    if (!this.documentService.isClientAndServerDocSynced(clientSV)) {
+    const isSynced = await this.documentService.isClientAndServerDocSynced(
+      documentId,
+      clientSV,
+    );
+    if (!isSynced) {
       socketEmit(
         client,
         SOCKET_EVENTS.REPAIR_SYNC_DOC_CLIENT,
@@ -145,16 +209,18 @@ export class DocumentGateway implements OnApplicationBootstrap {
    * @param data - contains the client's encoded state vector
    */
   @SubscribeMessage(SOCKET_EVENTS.REPAIR_SYNC_DOC_SERVER)
-  handleRepairSyncDoc(
+  async handleRepairSyncDoc(
     @ConnectedSocket() client: Socket,
     @MessageBody(new ZodSocketValidationPipe(RepairSyncDocServerSchema))
     { clientSVArray }: RepairSyncDocServerPayload,
   ) {
+    const documentId = client.data.documentId as number;
+
     const clientSV = new Uint8Array(clientSVArray);
 
     // compute the diff the client is missing and the current server SV
     const { serverSV, diff } =
-      this.documentService.getClientServerDocDiff(clientSV);
+      await this.documentService.getClientServerDocDiff(documentId, clientSV);
 
     // send the diff and server SV so the client can apply and respond with its own diff
     socketEmit(
@@ -180,15 +246,30 @@ export class DocumentGateway implements OnApplicationBootstrap {
     @MessageBody(new ZodSocketValidationPipe(RepairSyncAckDocServerSchema))
     { diffArray, clientSVArray }: RepairSyncAckDocServerPayload,
   ) {
+    const documentId = client.data.documentId as number;
+
     const diff = new Uint8Array(diffArray);
     const clientSV = new Uint8Array(clientSVArray);
 
-    // apply the diff
-    await this.documentService.applyDocUpdate(diff);
+    // apply the diff and emit to other clients who are using the doc
+    const { serverSV } = await this.documentService.applyDocUpdate(
+      documentId,
+      diff,
+    );
+    socketEmitRoom(
+      client,
+      String(documentId),
+      SOCKET_EVENTS.SYNC_DOC_CLIENT,
+      SyncDocClientSchema,
+      {
+        serverSVArray: Array.from(serverSV),
+        updateArray: Array.from(diff),
+      },
+    );
 
     // calculate the remaining diff the client is still missing
     const { diff: diffForClient } =
-      this.documentService.getClientServerDocDiff(clientSV);
+      await this.documentService.getClientServerDocDiff(documentId, clientSV);
 
     socketEmit(
       client,
@@ -206,11 +287,14 @@ export class DocumentGateway implements OnApplicationBootstrap {
    */
   @SubscribeMessage(SOCKET_EVENTS.REPAIR_ACK_DOC_SERVER)
   async handleRepairAckDoc(
+    @ConnectedSocket() client: Socket,
     @MessageBody(new ZodSocketValidationPipe(RepairAckDocServerSchema))
     { diffArray }: RepairAckDocServerPayload,
   ) {
+    const documentId = client.data.documentId;
+
     const diff = new Uint8Array(diffArray);
     // convert and apply the final diff to bring the server doc fully up to date
-    await this.documentService.applyDocUpdate(diff);
+    await this.documentService.applyDocUpdate(documentId, diff);
   }
 }

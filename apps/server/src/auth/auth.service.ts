@@ -139,13 +139,13 @@ export class AuthService {
    * Signs and returns a JWT containing the user's ID and email, using the
    * secret from environment config.
    *
-   * @param userId - The internal database ID of the authenticated user (bigint, serialised to string in the payload).
+   * @param userId - The internal database ID of the authenticated user, serialised to string in the payload.
    * @param userEmail - The email address of the authenticated user.
    * @returns A signed JWT string to be sent to the client.
    */
-  prepareUserJWT(userId: bigint, userEmail: string): string {
+  prepareUserJWT(userId: number, userEmail: string): string {
     const secret = this.configService.get<string>('JWT_SECRET');
-    // Serialize userId as a string — bigint is not JSON-serialisable.
+    // Serialize userId as a string so the payload type is consistent across all JWT consumers.
     return jwt.sign({ userId: userId.toString(), userEmail }, secret!, {
       expiresIn: AuthService.AUTH_EXPIRY_TTL_SECONDS,
     });
