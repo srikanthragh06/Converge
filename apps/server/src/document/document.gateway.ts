@@ -57,7 +57,9 @@ export class DocumentGateway implements OnGatewayConnection {
    * Validates the connecting client's documentId, stamps it on the socket, joins
    * the document room, loads the Y.Doc into memory, and sets up the Redis
    * subscription for cross-server updates on the first connection to this document.
-   * Disconnects the client if the documentId is missing, invalid, or not found.
+   * Rejects invalid connections using disconnect(true) to force-close the underlying
+   * transport — plain disconnect() only removes the socket from namespaces but leaves
+   * the WebSocket open, so the client never receives the disconnect event.
    * @param client - the newly connected socket
    */
   async handleConnection(client: Socket): Promise<void> {
@@ -68,7 +70,7 @@ export class DocumentGateway implements OnGatewayConnection {
       // reject if documentId is missing or an array (only a single string is valid)
       if (!documentIdStr || Array.isArray(documentIdStr)) {
         console.log('Connection rejected: missing or invalid documentId');
-        client.disconnect();
+        client.disconnect(true);
         return;
       }
 
@@ -77,7 +79,7 @@ export class DocumentGateway implements OnGatewayConnection {
 
       if (isNaN(documentId)) {
         console.log('Connection rejected: documentId is not a valid number');
-        client.disconnect();
+        client.disconnect(true);
         return;
       }
 
@@ -86,7 +88,7 @@ export class DocumentGateway implements OnGatewayConnection {
         await this.documentService.doesDocumentExist(documentId);
       if (!doesDocumentExist) {
         console.log(`Connection rejected: document ${documentId} not found`);
-        client.disconnect();
+        client.disconnect(true);
         return;
       }
 

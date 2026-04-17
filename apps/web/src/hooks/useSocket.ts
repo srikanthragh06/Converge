@@ -10,7 +10,7 @@ import { socketEmit } from "../lib/socket-emit.util";
 
 /**
  * Manages the Socket.io connection lifecycle and ping-pong latency checks.
- * Connects on mount, registers connect/error listeners, and periodically
+ * Connects on mount, registers connect/disconnect/error listeners, and periodically
  * emits pings to measure round-trip latency while connected.
  */
 // Flow: connect → start ping interval → stop pings on disconnect.
@@ -26,6 +26,11 @@ const useSocket = () => {
             setIsSocketConnected(true);
         });
 
+        socket.on(SOCKET_EVENTS.DISCONNECT, (reason) => {
+            console.log(`Socket disconnected because \n${reason}`);
+            setIsSocketConnected(false);
+        });
+
         socket.on(SOCKET_EVENTS.CONNECT_ERROR, (err) => {
             console.error("Socket connection error:", err);
             setIsSocketConnected(false);
@@ -36,6 +41,7 @@ const useSocket = () => {
         return () => {
             socket.off(SOCKET_EVENTS.CONNECT);
             socket.off(SOCKET_EVENTS.CONNECT_ERROR);
+            socket.off(SOCKET_EVENTS.DISCONNECT);
             setIsSocketConnected(false);
         };
     }, []);

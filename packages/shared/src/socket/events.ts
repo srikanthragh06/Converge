@@ -4,6 +4,7 @@ export const SOCKET_EVENTS = {
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     CONNECT: "connect",
     CONNECT_ERROR: "connect_error",
+    DISCONNECT: "disconnect",
 
     // ── Ping / Pong ───────────────────────────────────────────────────────────
     PING: "ping",
