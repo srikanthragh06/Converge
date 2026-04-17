@@ -6,6 +6,8 @@ import { Generated } from 'kysely';
  */
 export interface DocumentUpdatesTable {
   id: Generated<bigint>;
+  /** FK to documents.id — scopes this update row to a specific document. */
+  document_id: bigint;
   /** Raw Yjs update binary, stored as BYTEA and deserialised to Buffer by pg. */
   update: Buffer;
   created_at: Generated<Date>;
@@ -14,6 +16,8 @@ export interface DocumentUpdatesTable {
 /** Row shape for the documents table. */
 export interface DocumentsTable {
   id: Generated<bigint>;
+  /** FK to users.id — the user who created this document. */
+  creator_id: bigint;
   /** Monotonically incrementing counter, increased on every persisted Yjs update. */
   update_count: Generated<number>;
   /** Value of update_count at the time of the last compaction. */
