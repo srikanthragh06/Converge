@@ -9,7 +9,7 @@ import Page from "../../components/Page";
  * then mounts the BlockNote editor once the document is confirmed.
  */
 const EditorPage = () => {
-    const { editor, documentStatus } = useEditor(); // BlockNote editor instance wired to the shared Yjs doc
+    const { editor, documentStatus, title, handleTitleChange } = useEditor(); // editor instance, document fetch status, and title state
 
     return (
         <Page authRequired>
@@ -31,10 +31,13 @@ const EditorPage = () => {
                         <input
                             type="text"
                             placeholder="Untitled"
+                            maxLength={32}
                             size={1}
-                            className="mx-2 w-full max-w-2xl min-w-0 
-                            bg-transparent border-none outline-none 
-                            text-text-primary font-bold sm:text-4xl text-2xl 
+                            value={title}
+                            onChange={(e) => handleTitleChange(e.target.value)}
+                            className="mx-2 w-full max-w-2xl min-w-0
+                            bg-transparent border-none outline-none
+                            text-text-primary font-bold sm:text-4xl text-2xl
                             placeholder-text-disabled"
                         />
                     </div>

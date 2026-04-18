@@ -8,6 +8,7 @@ import {
     mapsAreEqual,
     SyncDocClientSchema,
     SyncDocServerSchema,
+    SyncDocTitleSchema,
     RepairSyncDocServerSchema,
     RepairSyncDocClientSchema,
     RepairSyncAckDocServerSchema,
@@ -27,8 +28,8 @@ import useSocket from "./useSocket";
 /**
  * Fetches the document by ID from the URL, initialises a BlockNote editor
  * backed by a shared Yjs document, and wires up Socket.io handlers for
- * real-time sync and periodic repair syncs.
- * Returns the editor instance and the current document fetch status.
+ * real-time sync, periodic repair syncs, and document title sync.
+ * Returns the editor instance, document fetch status, title state, and a title change handler.
  */
 const useEditor = () => {
     const isSocketConnected = useAtomValue(isSocketConnectedAtom); // read-only view of the global socket connection state
@@ -39,8 +40,11 @@ const useEditor = () => {
         "loading" | "ready" | "forbidden" | "notFound"
     >("loading"); // tracks the outcome of the document fetch
 
+    const [title, setTitle] = useState<string>(""); // the document title, seeded from the initial fetch and kept in sync via socket
+
     const timeoutIdRef = useRef<number | null>(null); // stores the debounce timer ID for batching outgoing Yjs updates
     const pendingUpdatesRef = useRef<Uint8Array<ArrayBufferLike>[]>([]); // accumulates Yjs update chunks between debounce flushes
+    const titleTimeoutIdRef = useRef<number | null>(null); // debounce timer for outgoing title sync events
 
     const yDoc = useMemo(() => new Y.Doc(), []); // the shared Yjs document that backs the BlockNote editor state
 
@@ -68,6 +72,31 @@ const useEditor = () => {
         });
     }, []);
 
+    /**
+     * Updates local title state and debounces a sync-doc-title-server emit so
+     * the server and other clients stay in sync without a round-trip per keystroke.
+     * @param newTitle - the updated title string from the input
+     */
+    const handleTitleChange = (newTitle: string) => {
+        setTitle(newTitle);
+
+        if (!isSocketConnected) return;
+
+        // Reset the debounce timer on every keystroke.
+        if (titleTimeoutIdRef.current) clearTimeout(titleTimeoutIdRef.current);
+
+        // After 300 ms of inactivity, emit the latest title to the server.
+        titleTimeoutIdRef.current = setTimeout(() => {
+            socketEmit(
+                socket,
+                SOCKET_EVENTS.SYNC_DOC_TITLE_SERVER,
+                SyncDocTitleSchema,
+                { title: newTitle },
+            );
+            titleTimeoutIdRef.current = null;
+        }, 300);
+    };
+
     // Connect the socket only once the document is confirmed — prevents the gateway
     // from receiving a connection with an invalid or inaccessible document ID.
     useSocket(documentStatus === "ready", documentId);
@@ -76,9 +105,10 @@ const useEditor = () => {
     useEffect(() => {
         const fetchDocument = async () => {
             try {
-                await apiClient.get<GetDocumentResponseDto>(
+                const { data } = await apiClient.get<GetDocumentResponseDto>(
                     `/document/${documentId}`,
                 );
+                setTitle(data.title);
                 setDocumentStatus("ready");
             } catch (err) {
                 if (axios.isAxiosError(err)) {
@@ -263,6 +293,38 @@ const useEditor = () => {
         };
     }, [yDoc, isSocketConnected]);
 
+    // Listens for title updates broadcast by the server from other clients and
+    // updates local title state. Runs whenever the socket connection state changes.
+    useEffect(() => {
+        if (!isSocketConnected) return;
+
+        const handleSyncDocTitleClient = (data: unknown) => {
+            const res = socketReceive(SyncDocTitleSchema, data);
+            if (!res) return;
+            setTitle(res.title);
+        };
+
+        socket.on(
+            SOCKET_EVENTS.SYNC_DOC_TITLE_CLIENT,
+            handleSyncDocTitleClient,
+        );
+
+        return () => {
+            socket.off(
+                SOCKET_EVENTS.SYNC_DOC_TITLE_CLIENT,
+                handleSyncDocTitleClient,
+            );
+        };
+    }, [isSocketConnected]);
+
+    // Cleans up any pending title debounce timer on unmount.
+    useEffect(() => {
+        return () => {
+            if (titleTimeoutIdRef.current)
+                clearTimeout(titleTimeoutIdRef.current);
+        };
+    }, []);
+
     // Listens for server-pushed sync-doc events and applies remote Yjs updates.
     // Triggers a repair sync if the state vectors diverge after applying the update.
     // Runs whenever the socket connection state changes.
@@ -314,7 +376,7 @@ const useEditor = () => {
         };
     }, [yDoc, isSocketConnected]);
 
-    return { editor, documentStatus };
+    return { editor, documentStatus, title, handleTitleChange };
 };
 
 export default useEditor;
