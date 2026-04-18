@@ -9,7 +9,8 @@ import Page from "../../components/Page";
  * then mounts the BlockNote editor once the document is confirmed.
  */
 const EditorPage = () => {
-    const { editor, documentStatus, title, handleTitleChange, isTitlePending } = useEditor(); // editor instance, document fetch status, and title state
+    const { editor, documentStatus, title, handleTitleChange, isTitlePending } =
+        useEditor(); // editor instance, document fetch status, and title state
 
     return (
         <Page authRequired>
@@ -27,7 +28,10 @@ const EditorPage = () => {
             )}
             {documentStatus === "ready" && (
                 <div className="flex-1 flex flex-col">
-                    <div className="w-full flex justify-center px-2 py-2 overflow-hidden">
+                    <div
+                        className="w-full flex justify-start px-2 py-2 overflow-hidden 
+                    sm:mb-4 mb-2"
+                    >
                         <input
                             type="text"
                             placeholder="Untitled"
