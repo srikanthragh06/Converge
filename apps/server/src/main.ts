@@ -6,6 +6,7 @@ import { loadEnv } from './utils/env.loader';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { DatabaseService } from './db/database.service';
 import { RedisService } from './redis/redis.service';
+import cookieParser from 'cookie-parser';
 
 // Load .env files before the NestJS app is created so process.env is fully
 // populated by the time any module or service constructor runs.
@@ -34,6 +35,9 @@ async function bootstrap() {
   // Global exception filter — catches all unhandled exceptions within NestJS's
   // pipeline (controllers, services, guards, etc.) and returns a proper HTTP response.
   app.useGlobalFilters(new GlobalExceptionFilter());
+
+  // Parse Cookie headers into req.cookies so auth guards can read the authToken.
+  app.use(cookieParser());
 
   // validate PORT early so the error is clear rather than a cryptic bind failure
   const PORT = process.env.PORT;

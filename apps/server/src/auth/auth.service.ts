@@ -152,7 +152,13 @@ export class AuthService {
       );
 
     const secret = this.configService.get<string>('JWT_SECRET');
-    const payload = jwt.verify(authToken, secret!);
+
+    let payload: string | jwt.JwtPayload;
+    try {
+      payload = jwt.verify(authToken, secret!);
+    } catch (err) {
+      throw new UnauthorizedException('Invalid, expired or missing authToken.');
+    }
 
     if (typeof payload === 'string') {
       throw new UnauthorizedException('Invalid token payload.');
@@ -171,7 +177,9 @@ export class AuthService {
     // userId was serialised as a string when signing — ensure it parses to a valid number.
     const numericUserId = Number(userId);
     if (isNaN(numericUserId)) {
-      throw new UnauthorizedException('userId in auth token is not a valid number.');
+      throw new UnauthorizedException(
+        'userId in auth token is not a valid number.',
+      );
     }
 
     const db = this.dbService.kysely;
@@ -214,9 +222,11 @@ export class AuthService {
    */
   setAuthCookie(res: Response, token: string): void {
     // httpOnly prevents client-side JS from reading the token, mitigating XSS theft.
+    // secure is only set on PROD so local dev (HTTP) still works.
     res.cookie('authToken', token, {
       httpOnly: true,
       sameSite: 'strict',
+      secure: this.configService.get<string>('ENVIRONMENT') === 'PROD',
       // maxAge is in milliseconds — must match the JWT's own expiry.
       maxAge: AuthService.AUTH_EXPIRY_TTL_SECONDS * 1000,
     });

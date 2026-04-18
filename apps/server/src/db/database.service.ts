@@ -21,9 +21,9 @@ export class DatabaseService {
   private static readonly RETRY_DELAY_MS = 3000; // ms to wait between attempts
 
   constructor(private readonly configService: ConfigService) {
-    // By default pg returns BIGINT (OID 20) as strings to avoid JS number precision loss.
-    // Configure the type parser once here so BigInt arithmetic works correctly at runtime.
-    types.setTypeParser(20, (val: string) => BigInt(val));
+    // By default pg returns BIGINT (OID 20) as strings. Parse as Number so IDs
+    // survive JSON serialisation — safe because all ID columns are SERIAL (32-bit).
+    types.setTypeParser(20, (val: string) => Number(val));
 
     const environment = this.configService.getOrThrow<string>('ENVIRONMENT');
 
