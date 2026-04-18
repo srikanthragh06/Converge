@@ -1,16 +1,18 @@
 import { Route, Routes } from "react-router-dom";
 import EditorPage from "./pages/editor/EditorPage";
 import useSocket from "./hooks/useSocket";
+import useAuth from "./hooks/useAuth";
 import AuthPage from "./pages/auth/AuthPage";
 import NotFoundPage from "./pages/not-found/NotFoundPage";
 import AuthCallbackPage from "./pages/authCallback/AuthCallback";
 
 /**
- * Root application component. Initialises the socket connection and
- * renders the top-level route tree.
+ * Root application component. Initialises the socket connection, hydrates
+ * auth state, and renders the top-level route tree.
  */
 function App() {
     useSocket(); // initialise the Socket.io connection for the lifetime of the app
+    useAuth(); // hydrate auth state from the server cookie on first load
 
     return (
         <div className="bg-background-base text-text-primary">

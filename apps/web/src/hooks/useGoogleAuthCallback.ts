@@ -7,7 +7,7 @@ import {
 } from "@converge/shared";
 import { AUTH_CSRF_STATE } from "../constants/constants";
 import { useSetAtom } from "jotai";
-import { isAuthAtom, userDetailsAtom } from "../atoms/auth";
+import { authAtom } from "../atoms/auth";
 
 /**
  * Handles the Google OAuth callback by validating the CSRF state token,
@@ -22,8 +22,7 @@ const useGoogleAuthCallback = () => {
     const state = searchParams.get("state"); // The CSRF state token echoed back by Google.
     const code = searchParams.get("code"); // The one-time authorisation code from Google.
 
-    const setIsAuth = useSetAtom(isAuthAtom); // Updates the global auth flag on login or failure.
-    const setUserDetails = useSetAtom(userDetailsAtom); // Stores or clears the authenticated user's profile.
+    const setAuth = useSetAtom(authAtom); // Updates global auth state on login success or failure.
 
     const [authStatus, setAuthStatus] = useState<
         "PENDING" | "FAILED" | "SUCCESSFUL"
@@ -56,15 +55,12 @@ const useGoogleAuthCallback = () => {
                         { code } satisfies GoogleAuthRequestDto,
                     );
 
-                setIsAuth(true);
-                setUserDetails(userDetails);
-
+                setAuth({ status: "authenticated", user: userDetails });
                 setAuthStatus("SUCCESSFUL");
             } catch (err) {
                 console.error(err);
+                setAuth({ status: "unauthenticated", user: null });
                 setAuthStatus("FAILED");
-                setIsAuth(false);
-                setUserDetails(null);
             }
         };
 

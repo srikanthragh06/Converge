@@ -11,7 +11,7 @@ const EditorPage = () => {
     const { editor } = useEditor(); // BlockNote editor instance wired to the shared Yjs doc
 
     return (
-        <Page>
+        <Page authRequired>
             <div className="flex-1">
                 <BlockNoteView
                     editor={editor}
