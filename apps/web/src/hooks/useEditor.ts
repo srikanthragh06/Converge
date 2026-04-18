@@ -353,6 +353,15 @@ const useEditor = () => {
         };
     }, []);
 
+    // Keeps the browser tab title in sync with the document title.
+    // Resets to "Converge" on unmount so other pages don't inherit the document name.
+    useEffect(() => {
+        document.title = title ? `${title} — Converge` : "Converge";
+        return () => {
+            document.title = "Converge";
+        };
+    }, [title]);
+
     // Listens for server-pushed sync-doc events and applies remote Yjs updates.
     // Triggers a repair sync if the state vectors diverge after applying the update.
     // Runs whenever the socket connection state changes.
