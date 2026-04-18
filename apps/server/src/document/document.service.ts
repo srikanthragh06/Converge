@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { ForbiddenException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import * as Y from 'yjs';
 import { mapsAreEqual } from '@converge/shared';
 import { REDIS_EVENTS, REDIS_LOCKS } from '../redis/redis.events';
@@ -307,6 +307,38 @@ export class DocumentService {
 
     this.yDocsMap.set(documentId, newYDoc);
     return newYDoc;
+  }
+
+  /**
+   * Returns the document with the given ID, throwing 404 if it does not exist
+   * and 403 if the requesting user is not the owner.
+   *
+   * @param documentId - The ID of the document to fetch.
+   * @param userId - The ID of the authenticated requesting user.
+   * @returns The document row.
+   */
+  async getDocumentOfUser(
+    documentId: number,
+    userId: number,
+  ): Promise<{ id: number; creatorId: number; createdAt: Date }> {
+    const db = this.dbService.kysely;
+
+    // Check existence first so we can return the correct error code.
+    const row = await db
+      .selectFrom('documents')
+      .select(['id', 'creator_id', 'created_at'])
+      .where('id', '=', documentId)
+      .executeTakeFirst();
+
+    if (!row) throw new NotFoundException('Document not found.');
+    if (row.creator_id !== userId)
+      throw new ForbiddenException('You do not have access to this document.');
+
+    return {
+      id: row.id,
+      creatorId: row.creator_id,
+      createdAt: row.created_at,
+    };
   }
 
   /**
