@@ -1,8 +1,14 @@
 export { mapsAreEqual } from "./utils/utils";
 export { GoogleAuthRequestSchema, AuthResponseSchema } from "./http/auth";
 export type { GoogleAuthRequestDto, AuthResponseDto } from "./http/auth";
-export { CreateDocumentResponseSchema, GetDocumentResponseSchema } from "./http/document";
-export type { CreateDocumentResponseDto, GetDocumentResponseDto } from "./http/document";
+export {
+    CreateDocumentResponseSchema,
+    GetDocumentResponseSchema,
+} from "./http/document";
+export type {
+    CreateDocumentResponseDto,
+    GetDocumentResponseDto,
+} from "./http/document";
 export { INTERNAL_SERVER_ERROR_MESSAGE } from "./constants/constants";
 export { SOCKET_EVENTS } from "./socket/events";
 export {
@@ -10,6 +16,8 @@ export {
     SyncDocServerPayload,
     SyncDocClientSchema,
     SyncDocClientPayload,
+    SyncDocTitleSchema,
+    SyncDocTitlePayload,
     RepairSyncDocServerSchema,
     RepairSyncDocServerPayload,
     RepairSyncDocClientSchema,

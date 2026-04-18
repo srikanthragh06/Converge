@@ -25,4 +25,8 @@ export const SOCKET_EVENTS = {
     // ── Repair Ack Doc ────────────────────────────────────────────────────────
     REPAIR_ACK_DOC_SERVER: "repair-ack-doc-server",
     REPAIR_ACK_DOC_CLIENT: "repair-ack-doc-client",
+
+    // ── Sync title ──────────────────────────────────────────────────────────────
+    SYNC_DOC_TITLE_SERVER: "sync-doc-title-server",
+    SYNC_DOC_TITLE_CLIENT: "sync-doc-title-client",
 } as const;

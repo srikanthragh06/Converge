@@ -27,6 +27,8 @@ import {
   type RepairAckDocServerPayload,
   RepairAckDocClientSchema,
   SOCKET_EVENTS,
+  SyncDocTitleSchema,
+  type SyncDocTitlePayload,
 } from '@converge/shared';
 import { GlobalExceptionFilter } from '../utils/global-exception.filter';
 import { socketEmit, socketEmitRoom } from '../utils/ws-emit.util';
@@ -81,6 +83,7 @@ export class DocumentGateway implements OnGatewayConnection {
         return;
       }
 
+      // Verify the auth token and extract the userId.
       let userId: number;
       try {
         userId = await this.authService.verifyAuthToken(authToken);
@@ -113,7 +116,9 @@ export class DocumentGateway implements OnGatewayConnection {
       try {
         await this.documentService.getDocumentOfUser(documentId, userId);
       } catch {
-        console.log(`Connection rejected: document ${documentId} not found or forbidden for user ${userId}`);
+        console.log(
+          `Connection rejected: document ${documentId} not found or forbidden for user ${userId}`,
+        );
         client.disconnect(true);
         return;
       }
@@ -320,10 +325,37 @@ export class DocumentGateway implements OnGatewayConnection {
     @MessageBody(new ZodSocketValidationPipe(RepairAckDocServerSchema))
     { diffArray }: RepairAckDocServerPayload,
   ) {
-    const documentId = client.data.documentId;
+    const documentId = client.data.documentId as number;
 
     const diff = new Uint8Array(diffArray);
     // convert and apply the final diff to bring the server doc fully up to date
     await this.documentService.applyDocUpdate(documentId, diff);
+  }
+
+  /**
+   * Persists the new document title and broadcasts it to all other clients
+   * connected to the same document room.
+   * @param client - the socket that sent the title update
+   * @param data - contains the new title string
+   */
+  @SubscribeMessage(SOCKET_EVENTS.SYNC_DOC_TITLE_SERVER)
+  async handleSyncDocTitleServer(
+    @ConnectedSocket() client: Socket,
+    @MessageBody(new ZodSocketValidationPipe(SyncDocTitleSchema))
+    { title }: SyncDocTitlePayload,
+  ) {
+    const documentId = client.data.documentId as number;
+
+    // Persist the updated title to the database.
+    await this.documentService.applyDocTitleUpdate(documentId, title);
+
+    // Broadcast to all other clients in the document room.
+    socketEmitRoom(
+      client,
+      String(documentId),
+      SOCKET_EVENTS.SYNC_DOC_TITLE_CLIENT,
+      SyncDocTitleSchema,
+      { title },
+    );
   }
 }

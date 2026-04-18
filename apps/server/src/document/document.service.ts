@@ -348,4 +348,18 @@ export class DocumentService {
 
     return row.id;
   }
+
+  /**
+   * Persists a new title for the given document.
+   * @param documentId - the document to update
+   * @param title - the new title string
+   */
+  async applyDocTitleUpdate(documentId: number, title: string): Promise<void> {
+    const db = this.dbService.kysely;
+    await db
+      .updateTable('documents')
+      .set({ title })
+      .where('documents.id', '=', documentId)
+      .execute();
+  }
 }

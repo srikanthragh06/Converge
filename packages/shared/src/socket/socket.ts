@@ -19,19 +19,31 @@ export const SyncDocClientSchema = z.object({
 
 export type SyncDocClientPayload = z.infer<typeof SyncDocClientSchema>;
 
+// ── Sync Doc Title ──────────────────────────────────────────────────────────────────
+
+export const SyncDocTitleSchema = z.object({
+    title: z.string(),
+});
+
+export type SyncDocTitlePayload = z.infer<typeof SyncDocTitleSchema>;
+
 // ── Repair Sync Doc ───────────────────────────────────────────────────────────
 
 export const RepairSyncDocServerSchema = z.object({
     clientSVArray: WireBytes,
 });
 
-export type RepairSyncDocServerPayload = z.infer<typeof RepairSyncDocServerSchema>;
+export type RepairSyncDocServerPayload = z.infer<
+    typeof RepairSyncDocServerSchema
+>;
 
 export const RepairSyncDocClientSchema = z.object({
     serverSVArray: WireBytes,
 });
 
-export type RepairSyncDocClientPayload = z.infer<typeof RepairSyncDocClientSchema>;
+export type RepairSyncDocClientPayload = z.infer<
+    typeof RepairSyncDocClientSchema
+>;
 
 // ── Repair Sync Ack Doc ───────────────────────────────────────────────────────
 
@@ -40,14 +52,18 @@ export const RepairSyncAckDocServerSchema = z.object({
     clientSVArray: WireBytes,
 });
 
-export type RepairSyncAckDocServerPayload = z.infer<typeof RepairSyncAckDocServerSchema>;
+export type RepairSyncAckDocServerPayload = z.infer<
+    typeof RepairSyncAckDocServerSchema
+>;
 
 export const RepairSyncAckDocClientSchema = z.object({
     serverSVArray: WireBytes,
     diffArray: WireBytes,
 });
 
-export type RepairSyncAckDocClientPayload = z.infer<typeof RepairSyncAckDocClientSchema>;
+export type RepairSyncAckDocClientPayload = z.infer<
+    typeof RepairSyncAckDocClientSchema
+>;
 
 // ── Repair Ack Doc ────────────────────────────────────────────────────────────
 
@@ -56,13 +72,17 @@ export const RepairAckDocServerSchema = z.object({
     clientSVArray: WireBytes,
 });
 
-export type RepairAckDocServerPayload = z.infer<typeof RepairAckDocServerSchema>;
+export type RepairAckDocServerPayload = z.infer<
+    typeof RepairAckDocServerSchema
+>;
 
 export const RepairAckDocClientSchema = z.object({
     diffArray: WireBytes,
 });
 
-export type RepairAckDocClientPayload = z.infer<typeof RepairAckDocClientSchema>;
+export type RepairAckDocClientPayload = z.infer<
+    typeof RepairAckDocClientSchema
+>;
 
 // ── Ping / Pong ───────────────────────────────────────────────────────────────
 
