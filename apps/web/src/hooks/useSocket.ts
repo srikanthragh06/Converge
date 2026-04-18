@@ -15,9 +15,10 @@ import { socketEmit } from "../lib/socket-emit.util";
  * measure round-trip latency while connected.
  *
  * @param canConnect - When false the socket is disconnected; defaults to true.
+ * @param documentId - Stamped onto the socket query so the gateway can identify the document.
  */
 // Flow: connect → start ping interval → stop pings on disconnect.
-const useSocket = (canConnect: boolean = true) => {
+const useSocket = (canConnect: boolean = true, documentId?: string) => {
     const [isSocketConnected, setIsSocketConnected] = useAtom(
         isSocketConnectedAtom,
     ); // mirrors the global atom — true while the socket is open
@@ -39,8 +40,12 @@ const useSocket = (canConnect: boolean = true) => {
             setIsSocketConnected(false);
         });
 
-        if (canConnect) socket.connect();
-        else socket.disconnect();
+        if (canConnect) {
+            // Set the documentId query param before connecting so the gateway
+            // can read it from the handshake without trusting subsequent messages.
+            socket.io.opts.query = { documentId };
+            socket.connect();
+        } else socket.disconnect();
 
         return () => {
             socket.off(SOCKET_EVENTS.CONNECT);

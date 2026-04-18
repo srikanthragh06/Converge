@@ -70,7 +70,7 @@ const useEditor = () => {
 
     // Connect the socket only once the document is confirmed — prevents the gateway
     // from receiving a connection with an invalid or inaccessible document ID.
-    useSocket(documentStatus === "ready");
+    useSocket(documentStatus === "ready", documentId);
 
     // Fetches the document on mount — sets status or navigates to /404 based on the error code.
     useEffect(() => {

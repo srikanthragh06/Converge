@@ -151,6 +151,20 @@ export class AuthService {
         'No authToken present in request cookies',
       );
 
+    const userId = await this.verifyAuthToken(authToken);
+    (req as any).userId = userId;
+  }
+
+  /**
+   * Verifies a signed JWT, validates its claims, and confirms the user exists
+   * in the database. Extracted from verifyReqAuthAndAttachUserToReq so the
+   * gateway can reuse it without an Express Request object.
+   * Throws UnauthorizedException on any validation failure.
+   *
+   * @param authToken - The signed JWT string to verify.
+   * @returns The authenticated user's numeric database ID.
+   */
+  async verifyAuthToken(authToken: string): Promise<number> {
     const secret = this.configService.get<string>('JWT_SECRET');
 
     let payload: string | jwt.JwtPayload;
@@ -195,7 +209,8 @@ export class AuthService {
         'User not found — token may belong to a deleted account.',
       );
     }
-    (req as any).userId = user.id;
+
+    return user.id;
   }
 
   /**

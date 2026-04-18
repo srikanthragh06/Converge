@@ -33,6 +33,8 @@ import { socketEmit, socketEmitRoom } from '../utils/ws-emit.util';
 import { RedisService } from '../redis/redis.service';
 import { REDIS_EVENTS } from '../redis/redis.events';
 import { base64ToUint8Array } from '../utils/utils';
+import { AuthService } from '../auth/auth.service';
+import { parse as parseCookie } from 'cookie';
 
 // Handles all document-related WebSocket events.
 // cors origin is a function so process.env.CLIENT_URL is read at connection time, not at startup.
@@ -40,7 +42,10 @@ import { base64ToUint8Array } from '../utils/utils';
 // on the "error" channel via GlobalExceptionFilter rather than the default "exception" channel.
 @UseFilters(GlobalExceptionFilter)
 @WebSocketGateway({
-  cors: { origin: (_req, cb) => cb(null, process.env.CLIENT_URL) },
+  cors: {
+    origin: (_req, cb) => cb(null, process.env.CLIENT_URL),
+    credentials: true,
+  },
 })
 export class DocumentGateway implements OnGatewayConnection {
   @WebSocketServer()
@@ -51,10 +56,11 @@ export class DocumentGateway implements OnGatewayConnection {
   constructor(
     private readonly documentService: DocumentService,
     private readonly redisService: RedisService,
+    private readonly authService: AuthService,
   ) {}
 
   /**
-   * Validates the connecting client's documentId, stamps it on the socket, joins
+   * Verifies the auth cookie and documentId, stamps both on the socket, joins
    * the document room, loads the Y.Doc into memory, and sets up the Redis
    * subscription for cross-server updates on the first connection to this document.
    * Rejects invalid connections using disconnect(true) to force-close the underlying
@@ -64,6 +70,26 @@ export class DocumentGateway implements OnGatewayConnection {
    */
   async handleConnection(client: Socket): Promise<void> {
     try {
+      // Parse the authToken cookie from the handshake and verify it.
+      const cookieHeader = client.handshake.headers.cookie ?? '';
+      const cookies = parseCookie(cookieHeader);
+      const authToken = cookies['authToken'];
+
+      if (!authToken) {
+        console.log('Connection rejected: missing authToken cookie');
+        client.disconnect(true);
+        return;
+      }
+
+      let userId: number;
+      try {
+        userId = await this.authService.verifyAuthToken(authToken);
+      } catch {
+        console.log('Connection rejected: invalid or expired authToken');
+        client.disconnect(true);
+        return;
+      }
+
       // get documentId from client handshake query
       const { documentId: documentIdStr } = client.handshake.query;
 
@@ -83,17 +109,18 @@ export class DocumentGateway implements OnGatewayConnection {
         return;
       }
 
-      // reject if no document with this id exists in the database
-      const doesDocumentExist =
-        await this.documentService.doesDocumentExist(documentId);
-      if (!doesDocumentExist) {
-        console.log(`Connection rejected: document ${documentId} not found`);
+      // Verify the document exists and belongs to the authenticated user.
+      try {
+        await this.documentService.getDocumentOfUser(documentId, userId);
+      } catch {
+        console.log(`Connection rejected: document ${documentId} not found or forbidden for user ${userId}`);
         client.disconnect(true);
         return;
       }
 
-      // stamp the socket so all handlers can read documentId without trusting the client
+      // stamp the socket so all handlers can read documentId and userId without trusting the client
       client.data.documentId = documentId;
+      client.data.userId = userId;
 
       // join the document room — broadcasts are scoped to this room
       client.join(String(documentId));
