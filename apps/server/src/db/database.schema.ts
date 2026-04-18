@@ -18,6 +18,8 @@ export interface DocumentsTable {
   id: Generated<number>;
   /** FK to users.id — the user who created this document. */
   creator_id: number;
+  /** Document title, editable by the owner. Defaults to empty string. */
+  title: Generated<string>;
   /** Monotonically incrementing counter, increased on every persisted Yjs update. */
   update_count: Generated<number>;
   /** Value of update_count at the time of the last compaction. */
