@@ -244,32 +244,60 @@
 
 ---
 
+## v0.10 — Document Title ✅
+
+> Branch: `document-title-v0.10`
+
+### Server (NestJS backend)
+
+- Migration `0006_add_title_to_documents` — adds `title text NOT NULL DEFAULT ''` to the `documents` table; default ensures existing rows get an empty title without a backfill
+- `applyDocTitleUpdate(documentId, title)` added to `DocumentService` — trims whitespace, enforces a 32-character max, and persists the validated title to the DB
+- `handleSyncDocTitleServer` added to `DocumentGateway` — persists the title, acks the sender with the `changeId` for pending-state correlation, and broadcasts the new title to all other clients in the document room
+- Redis pub/sub channel `document-title-update:<documentId>` added (`REDIS_EVENTS.documentTitleUpdate`) — subscribed alongside the Yjs update channel on first connection so cross-server title changes are broadcast to all locally connected clients
+- `GetDocumentResponseDto` updated to include the `title` field so the client can seed local state on initial fetch
+
+### Shared package
+
+- `SYNC_DOC_TITLE_SERVER`, `SYNC_DOC_TITLE_CLIENT`, `SYNC_DOC_TITLE_ACK` events added to `SOCKET_EVENTS`
+- `SyncDocTitleServerSchema`, `SyncDocTitleClientSchema`, `SyncDocTitleAckSchema` Zod schemas added to `@converge/shared/socket`
+
+### Web (React frontend)
+
+- Notion-style title input rendered above the BlockNote editor — full-width, transparent, bold, responsive font size (`text-2xl` mobile, `text-4xl` sm+), left-aligned with the editor content
+- `useEditor` extended with `title` state (seeded from the initial `GET /document/:documentId` fetch) and `isTitlePending` state (dims the input while a change is in-flight to the server)
+- `handleTitleChange` debounces title emits at 300 ms and assigns a fresh `changeId` per emit for ack correlation — prevents a slow earlier ack from incorrectly clearing the pending state after a later keystroke
+- `sync-doc-title-client` listener applies real-time title changes broadcast from other clients
+- `sync-doc-title-ack` listener clears `isTitlePending` only when the ack `changeId` matches the most recent emit; stale acks from superseded debounce flushes are ignored
+- Browser tab title syncs with the document name: `"<title> — Converge"` while on the editor page, resets to `"Converge"` on unmount so other pages don't inherit the document name
+- Favicon updated to `convergeLogo.png`
+
+---
+
 ## Upcoming
 
-### v0.10 — Document Library
+### v0.11 — Document Library
 
-- Editable document title stored in `documents` table, editable above the editor (Notion-style)
 - Library opened with `Ctrl+P` — lists documents by last viewed, paginated
 - Last edited and last viewed metadata tracked per document
 - Title search
 
-### v0.11 — Document Permissions
+### v0.12 — Document Permissions
 
 - Owner, editor, viewer roles per document
 - Sharing by link or invite
 
-### v0.12 — Awareness
+### v0.13 — Awareness
 
 - Live cursors and selections via Yjs awareness protocol forwarded through the server
 
-### v0.13 — Media Support
+### v0.14 — Media Support
 
 - Image and video upload, S3-backed storage wired into the BlockNote editor
 
-### v0.14 — Document References
+### v0.15 — Document References
 
 - Inline `@document` mentions and backlinks
 
-### v0.15 — Offline Support
+### v0.16 — Offline Support
 
 - IndexedDB caching via `y-indexeddb`; offline-aware sync gate so stale state vectors are never sent to the server before the local snapshot is loaded

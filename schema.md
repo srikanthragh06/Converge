@@ -17,12 +17,13 @@ Stores accounts authenticated via Google OAuth.
 ---
 
 ### `documents`
-One row per document. Tracks compaction counters — does not store content.
+One row per document. Stores the title and tracks compaction counters — does not store content.
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `bigserial` | PK | |
 | `creator_id` | `bigint` | NOT NULL, FK → `users.id`, indexed | The user who created the document; used for ownership checks and access control |
+| `title` | `text` | NOT NULL, default `''` | User-editable document title; trimmed and capped at 32 characters before persisting |
 | `update_count` | `integer` | NOT NULL, default `0` | Incremented atomically on every persisted Yjs update |
 | `last_compact_count` | `integer` | NOT NULL, default `0` | Value of `update_count` at the last compaction; used to detect when the threshold is crossed again |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
@@ -50,8 +51,9 @@ Append-only log of raw Yjs binary update payloads. The full document state is re
 | Channel | Constant | Publisher | Subscribers | Payload |
 |---|---|---|---|---|
 | `document-update:<documentId>` | `REDIS_EVENTS.documentUpdate(documentId)` | Any server that applies a Yjs update | All other server instances | `{ updateBase64: string }` |
+| `document-title-update:<documentId>` | `REDIS_EVENTS.documentTitleUpdate(documentId)` | Any server that persists a title change | All other server instances | `{ title: string }` |
 
-> The update is base64-encoded because `Uint8Array` does not survive `JSON.stringify`. Channels are per-document so servers only receive updates for documents they have active subscribers for.
+> Yjs update payloads are base64-encoded because `Uint8Array` does not survive `JSON.stringify`. Channels are per-document so servers only receive events for documents they have active subscribers for.
 
 ---
 
