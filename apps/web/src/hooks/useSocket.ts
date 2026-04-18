@@ -10,16 +10,19 @@ import { socketEmit } from "../lib/socket-emit.util";
 
 /**
  * Manages the Socket.io connection lifecycle and ping-pong latency checks.
- * Connects on mount, registers connect/disconnect/error listeners, and periodically
- * emits pings to measure round-trip latency while connected.
+ * Connects when canConnect is true, disconnects when false. Registers
+ * connect/disconnect/error listeners and periodically emits pings to
+ * measure round-trip latency while connected.
+ *
+ * @param canConnect - When false the socket is disconnected; defaults to true.
  */
 // Flow: connect → start ping interval → stop pings on disconnect.
-const useSocket = () => {
+const useSocket = (canConnect: boolean = true) => {
     const [isSocketConnected, setIsSocketConnected] = useAtom(
         isSocketConnectedAtom,
     ); // mirrors the global atom — true while the socket is open
 
-    // Registers listeners before connect() so no events are missed.
+    // Registers event listeners then connects or disconnects based on canConnect.
     useEffect(() => {
         // Connection errors are async events, not thrown exceptions.
         socket.on(SOCKET_EVENTS.CONNECT, () => {
@@ -36,7 +39,8 @@ const useSocket = () => {
             setIsSocketConnected(false);
         });
 
-        socket.connect();
+        if (canConnect) socket.connect();
+        else socket.disconnect();
 
         return () => {
             socket.off(SOCKET_EVENTS.CONNECT);
@@ -44,7 +48,7 @@ const useSocket = () => {
             socket.off(SOCKET_EVENTS.DISCONNECT);
             setIsSocketConnected(false);
         };
-    }, []);
+    }, [canConnect]);
 
     // Starts pings on connect, stops on disconnect.
     useEffect(() => {

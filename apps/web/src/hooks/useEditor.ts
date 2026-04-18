@@ -1,5 +1,5 @@
 import { BlockNoteEditor } from "@blocknote/core";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 import { socket } from "../lib/socket";
 import { useAtomValue } from "jotai";
@@ -15,17 +15,29 @@ import {
     RepairAckDocServerSchema,
     RepairAckDocClientSchema,
     SOCKET_EVENTS,
+    type GetDocumentResponseDto,
 } from "@converge/shared";
 import { socketEmit } from "../lib/socket-emit.util";
 import { socketReceive } from "../lib/socket-receive.util";
+import { useNavigate, useParams } from "react-router-dom";
+import apiClient from "../lib/http";
+import axios from "axios";
+import useSocket from "./useSocket";
 
 /**
- * Initialises a BlockNote editor backed by a shared Yjs document and wires
- * up Socket.io handlers for real-time sync and periodic repair syncs.
- * Returns the editor instance for use in a React component.
+ * Fetches the document by ID from the URL, initialises a BlockNote editor
+ * backed by a shared Yjs document, and wires up Socket.io handlers for
+ * real-time sync and periodic repair syncs.
+ * Returns the editor instance and the current document fetch status.
  */
 const useEditor = () => {
     const isSocketConnected = useAtomValue(isSocketConnectedAtom); // read-only view of the global socket connection state
+    const { documentId } = useParams<{ documentId: string }>(); // document ID from the URL path
+    const navigate = useNavigate();
+
+    const [documentStatus, setDocumentStatus] = useState<
+        "loading" | "ready" | "forbidden" | "notFound"
+    >("loading"); // tracks the outcome of the document fetch
 
     const timeoutIdRef = useRef<number | null>(null); // stores the debounce timer ID for batching outgoing Yjs updates
     const pendingUpdatesRef = useRef<Uint8Array<ArrayBufferLike>[]>([]); // accumulates Yjs update chunks between debounce flushes
@@ -55,6 +67,39 @@ const useEditor = () => {
             },
         });
     }, []);
+
+    // Connect the socket only once the document is confirmed — prevents the gateway
+    // from receiving a connection with an invalid or inaccessible document ID.
+    useSocket(documentStatus === "ready");
+
+    // Fetches the document on mount — sets status or navigates to /404 based on the error code.
+    useEffect(() => {
+        const fetchDocument = async () => {
+            try {
+                await apiClient.get<GetDocumentResponseDto>(
+                    `/document/${documentId}`,
+                );
+                setDocumentStatus("ready");
+            } catch (err) {
+                if (axios.isAxiosError(err)) {
+                    const statusCode = err.response?.status;
+                    if (statusCode === 403) {
+                        setDocumentStatus("forbidden");
+                        return;
+                    } else if (statusCode === 404) {
+                        setDocumentStatus("notFound");
+                        navigate("/404");
+                        return;
+                    }
+                }
+                // Treat all other errors (network failure, unexpected status, etc.) as not found.
+                setDocumentStatus("notFound");
+                navigate("/404");
+            }
+        };
+
+        fetchDocument();
+    }, [documentId]);
 
     // Listens for local Yjs updates and debounces them before emitting to the server.
     // Runs whenever the socket connection state changes.
@@ -269,7 +314,7 @@ const useEditor = () => {
         };
     }, [yDoc, isSocketConnected]);
 
-    return { editor };
+    return { editor, documentStatus };
 };
 
 export default useEditor;
