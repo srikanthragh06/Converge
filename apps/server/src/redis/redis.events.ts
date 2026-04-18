@@ -2,6 +2,9 @@
 export const REDIS_EVENTS = {
   /** Published whenever a Yjs update is applied, so other servers can sync. */
   documentUpdate: (documentId: number) => `document-update:${documentId}`,
+  /** Published whenever a document title is updated, so other servers can broadcast it. */
+  documentTitleUpdate: (documentId: number) =>
+    `document-title-update:${documentId}`,
 };
 
 /** Redis key name constants for distributed locks. */

@@ -350,16 +350,24 @@ export class DocumentService {
   }
 
   /**
-   * Persists a new title for the given document.
+   * Persists a new title for the given document and publishes the change to
+   * Redis so other server instances can broadcast it to their connected clients.
    * @param documentId - the document to update
    * @param title - the new title string
    */
   async applyDocTitleUpdate(documentId: number, title: string): Promise<void> {
     const db = this.dbService.kysely;
+
+    // Persist the title to the database.
     await db
       .updateTable('documents')
       .set({ title })
       .where('documents.id', '=', documentId)
       .execute();
+
+    // Notify other server instances so they can broadcast to their local clients.
+    this.redisService.publish(REDIS_EVENTS.documentTitleUpdate(documentId), {
+      title,
+    });
   }
 }

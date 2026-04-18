@@ -135,6 +135,7 @@ export class DocumentGateway implements OnGatewayConnection {
 
       // subscribe once per document — the Set prevents duplicate handlers across client connections
       if (!this.subscribedDocs.has(documentId)) {
+        // Subscribe to Yjs document updates published by other server instances.
         await this.redisService.subscribe(
           REDIS_EVENTS.documentUpdate(documentId),
           async (message) => {
@@ -160,6 +161,27 @@ export class DocumentGateway implements OnGatewayConnection {
             }
           },
         );
+
+        // Broadcast title updates from other server instances to local clients.
+        await this.redisService.subscribe(
+          REDIS_EVENTS.documentTitleUpdate(documentId),
+          (message) => {
+            try {
+              const { title } = message;
+              socketEmitRoom(
+                this.socketServer,
+                String(documentId),
+                SOCKET_EVENTS.SYNC_DOC_TITLE_CLIENT,
+                SyncDocTitleSchema,
+                { title: title as string },
+              );
+            } catch (err) {
+              console.error('Failed to process Redis title update:', err);
+            }
+          },
+        );
+
+        // Mark this document as subscribed so subsequent connections reuse the existing handlers.
         this.subscribedDocs.add(documentId);
       }
     } catch (err) {
