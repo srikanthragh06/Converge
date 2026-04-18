@@ -22,6 +22,7 @@ One row per document. Tracks compaction counters — does not store content.
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `bigserial` | PK | |
+| `creator_id` | `bigint` | NOT NULL, FK → `users.id`, indexed | The user who created the document; used for ownership checks and access control |
 | `update_count` | `integer` | NOT NULL, default `0` | Incremented atomically on every persisted Yjs update |
 | `last_compact_count` | `integer` | NOT NULL, default `0` | Value of `update_count` at the last compaction; used to detect when the threshold is crossed again |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
@@ -34,6 +35,7 @@ Append-only log of raw Yjs binary update payloads. The full document state is re
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `bigserial` | PK | Monotonically increasing — used as a snapshot cursor during compaction |
+| `document_id` | `bigint` | NOT NULL, FK → `documents.id` ON DELETE CASCADE, indexed | Scopes each update row to a specific document |
 | `update` | `bytea` | NOT NULL | Raw Yjs update binary; deserialised to `Buffer` by the `pg` driver |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 
@@ -47,9 +49,9 @@ Append-only log of raw Yjs binary update payloads. The full document state is re
 
 | Channel | Constant | Publisher | Subscribers | Payload |
 |---|---|---|---|---|
-| `document-update` | `REDIS_EVENTS.documentUpdate` | Any server that applies a Yjs update | All other server instances | `{ clientId, update: string (base64) }` |
+| `document-update:<documentId>` | `REDIS_EVENTS.documentUpdate(documentId)` | Any server that applies a Yjs update | All other server instances | `{ updateBase64: string }` |
 
-> Each message includes the publishing server's `clientId` (UUID). Subscribers skip messages where `clientId` matches their own to prevent echo loops.
+> The update is base64-encoded because `Uint8Array` does not survive `JSON.stringify`. Channels are per-document so servers only receive updates for documents they have active subscribers for.
 
 ---
 
@@ -57,4 +59,4 @@ Append-only log of raw Yjs binary update payloads. The full document state is re
 
 | Key | Constant | TTL | Purpose |
 |---|---|---|---|
-| `lock:compaction` | `REDIS_LOCKS.compaction` | 1 hour | Ensures only one server instance runs document update compaction at a time. Acquired with `SET NX PX`; released explicitly after compaction completes. TTL is a safety net in case the holder crashes before releasing. |
+| `lock-compaction:<documentId>` | `REDIS_LOCKS.compaction(documentId)` | 1 hour | Ensures only one server instance runs document update compaction at a time per document. Acquired with `SET NX PX`; released explicitly after compaction completes. TTL is a safety net in case the holder crashes before releasing. |

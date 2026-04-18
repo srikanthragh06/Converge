@@ -207,14 +207,44 @@
 - Custom scrollbar styling added globally — slim 6px pill-shaped thumb using theme palette colours (`#404040` idle, `#525252` hover) with a transparent track
 - BlockNote editor font size reduced to 12px on screens narrower than 640px via a `.bn-default-styles` CSS override
 
+## v0.09 — Multi-Document Support & Auth Integration ✅
+
+> Branch: `multi-doc-v0.09`
+
+### Server (NestJS backend)
+
+- Migrations `0004_add_document_id_to_document_updates` and `0005_add_creator_id_to_documents` add `document_id` (NOT NULL, FK → `documents.id`, ON DELETE CASCADE, indexed) and `creator_id` (NOT NULL, FK → `users.id`, indexed) to their respective tables
+- `DocumentService` now holds a `Map<documentId, Y.Doc>` — all sync, persistence, compaction, and in-memory doc management is scoped to `document_id`
+- `loadDoc(documentId)` replaces `populateInMemoryYdoc` — lazy-loads and caches a `Y.Doc` on first access, returns the cached instance on subsequent calls
+- `createNewDocument(userId)` inserts a new document row owned by the given user and returns its ID
+- `getDocumentOfUser(documentId, userId)` returns the document row or throws 404 (not found) / 403 (not owner) — used for HTTP access control and WebSocket connection gating
+- `DocumentController` extended with `GET /document/:documentId` (returns metadata) and `POST /document` (creates a document); both require `AuthGuard`
+- Redis pub/sub channels and compaction locks are now per-document — `REDIS_EVENTS.documentUpdate(documentId)` and `REDIS_LOCKS.compaction(documentId)`
+- `GET /auth/me` added — verifies the auth cookie and returns the authenticated user's profile; used by the client for session hydration on page load
+- `verifyAuthToken(authToken)` extracted as a public method on `AuthService` so the WebSocket gateway can reuse JWT verification without an Express `Request` object
+- `AuthGuard` added — NestJS guard that calls `verifyReqAuthAndAttachUserToReq` and stamps `userId` on the request; applied at the controller class level
+- `DocumentGateway` now verifies the `authToken` cookie on every new connection — parses the raw `Cookie` header using the `cookie` package, calls `verifyAuthToken`, and calls `getDocumentOfUser`; rejects with `disconnect(true)` on any failure
+- `credentials: true` added to gateway CORS config so the browser accepts credentials on cross-origin WebSocket upgrades
+- Bug fixes: `cookie-parser` middleware registered in `main.ts` (was missing, causing `req.cookies` to be undefined); BigInt type parser changed to `Number` to prevent JSON serialisation crashes on SERIAL columns; `jwt.verify` wrapped in try-catch to return 401 instead of 500
+
+### Web (React frontend)
+
+- `authAtom` replaces `isAuthAtom` + `userDetailsAtom` — unified atom with `{ status: "loading" | "authenticated" | "unauthenticated", user: AuthResponseDto | null }`
+- `useAuth` hook added — calls `GET /auth/me` on mount and writes to `authAtom`; handles 401 gracefully without crashing
+- `Page` component extended with an `authRequired` prop — renders a loading state while the auth status is resolving and redirects to `/auth` when unauthenticated
+- `EditorPage` added at `/document/:documentId` — thin component backed by `useEditor`; renders loading, forbidden (403), and ready states
+- `useEditor` extended with document fetch logic — calls `GET /document/:documentId` on mount, sets `documentStatus` (`"loading" | "ready" | "forbidden" | "notFound"`), navigates to `/404` on not found
+- `useSocket` extended with a `documentId` param — stamps it onto `socket.io.opts.query` before connecting so the gateway can read it from the handshake; connection is gated on `documentStatus === "ready"` to prevent the gateway receiving an invalid document ID
+- `withCredentials: true` added to the shared socket.io client so the browser sends the `authToken` cookie on the WebSocket handshake
+
+### Shared package
+
+- `AuthResponseDto` / `AuthResponseSchema` consolidates `GoogleAuthResponseDto` and `AuthMeResponseDto` into a single shared type
+- `GetDocumentResponseDto` / `GetDocumentResponseSchema` added for the `GET /document/:documentId` response (id, creatorId, createdAt)
+
+---
+
 ## Upcoming
-
-### v0.09 — Multi-Document Support
-
-- **Postgres:** `document_id` (NOT NULL, FK → `documents.id`, indexed) on `document_updates`; `owner_id` (NOT NULL, FK → `users.id`, indexed) on `documents` with a seed user for pre-auth
-- **Redis:** Per-document pub/sub channel (`document-update:<document_id>`); per-document compaction lock (`lock:compaction:<document_id>`)
-- **Server:** All sync, compaction, persistence, and in-memory Y.Doc management scoped to `document_id`; `DocumentService` holds a `Map<documentId, Y.Doc>` and evicts on last client disconnect
-- **Client:** Document ID passed through Socket.io events; routing updated to `/doc/:id`
 
 ### v0.10 — Document Library
 
@@ -223,29 +253,23 @@
 - Last edited and last viewed metadata tracked per document
 - Title search
 
-### v0.11 — Authentication Wired to Documents
-
-- `owner_id` tightened to NOT NULL — seed user removed
-- Google OAuth (already built) connected to document ownership
-- Unauthenticated users redirected to auth page; documents scoped to the logged-in user
-
-### v0.12 — Document Permissions
+### v0.11 — Document Permissions
 
 - Owner, editor, viewer roles per document
 - Sharing by link or invite
 
-### v0.13 — Awareness
+### v0.12 — Awareness
 
 - Live cursors and selections via Yjs awareness protocol forwarded through the server
 
-### v0.14 — Media Support
+### v0.13 — Media Support
 
 - Image and video upload, S3-backed storage wired into the BlockNote editor
 
-### v0.15 — Document References
+### v0.14 — Document References
 
 - Inline `@document` mentions and backlinks
 
-### v0.16 — Offline Support
+### v0.15 — Offline Support
 
 - IndexedDB caching via `y-indexeddb`; offline-aware sync gate so stale state vectors are never sent to the server before the local snapshot is loaded
