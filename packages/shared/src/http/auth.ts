@@ -6,7 +6,8 @@ export const GoogleAuthRequestSchema = z.object({
 
 export type GoogleAuthRequestDto = z.infer<typeof GoogleAuthRequestSchema>;
 
-export const GoogleAuthResponseSchema = z.object({
+/** Shared user profile shape returned by both /auth/google and /auth/me. */
+export const AuthResponseSchema = z.object({
     id: z.string(),
     email: z.string(),
     name: z.string(),
@@ -14,4 +15,4 @@ export const GoogleAuthResponseSchema = z.object({
     createdAt: z.coerce.date(),
 });
 
-export type GoogleAuthResponseDto = z.infer<typeof GoogleAuthResponseSchema>;
+export type AuthResponseDto = z.infer<typeof AuthResponseSchema>;

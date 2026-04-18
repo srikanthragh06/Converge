@@ -1,17 +1,33 @@
-import { Body, Controller, Post, Res } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
 import {
   type GoogleAuthRequestDto,
   GoogleAuthRequestSchema,
-  type GoogleAuthResponseDto,
+  type AuthResponseDto,
 } from '@converge/shared';
 import { AuthService } from './auth.service';
+import { AuthGuard } from './auth.guard';
 import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe';
 import { httpOK } from '../utils/http-response.util';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 
 @Controller('/auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {} // Handles Google OAuth token exchange and user persistence.
+
+  /**
+   * Returns the authenticated user's profile. Requires a valid authToken cookie.
+   * Used by the frontend on app load to hydrate auth state.
+   *
+   * @param req - The Express request with userId stamped by AuthGuard.
+   * @returns The authenticated user's profile.
+   */
+  @Get('/me')
+  @UseGuards(AuthGuard)
+  async handleGetMe(@Req() req: Request): Promise<AuthResponseDto> {
+    const userId = (req as any).userId as number;
+    const userDetails = await this.authService.getMe(userId);
+    return httpOK(userDetails);
+  }
 
   /**
    * Accepts a Google OAuth authorisation code, exchanges it for user profile
@@ -26,7 +42,7 @@ export class AuthController {
     @Body(new ZodHttpValidationPipe(GoogleAuthRequestSchema))
     { code }: GoogleAuthRequestDto,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<GoogleAuthResponseDto> {
+  ): Promise<AuthResponseDto> {
     try {
       const { authToken, userDetails } =
         await this.authService.authorizeGoogleUserAndGenerateJWT(code);

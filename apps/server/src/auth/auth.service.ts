@@ -10,7 +10,7 @@ import { firstValueFrom } from 'rxjs';
 
 import * as jwt from 'jsonwebtoken';
 import { DatabaseService } from '../db/database.service';
-import { type GoogleAuthResponseDto } from '@converge/shared';
+import { type AuthResponseDto } from '@converge/shared';
 import type { Request, Response } from 'express';
 
 @Injectable()
@@ -33,7 +33,7 @@ export class AuthService {
    */
   async authorizeGoogleUserAndGenerateJWT(
     code: string,
-  ): Promise<{ authToken: string; userDetails: GoogleAuthResponseDto }> {
+  ): Promise<{ authToken: string; userDetails: AuthResponseDto }> {
     // Exchange the one-time code for Google token data; map axios errors to
     // appropriate HTTP exceptions before they reach the NestJS pipeline.
     let data: any;
@@ -101,7 +101,7 @@ export class AuthService {
 
     const authToken = this.prepareUserJWT(rows[0].id, rows[0].email);
 
-    const userDetails: GoogleAuthResponseDto = {
+    const userDetails: AuthResponseDto = {
       id: rows[0].id.toString(), // convert to string for consistent serialisation across all API consumers.
       email: rows[0].email,
       name: rows[0].name,
@@ -196,6 +196,32 @@ export class AuthService {
       );
     }
     (req as any).userId = user.id;
+  }
+
+  /**
+   * Looks up the authenticated user by ID and returns their profile.
+   * Called after AuthGuard has already verified the token and stamped userId
+   * onto the request, so no additional token verification is needed here.
+   *
+   * @param userId - The authenticated user's numeric database ID.
+   * @returns The user's profile data.
+   */
+  async getMe(userId: number): Promise<AuthResponseDto> {
+    const user = await this.dbService.kysely
+      .selectFrom('users')
+      .select(['id', 'email', 'name', 'avatar_url', 'created_at'])
+      .where('id', '=', userId)
+      .executeTakeFirst();
+
+    if (!user) throw new UnauthorizedException('User not found.');
+
+    return {
+      id: user.id.toString(),
+      email: user.email,
+      name: user.name,
+      avatarUrl: user.avatar_url,
+      createdAt: user.created_at,
+    };
   }
 
   /**

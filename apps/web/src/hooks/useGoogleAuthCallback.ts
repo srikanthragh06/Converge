@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import apiClient from "../lib/http";
 import {
-    type GoogleAuthResponseDto,
+    type AuthResponseDto,
     type GoogleAuthRequestDto,
 } from "@converge/shared";
 import { AUTH_CSRF_STATE } from "../constants/constants";
@@ -51,7 +51,7 @@ const useGoogleAuthCallback = () => {
                 localStorage.removeItem(AUTH_CSRF_STATE);
 
                 const { data: userDetails } =
-                    await apiClient.post<GoogleAuthResponseDto>(
+                    await apiClient.post<AuthResponseDto>(
                         "/auth/google",
                         { code } satisfies GoogleAuthRequestDto,
                     );
