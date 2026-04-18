@@ -5,7 +5,7 @@ import { authAtom } from "../atoms/auth";
 
 /**
  * Full-viewport page shell shared across all top-level routes. When authRequired
- * is true, redirects to /auth if unauthenticated and shows nothing while loading.
+ * is true, shows an authenticating screen while loading and redirects to /auth if unauthenticated.
  */
 const Page = ({
     className = "",
@@ -25,8 +25,13 @@ const Page = ({
         if (auth.status === "unauthenticated") navigate("/auth");
     }, [auth.status, authRequired]);
 
-    // Render nothing while auth is still resolving to avoid a flash redirect.
-    if (authRequired && auth.status === "loading") return null;
+    // Show a status message while waiting for /auth/me to resolve.
+    if (authRequired && auth.status === "loading")
+        return (
+            <div className="w-screen h-screen flex flex-col items-center justify-center">
+                <div className="text-text-secondary">Authenticating...</div>
+            </div>
+        );
 
     return (
         <div

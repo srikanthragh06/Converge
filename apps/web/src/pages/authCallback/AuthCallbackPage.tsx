@@ -10,9 +10,9 @@ const AuthCallbackPage = () => {
 
     return (
         <Page className="items-center justify-center">
-            {authStatus === "PENDING" && <div>Signing you in...</div>}
-            {authStatus === "FAILED" && <div>Sign in failed :(</div>}
-            {authStatus === "SUCCESSFUL" && <div>Sign in successful</div>}
+            {authStatus === "PENDING" && <div className="text-text-secondary">Signing you in...</div>}
+            {authStatus === "FAILED" && <div className="text-text-secondary">Sign in failed :(</div>}
+            {authStatus === "SUCCESSFUL" && <div className="text-text-secondary">Sign in successful</div>}
         </Page>
     );
 };

@@ -4,7 +4,7 @@ import useSocket from "./hooks/useSocket";
 import useAuth from "./hooks/useAuth";
 import AuthPage from "./pages/auth/AuthPage";
 import NotFoundPage from "./pages/not-found/NotFoundPage";
-import AuthCallbackPage from "./pages/authCallback/AuthCallback";
+import AuthCallbackPage from "./pages/authCallback/AuthCallbackPage";
 
 /**
  * Root application component. Initialises the socket connection, hydrates
