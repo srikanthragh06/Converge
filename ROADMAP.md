@@ -270,6 +270,8 @@
 - `sync-doc-title-ack` listener clears `isTitlePending` only when the ack `changeId` matches the most recent emit; stale acks from superseded debounce flushes are ignored
 - Browser tab title syncs with the document name: `"<title> — Converge"` while on the editor page, resets to `"Converge"` on unmount so other pages don't inherit the document name
 - Favicon updated to `convergeLogo.png`
+- `useEditor` refactored into three focused sub-hooks: `useDocumentFetch` (HTTP fetch + status), `useDocumentTitle` (title state, debounced emit, ack, tab title), and `useYjsSync` (Y.Doc, update debounce, repair sync); `useEditor` becomes a thin composition layer
+- Inline documentation pass on `EditorPage` and all new hooks — JSDoc on every function, part-by-part comments inside bodies, trailing comments on state variables
 
 ---
 
