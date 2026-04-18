@@ -13,12 +13,16 @@ const EditorPage = () => {
         useEditor(); // editor instance, document fetch status, and title state
 
     return (
+        // authRequired redirects unauthenticated users before rendering children
         <Page authRequired>
+            {/* Loading state — shown while the document is being fetched */}
             {documentStatus === "loading" && (
                 <div className="w-full h-full flex justify-center items-center">
                     <p className="text-text-secondary">Loading doc...</p>
                 </div>
             )}
+
+            {/* Forbidden state — shown when the user lacks access to this document */}
             {documentStatus === "forbidden" && (
                 <div className="w-full h-full flex justify-center items-center">
                     <p className="text-text-secondary">
@@ -26,12 +30,16 @@ const EditorPage = () => {
                     </p>
                 </div>
             )}
+
+            {/* Ready state — document loaded successfully; render title input and editor */}
             {documentStatus === "ready" && (
                 <div className="flex-1 flex flex-col">
+                    {/* Title bar — inline editable document name above the editor canvas */}
                     <div
-                        className="w-full flex justify-start px-2 py-2 overflow-hidden 
+                        className="w-full flex justify-start px-2 py-2 overflow-hidden
                     sm:mb-4 mb-2"
                     >
+                        {/* Dims to 50% opacity while a title save is in-flight */}
                         <input
                             type="text"
                             placeholder="Untitled"
@@ -46,6 +54,8 @@ const EditorPage = () => {
                             ${isTitlePending ? "opacity-50" : "opacity-100"}`}
                         />
                     </div>
+
+                    {/* BlockNote rich-text editor, fills remaining vertical space */}
                     <BlockNoteView
                         editor={editor}
                         theme={convergeTheme}
