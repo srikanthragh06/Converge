@@ -262,23 +262,6 @@ export class DocumentService {
   }
 
   /**
-   * Returns true if a document with the given ID exists in the database.
-   * @param documentId - the document ID to check
-   * @returns true if the document row exists, false otherwise
-   */
-  async doesDocumentExist(documentId: number): Promise<boolean> {
-    const db = this.dbService.kysely;
-
-    const isExists = await db
-      .selectFrom('documents')
-      .select('documents.id')
-      .where('id', '=', documentId)
-      .executeTakeFirst();
-
-    return !!isExists;
-  }
-
-  /**
    * Returns the in-memory Y.Doc for the given document, loading and caching it
    * from the database on first access. Subsequent calls return the cached instance.
    * @param documentId - the document to load
