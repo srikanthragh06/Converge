@@ -26,7 +26,18 @@ const EditorPage = () => {
                 </div>
             )}
             {documentStatus === "ready" && (
-                <div className="flex-1">
+                <div className="flex-1 flex flex-col">
+                    <div className="w-full flex justify-center px-2 py-2 overflow-hidden">
+                        <input
+                            type="text"
+                            placeholder="Untitled"
+                            size={1}
+                            className="mx-2 w-full max-w-2xl min-w-0 
+                            bg-transparent border-none outline-none 
+                            text-text-primary font-bold sm:text-4xl text-2xl 
+                            placeholder-text-disabled"
+                        />
+                    </div>
                     <BlockNoteView
                         editor={editor}
                         theme={convergeTheme}
