@@ -8,7 +8,9 @@ import {
     mapsAreEqual,
     SyncDocClientSchema,
     SyncDocServerSchema,
-    SyncDocTitleSchema,
+    SyncDocTitleServerSchema,
+    SyncDocTitleClientSchema,
+    SyncDocTitleAckSchema,
     RepairSyncDocServerSchema,
     RepairSyncDocClientSchema,
     RepairSyncAckDocServerSchema,
@@ -41,10 +43,12 @@ const useEditor = () => {
     >("loading"); // tracks the outcome of the document fetch
 
     const [title, setTitle] = useState<string>(""); // the document title, seeded from the initial fetch and kept in sync via socket
+    const [isTitlePending, setIsTitlePending] = useState<boolean>(false); // true while a title change has been emitted but not yet acked by the server
 
     const timeoutIdRef = useRef<number | null>(null); // stores the debounce timer ID for batching outgoing Yjs updates
     const pendingUpdatesRef = useRef<Uint8Array<ArrayBufferLike>[]>([]); // accumulates Yjs update chunks between debounce flushes
     const titleTimeoutIdRef = useRef<number | null>(null); // debounce timer for outgoing title sync events
+    const lastTitleChangeIdRef = useRef<string | null>(null); // changeId of the most recent title emit — used to match acks
 
     const yDoc = useMemo(() => new Y.Doc(), []); // the shared Yjs document that backs the BlockNote editor state
 
@@ -80,18 +84,23 @@ const useEditor = () => {
     const handleTitleChange = (newTitle: string) => {
         setTitle(newTitle);
 
+        // Mark the title as pending immediately so the UI dims before the debounce fires.
+        setIsTitlePending(true);
+
         if (!isSocketConnected) return;
 
         // Reset the debounce timer on every keystroke.
         if (titleTimeoutIdRef.current) clearTimeout(titleTimeoutIdRef.current);
 
-        // After 300 ms of inactivity, emit the latest title to the server.
+        // After 300 ms of inactivity, emit the latest title with a fresh changeId.
         titleTimeoutIdRef.current = setTimeout(() => {
+            const changeId = crypto.randomUUID();
+            lastTitleChangeIdRef.current = changeId;
             socketEmit(
                 socket,
                 SOCKET_EVENTS.SYNC_DOC_TITLE_SERVER,
-                SyncDocTitleSchema,
-                { title: newTitle },
+                SyncDocTitleServerSchema,
+                { title: newTitle, changeId },
             );
             titleTimeoutIdRef.current = null;
         }, 300);
@@ -298,22 +307,41 @@ const useEditor = () => {
     useEffect(() => {
         if (!isSocketConnected) return;
 
+        /**
+         * Applies a title update broadcast by the server from another client.
+         * @param data - contains the new title string
+         */
         const handleSyncDocTitleClient = (data: unknown) => {
-            const res = socketReceive(SyncDocTitleSchema, data);
+            const res = socketReceive(SyncDocTitleClientSchema, data);
             if (!res) return;
             setTitle(res.title);
+        };
+
+        /**
+         * Clears the pending indicator when the server acks the most recent title
+         * emit. Ignores stale acks from earlier debounce flushes via changeId matching.
+         * @param data - contains the changeId echoed back by the server
+         */
+        const handleSyncDocTitleAck = (data: unknown) => {
+            const res = socketReceive(SyncDocTitleAckSchema, data);
+            if (!res) return;
+            // Only clear the pending state if the ack matches the latest emit.
+            if (res.changeId === lastTitleChangeIdRef.current)
+                setIsTitlePending(false);
         };
 
         socket.on(
             SOCKET_EVENTS.SYNC_DOC_TITLE_CLIENT,
             handleSyncDocTitleClient,
         );
+        socket.on(SOCKET_EVENTS.SYNC_DOC_TITLE_ACK, handleSyncDocTitleAck);
 
         return () => {
             socket.off(
                 SOCKET_EVENTS.SYNC_DOC_TITLE_CLIENT,
                 handleSyncDocTitleClient,
             );
+            socket.off(SOCKET_EVENTS.SYNC_DOC_TITLE_ACK, handleSyncDocTitleAck);
         };
     }, [isSocketConnected]);
 
@@ -376,7 +404,7 @@ const useEditor = () => {
         };
     }, [yDoc, isSocketConnected]);
 
-    return { editor, documentStatus, title, handleTitleChange };
+    return { editor, documentStatus, title, handleTitleChange, isTitlePending };
 };
 
 export default useEditor;

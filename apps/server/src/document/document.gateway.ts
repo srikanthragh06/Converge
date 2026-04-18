@@ -27,8 +27,10 @@ import {
   type RepairAckDocServerPayload,
   RepairAckDocClientSchema,
   SOCKET_EVENTS,
-  SyncDocTitleSchema,
-  type SyncDocTitlePayload,
+  SyncDocTitleServerSchema,
+  type SyncDocTitleServerPayload,
+  SyncDocTitleClientSchema,
+  SyncDocTitleAckSchema,
 } from '@converge/shared';
 import { GlobalExceptionFilter } from '../utils/global-exception.filter';
 import { socketEmit, socketEmitRoom } from '../utils/ws-emit.util';
@@ -172,7 +174,7 @@ export class DocumentGateway implements OnGatewayConnection {
                 this.socketServer,
                 String(documentId),
                 SOCKET_EVENTS.SYNC_DOC_TITLE_CLIENT,
-                SyncDocTitleSchema,
+                SyncDocTitleClientSchema,
                 { title: title as string },
               );
             } catch (err) {
@@ -358,25 +360,36 @@ export class DocumentGateway implements OnGatewayConnection {
    * Persists the new document title and broadcasts it to all other clients
    * connected to the same document room.
    * @param client - the socket that sent the title update
-   * @param data - contains the new title string
+   * @param data - contains the new title string and a changeId for ack correlation
    */
   @SubscribeMessage(SOCKET_EVENTS.SYNC_DOC_TITLE_SERVER)
   async handleSyncDocTitleServer(
     @ConnectedSocket() client: Socket,
-    @MessageBody(new ZodSocketValidationPipe(SyncDocTitleSchema))
-    { title }: SyncDocTitlePayload,
+    @MessageBody(new ZodSocketValidationPipe(SyncDocTitleServerSchema))
+    { title, changeId }: SyncDocTitleServerPayload,
   ) {
     const documentId = client.data.documentId as number;
 
     // Persist the updated title to the database.
     await this.documentService.applyDocTitleUpdate(documentId, title);
 
+    // Acknowledge persistence to the sending client, echoing changeId so the
+    // client can match the ack to the specific emit that triggered it.
+    socketEmit(
+      client,
+      SOCKET_EVENTS.SYNC_DOC_TITLE_ACK,
+      SyncDocTitleAckSchema,
+      {
+        changeId,
+      },
+    );
+
     // Broadcast to all other clients in the document room.
     socketEmitRoom(
       client,
       String(documentId),
       SOCKET_EVENTS.SYNC_DOC_TITLE_CLIENT,
-      SyncDocTitleSchema,
+      SyncDocTitleClientSchema,
       { title },
     );
   }

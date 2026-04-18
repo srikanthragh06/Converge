@@ -9,7 +9,7 @@ import Page from "../../components/Page";
  * then mounts the BlockNote editor once the document is confirmed.
  */
 const EditorPage = () => {
-    const { editor, documentStatus, title, handleTitleChange } = useEditor(); // editor instance, document fetch status, and title state
+    const { editor, documentStatus, title, handleTitleChange, isTitlePending } = useEditor(); // editor instance, document fetch status, and title state
 
     return (
         <Page authRequired>
@@ -35,10 +35,11 @@ const EditorPage = () => {
                             size={1}
                             value={title}
                             onChange={(e) => handleTitleChange(e.target.value)}
-                            className="mx-2 w-full max-w-2xl min-w-0
+                            className={`mx-2 w-full max-w-2xl min-w-0
                             bg-transparent border-none outline-none
                             text-text-primary font-bold sm:text-4xl text-2xl
-                            placeholder-text-disabled"
+                            placeholder-text-disabled transition-opacity duration-200
+                            ${isTitlePending ? "opacity-50" : "opacity-100"}`}
                         />
                     </div>
                     <BlockNoteView

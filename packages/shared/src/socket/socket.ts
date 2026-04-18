@@ -21,11 +21,24 @@ export type SyncDocClientPayload = z.infer<typeof SyncDocClientSchema>;
 
 // ── Sync Doc Title ──────────────────────────────────────────────────────────────────
 
-export const SyncDocTitleSchema = z.object({
+export const SyncDocTitleServerSchema = z.object({
     title: z.string().trim().max(32),
+    changeId: z.string(),
 });
 
-export type SyncDocTitlePayload = z.infer<typeof SyncDocTitleSchema>;
+export type SyncDocTitleServerPayload = z.infer<typeof SyncDocTitleServerSchema>;
+
+export const SyncDocTitleClientSchema = z.object({
+    title: z.string(),
+});
+
+export type SyncDocTitleClientPayload = z.infer<typeof SyncDocTitleClientSchema>;
+
+export const SyncDocTitleAckSchema = z.object({
+    changeId: z.string(),
+});
+
+export type SyncDocTitleAckPayload = z.infer<typeof SyncDocTitleAckSchema>;
 
 // ── Repair Sync Doc ───────────────────────────────────────────────────────────
 

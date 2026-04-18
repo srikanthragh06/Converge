@@ -29,4 +29,5 @@ export const SOCKET_EVENTS = {
     // ── Sync title ──────────────────────────────────────────────────────────────
     SYNC_DOC_TITLE_SERVER: "sync-doc-title-server",
     SYNC_DOC_TITLE_CLIENT: "sync-doc-title-client",
+    SYNC_DOC_TITLE_ACK: "sync-doc-title-ack",
 } as const;
