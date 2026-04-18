@@ -10,6 +10,7 @@ export type CreateDocumentResponseDto = z.infer<
 
 export const GetDocumentResponseSchema = z.object({
     id: z.number(),
+    title: z.string(),
     creatorId: z.number(),
     createdAt: z.coerce.date(),
 });

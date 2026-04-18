@@ -1,6 +1,11 @@
-import { ForbiddenException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import * as Y from 'yjs';
-import { mapsAreEqual } from '@converge/shared';
+import { GetDocumentResponseDto, mapsAreEqual } from '@converge/shared';
 import { REDIS_EVENTS, REDIS_LOCKS } from '../redis/redis.events';
 import { DatabaseService } from '../db/database.service';
 import { RedisService } from '../redis/redis.service';
@@ -303,13 +308,13 @@ export class DocumentService {
   async getDocumentOfUser(
     documentId: number,
     userId: number,
-  ): Promise<{ id: number; creatorId: number; createdAt: Date }> {
+  ): Promise<GetDocumentResponseDto> {
     const db = this.dbService.kysely;
 
     // Check existence first so we can return the correct error code.
     const row = await db
       .selectFrom('documents')
-      .select(['id', 'creator_id', 'created_at'])
+      .select(['id', 'title', 'creator_id', 'created_at'])
       .where('id', '=', documentId)
       .executeTakeFirst();
 
@@ -319,6 +324,7 @@ export class DocumentService {
 
     return {
       id: row.id,
+      title: row.title,
       creatorId: row.creator_id,
       createdAt: row.created_at,
     };
@@ -337,7 +343,8 @@ export class DocumentService {
       .values({ creator_id: userId })
       .returning('documents.id')
       .executeTakeFirst();
-    if (!row) throw new InternalServerErrorException('Failed to create document.');
+    if (!row)
+      throw new InternalServerErrorException('Failed to create document.');
 
     return row.id;
   }
