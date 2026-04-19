@@ -277,29 +277,51 @@
 
 ## Upcoming
 
-### v0.11 — Document Library
+### v0.11 — Basic Document Library
 
-- Library opened with `Ctrl+P` — lists documents by last viewed, paginated
-- Last edited and last viewed metadata tracked per document
-- Title search
+- Full-page `/library` route with Documents tab
+- Card-based doc list: title, owner, last edited, last viewed
+- Search documents by title with real-time filtering
+- Pagination (infinite scroll)
+- `Ctrl+P` palette — quick search and jump between docs (glorified alt+tab)
+- Collapsible + resizable left sidebar showing recent documents
+- Track last viewed and last edited timestamps per document
+- `Ctrl+P` opens from anywhere in the app
 
-### v0.12 — Document Permissions
+### v0.12 — Workspaces & Organization
 
-- Owner, editor, viewer roles per document
-- Sharing by link or invite
+- Workspaces tab on library page — browse and manage workspaces
+- Create new workspaces; each workspace has a name, owner, and folder structure
+- Documents can belong to 0 (floating) or 1 workspace
+- Nested folder structure within each workspace
+- Assign documents to workspaces, move between workspaces, unassign to floating
+- Assign/move dialogs show three options: "Keep current + add workspace", "Use only workspace", "Keep overrides", etc.
+- Full-page workspace detail view: folder tree (left) + documents in selected folder (right)
+- No access control yet — all documents visible to all users; this version is purely organizational
 
-### v0.13 — Awareness
+### v0.13 — Document Access Control
+
+- Document access is independent per-doc: admin, editor, viewer, no access
+- Document owner (creator) is always admin, cannot be changed
+- Workspace access acts as a template for new documents — docs created in a workspace inherit that workspace's access
+- Once created, doc access is customizable and independent of workspace membership
+- Share button on document — modal showing current access, add/invite new people
+- Manage access: right-click doc in library or click share button in editor
+- Runtime access calculation: workspace access + doc-level overrides (where applicable)
+- Assignment/move operations with user-controlled access handling
+
+### v0.14 — Awareness
 
 - Live cursors and selections via Yjs awareness protocol forwarded through the server
 
-### v0.14 — Media Support
+### v0.15 — Media Support
 
 - Image and video upload, S3-backed storage wired into the BlockNote editor
 
-### v0.15 — Document References
+### v0.16 — Document References
 
 - Inline `@document` mentions and backlinks
 
-### v0.16 — Offline Support
+### v0.17 — Offline Support
 
 - IndexedDB caching via `y-indexeddb`; offline-aware sync gate so stale state vectors are never sent to the server before the local snapshot is loaded
