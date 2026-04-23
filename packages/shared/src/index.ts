@@ -4,10 +4,16 @@ export type { GoogleAuthRequestDto, AuthResponseDto } from "./http/auth";
 export {
     CreateDocumentResponseSchema,
     GetDocumentResponseSchema,
+    GetLibraryDocumentsRequestSchema,
+    LibraryDocumentSchema,
+    GetLibraryDocumentsResponseSchema,
 } from "./http/document";
 export type {
     CreateDocumentResponseDto,
     GetDocumentResponseDto,
+    GetLibraryDocumentsRequestDto,
+    LibraryDocumentDto,
+    GetLibraryDocumentsResponseDto,
 } from "./http/document";
 export { INTERNAL_SERVER_ERROR_MESSAGE } from "./constants/constants";
 export { SOCKET_EVENTS } from "./socket/events";

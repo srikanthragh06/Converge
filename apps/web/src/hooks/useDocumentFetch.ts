@@ -26,7 +26,7 @@ const useDocumentFetch = (
         const fetchDocument = async () => {
             try {
                 const { data } = await apiClient.get<GetDocumentResponseDto>(
-                    `/document/${documentId || ""}`,
+                    `/document/id/${documentId || ""}`,
                 );
                 setTitle(data.title);
 
