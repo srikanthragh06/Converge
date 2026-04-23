@@ -39,10 +39,21 @@ export interface UsersTable {
   created_at: Generated<Date>;
 }
 
+/** Row shape for the document_user_metadata table. */
+export interface DocumentUserMetadataTable {
+  /** FK to documents.id — scopes this row to a specific document. */
+  document_id: number;
+  /** FK to users.id — scopes this row to a specific user. */
+  user_id: number;
+  /** Timestamp of the last time this user opened the document (set on WebSocket connect). */
+  last_visited_at: Generated<Date>;
+}
+
 // Root schema passed as a generic to Kysely<DatabaseSchema>.
 // Table names must exactly match the Postgres table names.
 export interface DatabaseSchema {
   document_updates: DocumentUpdatesTable;
+  document_user_metadata: DocumentUserMetadataTable;
   documents: DocumentsTable;
   users: UsersTable;
 }
