@@ -350,6 +350,28 @@ export class DocumentService {
   }
 
   /**
+   * Upserts a `document_user_metadata` row to record that the given user has
+   * just visited the document. On conflict it updates `last_visited_at` to now
+   * so repeated visits always reflect the most recent open time.
+   * @param documentId - the document the user opened
+   * @param userId - the authenticated user who opened it
+   */
+  async recordLastVisited(documentId: number, userId: number): Promise<void> {
+    const db = this.dbService.kysely;
+
+    // Insert or update so every open refreshes the timestamp without duplicating rows.
+    await db
+      .insertInto('document_user_metadata')
+      .values({ document_id: documentId, user_id: userId })
+      .onConflict((oc) =>
+        oc
+          .columns(['document_id', 'user_id'])
+          .doUpdateSet({ last_visited_at: sql`now()` }),
+      )
+      .execute();
+  }
+
+  /**
    * Persists a new title for the given document and publishes the change to
    * Redis so other server instances can broadcast it to their connected clients.
    * @param documentId - the document to update
