@@ -227,8 +227,10 @@ const useYjsSync = () => {
         socket.on(SOCKET_EVENTS.REPAIR_ACK_DOC_CLIENT, handleRepairAckDoc);
 
         // Initiate repair on connect to pull any server state the client missed.
+        // The interval runs every 15 s — frequent enough to catch divergence quickly,
+        // infrequent enough to avoid unnecessary server load.
         initiateRepairSync();
-        const heartbeatIntervalId = setInterval(initiateRepairSync, 5000);
+        const heartbeatIntervalId = setInterval(initiateRepairSync, 15000);
 
         return () => {
             socket.off(
