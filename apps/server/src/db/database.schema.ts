@@ -47,6 +47,8 @@ export interface DocumentUserMetadataTable {
   user_id: number;
   /** Timestamp of the last time this user opened the document (set on WebSocket connect). */
   last_visited_at: Generated<Date>;
+  /** Timestamp of the last time this user pushed a content or title update. */
+  last_edited_at: Generated<Date>;
 }
 
 // Root schema passed as a generic to Kysely<DatabaseSchema>.

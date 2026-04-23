@@ -224,6 +224,7 @@ export class DocumentGateway implements OnGatewayConnection {
     { updateArray, clientSVArray }: SyncDocServerPayload,
   ) {
     const documentId = client.data.documentId as number;
+    const userId = client.data.userId as number;
 
     const update = new Uint8Array(updateArray);
     const clientSV = new Uint8Array(clientSVArray);
@@ -245,6 +246,9 @@ export class DocumentGateway implements OnGatewayConnection {
         serverSVArray,
       },
     );
+
+    // record that this user edited the document
+    await this.documentService.recordLastEdited(documentId, userId);
 
     // if the client is behind, prompt it to start a repair sync
     const isSynced = await this.documentService.isClientAndServerDocSynced(
@@ -372,9 +376,13 @@ export class DocumentGateway implements OnGatewayConnection {
     { title, changeId }: SyncDocTitleServerPayload,
   ) {
     const documentId = client.data.documentId as number;
+    const userId = client.data.userId as number;
 
     // Persist the updated title to the database.
     await this.documentService.applyDocTitleUpdate(documentId, title);
+
+    // record that this user edited the document
+    await this.documentService.recordLastEdited(documentId, userId);
 
     // Acknowledge persistence to the sending client, echoing changeId so the
     // client can match the ack to the specific emit that triggered it.
