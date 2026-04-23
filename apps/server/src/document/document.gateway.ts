@@ -135,6 +135,9 @@ export class DocumentGateway implements OnGatewayConnection {
       // load the Y.Doc into memory if not already loaded
       await this.documentService.loadDoc(documentId);
 
+      // Record that this user visited the document.
+      await this.documentService.recordLastVisited(documentId, userId);
+
       // subscribe once per document — the Set prevents duplicate handlers across client connections
       if (!this.subscribedDocs.has(documentId)) {
         // Subscribe to Yjs document updates published by other server instances.
