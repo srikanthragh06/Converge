@@ -5,7 +5,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as Y from 'yjs';
-import { GetDocumentResponseDto, mapsAreEqual } from '@converge/shared';
+import {
+  GetDocumentResponseDto,
+  LibraryDocumentDto,
+  GetLibraryDocumentsResponseDto,
+  mapsAreEqual,
+} from '@converge/shared';
 import { REDIS_EVENTS, REDIS_LOCKS } from '../redis/redis.events';
 import { DatabaseService } from '../db/database.service';
 import { RedisService } from '../redis/redis.service';
@@ -331,20 +336,38 @@ export class DocumentService {
   }
 
   /**
-   * Inserts a new document row owned by the given user and returns its ID.
+   * Creates a new document and its initial metadata row in a single transaction,
+   * returning the new document's ID. The transaction ensures a metadata row always
+   * exists so the library query can treat last_visited_at and last_edited_at as non-nullable.
    *
    * @param userId - The ID of the authenticated user who will own the document.
    * @returns The newly created document's ID.
    */
   async createNewDocument(userId: number): Promise<number> {
     const db = this.dbService.kysely;
-    const row = await db
-      .insertInto('documents')
-      .values({ creator_id: userId })
-      .returning('documents.id')
-      .executeTakeFirst();
-    if (!row)
-      throw new InternalServerErrorException('Failed to create document.');
+
+    // Wrap in a transaction so the document and its metadata row are always
+    // created together — a document with no metadata row would break the
+    // library query which treats last_visited_at and last_edited_at as non-nullable.
+    const row = await db.transaction().execute(async (tx) => {
+      const documentRow = await tx
+        .insertInto('documents')
+        .values({ creator_id: userId })
+        .returning('documents.id')
+        .executeTakeFirst();
+
+      if (!documentRow)
+        throw new InternalServerErrorException('Failed to create document.');
+
+      // Create the initial metadata row so the library can always read
+      // last_visited_at and last_edited_at without needing a left join.
+      await tx
+        .insertInto('document_user_metadata')
+        .values({ document_id: documentRow.id, user_id: userId })
+        .execute();
+
+      return documentRow;
+    });
 
     return row.id;
   }
@@ -391,6 +414,77 @@ export class DocumentService {
           .doUpdateSet({ last_edited_at: sql`now()` }),
       )
       .execute();
+  }
+
+  /**
+   * Returns a paginated list of documents owned by the given user, ordered by
+   * last_visited_at DESC with id DESC as a tiebreaker. Uses keyset pagination
+   * via a compound cursor (lastVisitedAt, id) so performance is consistent
+   * regardless of page depth.
+   * @param userId - the authenticated user whose documents to list
+   * @param limit - maximum number of documents to return
+   * @param cursor - compound cursor from the previous page; omit for the first page
+   * @returns documents for this page and the nextCursor to fetch the following page
+   */
+  async getLibraryDocuments(
+    userId: number,
+    limit: number,
+    cursor?: { lastVisitedAt: Date; id: number },
+  ): Promise<GetLibraryDocumentsResponseDto> {
+    const db = this.dbService.kysely;
+
+    // Build the base query — join users for ownerName and document_user_metadata for timestamps.
+    let query = db
+      .selectFrom('documents as d')
+      .innerJoin('users as u', 'u.id', 'd.creator_id')
+      .innerJoin('document_user_metadata as dum', 'dum.document_id', 'd.id')
+      .select([
+        'd.id',
+        'd.title',
+        'u.name as ownerName',
+        'dum.last_visited_at as lastVisitedAt',
+        'dum.last_edited_at as lastEditedAt',
+      ])
+      .where('d.creator_id', '=', userId)
+      .orderBy('dum.last_visited_at', 'desc')
+      .orderBy('d.id', 'desc')
+      .limit(limit);
+
+    // Apply the compound cursor to fetch only rows after the last seen position.
+    if (cursor) {
+      query = query.where(({ eb, and, or }) =>
+        or([
+          eb('dum.last_visited_at', '<', cursor.lastVisitedAt),
+          and([
+            eb('dum.last_visited_at', '=', cursor.lastVisitedAt),
+            eb('d.id', '<', cursor.id),
+          ]),
+        ]),
+      );
+    }
+
+    const rows = await query.execute();
+
+    // Map DB rows to the DTO shape.
+    const documents: LibraryDocumentDto[] = rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      ownerName: row.ownerName,
+      lastVisitedAt: row.lastVisitedAt,
+      lastEditedAt: row.lastEditedAt,
+    }));
+
+    // If we got a full page there may be more results — return the cursor
+    // pointing at the last item. Otherwise signal end of results with null.
+    const nextCursor =
+      rows.length === limit
+        ? {
+            lastVisitedAt: rows[rows.length - 1].lastVisitedAt,
+            id: rows[rows.length - 1].id,
+          }
+        : null;
+
+    return { documents, nextCursor };
   }
 
   /**
