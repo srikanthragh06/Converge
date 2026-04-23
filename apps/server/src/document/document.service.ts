@@ -372,6 +372,28 @@ export class DocumentService {
   }
 
   /**
+   * Upserts a `document_user_metadata` row to record that the given user has
+   * just edited the document. On conflict it updates `last_edited_at` to now
+   * so the library UI always reflects the most recent edit time per user.
+   * @param documentId - the document the user edited
+   * @param userId - the authenticated user who made the edit
+   */
+  async recordLastEdited(documentId: number, userId: number): Promise<void> {
+    const db = this.dbService.kysely;
+
+    // Insert or update so every edit refreshes the timestamp without duplicating rows.
+    await db
+      .insertInto('document_user_metadata')
+      .values({ document_id: documentId, user_id: userId })
+      .onConflict((oc) =>
+        oc
+          .columns(['document_id', 'user_id'])
+          .doUpdateSet({ last_edited_at: sql`now()` }),
+      )
+      .execute();
+  }
+
+  /**
    * Persists a new title for the given document and publishes the change to
    * Redis so other server instances can broadcast it to their connected clients.
    * @param documentId - the document to update
