@@ -68,3 +68,25 @@ export const GetLibraryDocumentsResponseSchema = z.object({
 export type GetLibraryDocumentsResponseDto = z.infer<
     typeof GetLibraryDocumentsResponseSchema
 >;
+
+/**
+ * Query params for GET /document/library/search.
+ * title must be non-empty and at most 256 characters. limit defaults to 20 if omitted.
+ */
+export const SearchLibraryDocumentsRequestSchema = z.object({
+    title: z.string().min(1).max(256),
+    limit: z.coerce.number().int().positive().optional(),
+});
+
+export type SearchLibraryDocumentsRequestDto = z.infer<
+    typeof SearchLibraryDocumentsRequestSchema
+>;
+
+/** Response for GET /document/library/search. */
+export const SearchLibraryDocumentsResponseSchema = z.object({
+    documents: z.array(LibraryDocumentSchema),
+});
+
+export type SearchLibraryDocumentsResponseDto = z.infer<
+    typeof SearchLibraryDocumentsResponseSchema
+>;

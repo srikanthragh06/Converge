@@ -7,6 +7,8 @@ export {
     GetLibraryDocumentsRequestSchema,
     LibraryDocumentSchema,
     GetLibraryDocumentsResponseSchema,
+    SearchLibraryDocumentsRequestSchema,
+    SearchLibraryDocumentsResponseSchema,
 } from "./http/document";
 export type {
     CreateDocumentResponseDto,
@@ -14,6 +16,8 @@ export type {
     GetLibraryDocumentsRequestDto,
     LibraryDocumentDto,
     GetLibraryDocumentsResponseDto,
+    SearchLibraryDocumentsRequestDto,
+    SearchLibraryDocumentsResponseDto,
 } from "./http/document";
 export { INTERNAL_SERVER_ERROR_MESSAGE } from "./constants/constants";
 export { SOCKET_EVENTS } from "./socket/events";

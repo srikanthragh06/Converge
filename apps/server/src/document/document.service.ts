@@ -9,6 +9,7 @@ import {
   GetDocumentResponseDto,
   LibraryDocumentDto,
   GetLibraryDocumentsResponseDto,
+  SearchLibraryDocumentsResponseDto,
   mapsAreEqual,
 } from '@converge/shared';
 import { REDIS_EVENTS, REDIS_LOCKS } from '../redis/redis.events';
@@ -485,6 +486,55 @@ export class DocumentService {
         : null;
 
     return { documents, nextCursor };
+  }
+
+  /**
+   * Searches the authenticated user's documents by title using trigram similarity,
+   * returning results ordered by relevance descending. Only documents with a
+   * similarity score above 0.3 are returned to avoid noise.
+   * @param userId - the authenticated user whose documents to search
+   * @param title - the search query to match against document titles
+   * @param limit - maximum number of results to return
+   * @returns matching documents ordered by similarity score descending
+   */
+  async searchLibraryDocuments(
+    userId: number,
+    title: string,
+    limit: number,
+  ): Promise<SearchLibraryDocumentsResponseDto> {
+    const db = this.dbService.kysely;
+
+    // similarity() is provided by pg_trgm. The threshold of 0.3 balances recall
+    // and precision — low enough to catch partial matches on short titles, high
+    // enough to avoid returning unrelated documents.
+    const rows = await db
+      .selectFrom('documents as d')
+      .innerJoin('users as u', 'u.id', 'd.creator_id')
+      .innerJoin('document_user_metadata as dum', 'dum.document_id', 'd.id')
+      .select([
+        'd.id',
+        'd.title',
+        'u.name as ownerName',
+        'dum.last_visited_at as lastVisitedAt',
+        'dum.last_edited_at as lastEditedAt',
+        sql<number>`similarity(d.title, ${title})`.as('score'),
+      ])
+      .where('d.creator_id', '=', userId)
+      .where(sql<boolean>`similarity(d.title, ${title}) > 0.3`)
+      .orderBy(sql`score`, 'desc')
+      .limit(limit)
+      .execute();
+
+    // Map DB rows to the DTO shape.
+    const documents: LibraryDocumentDto[] = rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      ownerName: row.ownerName,
+      lastVisitedAt: row.lastVisitedAt,
+      lastEditedAt: row.lastEditedAt,
+    }));
+
+    return { documents };
   }
 
   /**

@@ -16,7 +16,9 @@ import {
   type CreateDocumentResponseDto,
   type GetDocumentResponseDto,
   type GetLibraryDocumentsResponseDto,
+  type SearchLibraryDocumentsResponseDto,
   GetLibraryDocumentsRequestSchema,
+  SearchLibraryDocumentsRequestSchema,
 } from '@converge/shared';
 import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe';
 
@@ -44,6 +46,30 @@ export class DocumentController {
       userId,
     );
     return httpOK(document);
+  }
+
+  /**
+   * Searches the authenticated user's documents by title using trigram similarity,
+   * returning results ordered by relevance descending.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param query - title (non-empty, max 256 chars) and optional limit
+   * @returns matching documents ordered by similarity score descending
+   */
+  @Get('/library/search')
+  async handleSearchLibraryDocuments(
+    @Req() req: Request,
+    @Query(new ZodHttpValidationPipe(SearchLibraryDocumentsRequestSchema))
+    query: { title: string; limit?: number },
+  ): Promise<SearchLibraryDocumentsResponseDto> {
+    const userId = (req as any).userId as number;
+    const limit = query.limit ?? 20;
+    return httpOK(
+      await this.documentService.searchLibraryDocuments(
+        userId,
+        query.title,
+        limit,
+      ),
+    );
   }
 
   /**
