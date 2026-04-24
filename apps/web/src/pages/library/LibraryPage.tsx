@@ -31,9 +31,10 @@ const LibraryPage = () => {
     return (
         <Page authRequired className="items-center">
             <div
-                className="flex flex-col items-center space-y-2 w-5/6
+                className="bg-background-base sticky sm:top-4 top-2 flex flex-col items-center space-y-2 w-5/6
                     sm:flex-row sm:items-center sm:space-y-0 sm:space-x-8 mx-2 
-                    sm:w-auto sm:mt-8 mt-4"
+                    sm:w-auto
+                    sm:mb-4 mb-2"
             >
                 <input
                     type="text"
