@@ -7,7 +7,8 @@ import useLibrary from "../../hooks/useLibrary";
  * with search, sorting, and infinite scroll.
  */
 const LibraryPage = () => {
-    const { searchText, setSearchText, documents, sentinelRef } = useLibrary();
+    const { searchText, setSearchText, documents, sentinelRef, isLoadingMore } =
+        useLibrary();
 
     return (
         <Page authRequired className="items-center">

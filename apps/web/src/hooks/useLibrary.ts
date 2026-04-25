@@ -15,12 +15,11 @@ const LIBRARY_PAGE_LIMIT = 12;
 const useLibrary = () => {
     const [searchText, setSearchText] = useState(""); // current search query string
     const [documents, setDocuments] = useState<LibraryDocumentDto[]>([]); // accumulated list of fetched documents
-    const [isLoadingMore, setIsLoadingMore] = useState(false); // true while a page fetch is in flight
+    const [isLoadingMore, setIsLoadingMore] = useState(false); // true when api is loading
 
     // Refs used inside loadMore to avoid stale closures without adding them as useCallback deps.
     const nextCursor = useRef<{ lastVisitedAt: Date; id: number } | null>(null); // compound keyset cursor for the next page
     const hasMoreRef = useRef(true); // mirrors hasMore without causing loadMore to be recreated
-    const isLoadingRef = useRef(false); // mirrors isLoadingMore without causing loadMore to be recreated
 
     // Sentinel element stored as state so the observer effect re-runs when it mounts.
     const [sentinelEl, setSentinelEl] = useState<HTMLDivElement | null>(null);
@@ -33,19 +32,25 @@ const useLibrary = () => {
     // Fetches the first page of the user's library on mount.
     useEffect(() => {
         const fetchLibrary = async () => {
-            const { data } =
-                await apiClient.get<GetLibraryDocumentsResponseDto>(
-                    "/document/library",
-                    { params: { limit: LIBRARY_PAGE_LIMIT } },
-                );
-            setDocuments(data.documents);
-            nextCursor.current = data.nextCursor
-                ? {
-                      id: data.nextCursor.id,
-                      lastVisitedAt: new Date(data.nextCursor.lastVisitedAt),
-                  }
-                : null;
-            hasMoreRef.current = data.nextCursor !== null;
+            try {
+                const { data } =
+                    await apiClient.get<GetLibraryDocumentsResponseDto>(
+                        "/document/library",
+                        { params: { limit: LIBRARY_PAGE_LIMIT } },
+                    );
+                setDocuments(data.documents);
+                nextCursor.current = data.nextCursor
+                    ? {
+                          id: data.nextCursor.id,
+                          lastVisitedAt: new Date(
+                              data.nextCursor.lastVisitedAt,
+                          ),
+                      }
+                    : null;
+                hasMoreRef.current = data.nextCursor !== null;
+            } catch (err) {
+                console.error(err);
+            }
         };
 
         fetchLibrary();
@@ -57,24 +62,23 @@ const useLibrary = () => {
      * Uses refs for guards so this function stays stable across renders.
      */
     const loadMore = useCallback(async () => {
-        if (isLoadingRef.current || !hasMoreRef.current || !nextCursor.current)
-            return;
+        if (isLoadingMore || !hasMoreRef.current || !nextCursor.current) return;
 
-        isLoadingRef.current = true;
         setIsLoadingMore(true);
 
         try {
-            const { data } = await apiClient.get<GetLibraryDocumentsResponseDto>(
-                "/document/library",
-                {
-                    params: {
-                        limit: LIBRARY_PAGE_LIMIT,
-                        cursorVisitedAt:
-                            nextCursor.current.lastVisitedAt.toISOString(),
-                        cursorId: nextCursor.current.id,
+            const { data } =
+                await apiClient.get<GetLibraryDocumentsResponseDto>(
+                    "/document/library",
+                    {
+                        params: {
+                            limit: LIBRARY_PAGE_LIMIT,
+                            cursorVisitedAt:
+                                nextCursor.current.lastVisitedAt.toISOString(),
+                            cursorId: nextCursor.current.id,
+                        },
                     },
-                },
-            );
+                );
 
             setDocuments((prev) => [...prev, ...data.documents]);
             nextCursor.current = data.nextCursor
@@ -84,8 +88,9 @@ const useLibrary = () => {
                   }
                 : null;
             hasMoreRef.current = data.nextCursor !== null;
+        } catch (err) {
+            console.error(err);
         } finally {
-            isLoadingRef.current = false;
             setIsLoadingMore(false);
         }
     }, []);
