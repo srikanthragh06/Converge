@@ -17,9 +17,8 @@ const useLibrary = () => {
     const [documents, setDocuments] = useState<LibraryDocumentDto[]>([]); // accumulated list of fetched documents
     const [isLoadingMore, setIsLoadingMore] = useState(false); // true when api is loading
 
-    // Refs used inside loadMore to avoid stale closures without adding them as useCallback deps.
     const nextCursor = useRef<{ lastVisitedAt: Date; id: number } | null>(null); // compound keyset cursor for the next page
-    const hasMoreRef = useRef(true); // mirrors hasMore without causing loadMore to be recreated
+    const hasMoreRef = useRef(true); // whether another page exists — ref so loadMore always reads the latest value without needing to be in its deps
 
     // Sentinel element stored as state so the observer effect re-runs when it mounts.
     const [sentinelEl, setSentinelEl] = useState<HTMLDivElement | null>(null);
@@ -29,44 +28,15 @@ const useLibrary = () => {
         [],
     );
 
-    // Fetches the first page of the user's library on mount.
-    useEffect(() => {
-        const fetchLibrary = async () => {
-            try {
-                const { data } =
-                    await apiClient.get<GetLibraryDocumentsResponseDto>(
-                        "/document/library",
-                        { params: { limit: LIBRARY_PAGE_LIMIT } },
-                    );
-                setDocuments(data.documents);
-                nextCursor.current = data.nextCursor
-                    ? {
-                          id: data.nextCursor.id,
-                          lastVisitedAt: new Date(
-                              data.nextCursor.lastVisitedAt,
-                          ),
-                      }
-                    : null;
-                hasMoreRef.current = data.nextCursor !== null;
-            } catch (err) {
-                console.error(err);
-            }
-        };
-
-        fetchLibrary();
-    }, []);
-
     /**
      * Fetches the next page of documents and appends them to the list.
      * No-ops if a fetch is already in flight or there are no more pages.
-     * Uses refs for guards so this function stays stable across renders.
      */
-    const loadMore = useCallback(async () => {
-        if (isLoadingMore || !hasMoreRef.current || !nextCursor.current) return;
-
-        setIsLoadingMore(true);
+    const loadMore = async () => {
+        if (isLoadingMore || !hasMoreRef.current) return;
 
         try {
+            setIsLoadingMore(true);
             const { data } =
                 await apiClient.get<GetLibraryDocumentsResponseDto>(
                     "/document/library",
@@ -93,6 +63,36 @@ const useLibrary = () => {
         } finally {
             setIsLoadingMore(false);
         }
+    };
+
+    // Fetches the first page of the user's library on mount.
+    useEffect(() => {
+        const fetchLibrary = async () => {
+            try {
+                setIsLoadingMore(true);
+                const { data } =
+                    await apiClient.get<GetLibraryDocumentsResponseDto>(
+                        "/document/library",
+                        { params: { limit: LIBRARY_PAGE_LIMIT } },
+                    );
+                setDocuments(data.documents);
+                nextCursor.current = data.nextCursor
+                    ? {
+                          id: data.nextCursor.id,
+                          lastVisitedAt: new Date(
+                              data.nextCursor.lastVisitedAt,
+                          ),
+                      }
+                    : null;
+                hasMoreRef.current = data.nextCursor !== null;
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setIsLoadingMore(false);
+            }
+        };
+
+        fetchLibrary();
     }, []);
 
     // Observes the sentinel element and calls loadMore when it enters the viewport.
