@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import useLibrary from "../../../hooks/useLibrary";
+import useKeyboardNav from "../../../hooks/useKeyboardNav";
 import { timeAgo } from "../../../utils/utils";
 
 /**
@@ -10,8 +11,10 @@ import { timeAgo } from "../../../utils/utils";
  * Closes on Escape or backdrop click.
  */
 const DocumentSwitcherOverlay = ({ onClose }: { onClose: () => void }) => {
-    const { searchText, setSearchText, documents, isLoadingMore } =
-        useLibrary(5, 5); // library state: search query, document list, and loading flag
+    const { searchText, setSearchText, documents, isLoadingMore } = useLibrary(
+        5,
+        5,
+    ); // library state: search query, document list, and loading flag
     const navigate = useNavigate(); // router navigation for switching to a selected document
     const inputRef = useRef<HTMLInputElement>(null); // ref used to auto-focus the search input on mount
 
@@ -30,10 +33,17 @@ const DocumentSwitcherOverlay = ({ onClose }: { onClose: () => void }) => {
     }, [onClose]);
 
     /** Navigates to the selected document and closes the overlay. */
-    const handleDocumentClick = (id: number) => {
-        navigate(`/document/${id}`);
-        onClose();
-    };
+    const handleDocumentClick = useCallback(
+        (id: number) => {
+            navigate(`/document/${id}`);
+            onClose();
+        },
+        [navigate, onClose],
+    );
+
+    const { focusedIndex, listRef } = useKeyboardNav(documents.length, (i) =>
+        handleDocumentClick(documents[i].id),
+    );
 
     return (
         // Backdrop — click outside the modal to close
@@ -59,7 +69,10 @@ const DocumentSwitcherOverlay = ({ onClose }: { onClose: () => void }) => {
                 />
 
                 {/* Results list */}
-                <div className="overflow-y-auto max-h-96 flex flex-col">
+                <div
+                    ref={listRef}
+                    className="overflow-y-auto max-h-96 flex flex-col"
+                >
                     {isLoadingMore ? (
                         <div className="flex justify-center py-4">
                             <AiOutlineLoading3Quarters className="animate-spin text-text-disabled" />
@@ -69,11 +82,11 @@ const DocumentSwitcherOverlay = ({ onClose }: { onClose: () => void }) => {
                             No documents found.
                         </p>
                     ) : (
-                        documents.map((doc) => (
+                        documents.map((doc, i) => (
                             <div
                                 key={doc.id}
                                 onClick={() => handleDocumentClick(doc.id)}
-                                className=" bg-background-base flex flex-col gap-1 px-4 py-2 cursor-pointer hover:opacity-80 active:opacity-70 transition"
+                                className={`bg-background-base flex flex-col gap-1 px-4 py-2 cursor-pointer hover:opacity-80 active:opacity-70 transition ${focusedIndex === i ? "opacity-70" : ""}`}
                             >
                                 <span
                                     className={`text-white text-sm font-medium truncate ${!doc.title && "opacity-20"}`}
