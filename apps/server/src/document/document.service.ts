@@ -490,8 +490,8 @@ export class DocumentService {
 
   /**
    * Searches the authenticated user's documents by title using trigram similarity,
-   * returning results ordered by relevance descending. Only documents with a
-   * similarity score above 0.3 are returned to avoid noise.
+   * returning results ordered by relevance descending. Empty-title documents are
+   * excluded. No minimum score threshold is applied so short queries still return results.
    * @param userId - the authenticated user whose documents to search
    * @param title - the search query to match against document titles
    * @param limit - maximum number of results to return
@@ -504,9 +504,8 @@ export class DocumentService {
   ): Promise<SearchLibraryDocumentsResponseDto> {
     const db = this.dbService.kysely;
 
-    // similarity() is provided by pg_trgm. The threshold of 0.3 balances recall
-    // and precision — low enough to catch partial matches on short titles, high
-    // enough to avoid returning unrelated documents.
+    // similarity() is provided by pg_trgm and scores how closely the title matches the query.
+    // Results are ordered by score descending so the most relevant documents appear first.
     const rows = await db
       .selectFrom('documents as d')
       .innerJoin('users as u', 'u.id', 'd.creator_id')
@@ -520,6 +519,7 @@ export class DocumentService {
         sql<number>`similarity(d.title, ${title})`.as('score'),
       ])
       .where('d.creator_id', '=', userId)
+      .where('d.title', '!=', '')
       .where(sql<boolean>`similarity(d.title, ${title}) > 0.3`)
       .orderBy(sql`score`, 'desc')
       .limit(limit)
