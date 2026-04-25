@@ -3,9 +3,11 @@ import apiClient from "../lib/http";
 import type {
     GetLibraryDocumentsResponseDto,
     LibraryDocumentDto,
+    SearchLibraryDocumentsResponseDto,
 } from "@converge/shared";
 
 const LIBRARY_PAGE_LIMIT = 12;
+const LIBRARY_SEARCH_PAGE_LIMIT = 5;
 
 /**
  * Manages library page state. Fetches documents from GET /document/library
@@ -27,6 +29,57 @@ const useLibrary = () => {
         (node: HTMLDivElement | null) => setSentinelEl(node),
         [],
     );
+
+    /** Fetches the first page of the user's library and resets pagination state. */
+    const fetchFirstPage = async () => {
+        try {
+            setIsLoadingMore(true);
+            const { data } =
+                await apiClient.get<GetLibraryDocumentsResponseDto>(
+                    "/document/library",
+                    { params: { limit: LIBRARY_PAGE_LIMIT } },
+                );
+            setDocuments(data.documents);
+            nextCursor.current = data.nextCursor
+                ? {
+                      id: data.nextCursor.id,
+                      lastVisitedAt: new Date(data.nextCursor.lastVisitedAt),
+                  }
+                : null;
+            hasMoreRef.current = data.nextCursor !== null;
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsLoadingMore(false);
+        }
+    };
+
+    /**
+     * Fetches documents matching the given title query from the search endpoint.
+     * Replaces the current document list and disables infinite scroll.
+     */
+    const fetchSearchedDocs = async (query: string) => {
+        try {
+            setIsLoadingMore(true);
+            const { data } =
+                await apiClient.get<SearchLibraryDocumentsResponseDto>(
+                    "/document/library/search",
+                    {
+                        params: {
+                            title: query,
+                            limit: LIBRARY_SEARCH_PAGE_LIMIT,
+                        },
+                    },
+                );
+            setDocuments(data.documents);
+            nextCursor.current = null;
+            hasMoreRef.current = false;
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsLoadingMore(false);
+        }
+    };
 
     /**
      * Fetches the next page of documents and appends them to the list.
@@ -65,35 +118,22 @@ const useLibrary = () => {
         }
     };
 
-    // Fetches the first page of the user's library on mount.
+    // Debounces searchText and fires the search API 300ms after the user stops typing.
+    // When the query is cleared, resets to the first page of the normal library fetch.
     useEffect(() => {
-        const fetchLibrary = async () => {
-            try {
-                setIsLoadingMore(true);
-                const { data } =
-                    await apiClient.get<GetLibraryDocumentsResponseDto>(
-                        "/document/library",
-                        { params: { limit: LIBRARY_PAGE_LIMIT } },
-                    );
-                setDocuments(data.documents);
-                nextCursor.current = data.nextCursor
-                    ? {
-                          id: data.nextCursor.id,
-                          lastVisitedAt: new Date(
-                              data.nextCursor.lastVisitedAt,
-                          ),
-                      }
-                    : null;
-                hasMoreRef.current = data.nextCursor !== null;
-            } catch (err) {
-                console.error(err);
-            } finally {
-                setIsLoadingMore(false);
-            }
-        };
+        let timeout: number | null = null;
+        if (searchText.trim() === "") {
+            fetchFirstPage();
+        } else {
+            timeout = setTimeout(() => {
+                fetchSearchedDocs(searchText.trim());
+            }, 300);
+        }
 
-        fetchLibrary();
-    }, []);
+        return () => {
+            if (timeout) clearTimeout(timeout);
+        };
+    }, [searchText]);
 
     // Observes the sentinel element and calls loadMore when it enters the viewport.
     // Depends on sentinelEl so it re-runs once the element actually mounts.
