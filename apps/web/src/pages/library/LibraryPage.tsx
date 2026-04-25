@@ -38,6 +38,11 @@ const LibraryPage = () => {
                 {documents.map((doc) => (
                     <LibraryDocumentCard key={doc.id} document={doc} />
                 ))}
+                {isLoadingMore && (
+                    <span className="text-text-disabled text-sm py-2">
+                        Loading...
+                    </span>
+                )}
                 <div ref={sentinelRef} />
             </div>
             <div className="sm:hidden fixed bottom-0 left-0 right-0 px-4">
