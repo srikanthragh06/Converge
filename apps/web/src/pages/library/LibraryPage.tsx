@@ -1,32 +1,13 @@
-import { useEffect, useState } from "react";
 import Page from "../../components/Page";
-import apiClient from "../../lib/http";
-import type {
-    GetLibraryDocumentsResponseDto,
-    LibraryDocumentDto,
-} from "@converge/shared";
 import LibraryDocumentCard from "./components/LibraryDocumentCard";
+import useLibrary from "../../hooks/useLibrary";
 
 /**
  * Full-screen library page. Lists the authenticated user's documents
  * with search, sorting, and infinite scroll.
  */
 const LibraryPage = () => {
-    const [searchText, setSearchText] = useState(""); // current search query string
-    const [documents, setDocuments] = useState<LibraryDocumentDto[]>([]); // current page of library documents
-
-    // Fetches the first page of the user's library on mount.
-    useEffect(() => {
-        const fetchLibrary = async () => {
-            const { data } =
-                await apiClient.get<GetLibraryDocumentsResponseDto>(
-                    "/document/library",
-                );
-            setDocuments(data.documents);
-        };
-
-        fetchLibrary();
-    }, []);
+    const { searchText, setSearchText, documents } = useLibrary();
 
     return (
         <Page authRequired className="items-center">
