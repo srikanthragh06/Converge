@@ -275,18 +275,41 @@
 
 ---
 
+## v0.11 — Basic Document Library ✅
+
+> Branch: `library-v0.11`
+
+### Server (NestJS backend)
+
+- `document_user_metadata` table added (migration `0007_create_document_user_metadata`) — tracks `last_visited_at` and `last_edited_at` per user per document; composite PK on `(document_id, user_id)` with FK cascade on both
+- `last_visited_at` is upserted on every WebSocket connect so the library always reflects when the user last opened each document
+- `last_edited_at` is updated on every Yjs content update and title change so the card metadata stays accurate
+- `GET /document/library` added — returns the authenticated user's documents ordered by `last_visited_at desc` with keyset pagination using a compound cursor `(lastVisitedAt, id)`; requires `AuthGuard`
+- `GET /document/library/search` added — full-text title search using PostgreSQL `pg_trgm` trigram similarity, ordered by similarity score descending; filters out documents with empty titles; requires `AuthGuard`
+- Trigram GIN index added on `documents.title` to support fast similarity queries
+- Repair sync heartbeat interval slowed from 5 s to 15 s to reduce unnecessary server load
+
+### Web (React frontend)
+
+- `/library` route set as the app's default landing page (`/` and `/library` both render `LibraryPage`)
+- `LibraryPage` — sticky search bar (transparent background overlay to prevent bleed-through on scroll), card list, "New Document" button pinned to the bottom on mobile and inline on desktop
+- `LibraryDocumentCard` — displays document title, owner name, last-visited time, and last-edited time; navigates to `/document/:id` on click
+- `useLibrary` hook — manages search text, document list, and loading state; fetches first page on mount, debounces search queries at 300 ms, resets to first page when query is cleared, and drives infinite scroll via `IntersectionObserver` on a sentinel element using a callback ref pattern (needed because the sentinel mounts after auth resolves)
+- Keyset pagination using compound cursor `(lastVisitedAt, id)` — cursor values are coerced to `Date` objects on receipt to prevent `toISOString` errors
+- `DocumentSwitcherOverlay` — Ctrl+P on `EditorPage` opens a full-screen modal showing the user's library with debounced search; filters out the currently open document; closes on Escape or backdrop click
+- `useDocumentSwitcher` hook — purpose-built for the overlay; same fetch/search pattern as `useLibrary` but without infinite scroll, with its own page limits, and with current-document filtering
+- `useKeyboardNav` hook — manages `ArrowUp`/`ArrowDown`/`Enter` navigation over a flat list; auto-focuses the first item when the list loads, resets on list change, scrolls focused items into view via a `listRef`; used by both `LibraryPage` and `DocumentSwitcherOverlay`
+- Bug fix: navigating between documents via the overlay no longer loads the new document into the stale Y.Doc — `documentId` is now passed to `useYjsSync` so the Y.Doc is re-created on document change; `useDocumentFetch` resets status to `"loading"` before fetching; `useSocket` adds `documentId` to its effect deps for explicit reconnection
+
+### Shared package
+
+- `LibraryDocumentDto` / `LibraryDocumentSchema` added — shape of a single document row returned by the library endpoints (`id`, `title`, `ownerName`, `lastVisitedAt`, `lastEditedAt`)
+- `GetLibraryDocumentsResponseDto` / `GetLibraryDocumentsResponseSchema` added — paginated response with `documents` array and optional `nextCursor`
+- `SearchLibraryDocumentsResponseDto` / `SearchLibraryDocumentsResponseSchema` added — search response with `documents` array
+
+---
+
 ## Upcoming
-
-### v0.11 — Basic Document Library
-
-- Full-page `/library` route with Documents tab
-- Card-based doc list: title, owner, last edited, last viewed
-- Search documents by title with real-time filtering
-- Pagination (infinite scroll)
-- `Ctrl+P` palette — quick search and jump between docs (glorified alt+tab)
-- Collapsible + resizable left sidebar showing recent documents
-- Track last viewed and last edited timestamps per document
-- `Ctrl+P` opens from anywhere in the app
 
 ### v0.12 — Workspaces & Organization
 

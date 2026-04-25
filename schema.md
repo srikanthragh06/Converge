@@ -44,6 +44,20 @@ Append-only log of raw Yjs binary update payloads. The full document state is re
 
 ---
 
+### `document_user_metadata`
+Tracks per-user activity timestamps for each document. Used by the library page to display last-visited and last-edited times.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `document_id` | `bigint` | NOT NULL, FK → `documents.id` ON DELETE CASCADE | Scopes the row to a specific document |
+| `user_id` | `bigint` | NOT NULL, FK → `users.id` ON DELETE CASCADE | Scopes the row to a specific user |
+| `last_visited_at` | `timestamptz` | NOT NULL, default `now()` | Upserted on every WebSocket connect for this document |
+| `last_edited_at` | `timestamptz` | NOT NULL, default `now()` | Updated on every Yjs content update and title change |
+
+> Composite PK on `(document_id, user_id)`. Rows are upserted (insert or update) rather than inserted to keep one row per user per document.
+
+---
+
 ## Redis
 
 ### Pub/Sub Channels
