@@ -7,7 +7,7 @@ import useLibrary from "../../hooks/useLibrary";
  * with search, sorting, and infinite scroll.
  */
 const LibraryPage = () => {
-    const { searchText, setSearchText, documents } = useLibrary();
+    const { searchText, setSearchText, documents, sentinelRef } = useLibrary();
 
     return (
         <Page authRequired className="items-center">
@@ -37,6 +37,7 @@ const LibraryPage = () => {
                 {documents.map((doc) => (
                     <LibraryDocumentCard key={doc.id} document={doc} />
                 ))}
+                <div ref={sentinelRef} />
             </div>
             <div className="sm:hidden fixed bottom-0 left-0 right-0 px-4">
                 <button className="w-full px-2 py-2 text-xs rounded-md bg-white text-black hover:opacity-90 active:opacity-80 transition cursor-pointer">
