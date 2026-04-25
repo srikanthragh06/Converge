@@ -33,7 +33,7 @@ const useLibrary = () => {
      * No-ops if a fetch is already in flight or there are no more pages.
      */
     const loadMore = async () => {
-        if (isLoadingMore || !hasMoreRef.current) return;
+        if (isLoadingMore || !hasMoreRef.current || !nextCursor.current) return;
 
         try {
             setIsLoadingMore(true);
