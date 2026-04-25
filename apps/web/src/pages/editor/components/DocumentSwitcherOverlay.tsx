@@ -53,7 +53,9 @@ const DocumentSwitcherOverlay = ({ onClose }: { onClose: () => void }) => {
                     value={searchText}
                     onChange={(e) => setSearchText(e.target.value)}
                     placeholder="Search documents..."
-                    className="px-4 py-3 bg-transparent border-b border-border outline-none text-white text-sm"
+                    className="w-full px-3 py-2 sm:text-sm text-xs rounded-md
+                        bg-background-elevated
+                        outline-none text-white border-0 border-b border-border"
                 />
 
                 {/* Results list */}
@@ -71,7 +73,7 @@ const DocumentSwitcherOverlay = ({ onClose }: { onClose: () => void }) => {
                             <div
                                 key={doc.id}
                                 onClick={() => handleDocumentClick(doc.id)}
-                                className="flex flex-col gap-1 px-4 py-2 cursor-pointer hover:bg-background-hover transition"
+                                className=" bg-background-base flex flex-col gap-1 px-4 py-2 cursor-pointer hover:opacity-80 active:opacity-70 transition"
                             >
                                 <span
                                     className={`text-white text-sm font-medium truncate ${!doc.title && "opacity-20"}`}
