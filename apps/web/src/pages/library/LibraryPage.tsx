@@ -1,6 +1,7 @@
 import Page from "../../components/Page";
 import LibraryDocumentCard from "./components/LibraryDocumentCard";
 import useLibrary from "../../hooks/useLibrary";
+import { AiOutlineLoading3Quarters } from "react-icons/ai";
 
 /**
  * Full-screen library page. Lists the authenticated user's documents
@@ -39,9 +40,7 @@ const LibraryPage = () => {
                     <LibraryDocumentCard key={doc.id} document={doc} />
                 ))}
                 {isLoadingMore && (
-                    <span className="text-text-disabled text-sm py-2">
-                        Loading...
-                    </span>
+                    <AiOutlineLoading3Quarters className=" animate-spin" />
                 )}
                 <div ref={sentinelRef} />
             </div>
