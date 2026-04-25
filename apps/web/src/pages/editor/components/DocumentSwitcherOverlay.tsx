@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
-import useLibrary from "../../../hooks/useLibrary";
+import useDocumentSwitcher from "../../../hooks/useDocumentSwitcher";
 import useKeyboardNav from "../../../hooks/useKeyboardNav";
 import { timeAgo } from "../../../utils/utils";
 
@@ -10,11 +10,15 @@ import { timeAgo } from "../../../utils/utils";
  * Shows the user's library on open and supports debounced title search.
  * Closes on Escape or backdrop click.
  */
-const DocumentSwitcherOverlay = ({ onClose }: { onClose: () => void }) => {
-    const { searchText, setSearchText, documents, isLoadingMore } = useLibrary(
-        5,
-        5,
-    ); // library state: search query, document list, and loading flag
+const DocumentSwitcherOverlay = ({
+    onClose,
+    documentId,
+}: {
+    onClose: () => void;
+    documentId: string | undefined; // ID of the currently open document, passed from EditorPage
+}) => {
+    const { searchText, setSearchText, documents, isLoading } =
+        useDocumentSwitcher(documentId ? Number(documentId) : undefined); // switcher state: search query, filtered document list, and loading flag
     const navigate = useNavigate(); // router navigation for switching to a selected document
     const inputRef = useRef<HTMLInputElement>(null); // ref used to auto-focus the search input on mount
 
@@ -73,7 +77,7 @@ const DocumentSwitcherOverlay = ({ onClose }: { onClose: () => void }) => {
                     ref={listRef}
                     className="overflow-y-auto max-h-96 flex flex-col"
                 >
-                    {isLoadingMore ? (
+                    {isLoading ? (
                         <div className="flex justify-center py-4">
                             <AiOutlineLoading3Quarters className="animate-spin text-text-disabled" />
                         </div>
