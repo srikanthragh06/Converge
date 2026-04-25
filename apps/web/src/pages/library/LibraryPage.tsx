@@ -1,6 +1,8 @@
+import { useNavigate } from "react-router-dom";
 import Page from "../../components/Page";
 import LibraryDocumentCard from "./components/LibraryDocumentCard";
 import useLibrary from "../../hooks/useLibrary";
+import useKeyboardNav from "../../hooks/useKeyboardNav";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
 
 /**
@@ -8,8 +10,13 @@ import { AiOutlineLoading3Quarters } from "react-icons/ai";
  * with search, sorting, and infinite scroll.
  */
 const LibraryPage = () => {
+    const navigate = useNavigate();
     const { searchText, setSearchText, documents, sentinelRef, isLoadingMore } =
         useLibrary();
+    const { focusedIndex, listRef } = useKeyboardNav(
+        documents.length,
+        (i) => navigate(`/document/${documents[i].id}`),
+    );
 
     return (
         <Page authRequired className="items-center">
@@ -35,9 +42,9 @@ const LibraryPage = () => {
                     New Document
                 </button>
             </div>
-            <div className="flex flex-col items-center justify-center gap-4 w-full mb-16 sm:mb-6">
-                {documents.map((doc) => (
-                    <LibraryDocumentCard key={doc.id} document={doc} />
+            <div ref={listRef} className="flex flex-col items-center justify-center gap-4 w-full mb-16 sm:mb-6">
+                {documents.map((doc, i) => (
+                    <LibraryDocumentCard key={doc.id} document={doc} isFocused={focusedIndex === i} />
                 ))}
                 {isLoadingMore && (
                     <AiOutlineLoading3Quarters className=" animate-spin" />

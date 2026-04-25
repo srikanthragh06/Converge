@@ -9,10 +9,12 @@ import { timeAgo } from "../../../utils/utils";
  */
 const LibraryDocumentCard = ({
     document,
+    isFocused = false,
 }: {
     document: LibraryDocumentDto;
+    isFocused?: boolean; // true when this card is keyboard-focused
 }) => {
-    const navigate = useNavigate();
+    const navigate = useNavigate(); // router navigation for opening the selected document
     const meta = [
         document.ownerName,
         `Last visited ${timeAgo(document.lastVisitedAt)}`,
@@ -22,9 +24,10 @@ const LibraryDocumentCard = ({
     return (
         <div
             onClick={() => navigate(`/document/${document.id}`)}
-            className="flex flex-col sm:gap-2 gap-1 sm:px-4 sm:py-2 py-2 px-3
+            className={`flex flex-col sm:gap-2 gap-1 sm:px-4 sm:py-2 py-2 px-3
         rounded-lg bg-background cursor-pointer
-        hover:opacity-80 active:opacity-70 transition w-11/12 sm:w-[600px]"
+        hover:opacity-80 active:opacity-70 transition w-11/12 sm:w-[600px]
+        ${isFocused ? "opacity-80" : ""}`}
         >
             <span
                 className={`text-white font-medium sm:text-xl text-base truncate ${!document.title && "text-opacity-20"}`}
