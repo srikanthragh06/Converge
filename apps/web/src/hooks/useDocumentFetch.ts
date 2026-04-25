@@ -5,7 +5,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
 /**
- * Fetches the document by ID on mount and drives the document status state.
+ * Fetches the document by ID on mount and whenever documentId changes, driving the document status state.
  * Navigates to /404 on a 404 response or any unexpected error; sets status to
  * "forbidden" on a 403. Seeds the title via setTitle on success.
  * @param documentId - the raw URL param string (undefined if the route param is missing)
@@ -21,8 +21,9 @@ const useDocumentFetch = (
         "loading" | "ready" | "forbidden" | "notFound"
     >("loading"); // tracks the outcome of the document fetch
 
-    // Fetches the document on mount — sets status or navigates to /404 based on the error code.
+    // Fetches the document whenever documentId changes — resets to loading first so stale content is hidden.
     useEffect(() => {
+        setDocumentStatus("loading");
         const fetchDocument = async () => {
             try {
                 const { data } = await apiClient.get<GetDocumentResponseDto>(

@@ -14,7 +14,7 @@ import useDocumentFetch from "./useDocumentFetch";
 const useEditor = () => {
     const { documentId } = useParams<{ documentId: string }>(); // document ID from the URL path
 
-    const { yDoc } = useYjsSync();
+    const { yDoc } = useYjsSync(documentId);
 
     const { title, setTitle, isTitlePending, handleTitleChange } =
         useDocumentTitle();
@@ -25,7 +25,7 @@ const useEditor = () => {
     // from receiving a connection with an invalid or inaccessible document ID.
     useSocket(documentStatus === "ready", documentId);
 
-    // the BlockNote editor instance; created once on mount with a stub collaboration config
+    // Re-created whenever yDoc changes (i.e. on document switch) with a stub collaboration config
     const editor = useMemo(() => {
         return BlockNoteEditor.create({
             // Stub collaboration config to wire up the Y.Doc fragment. Provider
