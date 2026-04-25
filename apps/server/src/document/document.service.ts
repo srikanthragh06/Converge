@@ -520,7 +520,6 @@ export class DocumentService {
       ])
       .where('d.creator_id', '=', userId)
       .where('d.title', '!=', '')
-      .where(sql<boolean>`similarity(d.title, ${title}) > 0.3`)
       .orderBy(sql`score`, 'desc')
       .limit(limit)
       .execute();
