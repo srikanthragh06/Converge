@@ -11,8 +11,14 @@ import DocumentSwitcherOverlay from "./components/DocumentSwitcherOverlay";
  * then mounts the BlockNote editor once the document is confirmed.
  */
 const EditorPage = () => {
-    const { editor, documentStatus, title, handleTitleChange, isTitlePending } =
-        useEditor(); // editor instance, document fetch status, and title state
+    const {
+        documentId,
+        editor,
+        documentStatus,
+        title,
+        handleTitleChange,
+        isTitlePending,
+    } = useEditor(); // editor instance, document ID, fetch status, and title state
     const [isSwitcherOpen, setIsSwitcherOpen] = useState(false); // controls document switcher overlay visibility
 
     // Opens the document switcher on Ctrl+P, preventing the browser print dialog.
@@ -81,6 +87,7 @@ const EditorPage = () => {
             {isSwitcherOpen && (
                 <DocumentSwitcherOverlay
                     onClose={() => setIsSwitcherOpen(false)}
+                    documentId={documentId}
                 />
             )}
         </Page>

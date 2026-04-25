@@ -49,7 +49,14 @@ const useEditor = () => {
         });
     }, [yDoc]);
 
-    return { editor, documentStatus, title, handleTitleChange, isTitlePending };
+    return {
+        editor,
+        documentStatus,
+        title,
+        handleTitleChange,
+        isTitlePending,
+        documentId,
+    };
 };
 
 export default useEditor;
