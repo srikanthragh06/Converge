@@ -6,15 +6,12 @@ import type {
     SearchLibraryDocumentsResponseDto,
 } from "@converge/shared";
 
-const LIBRARY_PAGE_LIMIT = 12;
-const LIBRARY_SEARCH_PAGE_LIMIT = 5;
-
 /**
  * Manages library page state. Fetches documents from GET /document/library
  * with keyset pagination and wires up an IntersectionObserver on the
  * returned sentinelRef to automatically load the next page on scroll.
  */
-const useLibrary = () => {
+const useLibrary = (limit: number = 12, searchLimit: number = 5) => {
     const [searchText, setSearchText] = useState(""); // current search query string
     const [documents, setDocuments] = useState<LibraryDocumentDto[]>([]); // accumulated list of fetched documents
     const [isLoadingMore, setIsLoadingMore] = useState(false); // true when api is loading
@@ -37,7 +34,7 @@ const useLibrary = () => {
             const { data } =
                 await apiClient.get<GetLibraryDocumentsResponseDto>(
                     "/document/library",
-                    { params: { limit: LIBRARY_PAGE_LIMIT } },
+                    { params: { limit } },
                 );
             setDocuments(data.documents);
             nextCursor.current = data.nextCursor
@@ -67,7 +64,7 @@ const useLibrary = () => {
                     {
                         params: {
                             title: query,
-                            limit: LIBRARY_SEARCH_PAGE_LIMIT,
+                            limit: searchLimit,
                         },
                     },
                 );
@@ -95,7 +92,7 @@ const useLibrary = () => {
                     "/document/library",
                     {
                         params: {
-                            limit: LIBRARY_PAGE_LIMIT,
+                            limit,
                             cursorVisitedAt:
                                 nextCursor.current.lastVisitedAt.toISOString(),
                             cursorId: nextCursor.current.id,

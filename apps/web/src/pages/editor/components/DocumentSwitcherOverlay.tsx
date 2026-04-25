@@ -11,7 +11,7 @@ import { timeAgo } from "../../../utils/utils";
  */
 const DocumentSwitcherOverlay = ({ onClose }: { onClose: () => void }) => {
     const { searchText, setSearchText, documents, isLoadingMore } =
-        useLibrary(); // library state: search query, document list, and loading flag
+        useLibrary(5, 5); // library state: search query, document list, and loading flag
     const navigate = useNavigate(); // router navigation for switching to a selected document
     const inputRef = useRef<HTMLInputElement>(null); // ref used to auto-focus the search input on mount
 
@@ -55,7 +55,7 @@ const DocumentSwitcherOverlay = ({ onClose }: { onClose: () => void }) => {
                     placeholder="Search documents..."
                     className="w-full px-3 py-2 sm:text-sm text-xs rounded-md
                         bg-background-elevated
-                        outline-none text-white border-0 border-b border-border"
+                        outline-none text-white border-0 border-b border-none"
                 />
 
                 {/* Results list */}
