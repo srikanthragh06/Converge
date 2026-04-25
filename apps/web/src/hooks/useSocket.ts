@@ -23,7 +23,7 @@ const useSocket = (canConnect: boolean = true, documentId?: string) => {
         isSocketConnectedAtom,
     ); // mirrors the global atom — true while the socket is open
 
-    // Registers event listeners then connects or disconnects based on canConnect.
+    // Registers event listeners then connects or disconnects based on canConnect. Re-runs when documentId changes to reconnect to the new document's room.
     useEffect(() => {
         // Connection errors are async events, not thrown exceptions.
         socket.on(SOCKET_EVENTS.CONNECT, () => {
@@ -53,7 +53,7 @@ const useSocket = (canConnect: boolean = true, documentId?: string) => {
             socket.off(SOCKET_EVENTS.DISCONNECT);
             setIsSocketConnected(false);
         };
-    }, [canConnect]);
+    }, [canConnect, documentId]);
 
     // Starts pings on connect, stops on disconnect.
     useEffect(() => {

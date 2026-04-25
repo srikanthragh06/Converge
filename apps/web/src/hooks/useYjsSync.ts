@@ -19,17 +19,18 @@ import { socketEmit } from "../lib/socket-emit.util";
 import { socket } from "../lib/socket";
 
 /**
- * Creates and owns the shared Y.Doc, wires up local-update debouncing,
+ * Creates and owns the shared Y.Doc (re-created on each document switch), wires up local-update debouncing,
  * handles incoming server sync events, and manages the full repair sync
  * protocol (client-initiated on connect + 5 s heartbeat).
  * Returns the Y.Doc for use by the BlockNote editor.
  */
-const useYjsSync = () => {
+const useYjsSync = (documentId: string | undefined) => {
     const isSocketConnected = useAtomValue(isSocketConnectedAtom); // read-only view of the global socket connection state
 
     const timeoutIdRef = useRef<number | null>(null); // stores the debounce timer ID for batching outgoing Yjs updates
     const pendingUpdatesRef = useRef<Uint8Array<ArrayBufferLike>[]>([]); // accumulates Yjs update chunks between debounce flushes
-    const yDoc = useMemo(() => new Y.Doc(), []); // the shared Yjs document that backs the BlockNote editor state
+    // Re-created when documentId changes so the new document starts with a clean slate.
+    const yDoc = useMemo(() => new Y.Doc(), [documentId]); // the shared Yjs document that backs the BlockNote editor state
 
     // Listens for local Yjs updates and debounces them before emitting to the server.
     // Runs whenever the socket connection state changes.
