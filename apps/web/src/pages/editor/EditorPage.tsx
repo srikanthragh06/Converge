@@ -1,7 +1,9 @@
+import { useState, useEffect } from "react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { convergeTheme } from "../../theme/editorTheme";
 import useEditor from "../../hooks/useEditor";
 import Page from "../../components/Page";
+import DocumentSwitcherOverlay from "./components/DocumentSwitcherOverlay";
 
 /**
  * Full-screen editor page. Fetches the document by ID from the URL, redirects
@@ -11,6 +13,19 @@ import Page from "../../components/Page";
 const EditorPage = () => {
     const { editor, documentStatus, title, handleTitleChange, isTitlePending } =
         useEditor(); // editor instance, document fetch status, and title state
+    const [isSwitcherOpen, setIsSwitcherOpen] = useState(false); // controls document switcher overlay visibility
+
+    // Opens the document switcher on Ctrl+P, preventing the browser print dialog.
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.ctrlKey && e.key === "p") {
+                e.preventDefault();
+                setIsSwitcherOpen(true);
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, []);
 
     return (
         // authRequired redirects unauthenticated users before rendering children
@@ -62,6 +77,11 @@ const EditorPage = () => {
                         className="h-full"
                     />
                 </div>
+            )}
+            {isSwitcherOpen && (
+                <DocumentSwitcherOverlay
+                    onClose={() => setIsSwitcherOpen(false)}
+                />
             )}
         </Page>
     );
