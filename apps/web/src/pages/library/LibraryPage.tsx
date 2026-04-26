@@ -5,11 +5,18 @@ import { AiOutlineLoading3Quarters } from "react-icons/ai";
 
 /**
  * Full-screen library page. Lists the authenticated user's documents
- * with search, sorting, and infinite scroll.
+ * with debounced search and infinite scroll.
  */
 const LibraryPage = () => {
-    const { searchText, setSearchText, documents, sentinelRef, isLoadingMore } =
-        useLibrary();
+    const {
+        searchText,
+        setSearchText,
+        documents,
+        sentinelRef,
+        isLoadingMore,
+        isCreating,
+        createDocument,
+    } = useLibrary();
 
     return (
         <Page authRequired className="items-center">
@@ -28,11 +35,13 @@ const LibraryPage = () => {
                         outline-none text-white border-0"
                 />
                 <button
+                    onClick={createDocument}
+                    disabled={isCreating}
                     className="hidden sm:block sm:px-3 sm:py-1 px-2 py-1 sm:text-sm text-xs rounded-md bg-white text-black
                          hover:opacity-90 active:opacity-80 transition
-                        cursor-pointer"
+                        cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    New Document
+                    {isCreating ? "Creating..." : "New Document"}
                 </button>
             </div>
             <div className="flex flex-col items-center justify-center w-full mb-16 sm:mb-6">
@@ -45,8 +54,12 @@ const LibraryPage = () => {
                 <div ref={sentinelRef} />
             </div>
             <div className="sm:hidden fixed bottom-0 left-0 right-0 px-4">
-                <button className="w-full px-2 py-2 text-xs rounded-md bg-white text-black hover:opacity-90 active:opacity-80 transition cursor-pointer">
-                    New Document
+                <button
+                    onClick={createDocument}
+                    disabled={isCreating}
+                    className="w-full px-2 py-2 text-xs rounded-md bg-white text-black hover:opacity-90 active:opacity-80 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {isCreating ? "Creating..." : "New Document"}
                 </button>
             </div>
         </Page>
