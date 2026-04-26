@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import EditorPage from "./pages/editor/EditorPage";
 import LibraryPage from "./pages/library/LibraryPage";
 import useAuth from "./hooks/useAuth";
@@ -17,7 +17,7 @@ function App() {
             <Routes>
                 <Route path="/document/:documentId" element={<EditorPage />} />
                 <Route path="/library" element={<LibraryPage />} />
-                <Route path="/" element={<LibraryPage />} />
+                <Route path="/" element={<Navigate to="/library" replace />} />
                 <Route path="/auth" element={<AuthPage />} />
                 <Route path="/auth/callback" element={<AuthCallbackPage />} />
                 <Route path="*" element={<NotFoundPage />} />
