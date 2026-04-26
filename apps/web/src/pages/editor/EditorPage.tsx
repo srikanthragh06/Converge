@@ -37,7 +37,7 @@ const EditorPage = () => {
     return (
         // authRequired redirects unauthenticated users before rendering children
         <Page authRequired>
-            <EditorPageHeader title={title} />
+            <EditorPageHeader title={title} documentStatus={documentStatus} />
             {/* Loading state — shown while the document is being fetched */}
             {documentStatus === "loading" && (
                 <div className="w-full h-full flex justify-center items-center">
