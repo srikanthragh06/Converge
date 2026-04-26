@@ -1,11 +1,12 @@
 import { useAtomValue } from "jotai";
 import { authAtom } from "../../../atoms/auth";
+import { syncStatusAtom } from "../../../atoms/socket";
 import AnimatedDots from "../../../components/AnimatedDots";
 
 /**
  * Sticky top navigation bar for the editor page. Shows the document title on
- * the left, and on the right: a loading indicator while the document is
- * fetching, the Manage Document button, and the user's avatar.
+ * the left, and on the right: a sync/loading status indicator, the Manage
+ * Document button, and the user's avatar.
  */
 const EditorPageHeader = ({
     title,
@@ -15,6 +16,21 @@ const EditorPageHeader = ({
     documentStatus: "loading" | "ready" | "forbidden" | "notFound";
 }) => {
     const { user } = useAtomValue(authAtom); // authenticated user, used to display the avatar
+    const syncStatus = useAtomValue(syncStatusAtom); // current sync state from useYjsSync
+
+    // Resolve the status label and whether to show animated dots.
+    const statusLabel =
+        documentStatus === "loading"
+            ? "Loading"
+            : syncStatus === "offline"
+              ? "Offline"
+              : syncStatus === "restoring"
+                ? "Restoring"
+                : syncStatus === "typing"
+                  ? "Typing"
+                  : syncStatus === "syncing"
+                    ? "Syncing"
+                    : null;
 
     return (
         <div
@@ -24,16 +40,21 @@ const EditorPageHeader = ({
             <div className="flex h-full items-center">
                 <span className="text-white sm:text-sm text-xs">{title}</span>
             </div>
-            <div className="flex items-center space-x-8 sm:py-2">
-                {documentStatus === "loading" && (
-                    <span className="text-text-secondary sm:text-sm text-xs opacity-40">
-                        Loading
-                        <AnimatedDots />
+            <div className="flex items-center sm:space-x-8 sm:py-2 space-x-2">
+                {statusLabel && (
+                    <span
+                        className="text-text-secondary sm:text-sm text-xs opacity-40 
+                                    hidden sm:block"
+                    >
+                        {statusLabel}
+                        {statusLabel !== null && statusLabel !== "Offline" && (
+                            <AnimatedDots />
+                        )}
                     </span>
                 )}
                 <button
-                    className="sm:px-3 sm:py-1 px-2 py-1 sm:text-sm text-xs rounded-md bg-background-overlay text-white
-                    border-none 
+                    className="sm:px-3 sm:py-1 py-1 px-2 sm:text-sm text-xs rounded-md bg-background-overlay text-white
+                    border-none
                     hover:opacity-90 active:opacity-80 transition cursor-pointer"
                 >
                     Manage Document

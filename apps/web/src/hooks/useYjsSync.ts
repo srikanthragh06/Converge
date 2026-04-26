@@ -1,6 +1,6 @@
-import { useAtomValue } from "jotai";
-import { useEffect, useMemo, useRef } from "react";
-import { isSocketConnectedAtom } from "../atoms/socket";
+import { useAtomValue, useSetAtom } from "jotai";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { isSocketConnectedAtom, syncStatusAtom } from "../atoms/socket";
 import { socketReceive } from "../lib/socket-receive.util";
 import {
     mapsAreEqual,
@@ -26,11 +26,27 @@ import { socket } from "../lib/socket";
  */
 const useYjsSync = (documentId: string | undefined) => {
     const isSocketConnected = useAtomValue(isSocketConnectedAtom); // read-only view of the global socket connection state
+    const setSyncStatus = useSetAtom(syncStatusAtom); // writes the derived sync status to the global atom
+
+    const [isRestoring, setIsRestoring] = useState(false); // true while the initial repair sync after connect is in progress
+    const [isTyping, setIsTyping] = useState(false); // true during the 300ms debounce window after a local edit
+    const [isSyncing, setIsSyncing] = useState(false); // true for 1s after a local update is emitted to the server
+    const syncingTimeoutRef = useRef<number | null>(null); // timer handle for clearing isSyncing after the linger period
 
     const timeoutIdRef = useRef<number | null>(null); // stores the debounce timer ID for batching outgoing Yjs updates
     const pendingUpdatesRef = useRef<Uint8Array<ArrayBufferLike>[]>([]); // accumulates Yjs update chunks between debounce flushes
     // Re-created when documentId changes so the new document starts with a clean slate.
     const yDoc = useMemo(() => new Y.Doc(), [documentId]); // the shared Yjs document that backs the BlockNote editor state
+
+    // Derives and publishes syncStatus to the atom whenever any flag changes.
+    // Priority: offline > restoring > typing > syncing.
+    useEffect(() => {
+        if (!isSocketConnected) setSyncStatus("offline");
+        else if (isRestoring) setSyncStatus("restoring");
+        else if (isTyping) setSyncStatus("typing");
+        else if (isSyncing) setSyncStatus("syncing");
+        else setSyncStatus(null);
+    }, [isSocketConnected, isRestoring, isTyping, isSyncing]);
 
     // Listens for local Yjs updates and debounces them before emitting to the server.
     // Runs whenever the socket connection state changes.
@@ -51,8 +67,9 @@ const useYjsSync = (documentId: string | undefined) => {
             // ignore updates that originated remotely to prevent echo loops
             if (origin === "REMOTE") return;
 
-            // queue the update and reset the debounce timer
+            // queue the update, mark as typing, and reset the debounce timer
             pendingUpdatesRef.current.push(update);
+            setIsTyping(true);
             if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
 
             // after 300 ms of inactivity, merge all queued updates and emit once
@@ -73,6 +90,16 @@ const useYjsSync = (documentId: string | undefined) => {
                         clientSVArray,
                     },
                 );
+
+                // debounce fired — no longer typing; linger as "syncing" for 1s
+                setIsTyping(false);
+                setIsSyncing(true);
+                if (syncingTimeoutRef.current)
+                    clearTimeout(syncingTimeoutRef.current);
+                syncingTimeoutRef.current = setTimeout(
+                    () => setIsSyncing(false),
+                    1000,
+                );
             }, 300);
         };
 
@@ -82,6 +109,11 @@ const useYjsSync = (documentId: string | undefined) => {
             yDoc.off("update", handleNewUserUpdate);
             if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
             timeoutIdRef.current = null;
+            if (syncingTimeoutRef.current)
+                clearTimeout(syncingTimeoutRef.current);
+            syncingTimeoutRef.current = null;
+            setIsTyping(false);
+            setIsSyncing(false);
         };
     }, [yDoc, isSocketConnected]);
 
@@ -191,6 +223,7 @@ const useYjsSync = (documentId: string | undefined) => {
          */
         // Applies the diff sent by the other side, then sends back our diff.
         const handleRepairSyncAckDoc = (data: unknown) => {
+            setIsRestoring(false);
             const res = socketReceive(RepairSyncAckDocClientSchema, data);
             if (!res) return;
             Y.applyUpdate(yDoc, new Uint8Array(res.diffArray), "REMOTE");
@@ -230,6 +263,7 @@ const useYjsSync = (documentId: string | undefined) => {
         // Initiate repair on connect to pull any server state the client missed.
         // The interval runs every 15 s — frequent enough to catch divergence quickly,
         // infrequent enough to avoid unnecessary server load.
+        setIsRestoring(true);
         initiateRepairSync();
         const heartbeatIntervalId = setInterval(initiateRepairSync, 15000);
 
@@ -244,6 +278,7 @@ const useYjsSync = (documentId: string | undefined) => {
             );
             socket.off(SOCKET_EVENTS.REPAIR_ACK_DOC_CLIENT, handleRepairAckDoc);
             clearInterval(heartbeatIntervalId);
+            setIsRestoring(false);
         };
     }, [yDoc, isSocketConnected]);
 
