@@ -4,6 +4,7 @@ import { convergeTheme } from "../../theme/editorTheme";
 import useEditor from "../../hooks/useEditor";
 import Page from "../../components/Page";
 import DocumentSwitcherOverlay from "./components/DocumentSwitcherOverlay";
+import EditorPageHeader from "./components/EditorPageHeader";
 
 /**
  * Full-screen editor page. Fetches the document by ID from the URL, redirects
@@ -36,6 +37,7 @@ const EditorPage = () => {
     return (
         // authRequired redirects unauthenticated users before rendering children
         <Page authRequired>
+            <EditorPageHeader title={title} />
             {/* Loading state — shown while the document is being fetched */}
             {documentStatus === "loading" && (
                 <div className="w-full h-full flex justify-center items-center">
