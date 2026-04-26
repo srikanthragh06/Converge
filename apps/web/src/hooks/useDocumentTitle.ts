@@ -109,7 +109,7 @@ const useDocumentTitle = () => {
     // Keeps the browser tab title in sync with the document title.
     // Resets to "Converge" on unmount so other pages don't inherit the document name.
     useEffect(() => {
-        document.title = title ? `${title} — Converge` : "Converge";
+        document.title = title ? `${title}` : "Converge";
         return () => {
             document.title = "Converge";
         };
