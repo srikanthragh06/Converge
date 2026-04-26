@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import apiClient from "../lib/http";
 import type {
+    CreateDocumentResponseDto,
     GetLibraryDocumentsResponseDto,
     LibraryDocumentDto,
     SearchLibraryDocumentsResponseDto,
@@ -11,13 +13,15 @@ const LIBRARY_SEARCH_PAGE_LIMIT = 5;
 
 /**
  * Manages library page state. Fetches documents from GET /document/library
- * with keyset pagination and wires up an IntersectionObserver on the
- * returned sentinelRef to automatically load the next page on scroll.
+ * with keyset pagination, debounced search, and an IntersectionObserver on
+ * the returned sentinelRef to automatically load the next page on scroll.
  */
 const useLibrary = () => {
+    const navigate = useNavigate();
     const [searchText, setSearchText] = useState(""); // current search query string
     const [documents, setDocuments] = useState<LibraryDocumentDto[]>([]); // accumulated list of fetched documents
-    const [isLoadingMore, setIsLoadingMore] = useState(false); // true when api is loading
+    const [isLoadingMore, setIsLoadingMore] = useState(false); // true when a library fetch is in flight
+    const [isCreating, setIsCreating] = useState(false); // true while the new-document request is in flight
 
     const nextCursor = useRef<{ lastVisitedAt: Date; id: number } | null>(null); // compound keyset cursor for the next page
     const hasMoreRef = useRef(true); // whether another page exists — ref so loadMore always reads the latest value without needing to be in its deps
@@ -151,7 +155,30 @@ const useLibrary = () => {
         return () => observer.disconnect();
     }, [sentinelEl, loadMore]);
 
-    return { searchText, setSearchText, documents, isLoadingMore, sentinelRef };
+    /** Calls POST /document to create a new document and navigates to its editor page. */
+    const createDocument = async () => {
+        if (isCreating) return;
+        try {
+            setIsCreating(true);
+            const { data } =
+                await apiClient.post<CreateDocumentResponseDto>("/document");
+            navigate(`/document/${data.documentId}`);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
+    return {
+        searchText,
+        setSearchText,
+        documents,
+        isLoadingMore,
+        sentinelRef,
+        isCreating,
+        createDocument,
+    };
 };
 
 export default useLibrary;
