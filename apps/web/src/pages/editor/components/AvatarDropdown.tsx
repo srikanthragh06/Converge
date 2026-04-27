@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAtomValue } from "jotai";
 import { authAtom } from "../../../atoms/auth";
 
@@ -10,6 +11,7 @@ import { authAtom } from "../../../atoms/auth";
 const AvatarDropdown = ({ onClose }: { onClose: () => void }) => {
     const { user } = useAtomValue(authAtom); // authenticated user, provides name, email, and avatar for the header row
     const panelRef = useRef<HTMLDivElement>(null); // ref used to detect outside clicks
+    const navigate = useNavigate(); // used to navigate to /library on the Library button click
 
     // Closes the dropdown when the user clicks anywhere outside the panel.
     useEffect(() => {
@@ -55,14 +57,18 @@ const AvatarDropdown = ({ onClose }: { onClose: () => void }) => {
 
             {/* Action rows */}
             <button
+                onClick={() => {
+                    navigate("/library");
+                    onClose();
+                }}
                 className="w-full text-left px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm transition cursor-pointer bg-transparent text-white border-none
-            hover:opacity-90 active:opacity-75"
+            hover:opacity-80 active:opacity-75"
             >
                 Library
             </button>
             <button
                 className="w-full text-left px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm transition cursor-pointer bg-transparent text-white border-none
-            hover:opacity-90 active:opacity-75"
+            hover:opacity-80 active:opacity-75"
             >
                 Log out
             </button>
