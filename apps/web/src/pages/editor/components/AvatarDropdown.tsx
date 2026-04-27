@@ -29,24 +29,24 @@ const AvatarDropdown = ({ onClose }: { onClose: () => void }) => {
     return (
         <div
             ref={panelRef}
-            className="absolute right-0 top-full mt-2 w-72 rounded-lg
+            className="absolute right-0 top-full mt-2 w-56 sm:w-72 rounded-lg
              bg-background-overlay z-50 overflow-hidden"
         >
             {/* Header row — avatar left, name and email right */}
-            <div className="flex items-center justify-start px-4 py-3">
+            <div className="flex items-center justify-start px-3 sm:px-4 py-2 sm:py-3">
                 {user?.avatarUrl && (
                     <img
                         src={user.avatarUrl}
                         alt="Converge"
-                        className="h-9 w-auto rounded-full"
+                        className="h-7 sm:h-9 w-auto rounded-full"
                     />
                 )}
                 {user && (
-                    <div className="flex flex-col items-start min-w-0 ml-3 w-full">
-                        <span className="text-text-primary text-base font-medium truncate">
+                    <div className="flex flex-col items-start min-w-0 ml-2 sm:ml-3 w-full">
+                        <span className="text-text-primary text-sm sm:text-base font-medium truncate">
                             {user.name}
                         </span>
-                        <span className="opacity-40 text-sm truncate">
+                        <span className="opacity-40 text-xs sm:text-sm truncate">
                             {user.email}
                         </span>
                     </div>
@@ -55,13 +55,13 @@ const AvatarDropdown = ({ onClose }: { onClose: () => void }) => {
 
             {/* Action rows */}
             <button
-                className="w-full text-left px-4 py-2.5 text-sm transition cursor-pointer bg-transparent text-white border-none
+                className="w-full text-left px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm transition cursor-pointer bg-transparent text-white border-none
             hover:opacity-90 active:opacity-75"
             >
                 Library
             </button>
             <button
-                className="w-full text-left px-4 py-2.5 text-sm transition cursor-pointer bg-transparent text-white border-none
+                className="w-full text-left px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm transition cursor-pointer bg-transparent text-white border-none
             hover:opacity-90 active:opacity-75"
             >
                 Log out
