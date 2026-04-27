@@ -1,23 +1,18 @@
-import { useState } from "react";
 import { useAtomValue } from "jotai";
-import { authAtom } from "../../../atoms/auth";
 import { syncStatusAtom } from "../../../atoms/socket";
 import AnimatedDots from "../../../components/AnimatedDots";
-import AvatarDropdown from "./AvatarDropdown";
+import AvatarHeader from "./AvatarHeader";
 
 /**
  * Top navigation bar for the editor page. Shows a sync/loading status
- * indicator on the right alongside the Manage Document button and user avatar.
- * Clicking the avatar toggles the account dropdown.
+ * indicator on the right alongside the Manage Document button and AvatarHeader.
  */
 const EditorPageHeader = ({
     documentStatus,
 }: {
     documentStatus: "loading" | "ready" | "forbidden" | "notFound";
 }) => {
-    const { user } = useAtomValue(authAtom); // authenticated user, used to display the avatar and dropdown info
     const syncStatus = useAtomValue(syncStatusAtom); // current sync state from useYjsSync
-    const [isDropdownOpen, setIsDropdownOpen] = useState(false); // controls avatar dropdown visibility
 
     // Resolve the status label and whether to show animated dots.
     const statusLabel =
@@ -55,23 +50,7 @@ const EditorPageHeader = ({
                     Manage Document
                 </button>
 
-                {/* Avatar button — toggles the account dropdown */}
-                {user?.avatarUrl && (
-                    <div className="relative">
-                        <img
-                            src={user.avatarUrl}
-                            alt={user.name}
-                            onClick={() => setIsDropdownOpen((prev) => !prev)}
-                            className="sm:w-10 sm:h-10 h-8 w-8 rounded-full object-cover
-                            cursor-pointer hover:opacity-80 transition"
-                        />
-                        {isDropdownOpen && (
-                            <AvatarDropdown
-                                onClose={() => setIsDropdownOpen(false)}
-                            />
-                        )}
-                    </div>
-                )}
+                <AvatarHeader />
             </div>
         </div>
     );
