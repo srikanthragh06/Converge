@@ -1,3 +1,4 @@
+import AnimatedDots from "../../components/AnimatedDots";
 import Page from "../../components/Page";
 import useGoogleAuthCallback from "../../hooks/useGoogleAuthCallback";
 
@@ -10,9 +11,18 @@ const AuthCallbackPage = () => {
 
     return (
         <Page className="items-center justify-center">
-            {authStatus === "PENDING" && <div className="text-text-secondary">Signing you in...</div>}
-            {authStatus === "FAILED" && <div className="text-text-secondary">Sign in failed :(</div>}
-            {authStatus === "SUCCESSFUL" && <div className="text-text-secondary">Sign in successful</div>}
+            {authStatus === "PENDING" && (
+                <div className="text-text-secondary">
+                    <span>Signing you in</span>
+                    <AnimatedDots />
+                </div>
+            )}
+            {authStatus === "FAILED" && (
+                <div className="text-text-secondary">Sign in failed :(</div>
+            )}
+            {authStatus === "SUCCESSFUL" && (
+                <div className="text-text-secondary">Sign in successful</div>
+            )}
         </Page>
     );
 };

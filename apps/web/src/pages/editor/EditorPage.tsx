@@ -5,6 +5,7 @@ import useEditor from "../../hooks/useEditor";
 import Page from "../../components/Page";
 import DocumentSwitcherOverlay from "./components/DocumentSwitcherOverlay";
 import EditorPageHeader from "./components/EditorPageHeader";
+import AnimatedDots from "../../components/AnimatedDots";
 
 /**
  * Full-screen editor page. Fetches the document by ID from the URL, redirects
@@ -63,7 +64,10 @@ const EditorPage = () => {
             {/* Loading state — shown while the document is being fetched */}
             {documentStatus === "loading" && (
                 <div className="w-full h-full flex justify-center items-center">
-                    <p className="text-text-secondary">Loading doc...</p>
+                    <p className="text-text-secondary">
+                        <span>Loading</span>
+                        <AnimatedDots />
+                    </p>
                 </div>
             )}
 

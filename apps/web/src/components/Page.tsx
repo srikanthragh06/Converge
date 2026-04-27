@@ -2,6 +2,7 @@ import { type ReactNode, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAtomValue } from "jotai";
 import { authAtom } from "../atoms/auth";
+import AnimatedDots from "./AnimatedDots";
 
 /**
  * Full-viewport page shell shared across all top-level routes. When authRequired
@@ -29,7 +30,12 @@ const Page = ({
     if (authRequired && auth.status === "loading")
         return (
             <div className="w-screen h-screen flex flex-col items-center justify-center">
-                <div className="text-text-secondary">Authenticating...</div>
+                <div className="text-text-secondary">
+                    <span>
+                        Authenticating
+                        <AnimatedDots />
+                    </span>
+                </div>
             </div>
         );
 

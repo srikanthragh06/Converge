@@ -2,6 +2,7 @@ import Page from "../../components/Page";
 import LibraryDocumentCard from "./components/LibraryDocumentCard";
 import useLibrary from "../../hooks/useLibrary";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
+import AnimatedDots from "../../components/AnimatedDots";
 
 /**
  * Full-screen library page. Lists the authenticated user's documents
@@ -41,7 +42,10 @@ const LibraryPage = () => {
                          hover:opacity-90 active:opacity-80 transition
                         cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    {isCreating ? "Creating..." : "New Document"}
+                    <span>
+                        {isCreating ? "Creating" : "New Document"}
+                        {isCreating && <AnimatedDots />}
+                    </span>
                 </button>
             </div>
             <div className="flex flex-col items-center justify-center w-full mb-16 sm:mb-6">
@@ -59,7 +63,10 @@ const LibraryPage = () => {
                     disabled={isCreating}
                     className="w-full px-2 py-2 text-xs rounded-md bg-white text-black hover:opacity-90 active:opacity-80 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    {isCreating ? "Creating..." : "New Document"}
+                    <span>
+                        {isCreating ? "Creating" : "New Document"}
+                        {isCreating && <AnimatedDots />}
+                    </span>
                 </button>
             </div>
         </Page>
