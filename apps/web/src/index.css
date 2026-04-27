@@ -14,6 +14,11 @@ body {
     font-family: "Roboto", sans-serif;
 }
 
+/* Remove the vertical line BlockNote renders on the left of nested block groups */
+.bn-block-group .bn-block-group > .bn-block-outer:before {
+    display: none !important;
+}
+
 /* Custom scrollbar styling to match the dark theme */
 ::-webkit-scrollbar {
     width: 6px;
