@@ -42,7 +42,7 @@ const EditorPage = () => {
             <div className="sticky top-0 z-50">
                 <EditorPageHeader documentStatus={documentStatus} />
                 {documentStatus === "ready" && (
-                    <div className="bg-background-base w-full flex justify-start px-2 py-2 sm:mb-4 mb-2">
+                    <div className="bg-background-base w-full flex justify-start sm:pl-8 pl-4 pr-2 py-2 sm:mb-4 mb-2">
                         {/* Dims to 50% opacity while a title save is in-flight */}
                         <input
                             type="text"
