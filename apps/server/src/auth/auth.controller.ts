@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Req, Res, UseGuards } from '@nestjs/common';
 import {
   type GoogleAuthRequestDto,
   GoogleAuthRequestSchema,
@@ -27,6 +27,19 @@ export class AuthController {
     const userId = (req as any).userId as number;
     const userDetails = await this.authService.getMe(userId);
     return httpOK(userDetails);
+  }
+
+  /**
+   * Clears the httpOnly auth cookie, ending the user's session. No auth guard
+   * is applied so that users with expired or invalid tokens can still log out
+   * cleanly without getting a 401.
+   *
+   * @param res - The Express response object, used to clear the auth cookie.
+   */
+  @Post('/logout')
+  @HttpCode(200)
+  handleLogout(@Res({ passthrough: true }) res: Response): void {
+    this.authService.clearAuthCookie(res);
   }
 
   /**
