@@ -322,6 +322,7 @@ export class DocumentService {
       .selectFrom('documents')
       .select(['id', 'title', 'creator_id', 'created_at'])
       .where('id', '=', documentId)
+      .where('is_deleted', '=', false)
       .executeTakeFirst();
 
     if (!row) throw new NotFoundException('Document not found.');
@@ -447,6 +448,7 @@ export class DocumentService {
         'dum.last_edited_at as lastEditedAt',
       ])
       .where('d.creator_id', '=', userId)
+      .where('d.is_deleted', '=', false)
       .orderBy('dum.last_visited_at', 'desc')
       .orderBy('d.id', 'desc')
       .limit(limit);
@@ -519,6 +521,7 @@ export class DocumentService {
         sql<number>`similarity(d.title, ${title})`.as('score'),
       ])
       .where('d.creator_id', '=', userId)
+      .where('d.is_deleted', '=', false)
       .where('d.title', '!=', '')
       .orderBy(sql`score`, 'desc')
       .limit(limit)
@@ -534,6 +537,36 @@ export class DocumentService {
     }));
 
     return { documents };
+  }
+
+  /**
+   * Soft-deletes the document by setting is_deleted and deleted_at. Throws 404
+   * if the document does not exist or is already deleted, and 403 if the
+   * requesting user is not the owner.
+   * @param documentId - the document to soft-delete
+   * @param userId - the authenticated user performing the deletion
+   */
+  async deleteDocument(documentId: number, userId: number): Promise<void> {
+    const db = this.dbService.kysely;
+
+    // Verify existence and ownership before mutating.
+    const row = await db
+      .selectFrom('documents')
+      .select(['creator_id'])
+      .where('id', '=', documentId)
+      .where('is_deleted', '=', false)
+      .executeTakeFirst();
+
+    if (!row) throw new NotFoundException('Document not found.');
+    if (row.creator_id !== userId)
+      throw new ForbiddenException('You do not have access to this document.');
+
+    // Mark the document as deleted without removing any rows.
+    await db
+      .updateTable('documents')
+      .set({ is_deleted: true, deleted_at: new Date() })
+      .where('id', '=', documentId)
+      .execute();
   }
 
   /**

@@ -11,8 +11,11 @@ import ManageDocumentModal from "./ManageDocumentModal";
  */
 const EditorPageHeader = ({
     documentStatus,
+    documentId,
 }: {
     documentStatus: "loading" | "ready" | "forbidden" | "notFound";
+    /** ID of the currently open document, forwarded to ManageDocumentModal. */
+    documentId: string | undefined;
 }) => {
     const [isManageModalOpen, setIsManageModalOpen] = useState(false); // controls ManageDocumentModal visibility
     const syncStatus = useAtomValue(syncStatusAtom); // current sync state from useYjsSync
@@ -61,6 +64,7 @@ const EditorPageHeader = ({
             {isManageModalOpen && (
                 <ManageDocumentModal
                     onClose={() => setIsManageModalOpen(false)}
+                    documentId={documentId}
                 />
             )}
         </>

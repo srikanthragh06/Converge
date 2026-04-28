@@ -20,6 +20,10 @@ export interface DocumentsTable {
   creator_id: number;
   /** Document title, editable by the owner. Defaults to empty string. */
   title: Generated<string>;
+  /** True once the owner has soft-deleted the document; filters it from all read queries. */
+  is_deleted: Generated<boolean>;
+  /** Timestamp set alongside is_deleted for audit and future trash-expiry logic. Null until deleted. */
+  deleted_at: Date | null;
   /** Monotonically incrementing counter, increased on every persisted Yjs update. */
   update_count: Generated<number>;
   /** Value of update_count at the time of the last compaction. */
