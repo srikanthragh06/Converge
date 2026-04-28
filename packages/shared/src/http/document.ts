@@ -17,6 +17,20 @@ export const GetDocumentResponseSchema = z.object({
 
 export type GetDocumentResponseDto = z.infer<typeof GetDocumentResponseSchema>;
 
+/** Response for GET /document/:id/overview — document metadata shown in the Manage Document modal. */
+export const GetDocumentOverviewResponseSchema = z.object({
+    title: z.string(),
+    creatorName: z.string(),
+    creatorEmail: z.string(),
+    createdAt: z.coerce.date(),
+    lastVisitedAt: z.coerce.date(),
+    lastEditedAt: z.coerce.date(),
+});
+
+export type GetDocumentOverviewResponseDto = z.infer<
+    typeof GetDocumentOverviewResponseSchema
+>;
+
 /**
  * Query params for GET /document/library.
  * limit defaults to 20 if omitted.

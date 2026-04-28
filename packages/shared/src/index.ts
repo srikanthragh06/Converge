@@ -4,6 +4,7 @@ export type { GoogleAuthRequestDto, AuthResponseDto } from "./http/auth";
 export {
     CreateDocumentResponseSchema,
     GetDocumentResponseSchema,
+    GetDocumentOverviewResponseSchema,
     GetLibraryDocumentsRequestSchema,
     LibraryDocumentSchema,
     GetLibraryDocumentsResponseSchema,
@@ -13,6 +14,7 @@ export {
 export type {
     CreateDocumentResponseDto,
     GetDocumentResponseDto,
+    GetDocumentOverviewResponseDto,
     GetLibraryDocumentsRequestDto,
     LibraryDocumentDto,
     GetLibraryDocumentsResponseDto,
