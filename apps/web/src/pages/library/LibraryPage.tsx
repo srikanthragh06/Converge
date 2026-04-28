@@ -3,6 +3,7 @@ import LibraryDocumentCard from "./components/LibraryDocumentCard";
 import useLibrary from "../../hooks/useLibrary";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import AnimatedDots from "../../components/AnimatedDots";
+import LibraryPageHeader from "./components/LibraryPageHeader";
 
 /**
  * Full-screen library page. Lists the authenticated user's documents
@@ -17,22 +18,23 @@ const LibraryPage = () => {
         isLoadingMore,
         isCreating,
         createDocument,
-    } = useLibrary();
+    } = useLibrary(); // search state, paginated document list, infinite scroll sentinel, and document creation state
 
     return (
-        <Page authRequired className="items-center">
+        <Page authRequired>
+            <LibraryPageHeader />
             <div
-                className="bg-background-base sticky top-0 sm:pt-8 pt-4 pb-4 flex flex-col items-center space-y-2 w-full
-                    sm:flex-row sm:items-center sm:space-y-0 sm:space-x-8 mx-2 
-                    sm:w-auto"
+                className="bg-background-base sticky top-[48px] sm:top-[56px] z-40 pb-4 pt-4 sm:pt-8 w-full
+                    flex flex-col items-center space-y-2
+                    sm:flex-row sm:justify-center sm:space-y-0 sm:space-x-8"
             >
                 <input
                     type="text"
                     value={searchText}
                     onChange={(e) => setSearchText(e.target.value)}
                     placeholder="Search documents..."
-                    className="sm:w-[500px] w-5/6 px-3 py-1 sm:text-base text-sm rounded-md 
-                        bg-background-elevated 
+                    className="sm:w-[500px] w-5/6 px-3 py-1 sm:text-base text-sm rounded-md
+                        bg-background-elevated
                         outline-none text-white border-0"
                 />
                 <button
@@ -48,7 +50,7 @@ const LibraryPage = () => {
                     </span>
                 </button>
             </div>
-            <div className="flex flex-col items-center justify-center w-full mb-16 sm:mb-6">
+            <div className="flex flex-col items-center w-full mb-16 sm:mb-6">
                 {documents.map((doc) => (
                     <LibraryDocumentCard key={doc.id} document={doc} />
                 ))}
