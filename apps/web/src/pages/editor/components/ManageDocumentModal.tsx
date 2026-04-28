@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import type { GetDocumentOverviewResponseDto } from "@converge/shared";
+import apiClient from "../../../lib/http";
+import { formatDate } from "../../../utils/utils";
 import DeleteConfirmationModal from "./DeleteConfirmationModal";
 
 /**
@@ -20,6 +23,24 @@ const ManageDocumentModal = ({
     const isDragging = useRef(false); // true while a touch is in progress
     const [isDeleteDocumentConfirmOpen, setIsDeleteDocumentConfirmOpen] =
         useState(false); // controls DeleteConfirmationModal visibility
+    const [overview, setOverview] =
+        useState<GetDocumentOverviewResponseDto | null>(null); // fetched overview data; null while loading or on error
+
+    // Fetch overview data on mount.
+    useEffect(() => {
+        if (!documentId) return;
+        apiClient
+            .get<GetDocumentOverviewResponseDto>(
+                `/document/${documentId}/overview`,
+            )
+            .then((res) => setOverview(res.data))
+            .catch((err) =>
+                console.error(
+                    "ManageDocumentModal: failed to fetch overview:",
+                    err,
+                ),
+            );
+    }, [documentId]);
 
     // Close on Escape key, but only when the confirmation modal is not open
     // (DeleteConfirmationModal has its own Escape handler and takes priority).
@@ -102,8 +123,10 @@ const ManageDocumentModal = ({
                             <div className="flex flex-col space-y-4">
                                 <div className="text-sm">
                                     <span className="opacity-50">Title: </span>
-                                    <span className="text-text-secondary">
-                                        Untitled
+                                    <span
+                                        className={`text-text-secondary ${!overview?.title && "opacity-50"}`}
+                                    >
+                                        {overview?.title || "Untitled"}
                                     </span>
                                 </div>
                                 <div className="text-sm">
@@ -111,7 +134,9 @@ const ManageDocumentModal = ({
                                         Last visited:{" "}
                                     </span>
                                     <span className="text-text-secondary">
-                                        17/06/2025
+                                        {overview
+                                            ? formatDate(overview.lastVisitedAt)
+                                            : "—"}
                                     </span>
                                 </div>
                                 <div className="text-sm">
@@ -119,7 +144,9 @@ const ManageDocumentModal = ({
                                         Last edited:{" "}
                                     </span>
                                     <span className="text-text-secondary">
-                                        17/06/2025
+                                        {overview
+                                            ? formatDate(overview.lastEditedAt)
+                                            : "—"}
                                     </span>
                                 </div>
                                 <div className="text-sm">
@@ -127,7 +154,9 @@ const ManageDocumentModal = ({
                                         Creator:{" "}
                                     </span>
                                     <span className="text-text-secondary">
-                                        Srikanth (srikanthragh06@gmail.com)
+                                        {overview
+                                            ? `${overview.creatorName} (${overview.creatorEmail})`
+                                            : "—"}
                                     </span>
                                 </div>
                                 <div className="text-sm">
@@ -135,7 +164,9 @@ const ManageDocumentModal = ({
                                         Created on:{" "}
                                     </span>
                                     <span className="text-text-secondary">
-                                        17/06/2025
+                                        {overview
+                                            ? formatDate(overview.createdAt)
+                                            : "—"}
                                     </span>
                                 </div>
                             </div>

@@ -1,4 +1,14 @@
 /**
+ * Formats a Date as "14 January 2012".
+ */
+export const formatDate = (date: Date | string): string =>
+    new Date(date).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+    });
+
+/**
  * Returns a compact relative time string (e.g. "3d ago", "just now") for a given date.
  * Granularity steps: seconds → minutes → hours → days → months → years.
  */
