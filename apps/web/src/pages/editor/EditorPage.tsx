@@ -38,28 +38,26 @@ const EditorPage = () => {
     return (
         // authRequired redirects unauthenticated users before rendering children
         <Page authRequired>
-            {/* Sticky header unit — navbar and title bar stick together at the top */}
-            <div className="sticky top-0 z-50">
-                <EditorPageHeader documentStatus={documentStatus} />
-                {documentStatus === "ready" && (
-                    <div className="bg-background-base w-full flex justify-start sm:pl-8 pl-4 pr-2 py-2 sm:mb-4 mb-2">
-                        {/* Dims to 50% opacity while a title save is in-flight */}
-                        <input
-                            type="text"
-                            placeholder="Untitled"
-                            maxLength={32}
-                            size={1}
-                            value={title}
-                            onChange={(e) => handleTitleChange(e.target.value)}
-                            className={`mx-2 w-full max-w-2xl min-w-0
+            {/* EditorPageHeader is sticky at top-0; title bar sticks independently below it */}
+            <EditorPageHeader documentStatus={documentStatus} />
+            {documentStatus === "ready" && (
+                <div className="sticky top-[52px] sm:top-[76px] z-40 bg-background-base w-full flex justify-start sm:pl-8 pl-4 pr-2 py-2 sm:mb-4 mb-2">
+                    {/* Dims to 50% opacity while a title save is in-flight */}
+                    <input
+                        type="text"
+                        placeholder="Untitled"
+                        maxLength={32}
+                        size={1}
+                        value={title}
+                        onChange={(e) => handleTitleChange(e.target.value)}
+                        className={`mx-2 w-full max-w-2xl min-w-0
                             bg-transparent border-none outline-none
                             text-text-primary font-bold sm:text-4xl text-2xl
                             placeholder-text-disabled transition-opacity duration-200
                             ${isTitlePending ? "opacity-50" : "opacity-100"}`}
-                        />
-                    </div>
-                )}
-            </div>
+                    />
+                </div>
+            )}
 
             {/* Loading state — shown while the document is being fetched */}
             {documentStatus === "loading" && (

@@ -29,7 +29,7 @@ const EditorPageHeader = ({
                     : null;
 
     return (
-        <div className="bg-background-base flex justify-end sm:px-8 px-2 py-2">
+        <div className="sticky top-0 z-50 bg-background-base flex justify-end sm:px-8 px-2 py-2">
             <div className="flex items-center sm:space-x-8 sm:py-2 space-x-4">
                 {statusLabel && (
                     <span
