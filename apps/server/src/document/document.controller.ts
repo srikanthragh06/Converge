@@ -16,6 +16,7 @@ import { httpOK } from '../utils/http-response.util';
 import {
   type CreateDocumentResponseDto,
   type GetDocumentResponseDto,
+  type GetDocumentOverviewResponseDto,
   type GetLibraryDocumentsResponseDto,
   type SearchLibraryDocumentsResponseDto,
   GetLibraryDocumentsRequestSchema,
@@ -95,6 +96,25 @@ export class DocumentController {
         : undefined;
     return httpOK(
       await this.documentService.getLibraryDocuments(userId, limit, cursor),
+    );
+  }
+
+  /**
+   * Returns overview metadata for the given document: title, creator name and
+   * email, creation date, and the most recent last-visited and last-edited
+   * timestamps. Throws 404 if not found or deleted, 403 if not the owner.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param documentId - the document ID parsed from the URL path
+   * @returns overview metadata for the document
+   */
+  @Get('/:id/overview')
+  async handleGetDocumentOverview(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) documentId: number,
+  ): Promise<GetDocumentOverviewResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.documentService.getDocumentOverview(documentId, userId),
     );
   }
 

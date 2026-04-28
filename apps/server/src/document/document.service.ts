@@ -7,6 +7,7 @@ import {
 import * as Y from 'yjs';
 import {
   GetDocumentResponseDto,
+  GetDocumentOverviewResponseDto,
   LibraryDocumentDto,
   GetLibraryDocumentsResponseDto,
   SearchLibraryDocumentsResponseDto,
@@ -537,6 +538,54 @@ export class DocumentService {
     }));
 
     return { documents };
+  }
+
+  /**
+   * Returns overview metadata for the given document: title, creator name and
+   * email, creation date, and the most recent last-visited and last-edited
+   * timestamps across all users. Throws 404 if the document does not exist or
+   * is deleted, and 403 if the requesting user is not the owner.
+   * @param documentId - the document to fetch overview data for
+   * @param userId - the authenticated user performing the request
+   * @returns overview metadata for the document
+   */
+  async getDocumentOverview(
+    documentId: number,
+    userId: number,
+  ): Promise<GetDocumentOverviewResponseDto> {
+    const db = this.dbService.kysely;
+
+    // Join users for creator info and aggregate metadata timestamps across all users.
+    const row = await db
+      .selectFrom('documents as d')
+      .innerJoin('users as u', 'u.id', 'd.creator_id')
+      .leftJoin('document_user_metadata as dum', 'dum.document_id', 'd.id')
+      .select([
+        'd.title',
+        'd.creator_id',
+        'd.created_at',
+        'u.name as creatorName',
+        'u.email as creatorEmail',
+        sql<Date>`max(dum.last_visited_at)`.as('lastVisitedAt'),
+        sql<Date>`max(dum.last_edited_at)`.as('lastEditedAt'),
+      ])
+      .where('d.id', '=', documentId)
+      .where('d.is_deleted', '=', false)
+      .groupBy(['d.id', 'u.id'])
+      .executeTakeFirst();
+
+    if (!row) throw new NotFoundException('Document not found.');
+    if (row.creator_id !== userId)
+      throw new ForbiddenException('You do not have access to this document.');
+
+    return {
+      title: row.title,
+      creatorName: row.creatorName,
+      creatorEmail: row.creatorEmail,
+      createdAt: row.created_at,
+      lastVisitedAt: row.lastVisitedAt,
+      lastEditedAt: row.lastEditedAt,
+    };
   }
 
   /**
