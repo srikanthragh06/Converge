@@ -1,5 +1,6 @@
 import {
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -95,6 +96,21 @@ export class DocumentController {
     return httpOK(
       await this.documentService.getLibraryDocuments(userId, limit, cursor),
     );
+  }
+
+  /**
+   * Soft-deletes the document with the given ID. Throws 404 if it does not
+   * exist or is already deleted, and 403 if the user is not the owner.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param documentId - the document ID parsed from the URL path
+   */
+  @Delete('/:id')
+  async handleDeleteDocument(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) documentId: number,
+  ): Promise<void> {
+    const userId = (req as any).userId as number;
+    await this.documentService.deleteDocument(documentId, userId);
   }
 
   /**
