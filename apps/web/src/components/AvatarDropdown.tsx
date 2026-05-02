@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import { useAtomValue } from "jotai";
 import { IoLibraryOutline, IoLogOutOutline } from "react-icons/io5";
-import { authAtom } from "../../../atoms/auth";
-import useLogout from "../../../hooks/useLogout";
+import { authAtom } from "../atoms/auth";
+import useLogout from "../hooks/useLogout";
 import { useNavigate } from "react-router-dom";
 
 /**
