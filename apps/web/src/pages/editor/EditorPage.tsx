@@ -3,8 +3,8 @@ import { BlockNoteView } from "@blocknote/mantine";
 import { convergeTheme } from "../../theme/editorTheme";
 import useEditor from "../../hooks/useEditor";
 import Page from "../../components/Page";
-import DocumentSwitcherOverlay from "./components/DocumentSwitcherOverlay";
-import EditorPageHeader from "./components/EditorPageHeader";
+import DocumentSwitcherOverlay from "./documentSwitcherOverlay/DocumentSwitcherOverlay";
+import EditorPageHeader from "./header/EditorPageHeader";
 import AnimatedDots from "../../components/AnimatedDots";
 
 /**

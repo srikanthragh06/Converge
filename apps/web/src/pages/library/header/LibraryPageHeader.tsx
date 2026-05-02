@@ -1,4 +1,4 @@
-import AvatarHeader from "../../editor/components/AvatarHeader";
+import AvatarHeader from "../../../components/AvatarHeader";
 
 /**
  * Top navigation bar for the library page. Same layout as EditorPageHeader

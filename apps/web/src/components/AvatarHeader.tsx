@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAtomValue } from "jotai";
 import { RxAvatar } from "react-icons/rx";
-import { authAtom } from "../../../atoms/auth";
+import { authAtom } from "../atoms/auth";
 import AvatarDropdown from "./AvatarDropdown";
 
 /**

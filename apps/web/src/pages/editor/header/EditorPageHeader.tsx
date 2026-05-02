@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useAtomValue } from "jotai";
 import { syncStatusAtom } from "../../../atoms/socket";
 import AnimatedDots from "../../../components/AnimatedDots";
-import AvatarHeader from "./AvatarHeader";
-import ManageDocumentModal from "./ManageDocumentModal";
+import AvatarHeader from "../../../components/AvatarHeader";
+import ManageDocumentModal from "../manageDocumentModal/ManageDocumentModal";
 
 /**
  * Top navigation bar for the editor page. Shows a sync/loading status
