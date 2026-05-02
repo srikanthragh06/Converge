@@ -1,8 +1,5 @@
-import { useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import useDocumentSwitcher from "../../../hooks/useDocumentSwitcher";
-import useKeyboardNav from "../../../hooks/useKeyboardNav";
 import { timeAgo } from "../../../utils/utils";
 
 /**
@@ -14,40 +11,23 @@ const DocumentSwitcherOverlay = ({
     onClose,
     documentId,
 }: {
+    /** Called to close the overlay on Escape, backdrop click, or navigation. */
     onClose: () => void;
     documentId: string | undefined; // ID of the currently open document, passed from EditorPage
 }) => {
-    const { searchText, setSearchText, documents, isLoading } =
-        useDocumentSwitcher(documentId ? Number(documentId) : undefined); // switcher state: search query, filtered document list, and loading flag
-    const navigate = useNavigate(); // router navigation for switching to a selected document
-    const inputRef = useRef<HTMLInputElement>(null); // ref used to auto-focus the search input on mount
-
-    // Auto-focus the search input when the overlay mounts.
-    useEffect(() => {
-        inputRef.current?.focus();
-    }, []);
-
-    // Close the overlay when the user presses Escape.
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") onClose();
-        };
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [onClose]);
-
-    /** Navigates to the selected document and closes the overlay. */
-    const handleDocumentClick = useCallback(
-        (id: number) => {
-            navigate(`/document/${id}`);
-            onClose();
-        },
-        [navigate, onClose],
-    );
-
-    const { focusedIndex, listRef } = useKeyboardNav(documents.length, (i) =>
-        handleDocumentClick(documents[i].id),
-    );
+    const {
+        searchText,
+        setSearchText,
+        documents,
+        isLoading,
+        inputRef,
+        listRef,
+        handleDocumentClick,
+        focusedIndex,
+    } = useDocumentSwitcher(
+        documentId ? Number(documentId) : undefined,
+        onClose,
+    ); // switcher state: search query, filtered document list, and loading flag
 
     return (
         // Backdrop — click outside the modal to close

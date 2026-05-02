@@ -1,13 +1,11 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import apiClient from "../../../lib/http";
+import useDeleteDocument from "../../../../hooks/useDeleteDocument";
 
 /**
  * Confirmation dialog shown before a document is soft-deleted. Handles the
  * delete API call and navigates to /library on success. Closes on Escape or
  * backdrop click, both of which call onCancel.
  */
-const DeleteConfirmationModal = ({
+const DeleteDocumentConfirmationModal = ({
     documentId,
     onCancel,
 }: {
@@ -16,34 +14,10 @@ const DeleteConfirmationModal = ({
     /** Called when the user cancels or dismisses the dialog. */
     onCancel: () => void;
 }) => {
-    const [isDeleting, setIsDeleting] = useState(false); // true while the delete request is in flight
-    const navigate = useNavigate(); // used to redirect to /library after successful deletion
-
-    // Close on Escape key, treating it as a cancel.
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") onCancel();
-        };
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [onCancel]);
-
-    /** Sends the delete request and navigates to /library on success. */
-    const handleConfirm = async () => {
-        if (!documentId) return;
-        setIsDeleting(true);
-        try {
-            await apiClient.delete(`/document/${documentId}`);
-            navigate("/library");
-        } catch (err) {
-            console.error(
-                "DeleteConfirmationModal: failed to delete document:",
-                err,
-            );
-        } finally {
-            setIsDeleting(false);
-        }
-    };
+    const { isDeleting, handleConfirm } = useDeleteDocument({
+        documentId,
+        onCancel,
+    });
 
     return (
         // Backdrop — click outside to cancel; z-60 sits above ManageDocumentModal's z-50
@@ -86,4 +60,4 @@ const DeleteConfirmationModal = ({
     );
 };
 
-export default DeleteConfirmationModal;
+export default DeleteDocumentConfirmationModal;
