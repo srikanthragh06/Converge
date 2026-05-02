@@ -113,13 +113,13 @@ const ManageDocumentModal = ({
                     </div>
 
                     {/* Content area */}
-                    <div className="flex flex-row min-h-[500px] h-full">
-                        <div className="flex flex-col shrink-0 p-2 gap-1">
+                    <div className="flex flex-col sm:flex-row min-h-[500px] h-full">
+                        <div className="flex flex-row sm:flex-col shrink-0 p-2 gap-1">
                             {TABS.map(({ key, label }) => (
                                 <button
                                     key={key}
                                     onClick={() => setSelectedTab(key)}
-                                    className={`text-text-secondary text-sm pl-3 pr-6 py-2 cursor-pointer
+                                    className={`text-text-secondary text-sm sm:pl-3 sm:pr-6 px-2 py-2 cursor-pointer
                                     border-none text-start rounded-lg transition
                                     ${selectedTab === key ? "bg-background-elevated" : "bg-transparent hover:opacity-80 active:opacity-75"}`}
                                 >
@@ -127,7 +127,7 @@ const ManageDocumentModal = ({
                                 </button>
                             ))}
                         </div>
-                        <div className="w-[1px] bg-background-elevated shrink-0" />
+                        <div className="h-[1px] w-full sm:h-auto sm:w-[1px] bg-background-elevated shrink-0" />
                         <div className="flex-1 bg-background-base flex flex-col px-6 py-5">
                             {selectedTab === "overview" && (
                                 <>
