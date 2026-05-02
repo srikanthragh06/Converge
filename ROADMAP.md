@@ -309,6 +309,42 @@
 
 ---
 
+## v0.115 — Editor & Library UI Polish ✅
+
+> Branch: `ui-v0.115`
+
+### Web (React frontend)
+
+- `EditorPageHeader` extracted from `EditorPage` — sync status indicator, loading state, Manage Document button, and `AvatarHeader` all live in the header component; header and title bar now stick together at the top as a unit
+- `AvatarHeader` extracted from `EditorPageHeader`; `AvatarDropdown` added with user info, Library link, and Log out action; dropdown scales down on mobile
+- Library button in `AvatarDropdown` wired to `/library`; logout clears the auth cookie via `POST /auth/logout` and resets `authAtom`
+- `LibraryPageHeader` added so the library page has its own independently sticky header; sticky Library heading added above the search bar
+- New Document button on library wired to `POST /document` and navigates directly into the new editor
+- Keyboard nav removed from library page; `LibraryDocumentCard` font sizes reduced
+- Removed vertical indent line from nested BlockNote block groups; title bar left edge aligned with editor content
+- Browser tab title no longer appends the app name on the editor page
+- `AnimatedDots` component adopted for all loading and pending states throughout the app
+- `ManageDocumentModal` added — triggered by the Manage Document button in the editor header; bottom sheet on mobile, centred dialog on sm+; swipe-down-to-dismiss on mobile
+- Overview tab in `ManageDocumentModal` displays title, creator, created date, last-visited, and last-edited timestamps
+- Tab navigation sidebar in the modal: active tab highlighted with `bg-background-elevated`; horizontal tab bar on mobile, vertical sidebar on sm+
+- Soft-delete wired end-to-end: Delete Document button in the Overview tab opens a confirmation dialog; confirmed deletion calls `DELETE /document/:id` and navigates to `/library`
+- Date formatting via `formatDate` utility — outputs "Sep 5, 1999, 1:25:59 a.m." (abbreviated month, time with seconds, lowercase dotted a.m./p.m.)
+- Editor components reorganised into feature-scoped subdirectories (`header/`, `manageDocumentModal/`, `documentSwitcherOverlay/`); `AvatarDropdown` and `AvatarHeader` promoted to shared `src/components/`
+- Modal and switcher logic extracted into custom hooks: `useManageDocumentModal`, `useOverviewTab`, `useDeleteDocument`; `useDocumentSwitcher` extended to own Escape handling, auto-focus, and `handleDocumentClick`
+
+### Server (NestJS backend)
+
+- Migration `0011_add_soft_delete_to_documents` — adds `is_deleted boolean NOT NULL DEFAULT false` and `deleted_at timestamptz` to `documents`; all read queries filter out soft-deleted rows
+- `DELETE /document/:id` — soft-deletes the document, sets `is_deleted = true` and `deleted_at = now()`; requires `AuthGuard`; enforces ownership (404 / 403)
+- `GET /document/:id/overview` — returns title, creator name, creator email, created_at, last_visited_at, and last_edited_at; requires `AuthGuard`
+- `POST /auth/logout` — clears the `authToken` cookie; requires `AuthGuard`
+
+### Shared package
+
+- `GetDocumentOverviewResponseDto` / `GetDocumentOverviewResponseSchema` added for `GET /document/:id/overview`
+
+---
+
 ## Upcoming
 
 ### v0.12 — Workspaces & Organization
