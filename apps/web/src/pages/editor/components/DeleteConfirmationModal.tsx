@@ -36,7 +36,10 @@ const DeleteConfirmationModal = ({
             await apiClient.delete(`/document/${documentId}`);
             navigate("/library");
         } catch (err) {
-            console.error("DeleteConfirmationModal: failed to delete document:", err);
+            console.error(
+                "DeleteConfirmationModal: failed to delete document:",
+                err,
+            );
         } finally {
             setIsDeleting(false);
         }

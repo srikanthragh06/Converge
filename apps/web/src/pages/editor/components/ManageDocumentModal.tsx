@@ -4,6 +4,11 @@ import apiClient from "../../../lib/http";
 import { formatDate } from "../../../utils/utils";
 import DeleteConfirmationModal from "./DeleteConfirmationModal";
 
+/** Sidebar navigation entries; extend this array to add new tabs. */
+const TABS: { key: "overview"; label: string }[] = [
+    { key: "overview", label: "Overview" },
+];
+
 /**
  * Modal for document-level settings and actions. On mobile it renders as a
  * bottom sheet with a swipe-down-to-dismiss gesture; on sm+ it renders as a
@@ -21,6 +26,7 @@ const ManageDocumentModal = ({
     const [dragOffset, setDragOffset] = useState(0); // current vertical drag distance in px; drives the translateY transform
     const touchStartY = useRef(0); // Y position when the touch began
     const isDragging = useRef(false); // true while a touch is in progress
+    const [selectedTab, setSelectedTab] = useState<"overview">("overview"); // currently active sidebar tab
     const [isDeleteDocumentConfirmOpen, setIsDeleteDocumentConfirmOpen] =
         useState(false); // controls DeleteConfirmationModal visibility
     const [overview, setOverview] =
@@ -108,78 +114,93 @@ const ManageDocumentModal = ({
 
                     {/* Content area */}
                     <div className="flex flex-row min-h-[500px] h-full">
-                        <div className="flex flex-col shrink-0">
-                            <button
-                                className="bg-transparent text-text-secondary text-base pl-3 pr-6 py-3 cursor-pointer 
-                            hover:opacity-80 active:opacity-75
-                        border-none text-start"
-                            >
-                                Overview
-                            </button>
+                        <div className="flex flex-col shrink-0 p-2 gap-1">
+                            {TABS.map(({ key, label }) => (
+                                <button
+                                    key={key}
+                                    onClick={() => setSelectedTab(key)}
+                                    className={`text-text-secondary text-sm pl-3 pr-6 py-2 cursor-pointer
+                                    border-none text-start rounded-lg transition
+                                    ${selectedTab === key ? "bg-background-elevated" : "bg-transparent hover:opacity-80 active:opacity-75"}`}
+                                >
+                                    {label}
+                                </button>
+                            ))}
                         </div>
-                        <div className="w-[1px]  bg-background-elevated shrink-0" />
-                        <div className="flex-1 bg-background-base flex flex-col px-6 py-5 ">
-                            <div className="text-xl mb-6">Overview</div>
-                            <div className="flex flex-col space-y-4">
-                                <div className="text-sm">
-                                    <span className="opacity-50">Title: </span>
-                                    <span
-                                        className={`text-text-secondary ${!overview?.title && "opacity-50"}`}
+                        <div className="w-[1px] bg-background-elevated shrink-0" />
+                        <div className="flex-1 bg-background-base flex flex-col px-6 py-5">
+                            {selectedTab === "overview" && (
+                                <>
+                                    <div className="text-xl mb-6">Overview</div>
+                                    <div className="flex flex-col space-y-4">
+                                        <div className="text-sm">
+                                            <span className="opacity-50">
+                                                Title:{" "}
+                                            </span>
+                                            <span
+                                                className={`text-text-secondary ${!overview?.title && "opacity-50"}`}
+                                            >
+                                                {overview?.title || "Untitled"}
+                                            </span>
+                                        </div>
+                                        <div className="text-sm">
+                                            <span className="opacity-50">
+                                                Last visited:{" "}
+                                            </span>
+                                            <span className="text-text-secondary">
+                                                {overview
+                                                    ? formatDate(
+                                                          overview.lastVisitedAt,
+                                                      )
+                                                    : "—"}
+                                            </span>
+                                        </div>
+                                        <div className="text-sm">
+                                            <span className="opacity-50">
+                                                Last edited:{" "}
+                                            </span>
+                                            <span className="text-text-secondary">
+                                                {overview
+                                                    ? formatDate(
+                                                          overview.lastEditedAt,
+                                                      )
+                                                    : "—"}
+                                            </span>
+                                        </div>
+                                        <div className="text-sm">
+                                            <span className="opacity-50">
+                                                Creator:{" "}
+                                            </span>
+                                            <span className="text-text-secondary">
+                                                {overview
+                                                    ? `${overview.creatorName} (${overview.creatorEmail})`
+                                                    : "—"}
+                                            </span>
+                                        </div>
+                                        <div className="text-sm">
+                                            <span className="opacity-50">
+                                                Created on:{" "}
+                                            </span>
+                                            <span className="text-text-secondary">
+                                                {overview
+                                                    ? formatDate(
+                                                          overview.createdAt,
+                                                      )
+                                                    : "—"}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() =>
+                                            setIsDeleteDocumentConfirmOpen(true)
+                                        }
+                                        className="border-none bg-red-700 text-white w-[150px] text-sm mt-10
+                                                text-center rounded-lg px-3 py-1 cursor-pointer hover:opacity-80 active:opacity-70 transition"
                                     >
-                                        {overview?.title || "Untitled"}
-                                    </span>
-                                </div>
-                                <div className="text-sm">
-                                    <span className="opacity-50">
-                                        Last visited:{" "}
-                                    </span>
-                                    <span className="text-text-secondary">
-                                        {overview
-                                            ? formatDate(overview.lastVisitedAt)
-                                            : "—"}
-                                    </span>
-                                </div>
-                                <div className="text-sm">
-                                    <span className="opacity-50">
-                                        Last edited:{" "}
-                                    </span>
-                                    <span className="text-text-secondary">
-                                        {overview
-                                            ? formatDate(overview.lastEditedAt)
-                                            : "—"}
-                                    </span>
-                                </div>
-                                <div className="text-sm">
-                                    <span className="opacity-50">
-                                        Creator:{" "}
-                                    </span>
-                                    <span className="text-text-secondary">
-                                        {overview
-                                            ? `${overview.creatorName} (${overview.creatorEmail})`
-                                            : "—"}
-                                    </span>
-                                </div>
-                                <div className="text-sm">
-                                    <span className="opacity-50">
-                                        Created on:{" "}
-                                    </span>
-                                    <span className="text-text-secondary">
-                                        {overview
-                                            ? formatDate(overview.createdAt)
-                                            : "—"}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <button
-                                onClick={() =>
-                                    setIsDeleteDocumentConfirmOpen(true)
-                                }
-                                className="border-none bg-red-700 text-white w-[150px] text-sm mt-10
-                        text-center rounded-lg px-3 py-1 cursor-pointer hover:opacity-80 active:opacity-70 transition"
-                            >
-                                Delete Document
-                            </button>
+                                        Delete Document
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>

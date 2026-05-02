@@ -1,12 +1,19 @@
 /**
- * Formats a Date as "14 January 2012".
+ * Formats a Date as "Sep 5, 1999, 1:25:59 a.m.".
  */
 export const formatDate = (date: Date | string): string =>
-    new Date(date).toLocaleDateString("en-GB", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-    });
+    new Date(date)
+        .toLocaleString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: true,
+        })
+        .replace(/\bAM\b/, "a.m.")
+        .replace(/\bPM\b/, "p.m.");
 
 /**
  * Returns a compact relative time string (e.g. "3d ago", "just now") for a given date.
