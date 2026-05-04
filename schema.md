@@ -23,7 +23,7 @@ One row per document. Stores the title and tracks compaction counters — does n
 |---|---|---|---|
 | `id` | `bigserial` | PK | |
 | `creator_id` | `bigint` | NOT NULL, FK → `users.id`, indexed | The user who created the document; used for ownership checks and access control |
-| `title` | `text` | NOT NULL, default `''` | User-editable document title; trimmed and capped at 32 characters before persisting |
+| `title` | `text` | NOT NULL, default `''` | User-editable document title; trimmed and capped at 32 characters before persisting. Has a GIN trigram index (`pg_trgm`) used by the library search endpoint |
 | `is_deleted` | `boolean` | NOT NULL, default `false` | Soft-delete flag; all read queries filter on `is_deleted = false` |
 | `deleted_at` | `timestamptz` | nullable | Set to `now()` when soft-deleted; null until then. Kept for audit and future trash-expiry logic |
 | `update_count` | `integer` | NOT NULL, default `0` | Incremented atomically on every persisted Yjs update |
