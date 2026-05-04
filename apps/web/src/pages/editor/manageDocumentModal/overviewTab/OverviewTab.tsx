@@ -46,6 +46,14 @@ const OverviewTab = ({
                     </span>
                 </div>
                 <div className="text-xs sm:text-sm">
+                    <span className="opacity-50">Owner: </span>
+                    <span className="text-text-secondary">
+                        {overview
+                            ? `${overview.ownerName} (${overview.ownerEmail})`
+                            : "—"}
+                    </span>
+                </div>
+                <div className="text-xs sm:text-sm">
                     <span className="opacity-50">Creator: </span>
                     <span className="text-text-secondary">
                         {overview
