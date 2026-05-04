@@ -321,19 +321,19 @@ export class DocumentService {
     // Check existence first so we can return the correct error code.
     const row = await db
       .selectFrom('documents')
-      .select(['id', 'title', 'creator_id', 'created_at'])
+      .select(['id', 'title', 'owner_id', 'created_at'])
       .where('id', '=', documentId)
       .where('is_deleted', '=', false)
       .executeTakeFirst();
 
     if (!row) throw new NotFoundException('Document not found.');
-    if (row.creator_id !== userId)
+    if (row.owner_id !== userId)
       throw new ForbiddenException('You do not have access to this document.');
 
     return {
       id: row.id,
       title: row.title,
-      creatorId: row.creator_id,
+      ownerId: row.owner_id,
       createdAt: row.created_at,
     };
   }
@@ -355,7 +355,7 @@ export class DocumentService {
     const row = await db.transaction().execute(async (tx) => {
       const documentRow = await tx
         .insertInto('documents')
-        .values({ creator_id: userId })
+        .values({ creator_id: userId, owner_id: userId })
         .returning('documents.id')
         .executeTakeFirst();
 
@@ -439,7 +439,7 @@ export class DocumentService {
     // Build the base query — join users for ownerName and document_user_metadata for timestamps.
     let query = db
       .selectFrom('documents as d')
-      .innerJoin('users as u', 'u.id', 'd.creator_id')
+      .innerJoin('users as u', 'u.id', 'd.owner_id')
       .innerJoin('document_user_metadata as dum', 'dum.document_id', 'd.id')
       .select([
         'd.id',
@@ -448,7 +448,7 @@ export class DocumentService {
         'dum.last_visited_at as lastVisitedAt',
         'dum.last_edited_at as lastEditedAt',
       ])
-      .where('d.creator_id', '=', userId)
+      .where('d.owner_id', '=', userId)
       .where('d.is_deleted', '=', false)
       .orderBy('dum.last_visited_at', 'desc')
       .orderBy('d.id', 'desc')
@@ -511,7 +511,7 @@ export class DocumentService {
     // Results are ordered by score descending so the most relevant documents appear first.
     const rows = await db
       .selectFrom('documents as d')
-      .innerJoin('users as u', 'u.id', 'd.creator_id')
+      .innerJoin('users as u', 'u.id', 'd.owner_id')
       .innerJoin('document_user_metadata as dum', 'dum.document_id', 'd.id')
       .select([
         'd.id',
@@ -521,7 +521,7 @@ export class DocumentService {
         'dum.last_edited_at as lastEditedAt',
         sql<number>`similarity(d.title, ${title})`.as('score'),
       ])
-      .where('d.creator_id', '=', userId)
+      .where('d.owner_id', '=', userId)
       .where('d.is_deleted', '=', false)
       .where('d.title', '!=', '')
       .orderBy(sql`score`, 'desc')
@@ -541,10 +541,10 @@ export class DocumentService {
   }
 
   /**
-   * Returns overview metadata for the given document: title, creator name and
-   * email, creation date, and the most recent last-visited and last-edited
-   * timestamps across all users. Throws 404 if the document does not exist or
-   * is deleted, and 403 if the requesting user is not the owner.
+   * Returns overview metadata for the given document: title, creator and owner
+   * name and email, creation date, and the requesting user's last-visited and
+   * last-edited timestamps. Throws 404 if the document does not exist or is
+   * deleted, and 403 if the requesting user is not the owner.
    * @param documentId - the document to fetch overview data for
    * @param userId - the authenticated user performing the request
    * @returns overview metadata for the document
@@ -555,36 +555,55 @@ export class DocumentService {
   ): Promise<GetDocumentOverviewResponseDto> {
     const db = this.dbService.kysely;
 
-    // Join users for creator info and aggregate metadata timestamps across all users.
-    const row = await db
-      .selectFrom('documents as d')
-      .innerJoin('users as u', 'u.id', 'd.creator_id')
-      .leftJoin('document_user_metadata as dum', 'dum.document_id', 'd.id')
-      .select([
-        'd.title',
-        'd.creator_id',
-        'd.created_at',
-        'u.name as creatorName',
-        'u.email as creatorEmail',
-        sql<Date>`max(dum.last_visited_at)`.as('lastVisitedAt'),
-        sql<Date>`max(dum.last_edited_at)`.as('lastEditedAt'),
-      ])
-      .where('d.id', '=', documentId)
-      .where('d.is_deleted', '=', false)
-      .groupBy(['d.id', 'u.id'])
+    // Fetch the document row to verify existence and ownership.
+    const docRow = await db
+      .selectFrom('documents')
+      .select(['title', 'owner_id', 'creator_id', 'created_at'])
+      .where('id', '=', documentId)
+      .where('is_deleted', '=', false)
       .executeTakeFirst();
 
-    if (!row) throw new NotFoundException('Document not found.');
-    if (row.creator_id !== userId)
+    if (!docRow) throw new NotFoundException('Document not found.');
+    if (docRow.owner_id !== userId)
       throw new ForbiddenException('You do not have access to this document.');
 
+    const docUserRow = await db
+      .selectFrom('document_user_metadata')
+      .select([
+        sql<Date>`max(last_visited_at)`.as('lastVisitedAt'),
+        sql<Date>`max(last_edited_at)`.as('lastEditedAt'),
+      ])
+      .where('document_id', '=', documentId)
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+
+    if (!docUserRow) throw new NotFoundException('Document metadata not found.');
+
+    const ownerRow = await db
+      .selectFrom('users')
+      .select(['name', 'email'])
+      .where('id', '=', docRow.owner_id)
+      .executeTakeFirst();
+
+    if (!ownerRow) throw new NotFoundException('Owner not found.');
+
+    const creatorRow = await db
+      .selectFrom('users')
+      .select(['name', 'email'])
+      .where('id', '=', docRow.creator_id)
+      .executeTakeFirst();
+
+    if (!creatorRow) throw new NotFoundException('Creator not found.');
+
     return {
-      title: row.title,
-      creatorName: row.creatorName,
-      creatorEmail: row.creatorEmail,
-      createdAt: row.created_at,
-      lastVisitedAt: row.lastVisitedAt,
-      lastEditedAt: row.lastEditedAt,
+      title: docRow.title,
+      creatorName: creatorRow.name,
+      creatorEmail: creatorRow.email,
+      ownerName: ownerRow.name,
+      ownerEmail: ownerRow.email,
+      createdAt: docRow.created_at,
+      lastVisitedAt: docUserRow.lastVisitedAt,
+      lastEditedAt: docUserRow.lastEditedAt,
     };
   }
 
@@ -601,13 +620,13 @@ export class DocumentService {
     // Verify existence and ownership before mutating.
     const row = await db
       .selectFrom('documents')
-      .select(['creator_id'])
+      .select(['owner_id'])
       .where('id', '=', documentId)
       .where('is_deleted', '=', false)
       .executeTakeFirst();
 
     if (!row) throw new NotFoundException('Document not found.');
-    if (row.creator_id !== userId)
+    if (row.owner_id !== userId)
       throw new ForbiddenException('You do not have access to this document.');
 
     // Mark the document as deleted without removing any rows.

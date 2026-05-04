@@ -11,7 +11,7 @@ export type CreateDocumentResponseDto = z.infer<
 export const GetDocumentResponseSchema = z.object({
     id: z.number(),
     title: z.string(),
-    creatorId: z.number(),
+    ownerId: z.number(),
     createdAt: z.coerce.date(),
 });
 
@@ -22,6 +22,8 @@ export const GetDocumentOverviewResponseSchema = z.object({
     title: z.string(),
     creatorName: z.string(),
     creatorEmail: z.string(),
+    ownerName: z.string(),
+    ownerEmail: z.string(),
     createdAt: z.coerce.date(),
     lastVisitedAt: z.coerce.date(),
     lastEditedAt: z.coerce.date(),
