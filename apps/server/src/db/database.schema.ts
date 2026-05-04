@@ -1,5 +1,8 @@
 import { Generated } from 'kysely';
 
+/** Valid access levels for the document_access table. */
+export type DocumentAccessLevel = 'admin' | 'editor' | 'viewer' | 'none';
+
 /**
  * Row shape for the document_updates table.
  * BYTEA columns deserialise to Buffer via the pg driver.
@@ -24,6 +27,8 @@ export interface DocumentsTable {
   is_deleted: Generated<boolean>;
   /** Timestamp set alongside is_deleted for audit and future trash-expiry logic. Null until deleted. */
   deleted_at: Date | null;
+  /** FK to users.id — current owner of the document. Starts as creator_id, can be transferred. */
+  owner_id: number;
   /** Monotonically incrementing counter, increased on every persisted Yjs update. */
   update_count: Generated<number>;
   /** Value of update_count at the time of the last compaction. */
@@ -55,9 +60,21 @@ export interface DocumentUserMetadataTable {
   last_edited_at: Generated<Date>;
 }
 
+/** Row shape for the document_access table. */
+export interface DocumentAccessTable {
+  /** FK to documents.id — scopes this access record to a specific document. */
+  document_id: number;
+  /** FK to users.id — the user this access level applies to. */
+  user_id: number;
+  /** Access level granted to this user for this document. */
+  access: DocumentAccessLevel;
+  created_at: Generated<Date>;
+}
+
 // Root schema passed as a generic to Kysely<DatabaseSchema>.
 // Table names must exactly match the Postgres table names.
 export interface DatabaseSchema {
+  document_access: DocumentAccessTable;
   document_updates: DocumentUpdatesTable;
   document_user_metadata: DocumentUserMetadataTable;
   documents: DocumentsTable;
