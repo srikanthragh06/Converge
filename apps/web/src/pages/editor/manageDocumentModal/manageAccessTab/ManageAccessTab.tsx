@@ -19,6 +19,8 @@ const ManageAccessTab = ({
         foundUser,
         isExistingUsersLoading,
         isFindNewUserLoading,
+        fetchAccessList,
+        fetchSearchResults,
     } = useManageAccessTab({ documentId, email });
 
     return (
@@ -56,7 +58,6 @@ const ManageAccessTab = ({
                         userId={foundUser.id}
                         email={foundUser.email}
                         name={foundUser.name}
-                        access="noAccess"
                     />
                 </div>
             )}
@@ -75,6 +76,15 @@ const ManageAccessTab = ({
                                 userId={user.id}
                                 email={user.email}
                                 name={user.name}
+                                canDeleteAccess={true}
+                                onAccessRemoved={() => {
+                                    if (!documentId) return;
+                                    if (email.trim().length) {
+                                        fetchSearchResults(documentId, email);
+                                    } else {
+                                        fetchAccessList(documentId);
+                                    }
+                                }}
                             />
                         ))}
                     </div>

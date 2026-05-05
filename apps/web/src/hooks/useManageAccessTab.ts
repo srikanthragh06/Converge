@@ -25,8 +25,11 @@ const useManageAccessTab = ({
     /** Current email search query typed by the user. */
     email: string;
 }) => {
-    const [existingUsers, setExistingUsers] = useState<DocumentAccessUserDto[]>([]); // current filtered or full access list
-    const [foundUser, setFoundUser] = useState<FindNewDocumentAccessUserResponseDto | null>(null); // user resolved by exact email who has no access yet
+    const [existingUsers, setExistingUsers] = useState<DocumentAccessUserDto[]>(
+        [],
+    ); // current filtered or full access list
+    const [foundUser, setFoundUser] =
+        useState<FindNewDocumentAccessUserResponseDto | null>(null); // user resolved by exact email who has no access yet
     const [isExistingUsersLoading, setIsExistingUsersLoading] = useState(false); // true while the access list or search fetch is in flight
     const [isFindNewUserLoading, setIsFindNewUserLoading] = useState(false); // true while the find-new fetch is in flight
 
@@ -96,14 +99,23 @@ const useManageAccessTab = ({
         }
 
         const timeout = setTimeout(() => {
-            if (isValidEmail(email.trim())) fetchFindNew(documentId, email.trim());
+            if (isValidEmail(email.trim()))
+                fetchFindNew(documentId, email.trim());
             fetchSearchResults(documentId, email.trim());
         }, 300);
 
         return () => clearTimeout(timeout);
     }, [documentId, email]);
 
-    return { existingUsers, foundUser, isExistingUsersLoading, isFindNewUserLoading };
+    return {
+        existingUsers,
+        foundUser,
+        setFoundUser,
+        isExistingUsersLoading,
+        isFindNewUserLoading,
+        fetchAccessList,
+        fetchSearchResults,
+    };
 };
 
 export default useManageAccessTab;
