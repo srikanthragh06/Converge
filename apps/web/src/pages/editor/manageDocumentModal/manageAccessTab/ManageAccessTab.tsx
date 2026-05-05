@@ -16,9 +16,12 @@ const ManageAccessTab = ({
     const [email, setEmail] = useState(""); // current email search query
     const {
         existingUsers,
+        setExistingUsers,
         foundUser,
+        setFoundUser,
         isExistingUsersLoading,
         isFindNewUserLoading,
+        isFindNewUserConflict,
         fetchAccessList,
         fetchSearchResults,
     } = useManageAccessTab({ documentId, email });
@@ -40,15 +43,28 @@ const ManageAccessTab = ({
             {isFindNewUserLoading && (
                 <AiOutlineLoading3Quarters className="animate-spin mt-4" />
             )}
-            {!isFindNewUserLoading && !foundUser && email.trim().length > 0 && (
-                <div
-                    className="opacity-50 w-full max-w-[300px] bg-background-overlay px-2 py-1
+            {!isFindNewUserLoading &&
+                isFindNewUserConflict &&
+                email.trim().length > 0 && (
+                    <div
+                        className="opacity-50 w-full max-w-[300px] bg-background-overlay px-2 py-1
                 rounded-lg text-xs sm:text-sm mt-4"
-                >
-                    Enter the exact email address of the person you want to
-                    share access with.
-                </div>
-            )}
+                    >
+                        {email} is already the owner or has access assigned.
+                    </div>
+                )}
+            {!isFindNewUserLoading &&
+                !isFindNewUserConflict &&
+                !foundUser &&
+                email.trim().length > 0 && (
+                    <div
+                        className="opacity-50 w-full max-w-[300px] bg-background-overlay px-2 py-1
+                rounded-lg text-xs sm:text-sm mt-4"
+                    >
+                        Enter the exact email address of the person you want to
+                        share access with.
+                    </div>
+                )}
             {!isFindNewUserLoading && foundUser && (
                 <div className="mt-4">
                     <p className="text-xs opacity-50 mb-2">Add User</p>
@@ -58,6 +74,15 @@ const ManageAccessTab = ({
                         userId={foundUser.id}
                         email={foundUser.email}
                         name={foundUser.name}
+                        onAccessChanged={(newAccess) => {
+                            setFoundUser(null);
+                            setExistingUsers((users) => {
+                                return [
+                                    { ...foundUser, access: newAccess },
+                                    ...users,
+                                ];
+                            });
+                        }}
                     />
                 </div>
             )}

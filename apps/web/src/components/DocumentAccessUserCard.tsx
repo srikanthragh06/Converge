@@ -17,6 +17,7 @@ const DocumentAccessUserCard = ({
     documentId,
     access,
     onAccessRemoved,
+    onAccessChanged,
     canDeleteAccess = false,
 }: {
     /** URL of the user's profile picture, or null to show the generic icon. */
@@ -31,8 +32,10 @@ const DocumentAccessUserCard = ({
     documentId: string | undefined;
     /** Access level granted to this user; undefined when no access row exists yet. */
     access?: DocumentAccessLevel;
-    /** Called after a successful access change or deletion so the parent can refresh. */
+    /** Called after the access row is deleted so the parent can refresh its list. */
     onAccessRemoved?: () => void;
+    /** Called after the access level is successfully updated, passing the new level. */
+    onAccessChanged?: (newAccess: DocumentAccessLevel) => void;
     /** Whether the "None" option (which deletes the access row) is shown. Defaults to false. */
     canDeleteAccess?: boolean;
 }) => {
@@ -65,6 +68,7 @@ const DocumentAccessUserCard = ({
                     { access: newValue },
                 );
                 setSelectedAccess(newValue as DocumentAccessLevel);
+                onAccessChanged?.(newValue as DocumentAccessLevel);
             }
         } catch (err) {
             console.error(
