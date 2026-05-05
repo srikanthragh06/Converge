@@ -200,6 +200,27 @@ export type FindNewDocumentAccessUserResponseDto = z.infer<
     typeof FindNewDocumentAccessUserResponseSchema
 >;
 
+/** Request body for PUT /document/:id/owner — transfers ownership to another user. */
+export const TransferDocumentOwnerRequestSchema = z.object({
+    newOwnerId: z.number().int().positive(),
+});
+
+export type TransferDocumentOwnerRequestDto = z.infer<
+    typeof TransferDocumentOwnerRequestSchema
+>;
+
+/** Response for PUT /document/:id/owner — the new owner's basic profile. */
+export const TransferDocumentOwnerResponseSchema = z.object({
+    id: z.number(),
+    name: z.string(),
+    email: z.email(),
+    avatarUrl: z.string().nullable(),
+});
+
+export type TransferDocumentOwnerResponseDto = z.infer<
+    typeof TransferDocumentOwnerResponseSchema
+>;
+
 /** Response for GET /document/:id/access/default — the document's fallback access level. */
 export const GetDocumentDefaultAccessResponseSchema = z.object({
     defaultAccess: DocumentAccessLevelSchema,

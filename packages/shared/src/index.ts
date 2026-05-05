@@ -21,6 +21,8 @@ export {
     GetDocumentDefaultAccessResponseSchema,
     SetDocumentDefaultAccessRequestSchema,
     SetDocumentDefaultAccessResponseSchema,
+    TransferDocumentOwnerRequestSchema,
+    TransferDocumentOwnerResponseSchema,
 } from "./http/document";
 export type {
     CreateDocumentResponseDto,
@@ -43,6 +45,8 @@ export type {
     GetDocumentDefaultAccessResponseDto,
     SetDocumentDefaultAccessRequestDto,
     SetDocumentDefaultAccessResponseDto,
+    TransferDocumentOwnerRequestDto,
+    TransferDocumentOwnerResponseDto,
 } from "./http/document";
 export { INTERNAL_SERVER_ERROR_MESSAGE } from "./constants/constants";
 export { DocumentAccessLevel, DocumentAccessLevelSchema } from "./types/types";

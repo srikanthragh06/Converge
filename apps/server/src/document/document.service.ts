@@ -19,6 +19,7 @@ import {
   GetDocumentAccessResponseDto,
   GetDocumentDefaultAccessResponseDto,
   SetDocumentDefaultAccessResponseDto,
+  TransferDocumentOwnerResponseDto,
   DocumentAccessLevel,
   mapsAreEqual,
 } from '@converge/shared';
@@ -961,6 +962,91 @@ export class DocumentService {
 
     if (!result.numDeletedRows)
       throw new NotFoundException('Access row not found.');
+  }
+
+  /**
+   * Transfers document ownership to another user in a single transaction.
+   * The new owner's existing access row (if any) is deleted since owners are
+   * not stored in document_access. The old owner is upserted into document_access
+   * with admin-level access so they retain editing rights after the transfer.
+   * Throws 404 if the document or new owner user does not exist, 403 if the
+   * requester is not the current owner, and 409 if the new owner is already
+   * the current owner.
+   * @param documentId - the document to transfer ownership of
+   * @param newOwnerId - the user ID of the incoming owner
+   * @param requestingUserId - the authenticated user performing the request
+   * @returns the new owner's id, name, email, and avatarUrl
+   */
+  async transferDocumentOwner(
+    documentId: number,
+    newOwnerId: number,
+    requestingUserId: number,
+  ): Promise<TransferDocumentOwnerResponseDto> {
+    const db = this.dbService.kysely;
+
+    // Verify the document exists and the requester is the current owner.
+    const docRow = await db
+      .selectFrom('documents')
+      .select(['owner_id'])
+      .where('id', '=', documentId)
+      .where('is_deleted', '=', false)
+      .executeTakeFirst();
+
+    if (!docRow) throw new NotFoundException('Document not found.');
+    if (docRow.owner_id !== requestingUserId)
+      throw new ForbiddenException('You do not have access to this document.');
+
+    // Prevent a no-op transfer to the current owner.
+    if (newOwnerId === docRow.owner_id)
+      throw new ConflictException('User is already the document owner.');
+
+    // Verify the new owner exists and fetch their profile for the response.
+    const newOwnerRow = await db
+      .selectFrom('users')
+      .select(['id', 'name', 'email', 'avatar_url'])
+      .where('id', '=', newOwnerId)
+      .executeTakeFirst();
+
+    if (!newOwnerRow) throw new NotFoundException('User not found.');
+
+    // Perform the transfer atomically:
+    // 1. Update owner_id on the document.
+    // 2. Delete any existing access row for the new owner (owners have no access row).
+    // 3. Upsert the old owner into document_access with admin so they retain editing rights.
+    await db.transaction().execute(async (tx) => {
+      await tx
+        .updateTable('documents')
+        .set({ owner_id: newOwnerId })
+        .where('id', '=', documentId)
+        .execute();
+
+      await tx
+        .deleteFrom('document_access')
+        .where('document_id', '=', documentId)
+        .where('user_id', '=', newOwnerId)
+        .execute();
+
+      await tx
+        .insertInto('document_access')
+        .values({
+          document_id: documentId,
+          user_id: requestingUserId,
+          access: 'admin',
+        })
+        .onConflict((oc) =>
+          oc
+            .columns(['document_id', 'user_id'])
+            .doUpdateSet({ access: 'admin' }),
+        )
+        .execute();
+    });
+
+    return {
+      id: newOwnerRow.id,
+      name: newOwnerRow.name,
+      email: newOwnerRow.email,
+      avatarUrl: newOwnerRow.avatar_url,
+    };
   }
 
   /**
