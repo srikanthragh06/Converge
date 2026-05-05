@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DocumentAccessLevelSchema } from "../types/types";
 
 export const CreateDocumentResponseSchema = z.object({
     documentId: z.number(),
@@ -105,4 +106,53 @@ export const SearchLibraryDocumentsResponseSchema = z.object({
 
 export type SearchLibraryDocumentsResponseDto = z.infer<
     typeof SearchLibraryDocumentsResponseSchema
+>;
+
+/** Query params for GET /document/:id/access/search. email must be non-empty and at most 256 characters. */
+export const SearchDocumentAccessUsersRequestSchema = z.object({
+    email: z.string().min(1).max(256),
+    limit: z.coerce.number().int().positive().optional(),
+});
+
+export type SearchDocumentAccessUsersRequestDto = z.infer<
+    typeof SearchDocumentAccessUsersRequestSchema
+>;
+
+/** Query params for GET /document/:id/access. cursorId is the user_id of the last item from the previous page. */
+export const GetDocumentAccessRequestSchema = z.object({
+    limit: z.coerce.number().int().positive().optional(),
+    cursorId: z.coerce.number().int().positive().optional(),
+});
+
+export type GetDocumentAccessRequestDto = z.infer<
+    typeof GetDocumentAccessRequestSchema
+>;
+
+/** A single user entry in the document access list. Shared by both the access list and search endpoints. */
+export const DocumentAccessUserSchema = z.object({
+    id: z.number(),
+    name: z.string(),
+    email: z.email(),
+    access: DocumentAccessLevelSchema,
+});
+
+export type DocumentAccessUserDto = z.infer<typeof DocumentAccessUserSchema>;
+
+/** Response for GET /document/:id/access/search — users with access to a document matching the email query. */
+export const SearchDocumentAccessUsersResponseSchema = z.object({
+    users: z.array(DocumentAccessUserSchema),
+});
+
+export type SearchDocumentAccessUsersResponseDto = z.infer<
+    typeof SearchDocumentAccessUsersResponseSchema
+>;
+
+/** Response for GET /document/:id/access. nextCursor is null when there are no more pages. */
+export const GetDocumentAccessResponseSchema = z.object({
+    users: z.array(DocumentAccessUserSchema),
+    nextCursor: z.number().nullable(),
+});
+
+export type GetDocumentAccessResponseDto = z.infer<
+    typeof GetDocumentAccessResponseSchema
 >;

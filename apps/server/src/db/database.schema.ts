@@ -1,7 +1,5 @@
+import { DocumentAccessLevel } from '@converge/shared';
 import { Generated } from 'kysely';
-
-/** Valid access levels for the document_access table. */
-export type DocumentAccessLevel = 'admin' | 'editor' | 'viewer' | 'none';
 
 /**
  * Row shape for the document_updates table.

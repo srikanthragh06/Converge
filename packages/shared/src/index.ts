@@ -10,6 +10,10 @@ export {
     GetLibraryDocumentsResponseSchema,
     SearchLibraryDocumentsRequestSchema,
     SearchLibraryDocumentsResponseSchema,
+    SearchDocumentAccessUsersRequestSchema,
+    SearchDocumentAccessUsersResponseSchema,
+    GetDocumentAccessRequestSchema,
+    GetDocumentAccessResponseSchema,
 } from "./http/document";
 export type {
     CreateDocumentResponseDto,
@@ -20,8 +24,14 @@ export type {
     GetLibraryDocumentsResponseDto,
     SearchLibraryDocumentsRequestDto,
     SearchLibraryDocumentsResponseDto,
+    SearchDocumentAccessUsersRequestDto,
+    SearchDocumentAccessUsersResponseDto,
+    GetDocumentAccessRequestDto,
+    GetDocumentAccessResponseDto,
+    DocumentAccessUserDto,
 } from "./http/document";
 export { INTERNAL_SERVER_ERROR_MESSAGE } from "./constants/constants";
+export { DocumentAccessLevel, DocumentAccessLevelSchema } from "./types/types";
 export { SOCKET_EVENTS } from "./socket/events";
 export {
     SyncDocServerSchema,

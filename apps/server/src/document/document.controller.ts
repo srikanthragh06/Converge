@@ -19,8 +19,12 @@ import {
   type GetDocumentOverviewResponseDto,
   type GetLibraryDocumentsResponseDto,
   type SearchLibraryDocumentsResponseDto,
+  type SearchDocumentAccessUsersResponseDto,
+  type GetDocumentAccessResponseDto,
   GetLibraryDocumentsRequestSchema,
   SearchLibraryDocumentsRequestSchema,
+  SearchDocumentAccessUsersRequestSchema,
+  GetDocumentAccessRequestSchema,
 } from '@converge/shared';
 import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe';
 
@@ -131,6 +135,62 @@ export class DocumentController {
   ): Promise<void> {
     const userId = (req as any).userId as number;
     await this.documentService.deleteDocument(documentId, userId);
+  }
+
+  /**
+   * Returns a paginated list of users with explicit access to the given document,
+   * ordered by user_id ASC. Only the document owner can call this endpoint.
+   * Throws 404 if the document does not exist, 403 if the user is not the owner.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param documentId - the document ID parsed from the URL path
+   * @param query - optional limit and cursorId for keyset pagination
+   * @returns users for this page and nextCursor (null on the last page)
+   */
+  @Get('/:documentId/access')
+  async handleGetDocumentAccess(
+    @Req() req: Request,
+    @Param('documentId', ParseIntPipe) documentId: number,
+    @Query(new ZodHttpValidationPipe(GetDocumentAccessRequestSchema))
+    query: { limit?: number; cursorId?: number },
+  ): Promise<GetDocumentAccessResponseDto> {
+    const userId = (req as any).userId as number;
+    const limit = query.limit ?? 20;
+    return httpOK(
+      await this.documentService.getDocumentAccessUsers(
+        documentId,
+        userId,
+        limit,
+        query.cursorId,
+      ),
+    );
+  }
+
+  /**
+   * Searches users who already have access to the given document by email using
+   * trigram similarity. Only the document owner can call this endpoint.
+   * Throws 404 if the document does not exist, 403 if the user is not the owner.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param documentId - the document ID parsed from the URL path
+   * @param query - email query string and optional limit
+   * @returns matching users with their name, email, and access level
+   */
+  @Get('/:documentId/access/search')
+  async handleSearchDocumentAccessUsers(
+    @Req() req: Request,
+    @Param('documentId', ParseIntPipe) documentId: number,
+    @Query(new ZodHttpValidationPipe(SearchDocumentAccessUsersRequestSchema))
+    query: { email: string; limit?: number },
+  ): Promise<SearchDocumentAccessUsersResponseDto> {
+    const userId = (req as any).userId as number;
+    const limit = query.limit ?? 20;
+    return httpOK(
+      await this.documentService.searchDocumentAccessUsers(
+        documentId,
+        query.email,
+        limit,
+        userId,
+      ),
+    );
   }
 
   /**
