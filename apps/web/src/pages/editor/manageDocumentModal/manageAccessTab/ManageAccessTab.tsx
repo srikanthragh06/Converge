@@ -1,4 +1,3 @@
-import { useState } from "react";
 import DocumentAccessUserCard from "../../../../components/DocumentAccessUserCard";
 import useManageAccessTab from "../../../../hooks/useManageAccessTab";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
@@ -13,8 +12,9 @@ const ManageAccessTab = ({
     /** ID of the document being managed. */
     documentId: string | undefined;
 }) => {
-    const [email, setEmail] = useState(""); // current email search query
     const {
+        email,
+        setEmail,
         existingUsers,
         setExistingUsers,
         foundUser,
@@ -24,7 +24,7 @@ const ManageAccessTab = ({
         isFindNewUserConflict,
         fetchAccessList,
         fetchSearchResults,
-    } = useManageAccessTab({ documentId, email });
+    } = useManageAccessTab({ documentId });
 
     return (
         <>

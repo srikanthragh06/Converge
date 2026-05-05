@@ -18,13 +18,11 @@ const ACCESS_LIST_LIMIT = 20;
  */
 const useManageAccessTab = ({
     documentId,
-    email,
 }: {
     /** ID of the document being managed. */
     documentId: string | undefined;
-    /** Current email search query typed by the user. */
-    email: string;
 }) => {
+    const [email, setEmail] = useState(""); // current email search query
     const [existingUsers, setExistingUsers] = useState<DocumentAccessUserDto[]>(
         [],
     ); // current filtered or full access list
@@ -120,6 +118,8 @@ const useManageAccessTab = ({
     }, [documentId, email]);
 
     return {
+        email,
+        setEmail,
         existingUsers,
         setExistingUsers,
         foundUser,
