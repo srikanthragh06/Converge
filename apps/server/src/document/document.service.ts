@@ -17,6 +17,8 @@ import {
   SearchLibraryDocumentsResponseDto,
   SearchDocumentAccessUsersResponseDto,
   GetDocumentAccessResponseDto,
+  GetDocumentDefaultAccessResponseDto,
+  SetDocumentDefaultAccessResponseDto,
   DocumentAccessLevel,
   mapsAreEqual,
 } from '@converge/shared';
@@ -959,6 +961,73 @@ export class DocumentService {
 
     if (!result.numDeletedRows)
       throw new NotFoundException('Access row not found.');
+  }
+
+  /**
+   * Returns the default access level for the given document. Throws 404 if the
+   * document does not exist or is deleted, and 403 if the requesting user is not
+   * the owner.
+   * @param documentId - the document to fetch the default access for
+   * @param userId - the authenticated user performing the request
+   * @returns the document's current default access level
+   */
+  async getDocumentDefaultAccess(
+    documentId: number,
+    userId: number,
+  ): Promise<GetDocumentDefaultAccessResponseDto> {
+    const db = this.dbService.kysely;
+
+    // Verify existence and ownership, then return the current default.
+    const row = await db
+      .selectFrom('documents')
+      .select(['owner_id', 'default_access'])
+      .where('id', '=', documentId)
+      .where('is_deleted', '=', false)
+      .executeTakeFirst();
+
+    if (!row) throw new NotFoundException('Document not found.');
+    if (row.owner_id !== userId)
+      throw new ForbiddenException('You do not have access to this document.');
+
+    return { defaultAccess: row.default_access };
+  }
+
+  /**
+   * Updates the default access level for the given document. Throws 404 if the
+   * document does not exist or is deleted, and 403 if the requesting user is not
+   * the owner.
+   * @param documentId - the document to update the default access for
+   * @param defaultAccess - the new fallback access level to assign
+   * @param userId - the authenticated user performing the request
+   * @returns the updated default access level
+   */
+  async setDocumentDefaultAccess(
+    documentId: number,
+    defaultAccess: DocumentAccessLevel,
+    userId: number,
+  ): Promise<SetDocumentDefaultAccessResponseDto> {
+    const db = this.dbService.kysely;
+
+    // Verify existence and ownership before mutating.
+    const docRow = await db
+      .selectFrom('documents')
+      .select(['owner_id'])
+      .where('id', '=', documentId)
+      .where('is_deleted', '=', false)
+      .executeTakeFirst();
+
+    if (!docRow) throw new NotFoundException('Document not found.');
+    if (docRow.owner_id !== userId)
+      throw new ForbiddenException('You do not have access to this document.');
+
+    // Persist the new default access level.
+    await db
+      .updateTable('documents')
+      .set({ default_access: defaultAccess })
+      .where('id', '=', documentId)
+      .execute();
+
+    return { defaultAccess };
   }
 
   /**

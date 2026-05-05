@@ -199,3 +199,30 @@ export const FindNewDocumentAccessUserResponseSchema = z.object({
 export type FindNewDocumentAccessUserResponseDto = z.infer<
     typeof FindNewDocumentAccessUserResponseSchema
 >;
+
+/** Response for GET /document/:id/access/default — the document's fallback access level. */
+export const GetDocumentDefaultAccessResponseSchema = z.object({
+    defaultAccess: DocumentAccessLevelSchema,
+});
+
+export type GetDocumentDefaultAccessResponseDto = z.infer<
+    typeof GetDocumentDefaultAccessResponseSchema
+>;
+
+/** Request body for PUT /document/:id/access/default — sets the document's fallback access level. */
+export const SetDocumentDefaultAccessRequestSchema = z.object({
+    defaultAccess: DocumentAccessLevelSchema,
+});
+
+export type SetDocumentDefaultAccessRequestDto = z.infer<
+    typeof SetDocumentDefaultAccessRequestSchema
+>;
+
+/** Response for PUT /document/:id/access/default — echoes back the updated fallback access level. */
+export const SetDocumentDefaultAccessResponseSchema = z.object({
+    defaultAccess: DocumentAccessLevelSchema,
+});
+
+export type SetDocumentDefaultAccessResponseDto = z.infer<
+    typeof SetDocumentDefaultAccessResponseSchema
+>;
