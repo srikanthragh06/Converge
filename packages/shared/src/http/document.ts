@@ -133,6 +133,7 @@ export const DocumentAccessUserSchema = z.object({
     id: z.number(),
     name: z.string(),
     email: z.email(),
+    avatarUrl: z.string().nullable(),
     access: DocumentAccessLevelSchema,
 });
 
