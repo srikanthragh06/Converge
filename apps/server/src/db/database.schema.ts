@@ -31,6 +31,8 @@ export interface DocumentsTable {
   update_count: Generated<number>;
   /** Value of update_count at the time of the last compaction. */
   last_compact_count: Generated<number>;
+  /** Fallback access level for users with no explicit row in document_access. Defaults to 'noAccess'. */
+  default_access: Generated<DocumentAccessLevel>;
   created_at: Generated<Date>;
 }
 
