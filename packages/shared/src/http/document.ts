@@ -200,6 +200,27 @@ export type FindNewDocumentAccessUserResponseDto = z.infer<
     typeof FindNewDocumentAccessUserResponseSchema
 >;
 
+/** Query params for GET /document/:id/owner/find — finds a user by exact email to assign as new owner. */
+export const FindNewDocumentOwnerRequestSchema = z.object({
+    email: z.string().min(1).max(256),
+});
+
+export type FindNewDocumentOwnerRequestDto = z.infer<
+    typeof FindNewDocumentOwnerRequestSchema
+>;
+
+/** Response for GET /document/:id/owner/find — the matched user's basic profile. */
+export const FindNewDocumentOwnerResponseSchema = z.object({
+    id: z.number(),
+    name: z.string(),
+    email: z.email(),
+    avatarUrl: z.string().nullable(),
+});
+
+export type FindNewDocumentOwnerResponseDto = z.infer<
+    typeof FindNewDocumentOwnerResponseSchema
+>;
+
 /** Request body for PUT /document/:id/owner — transfers ownership to another user. */
 export const TransferDocumentOwnerRequestSchema = z.object({
     newOwnerId: z.number().int().positive(),

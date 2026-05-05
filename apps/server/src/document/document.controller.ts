@@ -22,6 +22,8 @@ import {
   type GetDocumentOwnerResponseDto,
   type TransferDocumentOwnerRequestDto,
   type TransferDocumentOwnerResponseDto,
+  type FindNewDocumentOwnerRequestDto,
+  type FindNewDocumentOwnerResponseDto,
   type FindNewDocumentAccessUserResponseDto,
   type SetDocumentAccessRequestDto,
   type GetLibraryDocumentsResponseDto,
@@ -39,6 +41,7 @@ import {
   SetDocumentAccessRequestSchema,
   SetDocumentDefaultAccessRequestSchema,
   TransferDocumentOwnerRequestSchema,
+  FindNewDocumentOwnerRequestSchema,
 } from '@converge/shared';
 import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe';
 
@@ -167,6 +170,33 @@ export class DocumentController {
     const userId = (req as any).userId as number;
     return httpOK(
       await this.documentService.getDocumentOwner(documentId, userId),
+    );
+  }
+
+  /**
+   * Looks up a user by exact email who can be assigned as the new document owner.
+   * Unlike find-new for access, this accepts users who already have an access row.
+   * Throws 404 if the document or user is not found, 403 if the requester is not
+   * the owner, and 409 if the matched user is already the document owner.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param documentId - the document ID parsed from the URL path
+   * @param query - exact email address to look up
+   * @returns the matched user's id, name, email, and avatarUrl
+   */
+  @Get('/:documentId/owner/find')
+  async handleFindNewDocumentOwner(
+    @Req() req: Request,
+    @Param('documentId', ParseIntPipe) documentId: number,
+    @Query(new ZodHttpValidationPipe(FindNewDocumentOwnerRequestSchema))
+    query: FindNewDocumentOwnerRequestDto,
+  ): Promise<FindNewDocumentOwnerResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.documentService.findNewDocumentOwner(
+        documentId,
+        query.email,
+        userId,
+      ),
     );
   }
 

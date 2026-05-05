@@ -20,6 +20,7 @@ import {
   GetDocumentDefaultAccessResponseDto,
   SetDocumentDefaultAccessResponseDto,
   TransferDocumentOwnerResponseDto,
+  FindNewDocumentOwnerResponseDto,
   DocumentAccessLevel,
   mapsAreEqual,
 } from '@converge/shared';
@@ -962,6 +963,57 @@ export class DocumentService {
 
     if (!result.numDeletedRows)
       throw new NotFoundException('Access row not found.');
+  }
+
+  /**
+   * Looks up a user by exact email to be assigned as the new document owner.
+   * Unlike findNewDocumentAccessUser, this does not reject users who already
+   * have an access row — any existing user other than the current owner is valid.
+   * Throws 404 if the document or user does not exist, 403 if the requester is
+   * not the owner, and 409 if the matched user is already the document owner.
+   * @param documentId - the document whose ownership is being transferred
+   * @param email - exact email address to look up
+   * @param userId - the authenticated user performing the request
+   * @returns the matched user's id, name, email, and avatarUrl
+   */
+  async findNewDocumentOwner(
+    documentId: number,
+    email: string,
+    userId: number,
+  ): Promise<FindNewDocumentOwnerResponseDto> {
+    const db = this.dbService.kysely;
+
+    // Verify the document exists and the requester is the current owner.
+    const docRow = await db
+      .selectFrom('documents')
+      .select(['owner_id'])
+      .where('id', '=', documentId)
+      .where('is_deleted', '=', false)
+      .executeTakeFirst();
+
+    if (!docRow) throw new NotFoundException('Document not found.');
+    if (docRow.owner_id !== userId)
+      throw new ForbiddenException('You do not have access to this document.');
+
+    // Look up the candidate by exact email.
+    const userRow = await db
+      .selectFrom('users')
+      .select(['id', 'name', 'email', 'avatar_url'])
+      .where('email', '=', email)
+      .executeTakeFirst();
+
+    if (!userRow) throw new NotFoundException('User not found.');
+
+    // Reject if the candidate is already the document owner.
+    if (userRow.id === docRow.owner_id)
+      throw new ConflictException('User is already the document owner.');
+
+    return {
+      id: userRow.id,
+      name: userRow.name,
+      email: userRow.email,
+      avatarUrl: userRow.avatar_url,
+    };
   }
 
   /**
