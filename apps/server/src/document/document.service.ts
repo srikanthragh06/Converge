@@ -11,6 +11,7 @@ import {
   GetDocumentOverviewResponseDto,
   GetDocumentOwnerResponseDto,
   FindNewDocumentAccessUserResponseDto,
+  SetDocumentAccessRequestDto,
   LibraryDocumentDto,
   GetLibraryDocumentsResponseDto,
   SearchLibraryDocumentsResponseDto,
@@ -860,6 +861,101 @@ export class DocumentService {
       email: userRow.email,
       avatarUrl: userRow.avatar_url,
     };
+  }
+
+  /**
+   * Upserts the access level for a user on a document. If no row exists in
+   * document_access it is created; if one already exists the access column is
+   * updated. Throws 404 if the document or target user does not exist, 403 if
+   * the requester is not the owner, and 409 if the target user is the owner.
+   * @param documentId - the document to set access on
+   * @param targetUserId - the user whose access level is being set
+   * @param access - the new access level to assign
+   * @param requestingUserId - the authenticated user performing the request
+   */
+  async setDocumentAccess(
+    documentId: number,
+    targetUserId: number,
+    access: SetDocumentAccessRequestDto['access'],
+    requestingUserId: number,
+  ): Promise<void> {
+    const db = this.dbService.kysely;
+
+    // Verify the document exists and the requester is the owner.
+    const docRow = await db
+      .selectFrom('documents')
+      .select(['owner_id'])
+      .where('id', '=', documentId)
+      .where('is_deleted', '=', false)
+      .executeTakeFirst();
+
+    if (!docRow) throw new NotFoundException('Document not found.');
+    if (docRow.owner_id !== requestingUserId)
+      throw new ForbiddenException('You do not have access to this document.');
+
+    // Prevent assigning explicit access to the owner — ownership is tracked
+    // via documents.owner_id, not via document_access rows.
+    if (targetUserId === docRow.owner_id)
+      throw new ConflictException('Cannot set access for the document owner.');
+
+    // Verify the target user exists.
+    const userRow = await db
+      .selectFrom('users')
+      .select(['id'])
+      .where('id', '=', targetUserId)
+      .executeTakeFirst();
+
+    if (!userRow) throw new NotFoundException('User not found.');
+
+    // Upsert the access row — insert on first assignment, update on change.
+    await db
+      .insertInto('document_access')
+      .values({ document_id: documentId, user_id: targetUserId, access })
+      .onConflict((oc) =>
+        oc.columns(['document_id', 'user_id']).doUpdateSet({ access }),
+      )
+      .execute();
+  }
+
+  /**
+   * Deletes the access row for a user on a document. Throws 404 if the document
+   * or access row does not exist, 403 if the requester is not the owner, and
+   * 409 if the target user is the document owner.
+   * @param documentId - the document to remove access from
+   * @param targetUserId - the user whose access row to delete
+   * @param requestingUserId - the authenticated user performing the request
+   */
+  async deleteDocumentAccess(
+    documentId: number,
+    targetUserId: number,
+    requestingUserId: number,
+  ): Promise<void> {
+    const db = this.dbService.kysely;
+
+    // Verify the document exists and the requester is the owner.
+    const docRow = await db
+      .selectFrom('documents')
+      .select(['owner_id'])
+      .where('id', '=', documentId)
+      .where('is_deleted', '=', false)
+      .executeTakeFirst();
+
+    if (!docRow) throw new NotFoundException('Document not found.');
+    if (docRow.owner_id !== requestingUserId)
+      throw new ForbiddenException('You do not have access to this document.');
+
+    // The owner has no access row — reject early rather than silently no-op.
+    if (targetUserId === docRow.owner_id)
+      throw new ConflictException('Cannot remove access for the document owner.');
+
+    // Delete the row and confirm it existed.
+    const result = await db
+      .deleteFrom('document_access')
+      .where('document_id', '=', documentId)
+      .where('user_id', '=', targetUserId)
+      .executeTakeFirst();
+
+    if (!result.numDeletedRows) throw new NotFoundException('Access row not found.');
   }
 
   /**

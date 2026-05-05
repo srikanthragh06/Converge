@@ -1,10 +1,12 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
   Param,
   ParseIntPipe,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
@@ -19,6 +21,7 @@ import {
   type GetDocumentOverviewResponseDto,
   type GetDocumentOwnerResponseDto,
   type FindNewDocumentAccessUserResponseDto,
+  type SetDocumentAccessRequestDto,
   type GetLibraryDocumentsResponseDto,
   type SearchLibraryDocumentsResponseDto,
   type SearchDocumentAccessUsersResponseDto,
@@ -28,6 +31,7 @@ import {
   SearchDocumentAccessUsersRequestSchema,
   GetDocumentAccessRequestSchema,
   FindNewDocumentAccessUserRequestSchema,
+  SetDocumentAccessRequestSchema,
 } from '@converge/shared';
 import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe';
 
@@ -156,6 +160,55 @@ export class DocumentController {
     const userId = (req as any).userId as number;
     return httpOK(
       await this.documentService.getDocumentOwner(documentId, userId),
+    );
+  }
+
+  /**
+   * Sets or updates the access level for a user on the given document. Creates
+   * a new document_access row if none exists, otherwise updates the existing one.
+   * Throws 404 if the document or target user is not found, 403 if the requester
+   * is not the owner, and 409 if the target is the document owner.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param documentId - the document ID parsed from the URL path
+   * @param targetUserId - the user ID parsed from the URL path
+   * @param body - the new access level to assign
+   */
+  @Put('/:documentId/access/:targetUserId')
+  async handleSetDocumentAccess(
+    @Req() req: Request,
+    @Param('documentId', ParseIntPipe) documentId: number,
+    @Param('targetUserId', ParseIntPipe) targetUserId: number,
+    @Body(new ZodHttpValidationPipe(SetDocumentAccessRequestSchema))
+    body: SetDocumentAccessRequestDto,
+  ): Promise<void> {
+    const userId = (req as any).userId as number;
+    await this.documentService.setDocumentAccess(
+      documentId,
+      targetUserId,
+      body.access,
+      userId,
+    );
+  }
+
+  /**
+   * Deletes the access row for a user on the given document. Throws 404 if the
+   * document or access row is not found, 403 if the requester is not the owner,
+   * and 409 if the target is the document owner.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param documentId - the document ID parsed from the URL path
+   * @param targetUserId - the user ID parsed from the URL path
+   */
+  @Delete('/:documentId/access/:targetUserId')
+  async handleDeleteDocumentAccess(
+    @Req() req: Request,
+    @Param('documentId', ParseIntPipe) documentId: number,
+    @Param('targetUserId', ParseIntPipe) targetUserId: number,
+  ): Promise<void> {
+    const userId = (req as any).userId as number;
+    await this.documentService.deleteDocumentAccess(
+      documentId,
+      targetUserId,
+      userId,
     );
   }
 

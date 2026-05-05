@@ -15,6 +15,7 @@ export {
     GetDocumentAccessRequestSchema,
     GetDocumentAccessResponseSchema,
     GetDocumentOwnerResponseSchema,
+    SetDocumentAccessRequestSchema,
     FindNewDocumentAccessUserRequestSchema,
     FindNewDocumentAccessUserResponseSchema,
 } from "./http/document";
@@ -33,6 +34,7 @@ export type {
     GetDocumentAccessResponseDto,
     DocumentAccessUserDto,
     GetDocumentOwnerResponseDto,
+    SetDocumentAccessRequestDto,
     FindNewDocumentAccessUserRequestDto,
     FindNewDocumentAccessUserResponseDto,
 } from "./http/document";

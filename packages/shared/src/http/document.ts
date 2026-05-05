@@ -170,6 +170,15 @@ export type GetDocumentOwnerResponseDto = z.infer<
     typeof GetDocumentOwnerResponseSchema
 >;
 
+/** Request body for PUT /document/:id/access/:targetUserId — sets or updates a user's access level. */
+export const SetDocumentAccessRequestSchema = z.object({
+    access: DocumentAccessLevelSchema,
+});
+
+export type SetDocumentAccessRequestDto = z.infer<
+    typeof SetDocumentAccessRequestSchema
+>;
+
 /** Query params for GET /document/:id/access/find-new. */
 export const FindNewDocumentAccessUserRequestSchema = z.object({
     email: z.string().min(1).max(256),
