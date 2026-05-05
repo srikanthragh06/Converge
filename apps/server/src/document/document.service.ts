@@ -946,7 +946,9 @@ export class DocumentService {
 
     // The owner has no access row — reject early rather than silently no-op.
     if (targetUserId === docRow.owner_id)
-      throw new ConflictException('Cannot remove access for the document owner.');
+      throw new ConflictException(
+        'Cannot remove access for the document owner.',
+      );
 
     // Delete the row and confirm it existed.
     const result = await db
@@ -955,7 +957,8 @@ export class DocumentService {
       .where('user_id', '=', targetUserId)
       .executeTakeFirst();
 
-    if (!result.numDeletedRows) throw new NotFoundException('Access row not found.');
+    if (!result.numDeletedRows)
+      throw new NotFoundException('Access row not found.');
   }
 
   /**
