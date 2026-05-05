@@ -64,7 +64,7 @@ const DefaultAccessTab = ({
                     }}
                 />
             )}
-            <p className="text-xs sm:text-sm text-text-secondary opacity-50 mb-3 sm:mb-4">
+            <p className="text-xs sm:text-sm text-text-secondary opacity-50 mt-3 sm:mt-6">
                 The access level granted to users who have no explicit access
                 entry for this document.
             </p>

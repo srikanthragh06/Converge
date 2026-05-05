@@ -2,6 +2,7 @@ import useManageDocumentModal from "../../../hooks/useManageDocumentModal";
 import OverviewTab from "./overviewTab/OverviewTab";
 import ManageAccessTab from "./manageAccessTab/ManageAccessTab";
 import DefaultAccessTab from "./defaultAccessTab/DefaultAccessTab";
+import OwnerTab from "./ownerTab/OwnerTab";
 
 /**
  * Modal for document-level settings and actions. On mobile it renders as a
@@ -61,12 +62,12 @@ const ManageDocumentModal = ({
 
                     {/* Content area */}
                     <div className="flex flex-col sm:flex-row min-h-[500px] h-full">
-                        <div className="flex flex-row sm:flex-col shrink-0 p-2 gap-1">
+                        <div className="flex flex-row sm:flex-col shrink-0 p-2 gap-1 overflow-x-auto sm:overflow-x-visible" style={{ scrollbarWidth: "thin" }}>
                             {TABS.map(({ key, label }) => (
                                 <button
                                     key={key}
                                     onClick={() => setSelectedTab(key)}
-                                    className={`text-text-secondary text-sm sm:pl-3 sm:pr-6 px-2 py-2 cursor-pointer
+                                    className={`shrink-0 text-text-secondary text-sm sm:pl-3 sm:pr-6 px-2 py-2 cursor-pointer
                                     border-none text-start rounded-lg transition
                                     ${selectedTab === key ? "bg-background-elevated" : "bg-transparent hover:opacity-80 active:opacity-75"}`}
                                 >
@@ -87,6 +88,9 @@ const ManageDocumentModal = ({
                             )}
                             {selectedTab === "default-access" && (
                                 <DefaultAccessTab documentId={documentId} />
+                            )}
+                            {selectedTab === "owner" && (
+                                <OwnerTab documentId={documentId} />
                             )}
                         </div>
                     </div>
