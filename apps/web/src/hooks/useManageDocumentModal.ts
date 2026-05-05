@@ -1,9 +1,10 @@
 import React, { useRef, useState } from "react";
 
 /** Sidebar navigation entries; extend this array to add new tabs. */
-const TABS: { key: "overview" | "manage-access"; label: string }[] = [
+const TABS: { key: "overview" | "manage-access" | "default-access"; label: string }[] = [
     { key: "overview", label: "Overview" },
     { key: "manage-access", label: "Manage Access" },
+    { key: "default-access", label: "Default Access" },
 ];
 
 /**
@@ -21,7 +22,7 @@ const useManageDocumentModal = ({
     const [dragOffset, setDragOffset] = useState(0); // current vertical drag distance in px; drives the translateY transform
     const touchStartY = useRef(0); // Y position when the touch began
     const isDragging = useRef(false); // true while a touch is in progress
-    const [selectedTab, setSelectedTab] = useState<"overview" | "manage-access">("overview"); // currently active sidebar tab
+    const [selectedTab, setSelectedTab] = useState<"overview" | "manage-access" | "default-access">("overview"); // currently active sidebar tab
 
     /** Records the starting Y position of the touch. */
     const handleTouchStart = (e: React.TouchEvent) => {
