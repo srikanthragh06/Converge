@@ -18,6 +18,7 @@ import {
   type GetDocumentResponseDto,
   type GetDocumentOverviewResponseDto,
   type GetDocumentOwnerResponseDto,
+  type FindNewDocumentAccessUserResponseDto,
   type GetLibraryDocumentsResponseDto,
   type SearchLibraryDocumentsResponseDto,
   type SearchDocumentAccessUsersResponseDto,
@@ -26,6 +27,7 @@ import {
   SearchLibraryDocumentsRequestSchema,
   SearchDocumentAccessUsersRequestSchema,
   GetDocumentAccessRequestSchema,
+  FindNewDocumentAccessUserRequestSchema,
 } from '@converge/shared';
 import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe';
 
@@ -181,6 +183,32 @@ export class DocumentController {
         userId,
         limit,
         query.cursorId,
+      ),
+    );
+  }
+
+  /**
+   * Looks up a user by exact email who does not yet have access to the document.
+   * Returns 404 if the document or user is not found, 403 if not the owner,
+   * and 409 if the user is the document owner or already has an access row.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param documentId - the document ID parsed from the URL path
+   * @param query - exact email address to look up
+   * @returns the matched user's id, name, email, and avatarUrl
+   */
+  @Get('/:documentId/access/find-new')
+  async handleFindNewDocumentAccessUser(
+    @Req() req: Request,
+    @Param('documentId', ParseIntPipe) documentId: number,
+    @Query(new ZodHttpValidationPipe(FindNewDocumentAccessUserRequestSchema))
+    query: { email: string },
+  ): Promise<FindNewDocumentAccessUserResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.documentService.findNewDocumentAccessUser(
+        documentId,
+        query.email,
+        userId,
       ),
     );
   }

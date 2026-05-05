@@ -1,3 +1,7 @@
+/** Returns true if the string is a valid email address. */
+export const isValidEmail = (email: string): boolean =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
 /**
  * Formats a Date as "Sep 5, 1999, 1:25:59 a.m.".
  */

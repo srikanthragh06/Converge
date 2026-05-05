@@ -169,3 +169,24 @@ export const GetDocumentOwnerResponseSchema = z.object({
 export type GetDocumentOwnerResponseDto = z.infer<
     typeof GetDocumentOwnerResponseSchema
 >;
+
+/** Query params for GET /document/:id/access/find-new. */
+export const FindNewDocumentAccessUserRequestSchema = z.object({
+    email: z.string().min(1).max(256),
+});
+
+export type FindNewDocumentAccessUserRequestDto = z.infer<
+    typeof FindNewDocumentAccessUserRequestSchema
+>;
+
+/** Response for GET /document/:id/access/find-new — a user who exists but has no access yet. */
+export const FindNewDocumentAccessUserResponseSchema = z.object({
+    id: z.number(),
+    name: z.string(),
+    email: z.email(),
+    avatarUrl: z.string().nullable(),
+});
+
+export type FindNewDocumentAccessUserResponseDto = z.infer<
+    typeof FindNewDocumentAccessUserResponseSchema
+>;
