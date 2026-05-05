@@ -5,6 +5,6 @@ export const DocumentAccessLevelSchema = z.enum([
     "admin",
     "editor",
     "viewer",
-    "none",
+    "noAccess",
 ]);
 export type DocumentAccessLevel = z.infer<typeof DocumentAccessLevelSchema>;

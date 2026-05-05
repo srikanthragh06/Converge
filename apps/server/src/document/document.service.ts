@@ -8,6 +8,7 @@ import * as Y from 'yjs';
 import {
   GetDocumentResponseDto,
   GetDocumentOverviewResponseDto,
+  GetDocumentOwnerResponseDto,
   LibraryDocumentDto,
   GetLibraryDocumentsResponseDto,
   SearchLibraryDocumentsResponseDto,
@@ -761,6 +762,41 @@ export class DocumentService {
         access: row.access as DocumentAccessLevel,
       })),
       nextCursor,
+    };
+  }
+
+  /**
+   * Returns the owner's basic profile for the given document. Throws 404 if
+   * the document does not exist or is deleted, and 403 if the requesting user
+   * is not the owner.
+   * @param documentId - the document whose owner to fetch
+   * @param userId - the authenticated user performing the request
+   * @returns the owner's id, name, email, and avatarUrl
+   */
+  async getDocumentOwner(
+    documentId: number,
+    userId: number,
+  ): Promise<GetDocumentOwnerResponseDto> {
+    const db = this.dbService.kysely;
+
+    // Verify existence and ownership, then fetch the owner's profile in one join.
+    const row = await db
+      .selectFrom('documents as d')
+      .innerJoin('users as u', 'u.id', 'd.owner_id')
+      .select(['u.id', 'u.name', 'u.email', 'u.avatar_url'])
+      .where('d.id', '=', documentId)
+      .where('d.is_deleted', '=', false)
+      .executeTakeFirst();
+
+    if (!row) throw new NotFoundException('Document not found.');
+    if (row.id !== userId)
+      throw new ForbiddenException('You do not have access to this document.');
+
+    return {
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      avatarUrl: row.avatar_url,
     };
   }
 

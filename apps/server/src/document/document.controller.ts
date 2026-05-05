@@ -17,6 +17,7 @@ import {
   type CreateDocumentResponseDto,
   type GetDocumentResponseDto,
   type GetDocumentOverviewResponseDto,
+  type GetDocumentOwnerResponseDto,
   type GetLibraryDocumentsResponseDto,
   type SearchLibraryDocumentsResponseDto,
   type SearchDocumentAccessUsersResponseDto,
@@ -135,6 +136,25 @@ export class DocumentController {
   ): Promise<void> {
     const userId = (req as any).userId as number;
     await this.documentService.deleteDocument(documentId, userId);
+  }
+
+  /**
+   * Returns the owner's basic profile (id, name, email, avatarUrl) for the
+   * given document. Throws 404 if the document does not exist, 403 if the
+   * requesting user is not the owner.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param documentId - the document ID parsed from the URL path
+   * @returns the owner's id, name, email, and avatarUrl
+   */
+  @Get('/:documentId/owner')
+  async handleGetDocumentOwner(
+    @Req() req: Request,
+    @Param('documentId', ParseIntPipe) documentId: number,
+  ): Promise<GetDocumentOwnerResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.documentService.getDocumentOwner(documentId, userId),
+    );
   }
 
   /**

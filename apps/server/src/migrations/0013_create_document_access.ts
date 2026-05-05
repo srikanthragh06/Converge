@@ -4,7 +4,7 @@ import { Kysely, sql } from 'kysely';
  * Creates the `document_access` table, which stores per-user access levels for
  * documents. The owner is not stored here — ownership is tracked via `documents.owner_id`.
  *
- * - `access` is one of: 'admin', 'editor', 'viewer', 'none'.
+ * - `access` is one of: 'admin', 'editor', 'viewer', 'noAccess'.
  * - (document_id, user_id) is the composite primary key.
  *
  * @param db - The Kysely instance provided by the migrator.
@@ -19,7 +19,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       col.notNull().references('users.id').onDelete('cascade'),
     )
     .addColumn('access', 'text', (col) =>
-      col.notNull().check(sql`access IN ('admin', 'editor', 'viewer', 'none')`),
+      col.notNull().check(sql`access IN ('admin', 'editor', 'viewer', 'noAccess')`),
     )
     .addColumn('created_at', 'timestamptz', (col) =>
       col.notNull().defaultTo(sql`now()`),
