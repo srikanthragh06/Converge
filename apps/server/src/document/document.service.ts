@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   InternalServerErrorException,
@@ -9,6 +10,7 @@ import {
   GetDocumentResponseDto,
   GetDocumentOverviewResponseDto,
   GetDocumentOwnerResponseDto,
+  FindNewDocumentAccessUserResponseDto,
   LibraryDocumentDto,
   GetLibraryDocumentsResponseDto,
   SearchLibraryDocumentsResponseDto,
@@ -797,6 +799,66 @@ export class DocumentService {
       name: row.name,
       email: row.email,
       avatarUrl: row.avatar_url,
+    };
+  }
+
+  /**
+   * Looks up a user by exact email and checks they do not already have access
+   * to the given document. Throws 404 if the document does not exist or the
+   * user is not found, 403 if the requester is not the owner, and 409 if the
+   * user is the document owner or already has an access row for this document.
+   * @param documentId - the document to check access against
+   * @param email - exact email address to look up
+   * @param userId - the authenticated user performing the request
+   * @returns the matched user's id, name, email, and avatarUrl
+   */
+  async findNewDocumentAccessUser(
+    documentId: number,
+    email: string,
+    userId: number,
+  ): Promise<FindNewDocumentAccessUserResponseDto> {
+    const db = this.dbService.kysely;
+
+    // Verify the document exists and the requester is the owner.
+    const docRow = await db
+      .selectFrom('documents')
+      .select(['owner_id'])
+      .where('id', '=', documentId)
+      .where('is_deleted', '=', false)
+      .executeTakeFirst();
+
+    if (!docRow) throw new NotFoundException('Document not found.');
+    if (docRow.owner_id !== userId)
+      throw new ForbiddenException('You do not have access to this document.');
+
+    // Look up the user by exact email.
+    const userRow = await db
+      .selectFrom('users')
+      .select(['id', 'name', 'email', 'avatar_url'])
+      .where('email', '=', email)
+      .executeTakeFirst();
+
+    if (!userRow) throw new NotFoundException('User not found.');
+
+    // Reject if the looked-up user is the document owner.
+    if (userRow.id === docRow.owner_id)
+      throw new ConflictException('User is the document owner.');
+
+    // Reject if the user already has an access row for this document.
+    const accessRow = await db
+      .selectFrom('document_access')
+      .select(['user_id'])
+      .where('document_id', '=', documentId)
+      .where('user_id', '=', userRow.id)
+      .executeTakeFirst();
+
+    if (accessRow) throw new ConflictException('User already has access.');
+
+    return {
+      id: userRow.id,
+      name: userRow.name,
+      email: userRow.email,
+      avatarUrl: userRow.avatar_url,
     };
   }
 
