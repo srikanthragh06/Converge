@@ -26,12 +26,16 @@ import {
   type SearchLibraryDocumentsResponseDto,
   type SearchDocumentAccessUsersResponseDto,
   type GetDocumentAccessResponseDto,
+  type GetDocumentDefaultAccessResponseDto,
+  type SetDocumentDefaultAccessRequestDto,
+  type SetDocumentDefaultAccessResponseDto,
   GetLibraryDocumentsRequestSchema,
   SearchLibraryDocumentsRequestSchema,
   SearchDocumentAccessUsersRequestSchema,
   GetDocumentAccessRequestSchema,
   FindNewDocumentAccessUserRequestSchema,
   SetDocumentAccessRequestSchema,
+  SetDocumentDefaultAccessRequestSchema,
 } from '@converge/shared';
 import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe';
 
@@ -261,6 +265,51 @@ export class DocumentController {
       await this.documentService.findNewDocumentAccessUser(
         documentId,
         query.email,
+        userId,
+      ),
+    );
+  }
+
+  /**
+   * Returns the default access level for the given document. Only the document
+   * owner can call this endpoint. Throws 404 if the document does not exist,
+   * 403 if the user is not the owner.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param documentId - the document ID parsed from the URL path
+   * @returns the document's current default access level
+   */
+  @Get('/:documentId/access/default')
+  async handleGetDocumentDefaultAccess(
+    @Req() req: Request,
+    @Param('documentId', ParseIntPipe) documentId: number,
+  ): Promise<GetDocumentDefaultAccessResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.documentService.getDocumentDefaultAccess(documentId, userId),
+    );
+  }
+
+  /**
+   * Updates the default access level for the given document. Only the document
+   * owner can call this endpoint. Throws 404 if the document does not exist,
+   * 403 if the user is not the owner.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param documentId - the document ID parsed from the URL path
+   * @param body - the new default access level to assign
+   * @returns the updated default access level
+   */
+  @Put('/:documentId/access/default')
+  async handleSetDocumentDefaultAccess(
+    @Req() req: Request,
+    @Param('documentId', ParseIntPipe) documentId: number,
+    @Body(new ZodHttpValidationPipe(SetDocumentDefaultAccessRequestSchema))
+    body: SetDocumentDefaultAccessRequestDto,
+  ): Promise<SetDocumentDefaultAccessResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.documentService.setDocumentDefaultAccess(
+        documentId,
+        body.defaultAccess,
         userId,
       ),
     );
