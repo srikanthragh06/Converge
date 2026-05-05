@@ -681,6 +681,7 @@ export class DocumentService {
         'u.id',
         'u.name',
         'u.email',
+        'u.avatar_url',
         'da.access',
         sql<number>`similarity(u.email, ${email})`.as('score'),
       ])
@@ -694,6 +695,7 @@ export class DocumentService {
         id: row.id,
         name: row.name,
         email: row.email,
+        avatarUrl: row.avatar_url,
         access: row.access as DocumentAccessLevel,
       })),
     };
@@ -735,7 +737,7 @@ export class DocumentService {
     let query = db
       .selectFrom('document_access as da')
       .innerJoin('users as u', 'u.id', 'da.user_id')
-      .select(['u.id', 'u.name', 'u.email', 'da.access'])
+      .select(['u.id', 'u.name', 'u.email', 'u.avatar_url', 'da.access'])
       .where('da.document_id', '=', documentId)
       .orderBy('da.user_id', 'asc')
       .limit(limit);
@@ -755,6 +757,7 @@ export class DocumentService {
         id: row.id,
         name: row.name,
         email: row.email,
+        avatarUrl: row.avatar_url,
         access: row.access as DocumentAccessLevel,
       })),
       nextCursor,
