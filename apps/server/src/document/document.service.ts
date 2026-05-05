@@ -11,6 +11,9 @@ import {
   LibraryDocumentDto,
   GetLibraryDocumentsResponseDto,
   SearchLibraryDocumentsResponseDto,
+  SearchDocumentAccessUsersResponseDto,
+  GetDocumentAccessResponseDto,
+  DocumentAccessLevel,
   mapsAreEqual,
 } from '@converge/shared';
 import { REDIS_EVENTS, REDIS_LOCKS } from '../redis/redis.events';
@@ -577,7 +580,8 @@ export class DocumentService {
       .where('user_id', '=', userId)
       .executeTakeFirst();
 
-    if (!docUserRow) throw new NotFoundException('Document metadata not found.');
+    if (!docUserRow)
+      throw new NotFoundException('Document metadata not found.');
 
     const ownerRow = await db
       .selectFrom('users')
@@ -635,6 +639,126 @@ export class DocumentService {
       .set({ is_deleted: true, deleted_at: new Date() })
       .where('id', '=', documentId)
       .execute();
+  }
+
+  /**
+   * Searches users who already have access to the given document using trigram
+   * similarity on their email address. Results are ordered by similarity score
+   * descending. Throws 404 if the document does not exist or is deleted, and
+   * 403 if the requesting user is not the owner.
+   * @param documentId - the document whose access list to search
+   * @param email - the email query to match against
+   * @param limit - maximum number of results to return
+   * @param userId - the authenticated user performing the request
+   * @returns matching users with their name, email, and access level
+   */
+  async searchDocumentAccessUsers(
+    documentId: number,
+    email: string,
+    limit: number,
+    userId: number,
+  ): Promise<SearchDocumentAccessUsersResponseDto> {
+    const db = this.dbService.kysely;
+
+    // Verify existence and ownership before exposing the access list.
+    const docRow = await db
+      .selectFrom('documents')
+      .select(['owner_id'])
+      .where('id', '=', documentId)
+      .where('is_deleted', '=', false)
+      .executeTakeFirst();
+
+    if (!docRow) throw new NotFoundException('Document not found.');
+    if (docRow.owner_id !== userId)
+      throw new ForbiddenException('You do not have access to this document.');
+
+    // Search the access rows for this document using trigram similarity on email.
+    // The search space is bounded to users who already have access, so no index is needed.
+    const rows = await db
+      .selectFrom('document_access as da')
+      .innerJoin('users as u', 'u.id', 'da.user_id')
+      .select([
+        'u.id',
+        'u.name',
+        'u.email',
+        'da.access',
+        sql<number>`similarity(u.email, ${email})`.as('score'),
+      ])
+      .where('da.document_id', '=', documentId)
+      .orderBy(sql`score`, 'desc')
+      .limit(limit)
+      .execute();
+
+    return {
+      users: rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        access: row.access as DocumentAccessLevel,
+      })),
+    };
+  }
+
+  /**
+   * Returns a paginated list of users who have explicit access to the given
+   * document, ordered by user_id ASC. Uses keyset pagination via cursorId so
+   * performance is consistent regardless of page depth. Throws 404 if the
+   * document does not exist or is deleted, and 403 if the requesting user is
+   * not the owner.
+   * @param documentId - the document whose access list to fetch
+   * @param userId - the authenticated user performing the request
+   * @param limit - maximum number of results to return
+   * @param cursorId - user_id of the last item from the previous page; omit for the first page
+   * @returns users for this page and nextCursor to fetch the following page
+   */
+  async getDocumentAccessUsers(
+    documentId: number,
+    userId: number,
+    limit: number,
+    cursorId?: number,
+  ): Promise<GetDocumentAccessResponseDto> {
+    const db = this.dbService.kysely;
+
+    // Verify existence and ownership before exposing the access list.
+    const docRow = await db
+      .selectFrom('documents')
+      .select(['owner_id'])
+      .where('id', '=', documentId)
+      .where('is_deleted', '=', false)
+      .executeTakeFirst();
+
+    if (!docRow) throw new NotFoundException('Document not found.');
+    if (docRow.owner_id !== userId)
+      throw new ForbiddenException('You do not have access to this document.');
+
+    // Build the base query — join users for display fields, order by user_id for stable pagination.
+    let query = db
+      .selectFrom('document_access as da')
+      .innerJoin('users as u', 'u.id', 'da.user_id')
+      .select(['u.id', 'u.name', 'u.email', 'da.access'])
+      .where('da.document_id', '=', documentId)
+      .orderBy('da.user_id', 'asc')
+      .limit(limit);
+
+    // Apply the keyset cursor to fetch only rows after the last seen user_id.
+    if (cursorId !== undefined) {
+      query = query.where('da.user_id', '>', cursorId);
+    }
+
+    const rows = await query.execute();
+
+    // If we got a full page there may be more — return the last user_id as the cursor.
+    const nextCursor = rows.length === limit ? rows[rows.length - 1].id : null;
+
+    return {
+      users: rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        access: row.access as DocumentAccessLevel,
+      })),
+      nextCursor,
+    };
   }
 
   /**
