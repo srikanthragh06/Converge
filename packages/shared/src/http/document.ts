@@ -157,3 +157,15 @@ export const GetDocumentAccessResponseSchema = z.object({
 export type GetDocumentAccessResponseDto = z.infer<
     typeof GetDocumentAccessResponseSchema
 >;
+
+/** Response for GET /document/:id/owner — the document owner's basic profile. */
+export const GetDocumentOwnerResponseSchema = z.object({
+    id: z.number(),
+    name: z.string(),
+    email: z.email(),
+    avatarUrl: z.string().nullable(),
+});
+
+export type GetDocumentOwnerResponseDto = z.infer<
+    typeof GetDocumentOwnerResponseSchema
+>;
