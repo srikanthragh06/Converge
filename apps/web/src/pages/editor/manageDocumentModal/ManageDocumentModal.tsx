@@ -1,5 +1,6 @@
 import useManageDocumentModal from "../../../hooks/useManageDocumentModal";
 import OverviewTab from "./overviewTab/OverviewTab";
+import ManageAccessTab from "./manageAccessTab/ManageAccessTab";
 
 /**
  * Modal for document-level settings and actions. On mobile it renders as a
@@ -79,6 +80,9 @@ const ManageDocumentModal = ({
                                     documentId={documentId}
                                     onClose={onClose}
                                 />
+                            )}
+                            {selectedTab === "manage-access" && (
+                                <ManageAccessTab documentId={documentId} />
                             )}
                         </div>
                     </div>
