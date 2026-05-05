@@ -32,10 +32,15 @@ const useManageAccessTab = ({
         useState<FindNewDocumentAccessUserResponseDto | null>(null); // user resolved by exact email who has no access yet
     const [isExistingUsersLoading, setIsExistingUsersLoading] = useState(false); // true while the access list or search fetch is in flight
     const [isFindNewUserLoading, setIsFindNewUserLoading] = useState(false); // true while the find-new fetch is in flight
+    const [isFindNewUserConflict, setIsFindNewUserConflict] = useState(false); // true when find-new returns 409 (user is owner or already has access)
 
     /** Fetches the full paginated access list for the document. */
     const fetchAccessList = async (docId: string) => {
         try {
+            // Clear stale conflict state from a prior find-new call — fetchAccessList
+            // can be triggered from onAccessRemoved, which bypasses the effect branch
+            // that already resets this flag when email is empty.
+            setIsFindNewUserConflict(false);
             setIsExistingUsersLoading(true);
             const { data } = await apiClient.get<GetDocumentAccessResponseDto>(
                 `/document/${docId}/access`,
@@ -52,6 +57,9 @@ const useManageAccessTab = ({
     /** Searches existing access users by email using fuzzy matching. */
     const fetchSearchResults = async (docId: string, query: string) => {
         try {
+            // Clear stale conflict state so the conflict message doesn't linger
+            // while new search results are loading.
+            setIsFindNewUserConflict(false);
             setIsExistingUsersLoading(true);
             const { data } =
                 await apiClient.get<SearchDocumentAccessUsersResponseDto>(
@@ -73,14 +81,17 @@ const useManageAccessTab = ({
     const fetchFindNew = async (docId: string, query: string) => {
         try {
             setIsFindNewUserLoading(true);
+            setIsFindNewUserConflict(false);
             const { data } =
                 await apiClient.get<FindNewDocumentAccessUserResponseDto>(
                     `/document/${docId}/access/find-new`,
                     { params: { email: query } },
                 );
             setFoundUser(data);
-        } catch {
+        } catch (err: any) {
             setFoundUser(null);
+            // 409 means the user is the document owner or already has access assigned.
+            setIsFindNewUserConflict(err?.response?.status === 409);
         } finally {
             setIsFindNewUserLoading(false);
         }
@@ -94,6 +105,7 @@ const useManageAccessTab = ({
 
         if (email.trim() === "") {
             setFoundUser(null);
+            setIsFindNewUserConflict(false);
             fetchAccessList(documentId);
             return;
         }
@@ -109,10 +121,12 @@ const useManageAccessTab = ({
 
     return {
         existingUsers,
+        setExistingUsers,
         foundUser,
         setFoundUser,
         isExistingUsersLoading,
         isFindNewUserLoading,
+        isFindNewUserConflict,
         fetchAccessList,
         fetchSearchResults,
     };
