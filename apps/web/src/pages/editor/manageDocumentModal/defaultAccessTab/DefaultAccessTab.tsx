@@ -34,39 +34,37 @@ const DefaultAccessTab = ({
             {isLoading ? (
                 <AiOutlineLoading3Quarters className="animate-spin" />
             ) : (
-                <div className="flex items-center gap-3">
-                    <Dropdown
-                        value={defaultAccess}
-                        options={ACCESS_OPTIONS}
-                        onChange={(e) =>
-                            updateDefaultAccess(e.value as DocumentAccessLevel)
-                        }
-                        placeholder="Select access"
-                        disabled={isSaving || !documentId}
-                        className="shrink-0 text-xs sm:text-sm"
-                        pt={{
-                            root: {
-                                className:
-                                    "border-none bg-transparent focus:outline-none",
-                            },
-                            input: {
-                                className:
-                                    "text-xs sm:text-sm text-white py-0.5 sm:py-1 px-1.5 sm:px-2",
-                            },
-                            trigger: { className: "text-white" },
-                            panel: {
-                                className:
-                                    "bg-background-base border border-gray-700",
-                            },
-                            item: {
-                                className:
-                                    "text-xs sm:text-sm text-white hover:bg-background-elevated px-2 sm:px-3 py-1.5 sm:py-2",
-                            },
-                        }}
-                    />
-                </div>
+                <Dropdown
+                    value={defaultAccess}
+                    options={ACCESS_OPTIONS}
+                    onChange={(e) =>
+                        updateDefaultAccess(e.value as DocumentAccessLevel)
+                    }
+                    placeholder="Select access"
+                    disabled={isSaving || !documentId}
+                    className="shrink-0 text-xs sm:text-sm"
+                    pt={{
+                        root: {
+                            className:
+                                "border-none bg-transparent focus:outline-none",
+                        },
+                        input: {
+                            className:
+                                "text-xs sm:text-sm text-white py-0.5 sm:py-1 px-1.5 sm:px-2",
+                        },
+                        trigger: { className: "text-white" },
+                        panel: {
+                            className:
+                                "bg-background-base border border-gray-700",
+                        },
+                        item: {
+                            className:
+                                "text-xs sm:text-sm text-white hover:bg-background-elevated px-2 sm:px-3 py-1.5 sm:py-2",
+                        },
+                    }}
+                />
             )}
-            <p className="text-xs sm:text-sm text-text-secondary mb-3 sm:mb-4 opacity-50">
+            <p className="text-xs sm:text-sm text-text-secondary opacity-50 mb-3 sm:mb-4">
                 The access level granted to users who have no explicit access
                 entry for this document.
             </p>
