@@ -3,6 +3,7 @@ import apiClient from "../lib/http";
 import type {
     GetDocumentOwnerResponseDto,
     FindNewDocumentOwnerResponseDto,
+    TransferDocumentOwnerResponseDto,
 } from "@converge/shared";
 import { isValidEmail } from "../utils/utils";
 
@@ -17,13 +18,17 @@ const useOwnerTab = ({
     /** ID of the document being managed. */
     documentId: string | undefined;
 }) => {
-    const [owner, setOwner] = useState<GetDocumentOwnerResponseDto | null>(null); // current document owner; null while loading or on error
+    const [owner, setOwner] = useState<GetDocumentOwnerResponseDto | null>(
+        null,
+    ); // current document owner; null while loading or on error
     const [isOwnerLoading, setIsOwnerLoading] = useState(false); // true while the GET /owner fetch is in flight
     const [email, setEmail] = useState(""); // current email search query for ownership transfer
     const [foundUser, setFoundUser] =
         useState<FindNewDocumentOwnerResponseDto | null>(null); // user resolved by exact email who can receive ownership
     const [isFindLoading, setIsFindLoading] = useState(false); // true while the owner find fetch is in flight
     const [isFindConflict, setIsFindConflict] = useState(false); // true when find returns 409 (user is already the owner)
+    const [isTransferConfirmOpen, setIsTransferConfirmOpen] = useState(false); // true while the transfer confirmation modal is open
+    const [isTransferring, setIsTransferring] = useState(false); // true while the PUT /owner request is in flight
 
     // Fetches the document's current owner on mount.
     useEffect(() => {
@@ -67,6 +72,32 @@ const useOwnerTab = ({
         }
     };
 
+    /**
+     * Calls PUT /document/:id/owner to transfer ownership to foundUser. On
+     * success, updates the displayed owner and clears the search state.
+     */
+    const transferOwner = async () => {
+        if (!documentId || !foundUser) return;
+
+        try {
+            setIsTransferring(true);
+            const { data } =
+                await apiClient.put<TransferDocumentOwnerResponseDto>(
+                    `/document/${documentId}/owner`,
+                    { newOwnerId: foundUser.id },
+                );
+            // Update the displayed owner and clear the search so the tab reflects the new state.
+            setOwner(data);
+            setFoundUser(null);
+            setEmail("");
+            setIsTransferConfirmOpen(false);
+        } catch (err) {
+            console.error("useOwnerTab: failed to transfer ownership:", err);
+        } finally {
+            setIsTransferring(false);
+        }
+    };
+
     // Resets find state when email is cleared; debounces 300 ms then fires the
     // owner find endpoint when a valid email is entered.
     useEffect(() => {
@@ -79,6 +110,7 @@ const useOwnerTab = ({
         }
 
         const timeout = setTimeout(() => {
+            setIsFindConflict(false);
             if (isValidEmail(email.trim()))
                 fetchFindNewOwner(documentId, email.trim());
         }, 300);
@@ -94,6 +126,10 @@ const useOwnerTab = ({
         foundUser,
         isFindLoading,
         isFindConflict,
+        isTransferConfirmOpen,
+        setIsTransferConfirmOpen,
+        isTransferring,
+        transferOwner,
     };
 };
 

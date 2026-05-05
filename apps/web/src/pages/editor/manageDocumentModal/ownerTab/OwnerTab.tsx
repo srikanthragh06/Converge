@@ -1,6 +1,7 @@
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import DocumentAccessUserCard from "../../../../components/DocumentAccessUserCard";
 import useOwnerTab from "../../../../hooks/useOwnerTab";
+import TransferOwnerConfirmationModal from "./TransferOwnerConfirmationModal";
 
 /**
  * Owner tab content for ManageDocumentModal. Displays the current document
@@ -20,6 +21,10 @@ const OwnerTab = ({
         foundUser,
         isFindLoading,
         isFindConflict,
+        isTransferConfirmOpen,
+        setIsTransferConfirmOpen,
+        isTransferring,
+        transferOwner,
     } = useOwnerTab({ documentId });
 
     return (
@@ -37,7 +42,7 @@ const OwnerTab = ({
                         userId={owner.id}
                         name={owner.name}
                         email={owner.email}
-                        isOwner={true}
+                        type="owner"
                     />
                 )
             )}
@@ -83,8 +88,19 @@ const OwnerTab = ({
                         userId={foundUser.id}
                         name={foundUser.name}
                         email={foundUser.email}
+                        type="none"
+                        onCardClick={() => setIsTransferConfirmOpen(true)}
                     />
                 </div>
+            )}
+
+            {isTransferConfirmOpen && foundUser && (
+                <TransferOwnerConfirmationModal
+                    newOwnerName={foundUser.name}
+                    onCancel={() => setIsTransferConfirmOpen(false)}
+                    onConfirm={transferOwner}
+                    isTransferring={isTransferring}
+                />
             )}
         </>
     );
