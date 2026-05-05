@@ -36,7 +36,8 @@ const DocumentAccessUserCard = ({
     onAccessRemoved,
     onAccessChanged,
     canDeleteAccess = false,
-    isOwner = false,
+    type = "access",
+    onCardClick,
 }: {
     /** URL of the user's profile picture, or null to show the generic icon. */
     avatarUrl: string | null;
@@ -56,8 +57,15 @@ const DocumentAccessUserCard = ({
     onAccessChanged?: (newAccess: DocumentAccessLevel) => void;
     /** Whether the "None" option (which deletes the access row) is shown. Defaults to false. */
     canDeleteAccess?: boolean;
-    /** When true, replaces the dropdown with a fixed disabled "Owner" label. Defaults to false. */
-    isOwner?: boolean;
+    /**
+     * Controls the right-side element:
+     * - "access" — shows the access level dropdown (default).
+     * - "owner"  — shows a fixed "Owner" label with no interaction.
+     * - "none"   — renders nothing on the right.
+     */
+    type?: "access" | "owner" | "none";
+    /** Called when the card row is clicked. When provided, the row shows a pointer cursor. */
+    onCardClick?: () => void;
 }) => {
     const [selectedAccess, setSelectedAccess] = useState<
         DocumentAccessLevel | "__remove__" | null
@@ -105,7 +113,10 @@ const DocumentAccessUserCard = ({
     };
 
     return (
-        <div className="flex items-center gap-2 sm:gap-3 py-1.5 sm:py-2">
+        <div
+            className={`flex items-center gap-2 sm:gap-3 py-1.5 sm:py-2 ${onCardClick ? "cursor-pointer" : ""}`}
+            onClick={onCardClick}
+        >
             {avatarUrl ? (
                 <img
                     referrerPolicy="no-referrer"
@@ -124,11 +135,12 @@ const DocumentAccessUserCard = ({
                     {email}
                 </span>
             </div>
-            {isOwner ? (
+            {type === "owner" && (
                 <span className="shrink-0 text-xs sm:text-sm text-text-secondary opacity-50 px-1.5 sm:px-2 py-0.5 sm:py-1">
                     Owner
                 </span>
-            ) : (
+            )}
+            {type === "access" && (
                 <Dropdown
                     value={selectedAccess}
                     options={options}
