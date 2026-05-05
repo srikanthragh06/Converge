@@ -4,7 +4,8 @@ import { AiOutlineLoading3Quarters } from "react-icons/ai";
 
 /**
  * Manage Access tab content for ManageDocumentModal. Displays and manages
- * per-user access levels for the document.
+ * per-user access levels for the document. The existing-access card list
+ * is independently scrollable and loads additional pages via infinite scroll.
  */
 const ManageAccessTab = ({
     documentId,
@@ -20,14 +21,14 @@ const ManageAccessTab = ({
         foundUser,
         setFoundUser,
         isExistingUsersLoading,
+        isFetchingMore,
         isFindNewUserLoading,
         isFindNewUserConflict,
-        fetchAccessList,
-        fetchSearchResults,
+        sentinelRef,
     } = useManageAccessTab({ documentId });
 
     return (
-        <>
+        <div className="h-full flex flex-col">
             <div className="text-base sm:text-xl mb-3 sm:mb-6">
                 Manage Access
             </div>
@@ -65,7 +66,7 @@ const ManageAccessTab = ({
                     </div>
                 )}
             {!isFindNewUserLoading && foundUser && (
-                <div className="mt-3 sm:mt-4">
+                <div className="mt-3 sm:mt-4 shrink-0">
                     <p className="text-xs opacity-50 mb-2">Add User</p>
                     <DocumentAccessUserCard
                         avatarUrl={foundUser.avatarUrl}
@@ -75,46 +76,56 @@ const ManageAccessTab = ({
                         name={foundUser.name}
                         onAccessChanged={(newAccess) => {
                             setFoundUser(null);
-                            setExistingUsers((users) => {
-                                return [
-                                    { ...foundUser, access: newAccess },
-                                    ...users,
-                                ];
-                            });
+                            setExistingUsers((users) => [
+                                { ...foundUser, access: newAccess },
+                                ...users,
+                            ]);
                         }}
                     />
                 </div>
             )}
-            <div className="mt-3 sm:mt-4">
-                <p className="text-xs opacity-50 mb-2">Existing Access</p>
+
+            {/* Existing access — flex-1 + min-h-0 lets this section shrink and activate overflow-y-auto */}
+            <div className="mt-3 sm:mt-4 flex flex-col flex-1 min-h-0">
+                <p className="text-xs opacity-50 mb-2 shrink-0">
+                    Existing Access
+                </p>
                 {isExistingUsersLoading ? (
                     <AiOutlineLoading3Quarters className="animate-spin mt-2" />
                 ) : (
-                    <div className="flex flex-col">
-                        {existingUsers.map((user) => (
+                    <div
+                        className="flex flex-col flex-1 min-h-0 overflow-y-auto"
+                        style={{ scrollbarWidth: "thin" }}
+                    >
+                        {existingUsers.map((existingUser) => (
                             <DocumentAccessUserCard
-                                key={user.id}
-                                avatarUrl={user.avatarUrl}
+                                key={existingUser.id}
+                                avatarUrl={existingUser.avatarUrl}
                                 documentId={documentId}
-                                access={user.access}
-                                userId={user.id}
-                                email={user.email}
-                                name={user.name}
+                                access={existingUser.access}
+                                userId={existingUser.id}
+                                email={existingUser.email}
+                                name={existingUser.name}
                                 canDeleteAccess={true}
                                 onAccessRemoved={() => {
-                                    if (!documentId) return;
-                                    if (email.trim().length) {
-                                        fetchSearchResults(documentId, email);
-                                    } else {
-                                        fetchAccessList(documentId);
-                                    }
+                                    setExistingUsers((users) =>
+                                        users.filter(
+                                            (user) =>
+                                                user.id !== existingUser.id,
+                                        ),
+                                    );
                                 }}
                             />
                         ))}
+                        {/* Sentinel observed by IntersectionObserver to trigger the next page load */}
+                        <div ref={sentinelRef} />
+                        {isFetchingMore && (
+                            <AiOutlineLoading3Quarters className="animate-spin mx-auto mt-2 mb-1" />
+                        )}
                     </div>
                 )}
             </div>
-        </>
+        </div>
     );
 };
 
