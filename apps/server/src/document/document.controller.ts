@@ -278,7 +278,7 @@ export class DocumentController {
    * @param documentId - the document ID parsed from the URL path
    * @returns the document's current default access level
    */
-  @Get('/:documentId/access/default')
+  @Get('/access/default/:documentId')
   async handleGetDocumentDefaultAccess(
     @Req() req: Request,
     @Param('documentId', ParseIntPipe) documentId: number,
@@ -298,7 +298,7 @@ export class DocumentController {
    * @param body - the new default access level to assign
    * @returns the updated default access level
    */
-  @Put('/:documentId/access/default')
+  @Put('/access/default/:documentId')
   async handleSetDocumentDefaultAccess(
     @Req() req: Request,
     @Param('documentId', ParseIntPipe) documentId: number,
