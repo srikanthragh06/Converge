@@ -36,6 +36,7 @@ const DocumentAccessUserCard = ({
     onAccessRemoved,
     onAccessChanged,
     canDeleteAccess = false,
+    isOwner = false,
 }: {
     /** URL of the user's profile picture, or null to show the generic icon. */
     avatarUrl: string | null;
@@ -55,6 +56,8 @@ const DocumentAccessUserCard = ({
     onAccessChanged?: (newAccess: DocumentAccessLevel) => void;
     /** Whether the "None" option (which deletes the access row) is shown. Defaults to false. */
     canDeleteAccess?: boolean;
+    /** When true, replaces the dropdown with a fixed disabled "Owner" label. Defaults to false. */
+    isOwner?: boolean;
 }) => {
     const [selectedAccess, setSelectedAccess] = useState<
         DocumentAccessLevel | "__remove__" | null
@@ -121,32 +124,39 @@ const DocumentAccessUserCard = ({
                     {email}
                 </span>
             </div>
-            <Dropdown
-                value={selectedAccess}
-                options={options}
-                onChange={(e) => handleChange(e.value)}
-                placeholder="Select access"
-                disabled={isLoading || !documentId}
-                className="shrink-0 text-xs sm:text-sm"
-                pt={{
-                    root: {
-                        className:
-                            "border-none bg-transparent focus:outline-none",
-                    },
-                    input: {
-                        className:
-                            "text-xs sm:text-sm text-white py-0.5 sm:py-1 px-1.5 sm:px-2",
-                    },
-                    trigger: { className: "text-white" },
-                    panel: {
-                        className: "bg-background-base border border-gray-700",
-                    },
-                    item: {
-                        className:
-                            "text-xs sm:text-sm text-white hover:bg-background-elevated px-2 sm:px-3 py-1.5 sm:py-2",
-                    },
-                }}
-            />
+            {isOwner ? (
+                <span className="shrink-0 text-xs sm:text-sm text-text-secondary opacity-50 px-1.5 sm:px-2 py-0.5 sm:py-1">
+                    Owner
+                </span>
+            ) : (
+                <Dropdown
+                    value={selectedAccess}
+                    options={options}
+                    onChange={(e) => handleChange(e.value)}
+                    placeholder="Select access"
+                    disabled={isLoading || !documentId}
+                    className="shrink-0 text-xs sm:text-sm"
+                    pt={{
+                        root: {
+                            className:
+                                "border-none bg-transparent focus:outline-none",
+                        },
+                        input: {
+                            className:
+                                "text-xs sm:text-sm text-white py-0.5 sm:py-1 px-1.5 sm:px-2",
+                        },
+                        trigger: { className: "text-white" },
+                        panel: {
+                            className:
+                                "bg-background-base border border-gray-700",
+                        },
+                        item: {
+                            className:
+                                "text-xs sm:text-sm text-white hover:bg-background-elevated px-2 sm:px-3 py-1.5 sm:py-2",
+                        },
+                    }}
+                />
+            )}
         </div>
     );
 };
