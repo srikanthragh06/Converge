@@ -18,6 +18,8 @@
         "@mantine/utils": "^6.0.22",
         "axios": "^1.14.0",
         "jotai": "^2.19.0",
+        "primeicons": "^7.0.0",
+        "primereact": "^10.9.7",
         "react": "^19.2.4",
         "react-dom": "^19.2.4",
         "react-icons": "^5.6.0",

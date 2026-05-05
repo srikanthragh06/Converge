@@ -28,7 +28,7 @@ const ManageAccessTab = ({
 
     return (
         <>
-            <div className="text-base sm:text-xl mb-4 sm:mb-6">
+            <div className="text-base sm:text-xl mb-3 sm:mb-6">
                 Manage Access
             </div>
             <input
@@ -36,19 +36,18 @@ const ManageAccessTab = ({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Add access by email"
-                className="w-full px-4 py-2 rounded-lg bg-background-elevated text-white
-                max-w-[300px] focus:outline-none
-                border-none"
+                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-background-elevated
+                text-sm sm:text-base text-white focus:outline-none border-none"
             />
             {isFindNewUserLoading && (
-                <AiOutlineLoading3Quarters className="animate-spin mt-4" />
+                <AiOutlineLoading3Quarters className="animate-spin mt-3 sm:mt-4" />
             )}
             {!isFindNewUserLoading &&
                 isFindNewUserConflict &&
                 email.trim().length > 0 && (
                     <div
-                        className="opacity-50 w-full max-w-[300px] bg-background-overlay px-2 py-1
-                rounded-lg text-xs sm:text-sm mt-4"
+                        className="opacity-50 w-full bg-background-overlay px-2 py-1
+                rounded-lg text-xs mt-3 sm:mt-4"
                     >
                         {email} is already the owner or has access assigned.
                     </div>
@@ -58,15 +57,15 @@ const ManageAccessTab = ({
                 !foundUser &&
                 email.trim().length > 0 && (
                     <div
-                        className="opacity-50 w-full max-w-[300px] bg-background-overlay px-2 py-1
-                rounded-lg text-xs sm:text-sm mt-4"
+                        className="opacity-50 w-full bg-background-overlay px-2 py-1
+                rounded-lg text-xs mt-3 sm:mt-4"
                     >
                         Enter the exact email address of the person you want to
                         share access with.
                     </div>
                 )}
             {!isFindNewUserLoading && foundUser && (
-                <div className="mt-4">
+                <div className="mt-3 sm:mt-4">
                     <p className="text-xs opacity-50 mb-2">Add User</p>
                     <DocumentAccessUserCard
                         avatarUrl={foundUser.avatarUrl}
@@ -86,7 +85,7 @@ const ManageAccessTab = ({
                     />
                 </div>
             )}
-            <div className="sm:mt-4 mt-1">
+            <div className="mt-3 sm:mt-4">
                 <p className="text-xs opacity-50 mb-2">Existing Access</p>
                 {isExistingUsersLoading ? (
                     <AiOutlineLoading3Quarters className="animate-spin mt-2" />
