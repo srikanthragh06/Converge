@@ -20,6 +20,8 @@ import {
   type GetDocumentResponseDto,
   type GetDocumentOverviewResponseDto,
   type GetDocumentOwnerResponseDto,
+  type TransferDocumentOwnerRequestDto,
+  type TransferDocumentOwnerResponseDto,
   type FindNewDocumentAccessUserResponseDto,
   type SetDocumentAccessRequestDto,
   type GetLibraryDocumentsResponseDto,
@@ -36,6 +38,7 @@ import {
   FindNewDocumentAccessUserRequestSchema,
   SetDocumentAccessRequestSchema,
   SetDocumentDefaultAccessRequestSchema,
+  TransferDocumentOwnerRequestSchema,
 } from '@converge/shared';
 import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe';
 
@@ -164,6 +167,34 @@ export class DocumentController {
     const userId = (req as any).userId as number;
     return httpOK(
       await this.documentService.getDocumentOwner(documentId, userId),
+    );
+  }
+
+  /**
+   * Transfers ownership of the given document to another user. The new owner's
+   * existing access row is deleted and the old owner is upserted into
+   * document_access with admin access. Throws 404 if the document or new owner
+   * does not exist, 403 if the requester is not the owner, and 409 if the new
+   * owner is already the current owner.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param documentId - the document ID parsed from the URL path
+   * @param body - the user ID of the incoming owner
+   * @returns the new owner's id, name, email, and avatarUrl
+   */
+  @Put('/:documentId/owner')
+  async handleTransferDocumentOwner(
+    @Req() req: Request,
+    @Param('documentId', ParseIntPipe) documentId: number,
+    @Body(new ZodHttpValidationPipe(TransferDocumentOwnerRequestSchema))
+    body: TransferDocumentOwnerRequestDto,
+  ): Promise<TransferDocumentOwnerResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.documentService.transferDocumentOwner(
+        documentId,
+        body.newOwnerId,
+        userId,
+      ),
     );
   }
 
