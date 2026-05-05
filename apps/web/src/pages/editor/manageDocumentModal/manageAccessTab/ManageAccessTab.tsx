@@ -118,7 +118,10 @@ const ManageAccessTab = ({
                             />
                         ))}
                         {/* Sentinel observed by IntersectionObserver to trigger the next page load */}
-                        <div ref={sentinelRef} />
+                        <div
+                            ref={sentinelRef}
+                            className="border-2 border-solid border-transparent"
+                        />
                         {isFetchingMore && (
                             <AiOutlineLoading3Quarters className="animate-spin mx-auto mt-2 mb-1" />
                         )}
