@@ -175,9 +175,10 @@ export class DocumentAccessService {
 
   /**
    * Upserts the access level for a user on a document. Admins may assign editor
-   * or below; only the owner may assign admin. Throws 404 if the document or
-   * target user does not exist, 403 if the requester lacks the required level,
-   * and 409 if the target user is the document owner.
+   * or below; only the owner may assign admin. Users may not modify their own
+   * access. Throws 404 if the document or target user does not exist, 403 if
+   * the requester lacks the required level or targets themselves, and 409 if
+   * the target user is the document owner.
    * @param documentId - the document to set access on
    * @param targetUserId - the user whose access level is being set
    * @param access - the new access level to assign
@@ -196,6 +197,10 @@ export class DocumentAccessService {
       documentId,
       requestingUserId,
     );
+
+    // Prevent users from modifying their own access level.
+    if (targetUserId === requestingUserId)
+      throw new ForbiddenException('You cannot change your own access level.');
 
     // Assigning admin requires owner; assigning editor or below requires admin+.
     const required: ResolvedDocumentAccessLevel =
@@ -230,9 +235,10 @@ export class DocumentAccessService {
 
   /**
    * Deletes the access row for a user on a document. Admins may remove editor
-   * or below; only the owner may remove admin. Throws 404 if the document or
-   * access row does not exist, 403 if the requester lacks the required level,
-   * and 409 if the target user is the document owner.
+   * or below; only the owner may remove admin. Users may not remove their own
+   * access. Throws 404 if the document or access row does not exist, 403 if
+   * the requester lacks the required level or targets themselves, and 409 if
+   * the target user is the document owner.
    * @param documentId - the document to remove access from
    * @param targetUserId - the user whose access row to delete
    * @param requestingUserId - the authenticated user performing the request
@@ -250,6 +256,10 @@ export class DocumentAccessService {
       requestingUserId,
     );
     const targetAccess = await this.resolveAccess(documentId, targetUserId);
+
+    // Prevent users from removing their own access.
+    if (targetUserId === requestingUserId)
+      throw new ForbiddenException('You cannot remove your own access.');
 
     // The owner has no access row — reject early rather than silently no-op.
     if (targetAccess === 'owner')
