@@ -16,6 +16,7 @@ import {
   FindNewDocumentOwnerResponseDto,
   DocumentAccessLevel,
   type ResolvedDocumentAccessLevel,
+  ACCESS_RANK,
 } from '@converge/shared';
 import { DatabaseService } from '../db/database.service';
 import { sql } from 'kysely';
@@ -65,6 +66,19 @@ export class DocumentAccessService {
 
     // Fall back to the document-wide default.
     return docRow.default_access as DocumentAccessLevel;
+  }
+
+  /**
+   * Returns true if the resolved access level meets or exceeds the required
+   * level using the numeric ACCESS_RANK ordering.
+   * @param resolved - the user's resolved access level from resolveAccess
+   * @param required - the minimum level needed for the operation
+   */
+  hasAccess(
+    resolved: ResolvedDocumentAccessLevel,
+    required: ResolvedDocumentAccessLevel,
+  ): boolean {
+    return ACCESS_RANK[resolved] >= ACCESS_RANK[required];
   }
 
   /**
