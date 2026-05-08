@@ -10,6 +10,7 @@ import { UseFilters } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { DocumentService } from './document.service';
 import { DocumentYjsService } from './document-yjs.service';
+import { DocumentAccessService } from './document-access.service';
 import { ZodSocketValidationPipe } from '../pipes/zod-socket-validation.pipe';
 import {
   PingSchema,
@@ -32,6 +33,7 @@ import {
   type SyncDocTitleServerPayload,
   SyncDocTitleClientSchema,
   SyncDocTitleAckSchema,
+  type ResolvedDocumentAccessLevel,
 } from '@converge/shared';
 import { GlobalExceptionFilter } from '../utils/global-exception.filter';
 import { socketEmit, socketEmitRoom } from '../utils/ws-emit.util';
@@ -61,14 +63,16 @@ export class DocumentGateway implements OnGatewayConnection {
   constructor(
     private readonly documentService: DocumentService,
     private readonly documentYjsService: DocumentYjsService,
+    private readonly documentAccessService: DocumentAccessService,
     private readonly redisService: RedisService,
     private readonly authService: AuthService,
   ) {}
 
   /**
-   * Verifies the auth cookie and documentId, stamps both on the socket, joins
-   * the document room, loads the Y.Doc into memory, and sets up the Redis
-   * subscription for cross-server updates on the first connection to this document.
+   * Verifies the auth cookie and documentId, resolves the user's access level,
+   * stamps documentId, userId, and access on the socket, joins the document room,
+   * loads the Y.Doc into memory, and sets up the Redis subscription for
+   * cross-server updates on the first connection to this document.
    * Rejects invalid connections using disconnect(true) to force-close the underlying
    * transport — plain disconnect() only removes the socket from namespaces but leaves
    * the WebSocket open, so the client never receives the disconnect event.
@@ -116,9 +120,13 @@ export class DocumentGateway implements OnGatewayConnection {
         return;
       }
 
-      // Verify the document exists and belongs to the authenticated user.
+      // Verify the document exists and the user has at least viewer access.
+      let resolvedAccess: ResolvedDocumentAccessLevel;
       try {
-        await this.documentService.getDocumentOfUser(documentId, userId);
+        ({ resolvedAccess } = await this.documentService.getDocumentOfUser(
+          documentId,
+          userId,
+        ));
       } catch {
         console.log(
           `Connection rejected: document ${documentId} not found or forbidden for user ${userId}`,
@@ -127,9 +135,10 @@ export class DocumentGateway implements OnGatewayConnection {
         return;
       }
 
-      // stamp the socket so all handlers can read documentId and userId without trusting the client
+      // stamp the socket so all handlers can read documentId, userId, and access without trusting the client
       client.data.documentId = documentId;
       client.data.userId = userId;
+      client.data.access = resolvedAccess; // resolved access level stamped at connection time; used for per-handler guards
 
       // join the document room — broadcasts are scoped to this room
       client.join(String(documentId));
@@ -228,6 +237,15 @@ export class DocumentGateway implements OnGatewayConnection {
     const documentId = client.data.documentId as number;
     const userId = client.data.userId as number;
 
+    // Reject writes from viewers — editor+ access required.
+    if (
+      !this.documentAccessService.hasAccess(
+        client.data.access as ResolvedDocumentAccessLevel,
+        'editor',
+      )
+    )
+      return;
+
     const update = new Uint8Array(updateArray);
     const clientSV = new Uint8Array(clientSVArray);
 
@@ -287,7 +305,10 @@ export class DocumentGateway implements OnGatewayConnection {
 
     // compute the diff the client is missing and the current server SV
     const { serverSV, diff } =
-      await this.documentYjsService.getClientServerDocDiff(documentId, clientSV);
+      await this.documentYjsService.getClientServerDocDiff(
+        documentId,
+        clientSV,
+      );
 
     // send the diff and server SV so the client can apply and respond with its own diff
     socketEmit(
@@ -302,8 +323,10 @@ export class DocumentGateway implements OnGatewayConnection {
   }
 
   /**
-   * Applies the diff received from the client during a repair sync, then
-   * computes and sends back the remaining updates the client is still missing.
+   * Receives the client's diff during a repair sync. For editors, applies the
+   * diff and broadcasts it to other clients. For all access levels, computes and
+   * sends back the remaining updates the client is still missing so the repair
+   * sync can complete regardless of the requester's access level.
    * @param client - the socket that sent the diff
    * @param data - contains the diff bytes and the client's state vector
    */
@@ -318,25 +341,36 @@ export class DocumentGateway implements OnGatewayConnection {
     const diff = new Uint8Array(diffArray);
     const clientSV = new Uint8Array(clientSVArray);
 
-    // apply the diff and emit to other clients who are using the doc
-    const { serverSV } = await this.documentYjsService.applyDocUpdate(
-      documentId,
-      diff,
-    );
-    socketEmitRoom(
-      client,
-      String(documentId),
-      SOCKET_EVENTS.SYNC_DOC_CLIENT,
-      SyncDocClientSchema,
-      {
-        serverSVArray: Array.from(serverSV),
-        updateArray: Array.from(diff),
-      },
-    );
+    // Apply and broadcast the diff only for editors — viewers cannot push content.
+    if (
+      this.documentAccessService.hasAccess(
+        client.data.access as ResolvedDocumentAccessLevel,
+        'editor',
+      )
+    ) {
+      const { serverSV } = await this.documentYjsService.applyDocUpdate(
+        documentId,
+        diff,
+      );
+      socketEmitRoom(
+        client,
+        String(documentId),
+        SOCKET_EVENTS.SYNC_DOC_CLIENT,
+        SyncDocClientSchema,
+        {
+          serverSVArray: Array.from(serverSV),
+          updateArray: Array.from(diff),
+        },
+      );
+    }
 
-    // calculate the remaining diff the client is still missing
+    // Calculate the remaining diff the client is still missing and send it back,
+    // regardless of access level, so viewers complete the repair sync and stay current.
     const { diff: diffForClient } =
-      await this.documentYjsService.getClientServerDocDiff(documentId, clientSV);
+      await this.documentYjsService.getClientServerDocDiff(
+        documentId,
+        clientSV,
+      );
 
     socketEmit(
       client,
@@ -349,7 +383,10 @@ export class DocumentGateway implements OnGatewayConnection {
   }
 
   /**
-   * Applies the final diff from the client, completing the repair sync round.
+   * Receives the final diff from the client, completing the repair sync round.
+   * For editors, applies the diff to bring the server doc fully up to date.
+   * Viewers are silently ignored since they cannot push content.
+   * @param client - the socket that sent the diff
    * @param data - contains the diff bytes to apply to the shared doc
    */
   @SubscribeMessage(SOCKET_EVENTS.REPAIR_ACK_DOC_SERVER)
@@ -361,8 +398,15 @@ export class DocumentGateway implements OnGatewayConnection {
     const documentId = client.data.documentId as number;
 
     const diff = new Uint8Array(diffArray);
-    // convert and apply the final diff to bring the server doc fully up to date
-    await this.documentYjsService.applyDocUpdate(documentId, diff);
+
+    // Apply the final diff only for editors — viewers cannot push content.
+    if (
+      this.documentAccessService.hasAccess(
+        client.data.access as ResolvedDocumentAccessLevel,
+        'editor',
+      )
+    )
+      await this.documentYjsService.applyDocUpdate(documentId, diff);
   }
 
   /**
@@ -379,6 +423,15 @@ export class DocumentGateway implements OnGatewayConnection {
   ) {
     const documentId = client.data.documentId as number;
     const userId = client.data.userId as number;
+
+    // Reject writes from viewers — editor+ access required.
+    if (
+      !this.documentAccessService.hasAccess(
+        client.data.access as ResolvedDocumentAccessLevel,
+        'editor',
+      )
+    )
+      return;
 
     // Persist the updated title to the database.
     await this.documentYjsService.applyDocTitleUpdate(documentId, title);
