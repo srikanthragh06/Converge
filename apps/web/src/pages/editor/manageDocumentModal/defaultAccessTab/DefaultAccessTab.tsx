@@ -3,6 +3,9 @@ import "primereact/resources/themes/lara-dark-blue/theme.css";
 import { type DocumentAccessLevel } from "@converge/shared";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import useDefaultAccessTab from "../../../../hooks/useDefaultAccessTab";
+import { useAtomValue } from "jotai";
+import { documentAccessAtom } from "../../../../atoms/document";
+import { hasAccess } from "../../../../utils/utils";
 
 /** Options for the default access level dropdown. */
 const ACCESS_OPTIONS: { label: string; value: DocumentAccessLevel }[] = [
@@ -24,6 +27,8 @@ const DefaultAccessTab = ({
 }) => {
     const { defaultAccess, isLoading, isSaving, updateDefaultAccess } =
         useDefaultAccessTab({ documentId });
+    const documentAccess = useAtomValue(documentAccessAtom); // resolved access level for the current document
+    const canEdit = documentAccess !== null && hasAccess(documentAccess, "admin"); // only admins and above may change the default access level
 
     return (
         <>
@@ -41,7 +46,7 @@ const DefaultAccessTab = ({
                         updateDefaultAccess(e.value as DocumentAccessLevel)
                     }
                     placeholder="Select access"
-                    disabled={isSaving || !documentId}
+                    disabled={!canEdit || isSaving || !documentId}
                     className="shrink-0 text-xs sm:text-sm"
                     pt={{
                         root: {
@@ -52,7 +57,7 @@ const DefaultAccessTab = ({
                             className:
                                 "text-xs sm:text-sm text-white py-0.5 sm:py-1 px-1.5 sm:px-2",
                         },
-                        trigger: { className: "text-white" },
+                        trigger: { className: !canEdit ? "hidden" : "text-white" },
                         panel: {
                             className:
                                 "bg-background-base border border-gray-700",
