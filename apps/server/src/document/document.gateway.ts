@@ -9,6 +9,7 @@ import {
 import { UseFilters } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { DocumentService } from './document.service';
+import { DocumentYjsService } from './document-yjs.service';
 import { ZodSocketValidationPipe } from '../pipes/zod-socket-validation.pipe';
 import {
   PingSchema,
@@ -59,6 +60,7 @@ export class DocumentGateway implements OnGatewayConnection {
 
   constructor(
     private readonly documentService: DocumentService,
+    private readonly documentYjsService: DocumentYjsService,
     private readonly redisService: RedisService,
     private readonly authService: AuthService,
   ) {}
@@ -133,10 +135,10 @@ export class DocumentGateway implements OnGatewayConnection {
       client.join(String(documentId));
 
       // load the Y.Doc into memory if not already loaded
-      await this.documentService.loadDoc(documentId);
+      await this.documentYjsService.loadDoc(documentId);
 
       // Record that this user visited the document.
-      await this.documentService.recordLastVisited(documentId, userId);
+      await this.documentYjsService.recordLastVisited(documentId, userId);
 
       // subscribe once per document — the Set prevents duplicate handlers across client connections
       if (!this.subscribedDocs.has(documentId)) {
@@ -147,7 +149,7 @@ export class DocumentGateway implements OnGatewayConnection {
             try {
               const update = base64ToUint8Array(message.updateBase64 as string);
               const serverSV =
-                await this.documentService.applyDocUpdateOnlyToLocalMemory(
+                await this.documentYjsService.applyDocUpdateOnlyToLocalMemory(
                   documentId,
                   update,
                 );
@@ -230,7 +232,7 @@ export class DocumentGateway implements OnGatewayConnection {
     const clientSV = new Uint8Array(clientSVArray);
 
     // apply the update to the shared doc and get the new server state vector
-    const { serverSV } = await this.documentService.applyDocUpdate(
+    const { serverSV } = await this.documentYjsService.applyDocUpdate(
       documentId,
       update,
     );
@@ -248,10 +250,10 @@ export class DocumentGateway implements OnGatewayConnection {
     );
 
     // record that this user edited the document
-    await this.documentService.recordLastEdited(documentId, userId);
+    await this.documentYjsService.recordLastEdited(documentId, userId);
 
     // if the client is behind, prompt it to start a repair sync
-    const isSynced = await this.documentService.isClientAndServerDocSynced(
+    const isSynced = await this.documentYjsService.isClientAndServerDocSynced(
       documentId,
       clientSV,
     );
@@ -285,7 +287,7 @@ export class DocumentGateway implements OnGatewayConnection {
 
     // compute the diff the client is missing and the current server SV
     const { serverSV, diff } =
-      await this.documentService.getClientServerDocDiff(documentId, clientSV);
+      await this.documentYjsService.getClientServerDocDiff(documentId, clientSV);
 
     // send the diff and server SV so the client can apply and respond with its own diff
     socketEmit(
@@ -317,7 +319,7 @@ export class DocumentGateway implements OnGatewayConnection {
     const clientSV = new Uint8Array(clientSVArray);
 
     // apply the diff and emit to other clients who are using the doc
-    const { serverSV } = await this.documentService.applyDocUpdate(
+    const { serverSV } = await this.documentYjsService.applyDocUpdate(
       documentId,
       diff,
     );
@@ -334,7 +336,7 @@ export class DocumentGateway implements OnGatewayConnection {
 
     // calculate the remaining diff the client is still missing
     const { diff: diffForClient } =
-      await this.documentService.getClientServerDocDiff(documentId, clientSV);
+      await this.documentYjsService.getClientServerDocDiff(documentId, clientSV);
 
     socketEmit(
       client,
@@ -360,7 +362,7 @@ export class DocumentGateway implements OnGatewayConnection {
 
     const diff = new Uint8Array(diffArray);
     // convert and apply the final diff to bring the server doc fully up to date
-    await this.documentService.applyDocUpdate(documentId, diff);
+    await this.documentYjsService.applyDocUpdate(documentId, diff);
   }
 
   /**
@@ -379,10 +381,10 @@ export class DocumentGateway implements OnGatewayConnection {
     const userId = client.data.userId as number;
 
     // Persist the updated title to the database.
-    await this.documentService.applyDocTitleUpdate(documentId, title);
+    await this.documentYjsService.applyDocTitleUpdate(documentId, title);
 
     // record that this user edited the document
-    await this.documentService.recordLastEdited(documentId, userId);
+    await this.documentYjsService.recordLastEdited(documentId, userId);
 
     // Acknowledge persistence to the sending client, echoing changeId so the
     // client can match the ack to the specific emit that triggered it.

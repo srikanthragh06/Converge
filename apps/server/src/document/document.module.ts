@@ -5,12 +5,14 @@ import { DatabaseModule } from '../db/database.module';
 import { RedisModule } from '../redis/redis.module';
 import { DocumentController } from './document.controller';
 import { DocumentAccessController } from './document-access.controller';
+import { DocumentYjsService } from './document-yjs.service';
+import { DocumentAccessService } from './document-access.service';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [DatabaseModule, RedisModule, AuthModule],
   exports: [],
   controllers: [DocumentController, DocumentAccessController],
-  providers: [DocumentGateway, DocumentService],
+  providers: [DocumentGateway, DocumentService, DocumentYjsService, DocumentAccessService],
 })
 export class DocumentModule {}
