@@ -29,7 +29,7 @@ This is a pnpm workspace monorepo.
 - Global client-side state lives in Jotai atoms under `web/src/atoms/`, split by domain (e.g. `atoms/auth.ts`, `atoms/socket.ts`). Prefer atoms over prop-drilling for state shared across hooks and components.
 - Auth state is a single `authAtom` with shape `{ status: "loading" | "authenticated" | "unauthenticated", user: AuthResponseDto | null }`. Hydrate it on app mount via `useAuth`, which calls `GET /auth/me`.
 - Route-level auth gating is done via the `authRequired` prop on the `Page` component (`src/components/Page.tsx`). Do not duplicate redirect logic in individual pages.
-- Numeric route params (e.g. `documentId`) use `ParseIntPipe` in NestJS controllers. Service methods that enforce ownership throw 404 if the resource does not exist and 403 if the requesting user is not the owner.
+- Numeric route params (e.g. `documentId`) use `ParseIntPipe` in NestJS controllers. Service methods that enforce access throw 404 if the resource does not exist and 403 if the requesting user lacks the required access level.
 - All functions, methods, and class attributes must have inline documentation following the standard in the `add-comments` skill.
 - Socket event names are defined as constants in `@converge/shared/socket/events` (`SOCKET_EVENTS`). Never hardcode event name strings in `apps/`.
 - Socket event payload types and Zod schemas live in `@converge/shared/socket`. Add new schemas there when adding new events.
@@ -42,3 +42,7 @@ This is a pnpm workspace monorepo.
 - `RedisService` is provided by `RedisModule`. Feature modules that need Redis access must import `RedisModule` explicitly.
 - Binary data (e.g. Yjs `Uint8Array`) must be base64-encoded before JSON serialisation. Use `uint8ArrayToBase64` / `base64ToUint8Array` from `apps/server/src/utils/utils.ts`.
 - Async code outside the NestJS pipeline (Redis pub/sub callbacks, `setTimeout`/`setInterval`, `EventEmitter` listeners, fire-and-forget calls) must have its own try-catch or `.catch()`. `GlobalExceptionFilter` only covers `@SubscribeMessage` and HTTP handlers — unhandled errors elsewhere crash the process.
+- Document access is resolved via `DocumentAccessService.resolveAccess(documentId, userId)` — three-tier: owner row > explicit `document_access` row > `default_access` fallback. Use `hasAccess(resolved, required)` on `DocumentAccessService` (server) or from `web/src/utils/utils.ts` (client) for ordered comparisons. `ACCESS_RANK` is exported from `@converge/shared`.
+- The resolved access level for the current document is stored in `documentAccessAtom` (`atoms/document.ts`) on the client, seeded from the document-load response. Components and hooks read it directly from the atom — never pass it as a prop.
+- Document CRUD lives in `DocumentService`; access management (resolve, grant, revoke, default access, ownership transfer) lives in `DocumentAccessService`; Yjs in-memory state and sync live in `DocumentYjsService`. All three are in the `DocumentModule`.
+- Document access HTTP routes use the `/document-access` prefix (`DocumentAccessController`), separate from the `/document` prefix (`DocumentController`).
