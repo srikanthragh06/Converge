@@ -6,6 +6,9 @@ import Page from "../../components/Page";
 import DocumentSwitcherOverlay from "./documentSwitcherOverlay/DocumentSwitcherOverlay";
 import EditorPageHeader from "./header/EditorPageHeader";
 import AnimatedDots from "../../components/AnimatedDots";
+import { useAtomValue } from "jotai";
+import { documentAccessAtom } from "../../atoms/document";
+import { hasAccess } from "../../utils/utils";
 
 /**
  * Full-screen editor page. Fetches the document by ID from the URL, redirects
@@ -22,6 +25,8 @@ const EditorPage = () => {
         isTitlePending,
     } = useEditor(); // editor instance, document ID, fetch status, and title state
     const [isSwitcherOpen, setIsSwitcherOpen] = useState(false); // controls document switcher overlay visibility
+    const documentAccess = useAtomValue(documentAccessAtom); // resolved access level for the current document
+    const isEditable = documentAccess !== null && hasAccess(documentAccess, "editor"); // editor+ may write; viewers get a read-only instance
 
     // Opens the document switcher on Ctrl+P, preventing the browser print dialog.
     useEffect(() => {
@@ -87,6 +92,7 @@ const EditorPage = () => {
                     editor={editor}
                     theme={convergeTheme}
                     className="h-full"
+                    editable={isEditable}
                 />
             )}
             {isSwitcherOpen && (
