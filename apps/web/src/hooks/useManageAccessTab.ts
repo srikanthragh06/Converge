@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import apiClient from "../lib/http";
-import { isValidEmail } from "../utils/utils";
+import { isValidEmail, hasAccess } from "../utils/utils";
 import type {
     DocumentAccessUserDto,
     FindNewDocumentAccessUserResponseDto,
     GetDocumentAccessResponseDto,
     SearchDocumentAccessUsersResponseDto,
 } from "@converge/shared";
+import { useAtomValue } from "jotai";
+import { documentAccessAtom } from "../atoms/document";
 
 const ACCESS_LIST_LIMIT = 20;
 
@@ -14,8 +16,8 @@ const ACCESS_LIST_LIMIT = 20;
  * Manages ManageAccessTab state. When email is empty, fetches the first page
  * of the access list on mount and loads subsequent pages via infinite scroll
  * (IntersectionObserver on sentinelRef). When email is non-empty (debounced
- * 300 ms), fires both the find-new and search endpoints — find-new resolves a
- * new user to add, search filters the existing access list without pagination.
+ * 300 ms), fires search to filter existing users and, if the current user has
+ * admin+ access, also fires find-new to resolve a new user to add.
  */
 const useManageAccessTab = ({
     documentId,
@@ -33,6 +35,9 @@ const useManageAccessTab = ({
     const [isFetchingMore, setIsFetchingMore] = useState(false); // true while a subsequent page is loading
     const [isFindNewUserLoading, setIsFindNewUserLoading] = useState(false); // true while the find-new fetch is in flight
     const [isFindNewUserConflict, setIsFindNewUserConflict] = useState(false); // true when find-new returns 409 (user is owner or already has access)
+
+    const documentAccess = useAtomValue(documentAccessAtom); // resolved access level for the current document
+    const canManage = documentAccess !== null && hasAccess(documentAccess, "admin"); // only admins and above may add new users
 
     const nextCursorRef = useRef<number | null>(null); // keyset cursor for the next page; null when no more pages exist
     const hasMoreRef = useRef(true); // whether another page exists — ref so loadMore always reads the latest value without being in deps
@@ -128,7 +133,7 @@ const useManageAccessTab = ({
         }
     };
 
-    /** Looks up a user by exact email who does not yet have access. */
+    /** Looks up a user by exact email who does not yet have access. Only called when the user has admin+ access. */
     const fetchFindNew = async (docId: string, query: string) => {
         try {
             setIsFindNewUserLoading(true);
@@ -150,7 +155,7 @@ const useManageAccessTab = ({
 
     // Switches between full paginated list and email-driven fetches depending on email state.
     // When email is empty, resets find state and fetches the first page of the full list.
-    // When non-empty, debounces 300 ms then fires find-new and search independently (no pagination).
+    // When non-empty, debounces 300 ms then fires search and, for admin+ users, find-new.
     useEffect(() => {
         if (!documentId) return;
 
@@ -162,13 +167,13 @@ const useManageAccessTab = ({
         }
 
         const timeout = setTimeout(() => {
-            if (isValidEmail(email.trim()))
+            if (canManage && isValidEmail(email.trim()))
                 fetchFindNew(documentId, email.trim());
             fetchSearchResults(documentId, email.trim());
         }, 300);
 
         return () => clearTimeout(timeout);
-    }, [documentId, email]);
+    }, [documentId, email, canManage]);
 
     // Observes the sentinel element and calls loadMore when it enters the viewport.
     // Depends on sentinelEl so it re-runs once the sentinel actually mounts.

@@ -1,6 +1,9 @@
 import DocumentAccessUserCard from "../../../../components/DocumentAccessUserCard";
 import useManageAccessTab from "../../../../hooks/useManageAccessTab";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
+import { useAtomValue } from "jotai";
+import { documentAccessAtom } from "../../../../atoms/document";
+import { hasAccess } from "../../../../utils/utils";
 
 /**
  * Manage Access tab content for ManageDocumentModal. Displays and manages
@@ -26,6 +29,8 @@ const ManageAccessTab = ({
         isFindNewUserConflict,
         sentinelRef,
     } = useManageAccessTab({ documentId });
+    const documentAccess = useAtomValue(documentAccessAtom); // resolved access level for the current document
+    const canManage = documentAccess !== null && hasAccess(documentAccess, "admin"); // admins and above can add new users
 
     return (
         <div className="h-full flex flex-col">
@@ -36,14 +41,15 @@ const ManageAccessTab = ({
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Add access by email"
+                placeholder={canManage ? "Add access by email" : "Search existing users"}
                 className="w-full px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-background-elevated
                 text-sm  text-white focus:outline-none border-none"
             />
-            {isFindNewUserLoading && (
+            {canManage && isFindNewUserLoading && (
                 <AiOutlineLoading3Quarters className="animate-spin mt-3 sm:mt-4" />
             )}
-            {!isFindNewUserLoading &&
+            {canManage &&
+                !isFindNewUserLoading &&
                 isFindNewUserConflict &&
                 email.trim().length > 0 && (
                     <div
@@ -53,7 +59,8 @@ const ManageAccessTab = ({
                         {email} is already the owner or has access assigned.
                     </div>
                 )}
-            {!isFindNewUserLoading &&
+            {canManage &&
+                !isFindNewUserLoading &&
                 !isFindNewUserConflict &&
                 !foundUser &&
                 email.trim().length > 0 && (
@@ -65,7 +72,7 @@ const ManageAccessTab = ({
                         share access with.
                     </div>
                 )}
-            {!isFindNewUserLoading && foundUser && (
+            {canManage && !isFindNewUserLoading && foundUser && (
                 <div className="mt-3 sm:mt-4 shrink-0">
                     <p className="text-xs opacity-50 mb-2">Add User</p>
                     <DocumentAccessUserCard
