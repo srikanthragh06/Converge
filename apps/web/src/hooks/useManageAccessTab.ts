@@ -54,7 +54,7 @@ const useManageAccessTab = ({
             setIsFindNewUserConflict(false);
             setIsExistingUsersLoading(true);
             const { data } = await apiClient.get<GetDocumentAccessResponseDto>(
-                `/document/${docId}/access`,
+                `/document-access/${docId}`,
                 { params: { limit: ACCESS_LIST_LIMIT } },
             );
             setExistingUsers(data.users);
@@ -83,7 +83,7 @@ const useManageAccessTab = ({
         try {
             setIsFetchingMore(true);
             const { data } = await apiClient.get<GetDocumentAccessResponseDto>(
-                `/document/${documentId}/access`,
+                `/document-access/${documentId}`,
                 {
                     params: {
                         limit: ACCESS_LIST_LIMIT,
@@ -111,7 +111,7 @@ const useManageAccessTab = ({
             setIsExistingUsersLoading(true);
             const { data } =
                 await apiClient.get<SearchDocumentAccessUsersResponseDto>(
-                    `/document/${docId}/access/search`,
+                    `/document-access/${docId}/search`,
                     { params: { email: query } },
                 );
             setExistingUsers(data.users);
@@ -135,7 +135,7 @@ const useManageAccessTab = ({
             setIsFindNewUserConflict(false);
             const { data } =
                 await apiClient.get<FindNewDocumentAccessUserResponseDto>(
-                    `/document/${docId}/access/find-new`,
+                    `/document-access/${docId}/find-new`,
                     { params: { email: query } },
                 );
             setFoundUser(data);

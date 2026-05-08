@@ -39,7 +39,7 @@ const useOwnerTab = ({
                 setIsOwnerLoading(true);
                 const { data } =
                     await apiClient.get<GetDocumentOwnerResponseDto>(
-                        `/document/${documentId}/owner`,
+                        `/document-access/${documentId}/owner`,
                     );
                 setOwner(data);
             } catch (err) {
@@ -59,7 +59,7 @@ const useOwnerTab = ({
             setIsFindConflict(false);
             const { data } =
                 await apiClient.get<FindNewDocumentOwnerResponseDto>(
-                    `/document/${docId}/owner/find`,
+                    `/document-access/${docId}/owner/find`,
                     { params: { email: query } },
                 );
             setFoundUser(data);
@@ -73,7 +73,7 @@ const useOwnerTab = ({
     };
 
     /**
-     * Calls PUT /document/:id/owner to transfer ownership to foundUser. On
+     * Calls PUT /document-access/:id/owner to transfer ownership to foundUser. On
      * success, updates the displayed owner and clears the search state.
      */
     const transferOwner = async () => {
@@ -83,7 +83,7 @@ const useOwnerTab = ({
             setIsTransferring(true);
             const { data } =
                 await apiClient.put<TransferDocumentOwnerResponseDto>(
-                    `/document/${documentId}/owner`,
+                    `/document-access/${documentId}/owner`,
                     { newOwnerId: foundUser.id },
                 );
             // Update the displayed owner and clear the search so the tab reflects the new state.
