@@ -22,8 +22,10 @@ One row per document. Stores the title and tracks compaction counters — does n
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `bigserial` | PK | |
-| `creator_id` | `bigint` | NOT NULL, FK → `users.id`, indexed | The user who created the document; used for ownership checks and access control |
+| `creator_id` | `bigint` | NOT NULL, FK → `users.id`, indexed | The user who originally created the document; retained for audit but no longer used for ownership or access checks |
+| `owner_id` | `bigint` | NOT NULL, FK → `users.id`, indexed | The current document owner; used for all ownership and access checks. Starts as `creator_id` and can be transferred |
 | `title` | `text` | NOT NULL, default `''` | User-editable document title; trimmed and capped at 32 characters before persisting. Has a GIN trigram index (`pg_trgm`) used by the library search endpoint |
+| `default_access` | `document_access_level` | NOT NULL, default `'noAccess'` | Fallback access level for users with no explicit row in `document_access`; one of `admin`, `editor`, `viewer`, `noAccess` |
 | `is_deleted` | `boolean` | NOT NULL, default `false` | Soft-delete flag; all read queries filter on `is_deleted = false` |
 | `deleted_at` | `timestamptz` | nullable | Set to `now()` when soft-deleted; null until then. Kept for audit and future trash-expiry logic |
 | `update_count` | `integer` | NOT NULL, default `0` | Incremented atomically on every persisted Yjs update |
@@ -57,6 +59,20 @@ Tracks per-user activity timestamps for each document. Used by the library page 
 | `last_edited_at` | `timestamptz` | NOT NULL, default `now()` | Updated on every Yjs content update and title change |
 
 > Composite PK on `(document_id, user_id)`. Rows are upserted (insert or update) rather than inserted to keep one row per user per document.
+
+---
+
+### `document_access`
+Explicit per-user access grants for a document. Absence of a row means the user falls back to the document's `default_access`.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `document_id` | `bigint` | NOT NULL, FK → `documents.id` ON DELETE CASCADE | Scopes this access record to a specific document |
+| `user_id` | `bigint` | NOT NULL, FK → `users.id` ON DELETE CASCADE | The user this access level applies to |
+| `access` | `document_access_level` | NOT NULL | Explicit access level: `admin`, `editor`, `viewer`, or `noAccess` |
+| `created_at` | `timestamptz` | NOT NULL, default `now()` | |
+
+> Composite PK on `(document_id, user_id)`. Access is resolved in three tiers: owner row > explicit `document_access` row > `documents.default_access`.
 
 ---
 

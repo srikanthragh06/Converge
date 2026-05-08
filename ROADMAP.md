@@ -345,29 +345,64 @@
 
 ---
 
+## v0.12 — Document Access Control ✅
+
+> Branch: `document-access-v0.12`
+
+### Server (NestJS backend)
+
+- `owner_id` column added to `documents` (migration `0008_add_owner_id_to_documents`) — ownership checks migrated from `creator_id` to `owner_id`; `creator_id` is retained for audit but no longer drives access
+- `document_access` table created (migration `0009_create_document_access`) — stores explicit per-user access levels (`admin`, `editor`, `viewer`, `noAccess`) for a document; composite PK on `(document_id, user_id)`, FK cascade on both columns
+- `default_access` column added to `documents` (migration `0010_add_default_access_to_documents`) — fallback access level applied to users with no explicit row; defaults to `noAccess`
+- `DocumentService` split into three focused services: `DocumentService` (document CRUD), `DocumentAccessService` (all access resolution and management), `DocumentYjsService` (Yjs in-memory state, updates, compaction)
+- `DocumentController` split; all access endpoints moved to `DocumentAccessController` under the `/document-access` prefix
+- `resolveAccess(documentId, userId)` on `DocumentAccessService` — three-tier resolution: owner row > explicit `document_access` row > `default_access` fallback
+- `ACCESS_RANK` constant and `hasAccess(resolved, required)` method on `DocumentAccessService` — numeric rank comparison (`noAccess: 0` → `owner: 40`) used for ordered access checks throughout
+- All existing HTTP endpoints (`GET /document/:id`, `DELETE /document/:id`, `GET /document/:id/overview`, etc.) now use `resolveAccess` for role-based enforcement instead of flat ownership checks
+- `GET /document-access/:documentId` — returns paginated list of users with explicit access, keyset paginated on `(created_at, user_id)`; requires viewer+
+- `GET /document-access/:documentId/search` — fuzzy-searches existing access users by email; requires viewer+
+- `GET /document-access/:documentId/find-new` — resolves a user by exact email who has no access yet (owner/already-has-access returns 409); requires admin+
+- `PUT /document-access/:documentId/:userId` — creates or updates an explicit access row; owners may assign any level, admins may assign up to editor; requires admin+
+- `DELETE /document-access/:documentId/:userId` — removes an explicit access row; owners may remove any user, admins may only remove editor and below; requires admin+
+- `GET /document-access/:documentId/default` — returns the document's default access level; requires viewer+
+- `PUT /document-access/:documentId/default` — updates the default access level; requires admin+
+- `GET /document/:id/owner` — returns the owner's profile; requires viewer+
+- `GET /document/:id/owner/find` — resolves a transfer candidate by exact email (rejects self-transfer and non-viewer targets); requires owner
+- `PUT /document/:id/owner` — transfers ownership to another user; requires owner
+- Library endpoint updated to return all documents the user can access (not just owned ones), ordered by `last_visited_at`; `ownerName` replaced by the user's resolved access level label
+- `DocumentGateway` stamps `resolvedAccess` on `client.data.access` at connection time (one DB call, reused for all events); write handlers (`SYNC_DOC_SERVER`, `SYNC_DOC_TITLE_SERVER`) reject viewers; repair sync pipeline (`REPAIR_SYNC_ACK_DOC_SERVER`, `REPAIR_ACK_DOC_SERVER`) gates only `applyDocUpdate` + broadcast behind editor+, always completing the handshake so viewers stay current
+
+### Web (React frontend)
+
+- `documentAccessAtom` added to `atoms/document.ts` — stores the resolved access level seeded from the document-load response; cleared on unmount; read directly by components and hooks (never passed as prop)
+- `hasAccess(resolved, required)` added to `web/src/utils/utils.ts` — web-side counterpart using `ACCESS_RANK` from `@converge/shared`
+- Manage Access tab in `ManageDocumentModal` — add users by exact email (admin+), search existing users by email (all access levels), change or remove per-user access via `DocumentAccessUserCard` dropdown, infinite scroll pagination on the existing-access list
+- Default Access tab — displays and edits the document's fallback access level; dropdown disabled for non-admins but value remains visible
+- Owner tab — shows current owner's profile; transfer ownership flow with email search, found-user card, and confirmation modal; entire section hidden below owner level
+- `DocumentAccessUserCard` dropdown — interactive only when: not self; requester is owner OR (requester is admin AND target is editor or below); admins cannot assign the admin level; "None" removal option shown only when `canDeleteAccess` and the above conditions are met
+- Progressive UI gating throughout the editor based on `documentAccessAtom`: header status label and Manage Document button (viewer+); delete button in Overview tab (admin+); BlockNote `editable` prop (editor+); title input `disabled` (editor+)
+- Library page updated to show all accessible documents with the user's access level label in place of owner name
+
+### Shared package
+
+- `ResolvedDocumentAccessLevel` type and `ResolvedDocumentAccessLevelSchema` added — union of `DocumentAccessLevel | "owner"`
+- `ACCESS_RANK` exported from `@converge/shared/types` — numeric rank map for ordered access comparisons on both server and client
+- DTOs and Zod schemas added for all new access endpoints: `GetDocumentAccessResponseDto`, `SearchDocumentAccessUsersResponseDto`, `FindNewDocumentAccessUserResponseDto`, `GetDocumentOwnerResponseDto`, `GetDocumentDefaultAccessResponseDto`
+- `GetDocumentResponseDto` updated to include `resolvedAccess: ResolvedDocumentAccessLevel`
+- `LibraryDocumentDto` updated: `ownerName` replaced by `access: ResolvedDocumentAccessLevel`
+
+---
+
 ## Upcoming
 
-### v0.12 — Workspaces & Organization
+### v0.13 — Workspaces & Organization
 
 - Workspaces tab on library page — browse and manage workspaces
 - Create new workspaces; each workspace has a name, owner, and folder structure
 - Documents can belong to 0 (floating) or 1 workspace
 - Nested folder structure within each workspace
 - Assign documents to workspaces, move between workspaces, unassign to floating
-- Assign/move dialogs show three options: "Keep current + add workspace", "Use only workspace", "Keep overrides", etc.
 - Full-page workspace detail view: folder tree (left) + documents in selected folder (right)
-- No access control yet — all documents visible to all users; this version is purely organizational
-
-### v0.13 — Document Access Control
-
-- Document access is independent per-doc: admin, editor, viewer, no access
-- Document owner (creator) is always admin, cannot be changed
-- Workspace access acts as a template for new documents — docs created in a workspace inherit that workspace's access
-- Once created, doc access is customizable and independent of workspace membership
-- Share button on document — modal showing current access, add/invite new people
-- Manage access: right-click doc in library or click share button in editor
-- Runtime access calculation: workspace access + doc-level overrides (where applicable)
-- Assignment/move operations with user-controlled access handling
 
 ### v0.14 — Awareness
 
