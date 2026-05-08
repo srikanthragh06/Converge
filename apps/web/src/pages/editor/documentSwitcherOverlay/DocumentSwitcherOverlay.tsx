@@ -1,6 +1,6 @@
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import useDocumentSwitcher from "../../../hooks/useDocumentSwitcher";
-import { timeAgo } from "../../../utils/utils";
+import { timeAgo, formatAccessLevel } from "../../../utils/utils";
 
 /**
  * Full-screen modal overlay for quickly switching between documents.
@@ -79,7 +79,7 @@ const DocumentSwitcherOverlay = ({
                                 </span>
                                 <span className="text-text-disabled text-xs truncate">
                                     {[
-                                        doc.ownerName,
+                                        formatAccessLevel(doc.access),
                                         `Last visited ${timeAgo(doc.lastVisitedAt)}`,
                                         `Edited ${timeAgo(doc.lastEditedAt)}`,
                                     ].join(" · ")}

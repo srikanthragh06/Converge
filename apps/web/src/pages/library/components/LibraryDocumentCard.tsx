@@ -1,10 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import type { LibraryDocumentDto } from "@converge/shared";
-import { timeAgo } from "../../../utils/utils";
+import { timeAgo, formatAccessLevel } from "../../../utils/utils";
 
 /**
  * Card block representing a single document in the library grid.
- * Displays the document title and a metadata row with owner name,
+ * Displays the document title and a metadata row with access level,
  * last-visited time, and last-edited time.
  */
 const LibraryDocumentCard = ({
@@ -14,7 +14,7 @@ const LibraryDocumentCard = ({
 }) => {
     const navigate = useNavigate(); // router navigation for opening the selected document
     const meta = [
-        document.ownerName,
+        formatAccessLevel(document.access),
         `Last visited ${timeAgo(document.lastVisitedAt)}`,
         `Edited ${timeAgo(document.lastEditedAt)}`,
     ];

@@ -1,3 +1,17 @@
+import type { ResolvedDocumentAccessLevel } from "@converge/shared";
+
+/** Maps a resolved access level to a human-readable display label. */
+export const formatAccessLevel = (access: ResolvedDocumentAccessLevel): string => {
+    const labels: Record<ResolvedDocumentAccessLevel, string> = {
+        owner: "Owner",
+        admin: "Admin",
+        editor: "Editor",
+        viewer: "Viewer",
+        noAccess: "No access",
+    };
+    return labels[access];
+};
+
 /** Returns true if the string is a valid email address. */
 export const isValidEmail = (email: string): boolean =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
