@@ -15,6 +15,7 @@ import {
   TransferDocumentOwnerResponseDto,
   FindNewDocumentOwnerResponseDto,
   DocumentAccessLevel,
+  type ResolvedDocumentAccessLevel,
 } from '@converge/shared';
 import { DatabaseService } from '../db/database.service';
 import { sql } from 'kysely';
@@ -22,6 +23,49 @@ import { sql } from 'kysely';
 @Injectable()
 export class DocumentAccessService {
   constructor(private readonly dbService: DatabaseService) {}
+
+  /**
+   * Resolves the effective access level for a user on a document by checking
+   * ownership first, then an explicit document_access row, then falling back to
+   * the document's default_access. Throws NotFoundException if the document does
+   * not exist or is deleted — callers should handle this exception appropriately
+   * for their context (HTTP 404, socket disconnect, etc.).
+   * @param documentId - the document to resolve access for
+   * @param userId - the user whose access level to resolve
+   * @returns the resolved access level: 'owner', an explicit level, or default_access
+   */
+  async resolveAccess(
+    documentId: number,
+    userId: number,
+  ): Promise<ResolvedDocumentAccessLevel> {
+    const db = this.dbService.kysely;
+
+    // Fetch ownership and default_access in one query.
+    const docRow = await db
+      .selectFrom('documents')
+      .select(['owner_id', 'default_access'])
+      .where('id', '=', documentId)
+      .where('is_deleted', '=', false)
+      .executeTakeFirst();
+
+    if (!docRow) throw new NotFoundException('Document not found.');
+
+    // Owners have full implicit access — no access row is stored for them.
+    if (docRow.owner_id === userId) return 'owner';
+
+    // Check for an explicit access row for this user.
+    const accessRow = await db
+      .selectFrom('document_access')
+      .select(['access'])
+      .where('document_id', '=', documentId)
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+
+    if (accessRow) return accessRow.access as DocumentAccessLevel;
+
+    // Fall back to the document-wide default.
+    return docRow.default_access as DocumentAccessLevel;
+  }
 
   /**
    * Returns the owner's basic profile for the given document. Throws 404 if
