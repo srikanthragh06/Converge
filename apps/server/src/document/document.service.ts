@@ -12,18 +12,23 @@ import {
   SearchLibraryDocumentsResponseDto,
 } from '@converge/shared';
 import { DatabaseService } from '../db/database.service';
+import { DocumentAccessService } from './document-access.service';
 import { sql } from 'kysely';
 
 @Injectable()
 export class DocumentService {
-  constructor(private readonly dbService: DatabaseService) {}
+  constructor(
+    private readonly dbService: DatabaseService,
+    private readonly documentAccessService: DocumentAccessService,
+  ) {}
 
   /**
-   * Returns the document with the given ID, throwing 404 if it does not exist
-   * and 403 if the requesting user is not the owner.
+   * Returns the document with the given ID. Throws NotFoundException if the
+   * document does not exist or is deleted, and ForbiddenException if the
+   * requesting user has less than viewer access.
    * @param documentId - the ID of the document to fetch
    * @param userId - the ID of the authenticated requesting user
-   * @returns the document row
+   * @returns the document's id, title, ownerId, and createdAt
    */
   async getDocumentOfUser(
     documentId: number,
@@ -31,7 +36,15 @@ export class DocumentService {
   ): Promise<GetDocumentResponseDto> {
     const db = this.dbService.kysely;
 
-    // Check existence first so we can return the correct error code.
+    // Resolve access — throws NotFoundException if the document does not exist.
+    const access = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+    );
+    if (!this.documentAccessService.hasAccess(access, 'viewer'))
+      throw new ForbiddenException('You do not have access to this document.');
+
+    // Fetch the document fields needed for the response.
     const row = await db
       .selectFrom('documents')
       .select(['id', 'title', 'owner_id', 'created_at'])
@@ -40,8 +53,6 @@ export class DocumentService {
       .executeTakeFirst();
 
     if (!row) throw new NotFoundException('Document not found.');
-    if (row.owner_id !== userId)
-      throw new ForbiddenException('You do not have access to this document.');
 
     return {
       id: row.id,
@@ -89,8 +100,9 @@ export class DocumentService {
   /**
    * Returns overview metadata for the given document: title, creator and owner
    * name and email, creation date, and the requesting user's last-visited and
-   * last-edited timestamps. Throws 404 if the document does not exist or is
-   * deleted, and 403 if the requesting user is not the owner.
+   * last-edited timestamps. Throws NotFoundException if the document does not
+   * exist or is deleted, and ForbiddenException if the requesting user has less
+   * than viewer access.
    * @param documentId - the document to fetch overview data for
    * @param userId - the authenticated user performing the request
    * @returns overview metadata for the document
@@ -101,7 +113,15 @@ export class DocumentService {
   ): Promise<GetDocumentOverviewResponseDto> {
     const db = this.dbService.kysely;
 
-    // Fetch the document row to verify existence and ownership.
+    // Resolve access — throws NotFoundException if the document does not exist.
+    const access = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+    );
+    if (!this.documentAccessService.hasAccess(access, 'viewer'))
+      throw new ForbiddenException('You do not have access to this document.');
+
+    // Fetch the document fields needed for the overview response.
     const docRow = await db
       .selectFrom('documents')
       .select(['title', 'owner_id', 'creator_id', 'created_at'])
@@ -110,8 +130,6 @@ export class DocumentService {
       .executeTakeFirst();
 
     if (!docRow) throw new NotFoundException('Document not found.');
-    if (docRow.owner_id !== userId)
-      throw new ForbiddenException('You do not have access to this document.');
 
     const docUserRow = await db
       .selectFrom('document_user_metadata')
@@ -122,9 +140,6 @@ export class DocumentService {
       .where('document_id', '=', documentId)
       .where('user_id', '=', userId)
       .executeTakeFirst();
-
-    if (!docUserRow)
-      throw new NotFoundException('Document metadata not found.');
 
     const ownerRow = await db
       .selectFrom('users')
@@ -142,6 +157,10 @@ export class DocumentService {
 
     if (!creatorRow) throw new NotFoundException('Creator not found.');
 
+    // Fall back to now() for users who have no metadata row yet (non-owners
+    // who have not yet connected via WebSocket).
+    const now = new Date();
+
     return {
       title: docRow.title,
       creatorName: creatorRow.name,
@@ -149,31 +168,27 @@ export class DocumentService {
       ownerName: ownerRow.name,
       ownerEmail: ownerRow.email,
       createdAt: docRow.created_at,
-      lastVisitedAt: docUserRow.lastVisitedAt,
-      lastEditedAt: docUserRow.lastEditedAt,
+      lastVisitedAt: docUserRow?.lastVisitedAt ?? now,
+      lastEditedAt: docUserRow?.lastEditedAt ?? now,
     };
   }
 
   /**
-   * Soft-deletes the document by setting is_deleted and deleted_at. Throws 404
-   * if the document does not exist or is already deleted, and 403 if the
-   * requesting user is not the owner.
+   * Soft-deletes the document by setting is_deleted and deleted_at. Throws
+   * NotFoundException if the document does not exist or is already deleted, and
+   * ForbiddenException if the requesting user has less than admin access.
    * @param documentId - the document to soft-delete
    * @param userId - the authenticated user performing the deletion
    */
   async deleteDocument(documentId: number, userId: number): Promise<void> {
     const db = this.dbService.kysely;
 
-    // Verify existence and ownership before mutating.
-    const row = await db
-      .selectFrom('documents')
-      .select(['owner_id'])
-      .where('id', '=', documentId)
-      .where('is_deleted', '=', false)
-      .executeTakeFirst();
-
-    if (!row) throw new NotFoundException('Document not found.');
-    if (row.owner_id !== userId)
+    // Resolve access — throws NotFoundException if the document does not exist.
+    const access = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+    );
+    if (!this.documentAccessService.hasAccess(access, 'admin'))
       throw new ForbiddenException('You do not have access to this document.');
 
     // Mark the document as deleted without removing any rows.
