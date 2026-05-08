@@ -41,6 +41,7 @@ const AvatarDropdown = ({ onClose }: { onClose: () => void }) => {
             <div className="flex items-center justify-start px-3 sm:px-4 py-2 sm:py-3">
                 {user?.avatarUrl && (
                     <img
+                        referrerPolicy="no-referrer"
                         src={user.avatarUrl}
                         alt="Converge"
                         className="h-7 sm:h-9 w-auto rounded-full"

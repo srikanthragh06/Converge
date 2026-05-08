@@ -38,7 +38,7 @@ const ManageAccessTab = ({
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Add access by email"
                 className="w-full px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-background-elevated
-                text-sm sm:text-base text-white focus:outline-none border-none"
+                text-sm  text-white focus:outline-none border-none"
             />
             {isFindNewUserLoading && (
                 <AiOutlineLoading3Quarters className="animate-spin mt-3 sm:mt-4" />

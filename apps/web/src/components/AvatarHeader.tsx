@@ -17,6 +17,7 @@ const AvatarHeader = () => {
         <div className="relative">
             {user?.avatarUrl ? (
                 <img
+                    referrerPolicy="no-referrer"
                     src={user.avatarUrl}
                     alt={user.name}
                     onClick={() => setIsDropdownOpen((prev) => !prev)}
