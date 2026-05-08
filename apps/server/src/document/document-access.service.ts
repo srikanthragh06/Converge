@@ -84,7 +84,7 @@ export class DocumentAccessService {
   /**
    * Returns the owner's basic profile for the given document. Throws 404 if
    * the document does not exist or is deleted, and 403 if the requesting user
-   * is not the owner.
+   * has less than viewer access.
    * @param documentId - the document whose owner to fetch
    * @param userId - the authenticated user performing the request
    * @returns the owner's id, name, email, and avatarUrl
@@ -95,7 +95,12 @@ export class DocumentAccessService {
   ): Promise<GetDocumentOwnerResponseDto> {
     const db = this.dbService.kysely;
 
-    // Verify existence and ownership, then fetch the owner's profile in one join.
+    // Resolve access — throws NotFoundException if the document does not exist.
+    const access = await this.resolveAccess(documentId, userId);
+    if (!this.hasAccess(access, 'viewer'))
+      throw new ForbiddenException('You do not have access to this document.');
+
+    // Fetch the owner's profile via join on documents.owner_id.
     const row = await db
       .selectFrom('documents as d')
       .innerJoin('users as u', 'u.id', 'd.owner_id')
@@ -105,8 +110,6 @@ export class DocumentAccessService {
       .executeTakeFirst();
 
     if (!row) throw new NotFoundException('Document not found.');
-    if (row.id !== userId)
-      throw new ForbiddenException('You do not have access to this document.');
 
     return {
       id: row.id,
@@ -119,8 +122,8 @@ export class DocumentAccessService {
   /**
    * Looks up a user by exact email and checks they do not already have access
    * to the given document. Throws 404 if the document does not exist or the
-   * user is not found, 403 if the requester is not the owner, and 409 if the
-   * user is the document owner or already has an access row for this document.
+   * user is not found, 403 if the requester is not the document owner, and 409
+   * if the user is the document owner or already has an access row.
    * @param documentId - the document to check access against
    * @param email - exact email address to look up
    * @param userId - the authenticated user performing the request
@@ -133,16 +136,9 @@ export class DocumentAccessService {
   ): Promise<FindNewDocumentAccessUserResponseDto> {
     const db = this.dbService.kysely;
 
-    // Verify the document exists and the requester is the owner.
-    const docRow = await db
-      .selectFrom('documents')
-      .select(['owner_id'])
-      .where('id', '=', documentId)
-      .where('is_deleted', '=', false)
-      .executeTakeFirst();
-
-    if (!docRow) throw new NotFoundException('Document not found.');
-    if (docRow.owner_id !== userId)
+    // Resolve access — throws NotFoundException if the document does not exist.
+    const requesterAccess = await this.resolveAccess(documentId, userId);
+    if (requesterAccess !== 'owner')
       throw new ForbiddenException('You do not have access to this document.');
 
     // Look up the user by exact email.
@@ -155,7 +151,8 @@ export class DocumentAccessService {
     if (!userRow) throw new NotFoundException('User not found.');
 
     // Reject if the looked-up user is the document owner.
-    if (userRow.id === docRow.owner_id)
+    const targetAccess = await this.resolveAccess(documentId, userRow.id);
+    if (targetAccess === 'owner')
       throw new ConflictException('User is the document owner.');
 
     // Reject if the user already has an access row for this document.
@@ -177,9 +174,10 @@ export class DocumentAccessService {
   }
 
   /**
-   * Upserts the access level for a user on a document. Throws 404 if the
-   * document or target user does not exist, 403 if the requester is not the
-   * owner, and 409 if the target user is the owner.
+   * Upserts the access level for a user on a document. Admins may assign editor
+   * or below; only the owner may assign admin. Throws 404 if the document or
+   * target user does not exist, 403 if the requester lacks the required level,
+   * and 409 if the target user is the document owner.
    * @param documentId - the document to set access on
    * @param targetUserId - the user whose access level is being set
    * @param access - the new access level to assign
@@ -193,21 +191,22 @@ export class DocumentAccessService {
   ): Promise<void> {
     const db = this.dbService.kysely;
 
-    // Verify the document exists and the requester is the owner.
-    const docRow = await db
-      .selectFrom('documents')
-      .select(['owner_id'])
-      .where('id', '=', documentId)
-      .where('is_deleted', '=', false)
-      .executeTakeFirst();
+    // Resolve requester's access — throws NotFoundException if the document does not exist.
+    const requesterAccess = await this.resolveAccess(
+      documentId,
+      requestingUserId,
+    );
 
-    if (!docRow) throw new NotFoundException('Document not found.');
-    if (docRow.owner_id !== requestingUserId)
+    // Assigning admin requires owner; assigning editor or below requires admin+.
+    const required: ResolvedDocumentAccessLevel =
+      access === 'admin' ? 'owner' : 'admin';
+    if (!this.hasAccess(requesterAccess, required))
       throw new ForbiddenException('You do not have access to this document.');
 
     // Prevent assigning explicit access to the owner — ownership is tracked
     // via documents.owner_id, not via document_access rows.
-    if (targetUserId === docRow.owner_id)
+    const targetAccess = await this.resolveAccess(documentId, targetUserId);
+    if (targetAccess === 'owner')
       throw new ConflictException('Cannot set access for the document owner.');
 
     // Verify the target user exists.
@@ -230,9 +229,10 @@ export class DocumentAccessService {
   }
 
   /**
-   * Deletes the access row for a user on a document. Throws 404 if the document
-   * or access row does not exist, 403 if the requester is not the owner, and
-   * 409 if the target user is the document owner.
+   * Deletes the access row for a user on a document. Admins may remove editor
+   * or below; only the owner may remove admin. Throws 404 if the document or
+   * access row does not exist, 403 if the requester lacks the required level,
+   * and 409 if the target user is the document owner.
    * @param documentId - the document to remove access from
    * @param targetUserId - the user whose access row to delete
    * @param requestingUserId - the authenticated user performing the request
@@ -244,23 +244,24 @@ export class DocumentAccessService {
   ): Promise<void> {
     const db = this.dbService.kysely;
 
-    // Verify the document exists and the requester is the owner.
-    const docRow = await db
-      .selectFrom('documents')
-      .select(['owner_id'])
-      .where('id', '=', documentId)
-      .where('is_deleted', '=', false)
-      .executeTakeFirst();
-
-    if (!docRow) throw new NotFoundException('Document not found.');
-    if (docRow.owner_id !== requestingUserId)
-      throw new ForbiddenException('You do not have access to this document.');
+    // Resolve both parties' access — throws NotFoundException if the document does not exist.
+    const requesterAccess = await this.resolveAccess(
+      documentId,
+      requestingUserId,
+    );
+    const targetAccess = await this.resolveAccess(documentId, targetUserId);
 
     // The owner has no access row — reject early rather than silently no-op.
-    if (targetUserId === docRow.owner_id)
+    if (targetAccess === 'owner')
       throw new ConflictException(
         'Cannot remove access for the document owner.',
       );
+
+    // Removing an admin requires owner; removing editor or below requires admin+.
+    const required: ResolvedDocumentAccessLevel =
+      targetAccess === 'admin' ? 'owner' : 'admin';
+    if (!this.hasAccess(requesterAccess, required))
+      throw new ForbiddenException('You do not have access to this document.');
 
     // Delete the row and confirm it existed.
     const result = await db
@@ -276,7 +277,8 @@ export class DocumentAccessService {
   /**
    * Searches users who already have access to the given document using trigram
    * similarity on their email address. Throws 404 if the document does not
-   * exist or is deleted, and 403 if the requesting user is not the owner.
+   * exist or is deleted, and 403 if the requesting user has less than viewer
+   * access.
    * @param documentId - the document whose access list to search
    * @param email - the email query to match against
    * @param limit - maximum number of results to return
@@ -291,16 +293,9 @@ export class DocumentAccessService {
   ): Promise<SearchDocumentAccessUsersResponseDto> {
     const db = this.dbService.kysely;
 
-    // Verify existence and ownership before exposing the access list.
-    const docRow = await db
-      .selectFrom('documents')
-      .select(['owner_id'])
-      .where('id', '=', documentId)
-      .where('is_deleted', '=', false)
-      .executeTakeFirst();
-
-    if (!docRow) throw new NotFoundException('Document not found.');
-    if (docRow.owner_id !== userId)
+    // Resolve access — throws NotFoundException if the document does not exist.
+    const access = await this.resolveAccess(documentId, userId);
+    if (!this.hasAccess(access, 'viewer'))
       throw new ForbiddenException('You do not have access to this document.');
 
     // Search the access rows for this document using trigram similarity on email.
@@ -335,7 +330,7 @@ export class DocumentAccessService {
    * Returns a paginated list of users who have explicit access to the given
    * document, ordered by user_id ASC. Uses keyset pagination via cursorId.
    * Throws 404 if the document does not exist or is deleted, and 403 if the
-   * requesting user is not the owner.
+   * requesting user has less than viewer access.
    * @param documentId - the document whose access list to fetch
    * @param userId - the authenticated user performing the request
    * @param limit - maximum number of results to return
@@ -350,16 +345,9 @@ export class DocumentAccessService {
   ): Promise<GetDocumentAccessResponseDto> {
     const db = this.dbService.kysely;
 
-    // Verify existence and ownership before exposing the access list.
-    const docRow = await db
-      .selectFrom('documents')
-      .select(['owner_id'])
-      .where('id', '=', documentId)
-      .where('is_deleted', '=', false)
-      .executeTakeFirst();
-
-    if (!docRow) throw new NotFoundException('Document not found.');
-    if (docRow.owner_id !== userId)
+    // Resolve access — throws NotFoundException if the document does not exist.
+    const access = await this.resolveAccess(documentId, userId);
+    if (!this.hasAccess(access, 'viewer'))
       throw new ForbiddenException('You do not have access to this document.');
 
     // Build the base query — join users for display fields, order by user_id for stable pagination.
@@ -396,7 +384,7 @@ export class DocumentAccessService {
   /**
    * Looks up a user by exact email to be assigned as the new document owner.
    * Throws 404 if the document or user does not exist, 403 if the requester is
-   * not the owner, and 409 if the matched user is already the document owner.
+   * not the document owner, and 409 if the matched user is already the owner.
    * @param documentId - the document whose ownership is being transferred
    * @param email - exact email address to look up
    * @param userId - the authenticated user performing the request
@@ -409,36 +397,30 @@ export class DocumentAccessService {
   ): Promise<FindNewDocumentOwnerResponseDto> {
     const db = this.dbService.kysely;
 
-    // Verify the document exists and the requester is the current owner.
-    const docRow = await db
-      .selectFrom('documents')
-      .select(['owner_id'])
-      .where('id', '=', documentId)
-      .where('is_deleted', '=', false)
-      .executeTakeFirst();
-
-    if (!docRow) throw new NotFoundException('Document not found.');
-    if (docRow.owner_id !== userId)
+    // Resolve access — throws NotFoundException if the document does not exist.
+    const access = await this.resolveAccess(documentId, userId);
+    if (access !== 'owner')
       throw new ForbiddenException('You do not have access to this document.');
 
     // Look up the candidate by exact email.
-    const userRow = await db
+    const newUserRow = await db
       .selectFrom('users')
       .select(['id', 'name', 'email', 'avatar_url'])
       .where('email', '=', email)
       .executeTakeFirst();
 
-    if (!userRow) throw new NotFoundException('User not found.');
+    if (!newUserRow) throw new NotFoundException('User not found.');
 
-    // Reject if the candidate is already the document owner.
-    if (userRow.id === docRow.owner_id)
+    // Reject if the candidate is already the document owner (resolveAccess
+    // returns 'owner' only when userId === owner_id, so userId IS the owner).
+    if (newUserRow.id === userId)
       throw new ConflictException('User is already the document owner.');
 
     return {
-      id: userRow.id,
-      name: userRow.name,
-      email: userRow.email,
-      avatarUrl: userRow.avatar_url,
+      id: newUserRow.id,
+      name: newUserRow.name,
+      email: newUserRow.email,
+      avatarUrl: newUserRow.avatar_url,
     };
   }
 
@@ -462,20 +444,13 @@ export class DocumentAccessService {
   ): Promise<TransferDocumentOwnerResponseDto> {
     const db = this.dbService.kysely;
 
-    // Verify the document exists and the requester is the current owner.
-    const docRow = await db
-      .selectFrom('documents')
-      .select(['owner_id'])
-      .where('id', '=', documentId)
-      .where('is_deleted', '=', false)
-      .executeTakeFirst();
-
-    if (!docRow) throw new NotFoundException('Document not found.');
-    if (docRow.owner_id !== requestingUserId)
+    // Resolve access — throws NotFoundException if the document does not exist.
+    const access = await this.resolveAccess(documentId, requestingUserId);
+    if (access !== 'owner')
       throw new ForbiddenException('You do not have access to this document.');
 
-    // Prevent a no-op transfer to the current owner.
-    if (newOwnerId === docRow.owner_id)
+    // Prevent a no-op transfer to the current owner (requestingUserId IS the owner).
+    if (newOwnerId === requestingUserId)
       throw new ConflictException('User is already the document owner.');
 
     // Verify the new owner exists and fetch their profile for the response.
@@ -529,8 +504,8 @@ export class DocumentAccessService {
 
   /**
    * Returns the default access level for the given document. Throws 404 if the
-   * document does not exist or is deleted, and 403 if the requesting user is not
-   * the owner.
+   * document does not exist or is deleted, and 403 if the requesting user has
+   * less than viewer access.
    * @param documentId - the document to fetch the default access for
    * @param userId - the authenticated user performing the request
    * @returns the document's current default access level
@@ -541,25 +516,28 @@ export class DocumentAccessService {
   ): Promise<GetDocumentDefaultAccessResponseDto> {
     const db = this.dbService.kysely;
 
-    // Verify existence and ownership, then return the current default.
+    // Resolve access — throws NotFoundException if the document does not exist.
+    const access = await this.resolveAccess(documentId, userId);
+    if (!this.hasAccess(access, 'viewer'))
+      throw new ForbiddenException('You do not have access to this document.');
+
+    // Fetch the current default_access value.
     const row = await db
       .selectFrom('documents')
-      .select(['owner_id', 'default_access'])
+      .select(['default_access'])
       .where('id', '=', documentId)
       .where('is_deleted', '=', false)
       .executeTakeFirst();
 
     if (!row) throw new NotFoundException('Document not found.');
-    if (row.owner_id !== userId)
-      throw new ForbiddenException('You do not have access to this document.');
 
     return { defaultAccess: row.default_access };
   }
 
   /**
    * Updates the default access level for the given document. Throws 404 if the
-   * document does not exist or is deleted, and 403 if the requesting user is not
-   * the owner.
+   * document does not exist or is deleted, and 403 if the requesting user has
+   * less than admin access.
    * @param documentId - the document to update the default access for
    * @param defaultAccess - the new fallback access level to assign
    * @param userId - the authenticated user performing the request
@@ -572,16 +550,9 @@ export class DocumentAccessService {
   ): Promise<SetDocumentDefaultAccessResponseDto> {
     const db = this.dbService.kysely;
 
-    // Verify existence and ownership before mutating.
-    const docRow = await db
-      .selectFrom('documents')
-      .select(['owner_id'])
-      .where('id', '=', documentId)
-      .where('is_deleted', '=', false)
-      .executeTakeFirst();
-
-    if (!docRow) throw new NotFoundException('Document not found.');
-    if (docRow.owner_id !== userId)
+    // Resolve access — throws NotFoundException if the document does not exist.
+    const access = await this.resolveAccess(documentId, userId);
+    if (!this.hasAccess(access, 'admin'))
       throw new ForbiddenException('You do not have access to this document.');
 
     // Persist the new default access level.

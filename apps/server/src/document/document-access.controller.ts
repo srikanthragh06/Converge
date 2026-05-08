@@ -44,8 +44,8 @@ export class DocumentAccessController {
 
   /**
    * Returns a paginated list of users with explicit access to the given document,
-   * ordered by user_id ASC. Only the document owner can call this endpoint.
-   * Throws 404 if the document does not exist, 403 if the user is not the owner.
+   * ordered by user_id ASC. Requires viewer+ access.
+   * Throws 404 if the document does not exist, 403 if the user has less than viewer access.
    * @param req - the Express request, with userId stamped by AuthGuard
    * @param documentId - the document ID parsed from the URL path
    * @param query - optional limit and cursorId for keyset pagination
@@ -98,8 +98,8 @@ export class DocumentAccessController {
 
   /**
    * Searches users who already have access to the given document by email using
-   * trigram similarity. Only the document owner can call this endpoint.
-   * Throws 404 if the document does not exist, 403 if the user is not the owner.
+   * trigram similarity. Requires viewer+ access.
+   * Throws 404 if the document does not exist, 403 if the user has less than viewer access.
    * @param req - the Express request, with userId stamped by AuthGuard
    * @param documentId - the document ID parsed from the URL path
    * @param query - email query string and optional limit
@@ -125,9 +125,8 @@ export class DocumentAccessController {
   }
 
   /**
-   * Returns the default access level for the given document. Only the document
-   * owner can call this endpoint. Throws 404 if the document does not exist,
-   * 403 if the user is not the owner.
+   * Returns the default access level for the given document. Requires viewer+ access.
+   * Throws 404 if the document does not exist, 403 if the user has less than viewer access.
    * @param req - the Express request, with userId stamped by AuthGuard
    * @param documentId - the document ID parsed from the URL path
    * @returns the document's current default access level
@@ -144,9 +143,8 @@ export class DocumentAccessController {
   }
 
   /**
-   * Updates the default access level for the given document. Only the document
-   * owner can call this endpoint. Throws 404 if the document does not exist,
-   * 403 if the user is not the owner.
+   * Updates the default access level for the given document. Requires admin+ access.
+   * Throws 404 if the document does not exist, 403 if the user has less than admin access.
    * @param req - the Express request, with userId stamped by AuthGuard
    * @param documentId - the document ID parsed from the URL path
    * @param body - the new default access level to assign
@@ -170,10 +168,10 @@ export class DocumentAccessController {
   }
 
   /**
-   * Sets or updates the access level for a user on the given document. Creates
-   * a new document_access row if none exists, otherwise updates the existing one.
+   * Sets or updates the access level for a user on the given document. Assigning
+   * admin requires owner access; assigning editor or below requires admin+.
    * Throws 404 if the document or target user is not found, 403 if the requester
-   * is not the owner, and 409 if the target is the document owner.
+   * lacks the required level, and 409 if the target is the document owner.
    * @param req - the Express request, with userId stamped by AuthGuard
    * @param documentId - the document ID parsed from the URL path
    * @param targetUserId - the user ID parsed from the URL path
@@ -197,9 +195,10 @@ export class DocumentAccessController {
   }
 
   /**
-   * Deletes the access row for a user on the given document. Throws 404 if the
-   * document or access row is not found, 403 if the requester is not the owner,
-   * and 409 if the target is the document owner.
+   * Deletes the access row for a user on the given document. Removing an admin
+   * requires owner access; removing editor or below requires admin+.
+   * Throws 404 if the document or access row is not found, 403 if the requester
+   * lacks the required level, and 409 if the target is the document owner.
    * @param req - the Express request, with userId stamped by AuthGuard
    * @param documentId - the document ID parsed from the URL path
    * @param targetUserId - the user ID parsed from the URL path
@@ -220,8 +219,8 @@ export class DocumentAccessController {
 
   /**
    * Returns the owner's basic profile (id, name, email, avatarUrl) for the
-   * given document. Throws 404 if the document does not exist, 403 if the
-   * requesting user is not the owner.
+   * given document. Requires viewer+ access.
+   * Throws 404 if the document does not exist, 403 if the user has less than viewer access.
    * @param req - the Express request, with userId stamped by AuthGuard
    * @param documentId - the document ID parsed from the URL path
    * @returns the owner's id, name, email, and avatarUrl
