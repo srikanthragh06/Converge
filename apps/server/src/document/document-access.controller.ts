@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { type Request } from 'express';
-import { DocumentService } from './document.service';
+import { DocumentAccessService } from './document-access.service';
 import { httpOK } from '../utils/http-response.util';
 import {
   type GetDocumentOwnerResponseDto,
@@ -40,7 +40,7 @@ import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe';
 @Controller('/document-access')
 @UseGuards(AuthGuard)
 export class DocumentAccessController {
-  constructor(private readonly documentService: DocumentService) {} // Handles document access and ownership — all routes require authentication via AuthGuard.
+  constructor(private readonly documentAccessService: DocumentAccessService) {} // Handles document access and ownership — all routes require authentication via AuthGuard.
 
   /**
    * Returns a paginated list of users with explicit access to the given document,
@@ -61,7 +61,7 @@ export class DocumentAccessController {
     const userId = (req as any).userId as number;
     const limit = query.limit ?? 20;
     return httpOK(
-      await this.documentService.getDocumentAccessUsers(
+      await this.documentAccessService.getDocumentAccessUsers(
         documentId,
         userId,
         limit,
@@ -88,7 +88,7 @@ export class DocumentAccessController {
   ): Promise<FindNewDocumentAccessUserResponseDto> {
     const userId = (req as any).userId as number;
     return httpOK(
-      await this.documentService.findNewDocumentAccessUser(
+      await this.documentAccessService.findNewDocumentAccessUser(
         documentId,
         query.email,
         userId,
@@ -115,7 +115,7 @@ export class DocumentAccessController {
     const userId = (req as any).userId as number;
     const limit = query.limit ?? 20;
     return httpOK(
-      await this.documentService.searchDocumentAccessUsers(
+      await this.documentAccessService.searchDocumentAccessUsers(
         documentId,
         query.email,
         limit,
@@ -139,7 +139,7 @@ export class DocumentAccessController {
   ): Promise<GetDocumentDefaultAccessResponseDto> {
     const userId = (req as any).userId as number;
     return httpOK(
-      await this.documentService.getDocumentDefaultAccess(documentId, userId),
+      await this.documentAccessService.getDocumentDefaultAccess(documentId, userId),
     );
   }
 
@@ -161,7 +161,7 @@ export class DocumentAccessController {
   ): Promise<SetDocumentDefaultAccessResponseDto> {
     const userId = (req as any).userId as number;
     return httpOK(
-      await this.documentService.setDocumentDefaultAccess(
+      await this.documentAccessService.setDocumentDefaultAccess(
         documentId,
         body.defaultAccess,
         userId,
@@ -188,7 +188,7 @@ export class DocumentAccessController {
     body: SetDocumentAccessRequestDto,
   ): Promise<void> {
     const userId = (req as any).userId as number;
-    await this.documentService.setDocumentAccess(
+    await this.documentAccessService.setDocumentAccess(
       documentId,
       targetUserId,
       body.access,
@@ -211,7 +211,7 @@ export class DocumentAccessController {
     @Param('targetUserId', ParseIntPipe) targetUserId: number,
   ): Promise<void> {
     const userId = (req as any).userId as number;
-    await this.documentService.deleteDocumentAccess(
+    await this.documentAccessService.deleteDocumentAccess(
       documentId,
       targetUserId,
       userId,
@@ -233,7 +233,7 @@ export class DocumentAccessController {
   ): Promise<GetDocumentOwnerResponseDto> {
     const userId = (req as any).userId as number;
     return httpOK(
-      await this.documentService.getDocumentOwner(documentId, userId),
+      await this.documentAccessService.getDocumentOwner(documentId, userId),
     );
   }
 
@@ -255,7 +255,7 @@ export class DocumentAccessController {
   ): Promise<FindNewDocumentOwnerResponseDto> {
     const userId = (req as any).userId as number;
     return httpOK(
-      await this.documentService.findNewDocumentOwner(
+      await this.documentAccessService.findNewDocumentOwner(
         documentId,
         query.email,
         userId,
@@ -283,7 +283,7 @@ export class DocumentAccessController {
   ): Promise<TransferDocumentOwnerResponseDto> {
     const userId = (req as any).userId as number;
     return httpOK(
-      await this.documentService.transferDocumentOwner(
+      await this.documentAccessService.transferDocumentOwner(
         documentId,
         body.newOwnerId,
         userId,
