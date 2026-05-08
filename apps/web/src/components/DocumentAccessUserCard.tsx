@@ -91,12 +91,12 @@ const DocumentAccessUserCard = ({
         try {
             if (canDeleteAccess && newValue === "__remove__") {
                 await apiClient.delete(
-                    `/document/${documentId}/access/${userId}`,
+                    `/document-access/${documentId}/${userId}`,
                 );
                 onAccessRemoved?.();
             } else if (newValue && newValue !== "__remove__") {
                 await apiClient.put(
-                    `/document/${documentId}/access/${userId}`,
+                    `/document-access/${documentId}/${userId}`,
                     { access: newValue },
                 );
                 setSelectedAccess(newValue as DocumentAccessLevel);

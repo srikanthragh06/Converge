@@ -30,7 +30,7 @@ const useDefaultAccessTab = ({
                 setIsLoading(true);
                 const { data } =
                     await apiClient.get<GetDocumentDefaultAccessResponseDto>(
-                        `/document/access/default/${documentId}`,
+                        `/document-access/default/${documentId}`,
                     );
                 setDefaultAccessState(data.defaultAccess);
             } catch (err) {
@@ -57,7 +57,7 @@ const useDefaultAccessTab = ({
             setIsSaving(true);
             const { data } =
                 await apiClient.put<SetDocumentDefaultAccessResponseDto>(
-                    `/document/access/default/${documentId}`,
+                    `/document-access/default/${documentId}`,
                     { defaultAccess: newAccess },
                 );
             setDefaultAccessState(data.defaultAccess);
