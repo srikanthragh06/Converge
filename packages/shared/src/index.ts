@@ -54,6 +54,7 @@ export type {
 } from "./http/document";
 export { INTERNAL_SERVER_ERROR_MESSAGE } from "./constants/constants";
 export { DocumentAccessLevel, DocumentAccessLevelSchema } from "./types/types";
+export type { ResolvedDocumentAccessLevel } from "./types/types";
 export { SOCKET_EVENTS } from "./socket/events";
 export {
     SyncDocServerSchema,
