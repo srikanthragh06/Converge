@@ -1,6 +1,8 @@
-import { formatDate } from "../../../../utils/utils";
+import { formatDate, hasAccess } from "../../../../utils/utils";
 import DeleteDocumentConfirmationModal from "./DeleteDocumentConfirmationModal";
 import useOverviewTab from "../../../../hooks/useOverviewTab";
+import { useAtomValue } from "jotai";
+import { documentAccessAtom } from "../../../../atoms/document";
 
 /**
  * Overview tab content for ManageDocumentModal. Displays document metadata
@@ -20,6 +22,8 @@ const OverviewTab = ({
         isDeleteDocumentConfirmOpen,
         setIsDeleteDocumentConfirmOpen,
     } = useOverviewTab({ documentId, onClose });
+    const documentAccess = useAtomValue(documentAccessAtom); // resolved access level for the current document
+    const canDelete = documentAccess !== null && hasAccess(documentAccess, "admin"); // only admins and above may delete
 
     return (
         <>
@@ -68,14 +72,16 @@ const OverviewTab = ({
                     </span>
                 </div>
             </div>
-            <button
-                onClick={() => setIsDeleteDocumentConfirmOpen(true)}
-                className="border-none bg-red-700 text-white w-[150px] text-xs sm:text-sm mt-8 sm:mt-10
-                                                    text-center rounded-lg px-3 py-1 cursor-pointer hover:opacity-80 active:opacity-70 transition"
-            >
-                Delete Document
-            </button>
-            {isDeleteDocumentConfirmOpen && (
+            {canDelete && (
+                <button
+                    onClick={() => setIsDeleteDocumentConfirmOpen(true)}
+                    className="border-none bg-red-700 text-white w-[150px] text-xs sm:text-sm mt-8 sm:mt-10
+                                                        text-center rounded-lg px-3 py-1 cursor-pointer hover:opacity-80 active:opacity-70 transition"
+                >
+                    Delete Document
+                </button>
+            )}
+            {canDelete && isDeleteDocumentConfirmOpen && (
                 <DeleteDocumentConfirmationModal
                     documentId={documentId}
                     onCancel={() => setIsDeleteDocumentConfirmOpen(false)}
