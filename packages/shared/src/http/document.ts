@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DocumentAccessLevelSchema } from "../types/types";
+import { DocumentAccessLevelSchema, ResolvedDocumentAccessLevelSchema } from "../types/types";
 
 export const CreateDocumentResponseSchema = z.object({
     documentId: z.number(),
@@ -64,7 +64,7 @@ export type GetLibraryDocumentsRequestDto = z.infer<
 export const LibraryDocumentSchema = z.object({
     id: z.number(),
     title: z.string(),
-    ownerName: z.string(),
+    access: ResolvedDocumentAccessLevelSchema,
     lastVisitedAt: z.coerce.date(),
     lastEditedAt: z.coerce.date(),
 });
