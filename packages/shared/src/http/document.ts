@@ -14,6 +14,7 @@ export const GetDocumentResponseSchema = z.object({
     title: z.string(),
     ownerId: z.number(),
     createdAt: z.coerce.date(),
+    resolvedAccess: ResolvedDocumentAccessLevelSchema,
 });
 
 export type GetDocumentResponseDto = z.infer<typeof GetDocumentResponseSchema>;
