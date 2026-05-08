@@ -1,7 +1,16 @@
 import type { ResolvedDocumentAccessLevel } from "@converge/shared";
+import { ACCESS_RANK } from "@converge/shared";
+
+/** Returns true if resolved meets or exceeds the required access level. */
+export const hasAccess = (
+    resolved: ResolvedDocumentAccessLevel,
+    required: ResolvedDocumentAccessLevel,
+): boolean => ACCESS_RANK[resolved] >= ACCESS_RANK[required];
 
 /** Maps a resolved access level to a human-readable display label. */
-export const formatAccessLevel = (access: ResolvedDocumentAccessLevel): string => {
+export const formatAccessLevel = (
+    access: ResolvedDocumentAccessLevel,
+): string => {
     const labels: Record<ResolvedDocumentAccessLevel, string> = {
         owner: "Owner",
         admin: "Admin",
