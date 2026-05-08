@@ -58,10 +58,12 @@ const EditorPage = () => {
                         size={1}
                         value={title}
                         onChange={(e) => handleTitleChange(e.target.value)}
+                        disabled={!isEditable}
                         className={`mx-2 w-full max-w-2xl min-w-0
                             bg-transparent border-none outline-none
                             text-text-primary font-bold sm:text-4xl text-2xl
                             placeholder-text-disabled transition-opacity duration-200
+                            disabled:cursor-default
                             ${isTitlePending ? "opacity-50" : "opacity-100"}`}
                     />
                 </div>
