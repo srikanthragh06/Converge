@@ -4,6 +4,10 @@ import { type DocumentAccessLevel } from "@converge/shared";
 import { Dropdown } from "primereact/dropdown";
 import "primereact/resources/themes/lara-dark-blue/theme.css";
 import apiClient from "../lib/http";
+import { useAtomValue } from "jotai";
+import { documentAccessAtom } from "../atoms/document";
+import { authAtom } from "../atoms/auth";
+import { hasAccess } from "../utils/utils";
 
 /** Option shape for the access level dropdown. */
 interface AccessOption {
@@ -72,10 +76,30 @@ const DocumentAccessUserCard = ({
     >(access ?? null); // currently displayed access value; null shows the placeholder when no access is set yet
     const [isLoading, setIsLoading] = useState(false); // true while a PUT or DELETE request is in flight
 
-    // Append the "None" removal option only when the parent explicitly allows deletion.
-    const options = canDeleteAccess
-        ? [...BASE_OPTIONS, REMOVE_OPTION]
-        : BASE_OPTIONS;
+    const documentAccess = useAtomValue(documentAccessAtom); // resolved access level for the current document
+    const currentUserId = useAtomValue(authAtom).user?.id; // ID of the authenticated user
+
+    // The dropdown is interactive only when:
+    // - the card is not for the current user (can't modify your own access)
+    // - the requester is owner, OR is admin and the target is editor or below
+    const isSelf = currentUserId === userId;
+    const canInteract =
+        !isSelf &&
+        documentAccess !== null &&
+        (documentAccess === "owner" ||
+            (hasAccess(documentAccess, "admin") && access !== "admin"));
+
+    // Admins may not assign the admin level — only owners can. Filter it out for non-owners.
+    const editableOptions =
+        documentAccess === "owner"
+            ? BASE_OPTIONS
+            : BASE_OPTIONS.filter((o) => o.value !== "admin");
+
+    // Append the "None" removal option only when the parent allows deletion and the requester can interact.
+    const options =
+        canDeleteAccess && canInteract
+            ? [...editableOptions, REMOVE_OPTION]
+            : editableOptions;
 
     /**
      * Handles dropdown changes. Calls PUT to update the access level or DELETE
@@ -86,6 +110,8 @@ const DocumentAccessUserCard = ({
         newValue: DocumentAccessLevel | "__remove__",
     ) => {
         if (!documentId) return;
+
+        if (!canInteract) return;
 
         setIsLoading(true);
         try {
@@ -146,7 +172,7 @@ const DocumentAccessUserCard = ({
                     options={options}
                     onChange={(e) => handleChange(e.value)}
                     placeholder="Select access"
-                    disabled={isLoading || !documentId}
+                    disabled={!canInteract || isLoading || !documentId}
                     className="shrink-0 text-xs sm:text-sm"
                     pt={{
                         root: {
@@ -157,7 +183,7 @@ const DocumentAccessUserCard = ({
                             className:
                                 "text-xs sm:text-sm text-white py-0.5 sm:py-1 px-1.5 sm:px-2",
                         },
-                        trigger: { className: "text-white" },
+                        trigger: { className: !canInteract ? "hidden" : "text-white" },
                         panel: {
                             className:
                                 "bg-background-base border border-gray-700",
