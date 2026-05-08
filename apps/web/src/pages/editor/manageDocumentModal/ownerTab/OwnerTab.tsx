@@ -54,7 +54,7 @@ const OwnerTab = ({
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Transfer ownership by email"
                 className="w-full mt-3 sm:mt-4 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-background-elevated
-                text-sm sm:text-base text-white focus:outline-none border-none"
+                text-sm text-white focus:outline-none border-none"
             />
             {isFindLoading && (
                 <AiOutlineLoading3Quarters className="animate-spin mt-3 sm:mt-4" />
