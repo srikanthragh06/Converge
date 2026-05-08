@@ -9,8 +9,17 @@ export const DocumentAccessLevelSchema = z.enum([
 ]);
 export type DocumentAccessLevel = z.infer<typeof DocumentAccessLevelSchema>;
 
+/** Zod schema for ResolvedDocumentAccessLevel, including the owner tier. */
+export const ResolvedDocumentAccessLevelSchema = z.enum([
+    "admin",
+    "editor",
+    "viewer",
+    "noAccess",
+    "owner",
+]);
+
 /** Resolved access level for a user on a document, including the owner tier which is not stored in document_access. */
-export type ResolvedDocumentAccessLevel = DocumentAccessLevel | 'owner';
+export type ResolvedDocumentAccessLevel = z.infer<typeof ResolvedDocumentAccessLevelSchema>;
 
 /** Numeric rank for each resolved access level, used for ordered comparisons (e.g. hasAccess). */
 export const ACCESS_RANK: Record<ResolvedDocumentAccessLevel, number> = {

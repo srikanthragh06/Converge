@@ -10,6 +10,7 @@ import {
   LibraryDocumentDto,
   GetLibraryDocumentsResponseDto,
   SearchLibraryDocumentsResponseDto,
+  type ResolvedDocumentAccessLevel,
 } from '@converge/shared';
 import { DatabaseService } from '../db/database.service';
 import { DocumentAccessService } from './document-access.service';
@@ -200,11 +201,16 @@ export class DocumentService {
   }
 
   /**
-   * Returns a paginated list of documents owned by the given user, ordered by
-   * last_visited_at DESC with id DESC as a tiebreaker. Uses keyset pagination
-   * via a compound cursor (lastVisitedAt, id) so performance is consistent
-   * regardless of page depth.
-   * @param userId - the authenticated user whose documents to list
+   * Returns a paginated list of documents the user has interacted with and has
+   * viewer+ access to, ordered by last_visited_at DESC with id DESC as a
+   * tiebreaker. Uses keyset pagination via a compound cursor (lastVisitedAt, id)
+   * so performance is consistent regardless of page depth.
+   *
+   * A document appears only if the user has a document_user_metadata row (i.e.
+   * has opened it at least once via WebSocket) AND has viewer+ access via the
+   * three-tier resolution: owner > explicit document_access row > default_access.
+   *
+   * @param userId - the authenticated user whose library to list
    * @param limit - maximum number of documents to return
    * @param cursor - compound cursor from the previous page; omit for the first page
    * @returns documents for this page and the nextCursor to fetch the following page
@@ -216,20 +222,51 @@ export class DocumentService {
   ): Promise<GetLibraryDocumentsResponseDto> {
     const db = this.dbService.kysely;
 
-    // Build the base query — join users for ownerName and document_user_metadata for timestamps.
+    // document_user_metadata is the "has interacted" gate — only documents the
+    // user has opened at least once (creating a metadata row via recordLastVisited)
+    // can appear in the library.
+    // document_access is left-joined because owners have no explicit access row —
+    // their access is implied by documents.owner_id.
     let query = db
-      .selectFrom('documents as d')
-      .innerJoin('users as u', 'u.id', 'd.owner_id')
-      .innerJoin('document_user_metadata as dum', 'dum.document_id', 'd.id')
+      .selectFrom('document_user_metadata as dum')
+      .innerJoin('documents as d', 'd.id', 'dum.document_id')
+      .leftJoin('document_access as da', (join) =>
+        join
+          .onRef('da.document_id', '=', 'dum.document_id')
+          .on('da.user_id', '=', userId),
+      )
       .select([
         'd.id',
         'd.title',
-        'u.name as ownerName',
         'dum.last_visited_at as lastVisitedAt',
         'dum.last_edited_at as lastEditedAt',
+        // Resolve access using the same three-tier logic as resolveAccess:
+        // owner > explicit document_access row > default_access fallback.
+        sql<ResolvedDocumentAccessLevel>`
+          CASE
+            WHEN d.owner_id = ${userId} THEN 'owner'
+            WHEN da.access IS NOT NULL THEN da.access
+            ELSE d.default_access
+          END
+        `.as('access'),
       ])
-      .where('d.owner_id', '=', userId)
+      .where('dum.user_id', '=', userId)
       .where('d.is_deleted', '=', false)
+      // Include the document only if the user has viewer+ access.
+      // da.user_id IS NULL means no explicit row exists — fall back to default_access.
+      .where(({ eb, or, and }) =>
+        or([
+          eb('d.owner_id', '=', userId),
+          and([
+            eb('da.user_id', 'is not', null),
+            eb('da.access', '!=', 'noAccess'),
+          ]),
+          and([
+            eb('da.user_id', 'is', null),
+            eb('d.default_access', '!=', 'noAccess'),
+          ]),
+        ]),
+      )
       .orderBy('dum.last_visited_at', 'desc')
       .orderBy('d.id', 'desc')
       .limit(limit);
@@ -252,7 +289,7 @@ export class DocumentService {
     const documents: LibraryDocumentDto[] = rows.map((row) => ({
       id: row.id,
       title: row.title,
-      ownerName: row.ownerName,
+      access: row.access,
       lastVisitedAt: row.lastVisitedAt,
       lastEditedAt: row.lastEditedAt,
     }));
@@ -271,10 +308,11 @@ export class DocumentService {
   }
 
   /**
-   * Searches the authenticated user's documents by title using trigram similarity,
-   * returning results ordered by relevance descending. Empty-title documents are
-   * excluded.
-   * @param userId - the authenticated user whose documents to search
+   * Searches documents the user has interacted with and has viewer+ access to,
+   * matching by title using trigram similarity. Applies the same three-tier
+   * access resolution and metadata row gate as getLibraryDocuments.
+   * Empty-title documents are excluded.
+   * @param userId - the authenticated user whose library to search
    * @param title - the search query to match against document titles
    * @param limit - maximum number of results to return
    * @returns matching documents ordered by similarity score descending
@@ -286,22 +324,47 @@ export class DocumentService {
   ): Promise<SearchLibraryDocumentsResponseDto> {
     const db = this.dbService.kysely;
 
+    // Same join structure as getLibraryDocuments — metadata row as the
+    // "has interacted" gate, document_access left-joined for the access check.
     // similarity() is provided by pg_trgm and scores how closely the title matches the query.
     const rows = await db
-      .selectFrom('documents as d')
-      .innerJoin('users as u', 'u.id', 'd.owner_id')
-      .innerJoin('document_user_metadata as dum', 'dum.document_id', 'd.id')
+      .selectFrom('document_user_metadata as dum')
+      .innerJoin('documents as d', 'd.id', 'dum.document_id')
+      .leftJoin('document_access as da', (join) =>
+        join
+          .onRef('da.document_id', '=', 'dum.document_id')
+          .on('da.user_id', '=', userId),
+      )
       .select([
         'd.id',
         'd.title',
-        'u.name as ownerName',
         'dum.last_visited_at as lastVisitedAt',
         'dum.last_edited_at as lastEditedAt',
+        sql<ResolvedDocumentAccessLevel>`
+          CASE
+            WHEN d.owner_id = ${userId} THEN 'owner'
+            WHEN da.access IS NOT NULL THEN da.access
+            ELSE d.default_access
+          END
+        `.as('access'),
         sql<number>`similarity(d.title, ${title})`.as('score'),
       ])
-      .where('d.owner_id', '=', userId)
+      .where('dum.user_id', '=', userId)
       .where('d.is_deleted', '=', false)
       .where('d.title', '!=', '')
+      .where(({ eb, or, and }) =>
+        or([
+          eb('d.owner_id', '=', userId),
+          and([
+            eb('da.user_id', 'is not', null),
+            eb('da.access', '!=', 'noAccess'),
+          ]),
+          and([
+            eb('da.user_id', 'is', null),
+            eb('d.default_access', '!=', 'noAccess'),
+          ]),
+        ]),
+      )
       .orderBy(sql`score`, 'desc')
       .limit(limit)
       .execute();
@@ -309,7 +372,7 @@ export class DocumentService {
     const documents: LibraryDocumentDto[] = rows.map((row) => ({
       id: row.id,
       title: row.title,
-      ownerName: row.ownerName,
+      access: row.access,
       lastVisitedAt: row.lastVisitedAt,
       lastEditedAt: row.lastEditedAt,
     }));
