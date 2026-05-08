@@ -60,6 +60,7 @@ export class DocumentService {
       title: row.title,
       ownerId: row.owner_id,
       createdAt: row.created_at,
+      resolvedAccess: access,
     };
   }
 

@@ -3,6 +3,8 @@ import apiClient from "../lib/http";
 import type { GetDocumentResponseDto } from "@converge/shared";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { useSetAtom } from "jotai";
+import { documentAccessAtom } from "../atoms/document";
 
 /**
  * Fetches the document by ID on mount and whenever documentId changes, driving the document status state.
@@ -16,6 +18,7 @@ const useDocumentFetch = (
     setTitle: React.Dispatch<React.SetStateAction<string>>,
 ) => {
     const navigate = useNavigate();
+    const setDocumentAccess = useSetAtom(documentAccessAtom);
 
     const [documentStatus, setDocumentStatus] = useState<
         "loading" | "ready" | "forbidden" | "notFound"
@@ -30,7 +33,7 @@ const useDocumentFetch = (
                     `/document/id/${documentId || ""}`,
                 );
                 setTitle(data.title);
-
+                setDocumentAccess(data.resolvedAccess);
                 setDocumentStatus("ready");
             } catch (err) {
                 if (axios.isAxiosError(err)) {
@@ -51,6 +54,8 @@ const useDocumentFetch = (
         };
 
         fetchDocument();
+
+        return () => setDocumentAccess(null);
     }, [documentId]);
 
     return { documentStatus };
