@@ -14,6 +14,14 @@ Stores accounts authenticated via Google OAuth.
 | `avatar_url` | `varchar` | nullable | Profile picture URL from Google |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 
+#### Indexes
+
+| Index | Columns | Type | Source | Purpose |
+|---|---|---|---|---|
+| `users_pkey` | `id` | B-tree | Implicit — PK | Fast row lookup by primary key; used by all joins and FK checks from other tables referencing `users.id`. |
+| `users_google_id_key` | `google_id` | B-tree unique | Implicit — UNIQUE | Enforces one account per Google identity. Used as the lookup key on every login (`WHERE google_id = ?`) to find existing users and sync profile changes. |
+| `users_email_key` | `email` | B-tree unique | Implicit — UNIQUE | Enforces one account per email address. Used by exact-email search endpoints (`findNewDocumentAccessUser`, `findNewDocumentOwner`) and prevents duplicate accounts for the same email. |
+
 ---
 
 ### `documents`
@@ -32,6 +40,15 @@ One row per document. Stores the title and tracks compaction counters — does n
 | `last_compact_count` | `integer` | NOT NULL, default `0` | Value of `update_count` at the last compaction; used to detect when the threshold is crossed again |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 
+#### Indexes
+
+| Index | Columns | Type | Source | Purpose |
+|---|---|---|---|---|
+| `documents_pkey` | `id` | B-tree | Implicit — PK | Fast row lookup by primary key; used by all joins and FK checks from `document_updates`, `document_user_metadata`, and `document_access`. |
+| `idx_documents_creator_id` | `creator_id` | B-tree | Explicit — 0005 | Accelerates queries that filter or join on the document creator. Used by audit and ownership-transfer logic that consults `creator_id`. |
+| `idx_documents_owner_id` | `owner_id` | B-tree | Explicit — 0012 | Accelerates all ownership checks — `resolveAccess` compares `owner_id` on every access resolution, and the library query joins on `owner_id` to resolve the "owner" tier. This is one of the most frequently hit indexes in the app. |
+| `documents_title_trgm_idx` | `title` | GIN (trigram) | Explicit — 0010 | Powers the library search endpoint (`GET /document/library/search`). The GIN trigram index on `pg_trgm` enables `similarity()` to rank documents by title proximity without a sequential scan. GIN is preferred over GiST because library searches are read-heavy. |
+
 ---
 
 ### `document_updates`
@@ -43,6 +60,13 @@ Append-only log of raw Yjs binary update payloads. The full document state is re
 | `document_id` | `bigint` | NOT NULL, FK → `documents.id` ON DELETE CASCADE, indexed | Scopes each update row to a specific document |
 | `update` | `bytea` | NOT NULL | Raw Yjs update binary; deserialised to `Buffer` by the `pg` driver |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
+
+#### Indexes
+
+| Index | Columns | Type | Source | Purpose |
+|---|---|---|---|---|
+| `document_updates_pkey` | `id` | B-tree | Implicit — PK | Fast row lookup; also used as the snapshot cursor during compaction (`WHERE id <= MAX(id)`). |
+| `idx_document_updates_document_id` | `document_id` | B-tree | Explicit — 0004 | Scopes every Yjs update query to a specific document. Hit on every `loadDoc` (which fetches all persisted updates for a document), every `applyDocUpdate` (which appends a row and later queries for compaction), and every repair-sync handshake that reads historical updates. Without this index, every Yjs operation would sequentially scan the `document_updates` table. |
 
 > **Compaction:** When `update_count >= last_compact_count + 5000`, all rows up to `MAX(id)` are merged into a single row and the originals are deleted in one transaction. Only one server runs compaction at a time, gated by a Redis lock.
 
@@ -60,6 +84,13 @@ Tracks per-user activity timestamps for each document. Used by the library page 
 
 > Composite PK on `(document_id, user_id)`. Rows are upserted (insert or update) rather than inserted to keep one row per user per document.
 
+#### Indexes
+
+| Index | Columns | Type | Source | Purpose |
+|---|---|---|---|---|
+| `document_user_metadata_pkey` | `(document_id, user_id)` | B-tree composite | Implicit — PK | Enforces one metadata row per user per document. Covers queries that filter on `document_id` (the leading column) — including `getDocumentOverview` and `recordLastVisited`/`recordLastEdited` upserts. |
+| `idx_document_user_metadata_user_id` | `user_id` | B-tree | Explicit — 0015 | Serves the library page's primary access pattern (`WHERE user_id = ?`) by eliminating the sequential scan. The composite PK `(document_id, user_id)` cannot cover this direction because `user_id` is not the leading column. |
+
 ---
 
 ### `document_access`
@@ -73,6 +104,12 @@ Explicit per-user access grants for a document. Absence of a row means the user 
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 
 > Composite PK on `(document_id, user_id)`. Access is resolved in three tiers: owner row > explicit `document_access` row > `documents.default_access`.
+
+#### Indexes
+
+| Index | Columns | Type | Source | Purpose |
+|---|---|---|---|---|
+| `document_access_pkey` | `(document_id, user_id)` | B-tree composite | Implicit — PK | Enforces one access row per user per document. Covers all queries that filter on `document_id` (the leading column), including `resolveAccess` (checking for an explicit row), `getDocumentAccessUsers` (paginated access list), and `searchDocumentAccessUsers` (trigram email search on access rows). Does **not** cover `user_id`-first queries — if a future feature needs "all docs a user has explicit access to," a separate index on `(user_id)` or `(user_id, document_id)` would be needed. |
 
 ---
 
