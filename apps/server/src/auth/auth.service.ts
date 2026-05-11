@@ -331,6 +331,14 @@ export class AuthService {
           role: 'owner',
         })
         .execute();
+
+      // Set this as the user's selected workspace so the client can read it
+      // from /auth/me on every page load.
+      await tx
+        .updateTable('users')
+        .set({ current_workspace_id: ws.id })
+        .where('id', '=', userId)
+        .execute();
     });
   }
 }

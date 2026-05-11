@@ -51,6 +51,8 @@ export interface UsersTable {
   name: string;
   /** Profile picture URL provided by Google. Null if not available. */
   avatar_url: string | null;
+  /** FK to workspaces.id — the user's currently selected workspace. */
+  current_workspace_id: number | null;
   created_at: Generated<Date>;
 }
 
