@@ -101,7 +101,7 @@ export class AuthService {
 
     // Create a personal workspace on first signup so the user immediately has
     // a workspace context. Existing users are a no-op.
-    await this.upsertUserPersonalWorkspace(rows[0].id, name);
+    const workspace = await this.upsertUserPersonalWorkspace(rows[0].id, name);
 
     const authToken = this.prepareUserJWT(rows[0].id, rows[0].email);
 
@@ -111,6 +111,7 @@ export class AuthService {
       name: rows[0].name,
       avatarUrl: rows[0].avatar_url,
       createdAt: rows[0].created_at,
+      selectedWorkspace: { id: workspace.id, name: workspace.name },
     };
 
     return { authToken, userDetails };
@@ -228,8 +229,17 @@ export class AuthService {
   async getMe(userId: number): Promise<AuthResponseDto> {
     const user = await this.dbService.kysely
       .selectFrom('users')
-      .select(['id', 'email', 'name', 'avatar_url', 'created_at'])
-      .where('id', '=', userId)
+      .leftJoin('workspaces', 'workspaces.id', 'users.current_workspace_id')
+      .select([
+        'users.id',
+        'users.email',
+        'users.name',
+        'users.avatar_url',
+        'users.created_at',
+        'workspaces.id as workspace_id',
+        'workspaces.name as workspace_name',
+      ])
+      .where('users.id', '=', userId)
       .executeTakeFirst();
 
     if (!user) throw new UnauthorizedException('User not found.');
@@ -240,6 +250,10 @@ export class AuthService {
       name: user.name,
       avatarUrl: user.avatar_url,
       createdAt: user.created_at,
+      selectedWorkspace:
+        user.workspace_id != null
+          ? { id: user.workspace_id, name: user.workspace_name! }
+          : null,
     };
   }
 
@@ -293,29 +307,32 @@ export class AuthService {
    *
    * @param userId - The user to create the personal workspace for.
    * @param userName - The user's display name, used to form the workspace name.
+   * @returns The workspace's id and name — either the newly created one or the
+   *          existing personal workspace for this user.
    */
   private async upsertUserPersonalWorkspace(
     userId: number,
     userName: string,
-  ): Promise<void> {
+  ): Promise<{ id: number; name: string }> {
     const db = this.dbService.kysely;
 
-    await db.transaction().execute(async (tx) => {
+    const workspace = await db.transaction().execute(async (tx) => {
       // Check whether a personal workspace already exists for this user.
       const existing = await tx
         .selectFrom('workspaces')
-        .select('id')
+        .select(['id', 'name'])
         .where('owner_id', '=', userId)
         .where('type', '=', 'personal')
         .executeTakeFirst();
 
-      if (existing) return; // already set up — nothing to do.
+      if (existing) return existing; // already set up — nothing to do.
 
       // Create the workspace using the user's name.
+      const name = `${userName}'s Workspace`;
       const ws = await tx
         .insertInto('workspaces')
         .values({
-          name: `${userName}'s Workspace`,
+          name,
           owner_id: userId,
           type: 'personal',
         })
@@ -339,6 +356,10 @@ export class AuthService {
         .set({ current_workspace_id: ws.id })
         .where('id', '=', userId)
         .execute();
+
+      return { id: ws.id, name };
     });
+
+    return workspace;
   }
 }

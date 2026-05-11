@@ -13,6 +13,12 @@ export const AuthResponseSchema = z.object({
     name: z.string(),
     avatarUrl: z.string().nullable(),
     createdAt: z.coerce.date(),
+    selectedWorkspace: z
+        .object({
+            id: z.number(),
+            name: z.string(),
+        })
+        .nullable(),
 });
 
 export type AuthResponseDto = z.infer<typeof AuthResponseSchema>;
