@@ -1,5 +1,6 @@
 import {
   DocumentAccessLevel,
+  WorkspaceRole,
   WorkspaceType,
 } from '@converge/shared';
 import { Generated } from 'kysely';
@@ -90,6 +91,17 @@ export interface WorkspacesTable {
   created_at: Generated<Date>;
 }
 
+/** Row shape for the workspace_members table. */
+export interface WorkspaceMembersTable {
+  /** FK to workspaces.id — scopes this membership to a specific workspace. */
+  workspace_id: number;
+  /** FK to users.id — the user who is a member of the workspace. */
+  user_id: number;
+  /** Role the user holds within this workspace. */
+  role: WorkspaceRole;
+  created_at: Generated<Date>;
+}
+
 // Root schema passed as a generic to Kysely<DatabaseSchema>.
 // Table names must exactly match the Postgres table names.
 export interface DatabaseSchema {
@@ -98,5 +110,6 @@ export interface DatabaseSchema {
   document_user_metadata: DocumentUserMetadataTable;
   documents: DocumentsTable;
   users: UsersTable;
+  workspace_members: WorkspaceMembersTable;
   workspaces: WorkspacesTable;
 }
