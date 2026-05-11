@@ -99,6 +99,10 @@ export class AuthService {
     if (rows.length === 0)
       throw new InternalServerErrorException('Failed to upsert user.');
 
+    // Create a personal workspace on first signup so the user immediately has
+    // a workspace context. Existing users are a no-op.
+    await this.upsertUserPersonalWorkspace(rows[0].id, name);
+
     const authToken = this.prepareUserJWT(rows[0].id, rows[0].email);
 
     const userDetails: AuthResponseDto = {
@@ -280,5 +284,53 @@ export class AuthService {
    */
   clearAuthCookie(res: Response): void {
     res.clearCookie('authToken');
+  }
+
+  /**
+   * Creates a personal workspace with an owner membership row for the user if
+   * one does not already exist. Runs in a transaction so that a partial write
+   * (workspace without membership row) is never committed.
+   *
+   * @param userId - The user to create the personal workspace for.
+   * @param userName - The user's display name, used to form the workspace name.
+   */
+  private async upsertUserPersonalWorkspace(
+    userId: number,
+    userName: string,
+  ): Promise<void> {
+    const db = this.dbService.kysely;
+
+    await db.transaction().execute(async (tx) => {
+      // Check whether a personal workspace already exists for this user.
+      const existing = await tx
+        .selectFrom('workspaces')
+        .select('id')
+        .where('owner_id', '=', userId)
+        .where('type', '=', 'personal')
+        .executeTakeFirst();
+
+      if (existing) return; // already set up — nothing to do.
+
+      // Create the workspace using the user's name.
+      const ws = await tx
+        .insertInto('workspaces')
+        .values({
+          name: `${userName}'s Workspace`,
+          owner_id: userId,
+          type: 'personal',
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+
+      // Insert the owner membership row so access resolution sees role='owner'.
+      await tx
+        .insertInto('workspace_members')
+        .values({
+          workspace_id: ws.id,
+          user_id: userId,
+          role: 'owner',
+        })
+        .execute();
+    });
   }
 }
