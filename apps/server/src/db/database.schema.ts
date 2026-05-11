@@ -85,11 +85,11 @@ export interface WorkspacesTable {
   owner_id: number;
   type: WorkspaceType;
   /** Default doc access for workspace admins. */
-  admin_doc_access: DocumentAccessLevel;
+  admin_doc_access: Generated<DocumentAccessLevel>;
   /** Default doc access for workspace members. */
-  member_doc_access: DocumentAccessLevel;
+  member_doc_access: Generated<DocumentAccessLevel>;
   /** Default doc access for users not in this workspace. */
-  non_member_doc_access: DocumentAccessLevel;
+  non_member_doc_access: Generated<DocumentAccessLevel>;
   created_at: Generated<Date>;
 }
 
