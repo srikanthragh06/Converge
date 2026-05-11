@@ -37,6 +37,8 @@ export interface DocumentsTable {
   last_compact_count: Generated<number>;
   /** Fallback access level for users with no explicit row in document_access. Defaults to 'noAccess'. */
   default_access: Generated<DocumentAccessLevel>;
+  /** FK to workspaces.id — the workspace this document belongs to. */
+  workspace_id: number;
   created_at: Generated<Date>;
 }
 
