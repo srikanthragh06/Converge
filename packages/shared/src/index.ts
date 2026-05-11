@@ -53,8 +53,19 @@ export type {
     FindNewDocumentOwnerResponseDto,
 } from "./http/document";
 export { INTERNAL_SERVER_ERROR_MESSAGE } from "./constants/constants";
-export { DocumentAccessLevel, DocumentAccessLevelSchema, ACCESS_RANK, ResolvedDocumentAccessLevelSchema } from "./types/types";
-export type { ResolvedDocumentAccessLevel } from "./types/types";
+export {
+    DocumentAccessLevel,
+    DocumentAccessLevelSchema,
+    ACCESS_RANK,
+    ResolvedDocumentAccessLevelSchema,
+    WorkspaceTypeSchema,
+    WorkspaceRoleSchema,
+} from "./types/types";
+export type {
+    ResolvedDocumentAccessLevel,
+    WorkspaceType,
+    WorkspaceRole,
+} from "./types/types";
 export { SOCKET_EVENTS } from "./socket/events";
 export {
     SyncDocServerSchema,

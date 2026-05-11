@@ -1,4 +1,7 @@
-import { DocumentAccessLevel } from '@converge/shared';
+import {
+  DocumentAccessLevel,
+  WorkspaceType,
+} from '@converge/shared';
 import { Generated } from 'kysely';
 
 /**
@@ -71,6 +74,22 @@ export interface DocumentAccessTable {
   created_at: Generated<Date>;
 }
 
+/** Row shape for the workspaces table. */
+export interface WorkspacesTable {
+  id: Generated<number>;
+  name: string;
+  /** FK to users.id — the workspace owner, who is also doc owner for all docs in this workspace. */
+  owner_id: number;
+  type: WorkspaceType;
+  /** Default doc access for workspace admins. */
+  admin_doc_access: DocumentAccessLevel;
+  /** Default doc access for workspace members. */
+  member_doc_access: DocumentAccessLevel;
+  /** Default doc access for users not in this workspace. */
+  non_member_doc_access: DocumentAccessLevel;
+  created_at: Generated<Date>;
+}
+
 // Root schema passed as a generic to Kysely<DatabaseSchema>.
 // Table names must exactly match the Postgres table names.
 export interface DatabaseSchema {
@@ -79,4 +98,5 @@ export interface DatabaseSchema {
   document_user_metadata: DocumentUserMetadataTable;
   documents: DocumentsTable;
   users: UsersTable;
+  workspaces: WorkspacesTable;
 }

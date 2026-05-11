@@ -19,13 +19,23 @@ export const ResolvedDocumentAccessLevelSchema = z.enum([
 ]);
 
 /** Resolved access level for a user on a document, including the owner tier which is not stored in document_access. */
-export type ResolvedDocumentAccessLevel = z.infer<typeof ResolvedDocumentAccessLevelSchema>;
+export type ResolvedDocumentAccessLevel = z.infer<
+    typeof ResolvedDocumentAccessLevelSchema
+>;
+
+/** Valid workspace types. Personal workspaces are 1:1 per user; custom workspaces are user-created for teams. */
+export const WorkspaceTypeSchema = z.enum(["personal", "custom"]);
+export type WorkspaceType = z.infer<typeof WorkspaceTypeSchema>;
+
+/** Valid roles for a user within a workspace. */
+export const WorkspaceRoleSchema = z.enum(["owner", "admin", "member"]);
+export type WorkspaceRole = z.infer<typeof WorkspaceRoleSchema>;
 
 /** Numeric rank for each resolved access level, used for ordered comparisons (e.g. hasAccess). */
 export const ACCESS_RANK: Record<ResolvedDocumentAccessLevel, number> = {
     noAccess: 0,
-    viewer:   10,
-    editor:   20,
-    admin:    30,
-    owner:    40,
+    viewer: 10,
+    editor: 20,
+    admin: 30,
+    owner: 40,
 };
