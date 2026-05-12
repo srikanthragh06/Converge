@@ -5,6 +5,7 @@ import { DocumentModule } from './document/document.module';
 import { DatabaseModule } from './db/database.module';
 import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './auth/auth.module';
+import { WorkspaceModule } from './workspace/workspace.module';
 
 // Root module — the entry point of the NestJS DI container.
 // All feature modules (DocumentModule, UserModule, etc.) get imported here.
@@ -25,6 +26,7 @@ import { AuthModule } from './auth/auth.module';
     // so any feature module can inject it without re-importing.
     RedisModule,
     AuthModule,
+    WorkspaceModule,
   ],
   controllers: [AppController],
   providers: [],
