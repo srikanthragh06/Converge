@@ -52,3 +52,9 @@ export const hasWorkspaceRole = (
     userRole: WorkspaceRole,
     required: WorkspaceRole,
 ): boolean => WORKSPACE_ROLE_RANK[userRole] >= WORKSPACE_ROLE_RANK[required];
+
+/** Returns true if the resolved access level meets or exceeds the required level. */
+export const hasAccess = (
+    resolved: ResolvedDocumentAccessLevel,
+    required: ResolvedDocumentAccessLevel,
+): boolean => ACCESS_RANK[resolved] >= ACCESS_RANK[required];

@@ -15,8 +15,8 @@ import {
   TransferDocumentOwnerResponseDto,
   FindNewDocumentOwnerResponseDto,
   DocumentAccessLevel,
+  hasAccess,
   type ResolvedDocumentAccessLevel,
-  ACCESS_RANK,
 } from '@converge/shared';
 import { DatabaseService } from '../db/database.service';
 import { sql } from 'kysely';
@@ -106,19 +106,6 @@ export class DocumentAccessService {
   }
 
   /**
-   * Returns true if the resolved access level meets or exceeds the required
-   * level using the numeric ACCESS_RANK ordering.
-   * @param resolved - the user's resolved access level from resolveAccess
-   * @param required - the minimum level needed for the operation
-   */
-  hasAccess(
-    resolved: ResolvedDocumentAccessLevel,
-    required: ResolvedDocumentAccessLevel,
-  ): boolean {
-    return ACCESS_RANK[resolved] >= ACCESS_RANK[required];
-  }
-
-  /**
    * Returns the owner's basic profile for the given document. Throws 404 if
    * the document does not exist or is deleted, and 403 if the requesting user
    * has less than viewer access.
@@ -134,7 +121,7 @@ export class DocumentAccessService {
 
     // Resolve access — throws NotFoundException if the document does not exist.
     const access = await this.resolveAccess(documentId, userId);
-    if (!this.hasAccess(access, 'viewer'))
+    if (!hasAccess(access, 'viewer'))
       throw new ForbiddenException('You do not have access to this document.');
 
     // Fetch the owner's profile via join on documents.owner_id.
@@ -242,7 +229,7 @@ export class DocumentAccessService {
     // Assigning admin requires owner; assigning editor or below requires admin+.
     const required: ResolvedDocumentAccessLevel =
       access === 'admin' ? 'owner' : 'admin';
-    if (!this.hasAccess(requesterAccess, required))
+    if (!hasAccess(requesterAccess, required))
       throw new ForbiddenException('You do not have access to this document.');
 
     // Prevent assigning explicit access to the owner — ownership is tracked
@@ -307,7 +294,7 @@ export class DocumentAccessService {
     // Removing an admin requires owner; removing editor or below requires admin+.
     const required: ResolvedDocumentAccessLevel =
       targetAccess === 'admin' ? 'owner' : 'admin';
-    if (!this.hasAccess(requesterAccess, required))
+    if (!hasAccess(requesterAccess, required))
       throw new ForbiddenException('You do not have access to this document.');
 
     // Delete the row and confirm it existed.
@@ -342,7 +329,7 @@ export class DocumentAccessService {
 
     // Resolve access — throws NotFoundException if the document does not exist.
     const access = await this.resolveAccess(documentId, userId);
-    if (!this.hasAccess(access, 'viewer'))
+    if (!hasAccess(access, 'viewer'))
       throw new ForbiddenException('You do not have access to this document.');
 
     // Search the access rows for this document using trigram similarity on email.
@@ -394,7 +381,7 @@ export class DocumentAccessService {
 
     // Resolve access — throws NotFoundException if the document does not exist.
     const access = await this.resolveAccess(documentId, userId);
-    if (!this.hasAccess(access, 'viewer'))
+    if (!hasAccess(access, 'viewer'))
       throw new ForbiddenException('You do not have access to this document.');
 
     // Build the base query — join users for display fields, order by user_id for stable pagination.
@@ -565,7 +552,7 @@ export class DocumentAccessService {
 
     // Resolve access — throws NotFoundException if the document does not exist.
     const access = await this.resolveAccess(documentId, userId);
-    if (!this.hasAccess(access, 'viewer'))
+    if (!hasAccess(access, 'viewer'))
       throw new ForbiddenException('You do not have access to this document.');
 
     // Fetch the current default_access value.
@@ -599,7 +586,7 @@ export class DocumentAccessService {
 
     // Resolve access — throws NotFoundException if the document does not exist.
     const access = await this.resolveAccess(documentId, userId);
-    if (!this.hasAccess(access, 'admin'))
+    if (!hasAccess(access, 'admin'))
       throw new ForbiddenException('You do not have access to this document.');
 
     // Persist the new default access level.
