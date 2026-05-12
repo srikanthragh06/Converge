@@ -35,6 +35,12 @@ export interface DocumentsTable {
   last_compact_count: Generated<number>;
   /** FK to workspaces.id — the workspace this document belongs to. */
   workspace_id: number;
+  /** Overrides workspace.admin_doc_access for this document; NULL means inherit. */
+  admin_doc_access: DocumentAccessLevel | null;
+  /** Overrides workspace.member_doc_access for this document; NULL means inherit. */
+  member_doc_access: DocumentAccessLevel | null;
+  /** Overrides workspace.non_member_doc_access for this document; NULL means inherit. */
+  non_member_doc_access: DocumentAccessLevel | null;
   created_at: Generated<Date>;
 }
 
