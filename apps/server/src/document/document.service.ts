@@ -10,7 +10,9 @@ import {
   LibraryDocumentDto,
   GetLibraryDocumentsResponseDto,
   SearchLibraryDocumentsResponseDto,
+  hasWorkspaceRole,
   type ResolvedDocumentAccessLevel,
+  type WorkspaceRole,
 } from '@converge/shared';
 import { DatabaseService } from '../db/database.service';
 import { DocumentAccessService } from './document-access.service';
@@ -66,12 +68,34 @@ export class DocumentService {
 
   /**
    * Creates a new document and its initial metadata row in a single transaction,
-   * returning the new document's ID.
+   * returning the new document's ID. The user must have at least the member role
+   * in the target workspace.
    * @param userId - the ID of the authenticated user who will own the document
+   * @param workspaceId - the workspace the document belongs to
    * @returns the newly created document's ID
    */
-  async createNewDocument(userId: number): Promise<number> {
+  async createNewDocument(
+    userId: number,
+    workspaceId: number,
+  ): Promise<number> {
     const db = this.dbService.kysely;
+
+    // Verify the user is a workspace member (owner, admin, or member).
+    const memberRow = await db
+      .selectFrom('workspace_members')
+      .select('role')
+      .where('workspace_id', '=', workspaceId)
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+
+    if (
+      !memberRow ||
+      !hasWorkspaceRole(memberRow.role as WorkspaceRole, 'member')
+    ) {
+      throw new ForbiddenException(
+        'You must be a member of the workspace to create documents.',
+      );
+    }
 
     // Wrap in a transaction so the document and its metadata row are always
     // created together — a document with no metadata row would break the
@@ -79,7 +103,10 @@ export class DocumentService {
     const row = await db.transaction().execute(async (tx) => {
       const documentRow = await tx
         .insertInto('documents')
-        .values({ creator_id: userId, owner_id: userId })
+        .values({
+          creator_id: userId,
+          workspace_id: workspaceId,
+        })
         .returning('documents.id')
         .executeTakeFirst();
 
