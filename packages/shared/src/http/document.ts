@@ -43,12 +43,14 @@ export type GetDocumentOverviewResponseDto = z.infer<
 
 /**
  * Query params for GET /document/library.
+ * workspaceId is the selected workspace scope.
  * limit defaults to 20 if omitted.
  * cursorVisitedAt and cursorId must both be present or both be absent —
  * they together form the compound cursor for keyset pagination.
  */
 export const GetLibraryDocumentsRequestSchema = z
     .object({
+        workspaceId: z.coerce.number().int().positive(),
         limit: z.coerce.number().int().positive().optional(),
         cursorVisitedAt: z.coerce.date().optional(),
         cursorId: z.coerce.number().int().positive().optional(),
@@ -72,8 +74,8 @@ export const LibraryDocumentSchema = z.object({
     id: z.number(),
     title: z.string(),
     access: ResolvedDocumentAccessLevelSchema,
-    lastVisitedAt: z.coerce.date(),
-    lastEditedAt: z.coerce.date(),
+    lastVisitedAt: z.coerce.date().nullable(),
+    lastEditedAt: z.coerce.date().nullable(),
 });
 
 export type LibraryDocumentDto = z.infer<typeof LibraryDocumentSchema>;
@@ -83,7 +85,7 @@ export const GetLibraryDocumentsResponseSchema = z.object({
     documents: z.array(LibraryDocumentSchema),
     nextCursor: z
         .object({
-            lastVisitedAt: z.coerce.date(),
+            lastVisitedAt: z.coerce.date().nullable(),
             id: z.number(),
         })
         .nullable(),
@@ -95,9 +97,11 @@ export type GetLibraryDocumentsResponseDto = z.infer<
 
 /**
  * Query params for GET /document/library/search.
+ * workspaceId is the selected workspace scope.
  * title must be non-empty and at most 256 characters. limit defaults to 20 if omitted.
  */
 export const SearchLibraryDocumentsRequestSchema = z.object({
+    workspaceId: z.coerce.number().int().positive(),
     title: z.string().min(1).max(256),
     limit: z.coerce.number().int().positive().optional(),
 });
