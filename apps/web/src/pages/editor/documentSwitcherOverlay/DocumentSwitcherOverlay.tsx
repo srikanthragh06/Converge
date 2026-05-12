@@ -80,8 +80,8 @@ const DocumentSwitcherOverlay = ({
                                 <span className="text-text-disabled text-xs truncate">
                                     {[
                                         formatAccessLevel(doc.access),
-                                        `Last visited ${timeAgo(doc.lastVisitedAt)}`,
-                                        `Edited ${timeAgo(doc.lastEditedAt)}`,
+                                        `Last visited ${timeAgo(doc.lastVisitedAt || "")}`,
+                                        `Edited ${timeAgo(doc.lastEditedAt || "")}`,
                                     ].join(" · ")}
                                 </span>
                             </div>
