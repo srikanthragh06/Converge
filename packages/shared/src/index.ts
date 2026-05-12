@@ -69,6 +69,7 @@ export {
     ACCESS_RANK,
     WORKSPACE_ROLE_RANK,
     hasWorkspaceRole,
+    hasAccess,
     ResolvedDocumentAccessLevelSchema,
     WorkspaceTypeSchema,
     WorkspaceRoleSchema,
