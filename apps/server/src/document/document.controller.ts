@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
@@ -14,6 +15,8 @@ import { type Request } from 'express';
 import { DocumentService } from './document.service';
 import { httpOK } from '../utils/http-response.util';
 import {
+  CreateDocumentRequestSchema,
+  type CreateDocumentRequestDto,
   type CreateDocumentResponseDto,
   type GetDocumentResponseDto,
   type GetDocumentOverviewResponseDto,
@@ -48,16 +51,23 @@ export class DocumentController {
   }
 
   /**
-   * Creates a new document owned by the authenticated user and returns its ID.
+   * Creates a new document in the given workspace. The user must have at least
+   * the member role in that workspace.
    * @param req - the Express request, with userId stamped by AuthGuard
+   * @param body - the workspace ID the document belongs to
    * @returns the new document's ID
    */
   @Post('/')
   async handleCreateDocument(
     @Req() req: Request,
+    @Body(new ZodHttpValidationPipe(CreateDocumentRequestSchema))
+    body: CreateDocumentRequestDto,
   ): Promise<CreateDocumentResponseDto> {
     const userId = (req as any).userId as number;
-    const documentId = await this.documentService.createNewDocument(userId);
+    const documentId = await this.documentService.createNewDocument(
+      userId,
+      body.workspaceId,
+    );
     return httpOK({ documentId });
   }
 

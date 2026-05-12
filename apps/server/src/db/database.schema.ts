@@ -29,14 +29,10 @@ export interface DocumentsTable {
   is_deleted: Generated<boolean>;
   /** Timestamp set alongside is_deleted for audit and future trash-expiry logic. Null until deleted. */
   deleted_at: Date | null;
-  /** FK to users.id — current owner of the document. Starts as creator_id, can be transferred. */
-  owner_id: number;
   /** Monotonically incrementing counter, increased on every persisted Yjs update. */
   update_count: Generated<number>;
   /** Value of update_count at the time of the last compaction. */
   last_compact_count: Generated<number>;
-  /** Fallback access level for users with no explicit row in document_access. Defaults to 'noAccess'. */
-  default_access: Generated<DocumentAccessLevel>;
   /** FK to workspaces.id — the workspace this document belongs to. */
   workspace_id: number;
   created_at: Generated<Date>;

@@ -39,3 +39,16 @@ export const ACCESS_RANK: Record<ResolvedDocumentAccessLevel, number> = {
     admin: 30,
     owner: 40,
 };
+
+/** Numeric rank for each workspace role, used for ordered comparisons (e.g. minimum role checks). */
+export const WORKSPACE_ROLE_RANK: Record<WorkspaceRole, number> = {
+    member: 10,
+    admin: 20,
+    owner: 30,
+};
+
+/** Returns true if the user's workspace role meets or exceeds the required role. */
+export const hasWorkspaceRole = (
+    userRole: WorkspaceRole,
+    required: WorkspaceRole,
+): boolean => WORKSPACE_ROLE_RANK[userRole] >= WORKSPACE_ROLE_RANK[required];

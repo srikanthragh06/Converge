@@ -2,6 +2,7 @@ export { mapsAreEqual } from "./utils/utils";
 export { GoogleAuthRequestSchema, AuthResponseSchema } from "./http/auth";
 export type { GoogleAuthRequestDto, AuthResponseDto } from "./http/auth";
 export {
+    CreateDocumentRequestSchema,
     CreateDocumentResponseSchema,
     GetDocumentResponseSchema,
     GetDocumentOverviewResponseSchema,
@@ -27,6 +28,7 @@ export {
     FindNewDocumentOwnerResponseSchema,
 } from "./http/document";
 export type {
+    CreateDocumentRequestDto,
     CreateDocumentResponseDto,
     GetDocumentResponseDto,
     GetDocumentOverviewResponseDto,
@@ -65,6 +67,8 @@ export {
     DocumentAccessLevel,
     DocumentAccessLevelSchema,
     ACCESS_RANK,
+    WORKSPACE_ROLE_RANK,
+    hasWorkspaceRole,
     ResolvedDocumentAccessLevelSchema,
     WorkspaceTypeSchema,
     WorkspaceRoleSchema,

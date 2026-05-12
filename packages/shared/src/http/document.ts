@@ -1,6 +1,15 @@
 import { z } from "zod";
 import { DocumentAccessLevelSchema, ResolvedDocumentAccessLevelSchema } from "../types/types";
 
+/** Request body for POST /document — the workspace the document belongs to. */
+export const CreateDocumentRequestSchema = z.object({
+    workspaceId: z.number(),
+});
+
+export type CreateDocumentRequestDto = z.infer<
+    typeof CreateDocumentRequestSchema
+>;
+
 export const CreateDocumentResponseSchema = z.object({
     documentId: z.number(),
 });
