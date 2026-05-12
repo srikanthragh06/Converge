@@ -10,7 +10,6 @@ import { UseFilters } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { DocumentService } from './document.service';
 import { DocumentYjsService } from './document-yjs.service';
-import { DocumentAccessService } from './document-access.service';
 import { ZodSocketValidationPipe } from '../pipes/zod-socket-validation.pipe';
 import {
   PingSchema,
@@ -34,6 +33,7 @@ import {
   SyncDocTitleClientSchema,
   SyncDocTitleAckSchema,
   type ResolvedDocumentAccessLevel,
+  hasAccess,
 } from '@converge/shared';
 import { GlobalExceptionFilter } from '../utils/global-exception.filter';
 import { socketEmit, socketEmitRoom } from '../utils/ws-emit.util';
@@ -63,7 +63,6 @@ export class DocumentGateway implements OnGatewayConnection {
   constructor(
     private readonly documentService: DocumentService,
     private readonly documentYjsService: DocumentYjsService,
-    private readonly documentAccessService: DocumentAccessService,
     private readonly redisService: RedisService,
     private readonly authService: AuthService,
   ) {}
@@ -238,12 +237,7 @@ export class DocumentGateway implements OnGatewayConnection {
     const userId = client.data.userId as number;
 
     // Reject writes from viewers — editor+ access required.
-    if (
-      !this.documentAccessService.hasAccess(
-        client.data.access as ResolvedDocumentAccessLevel,
-        'editor',
-      )
-    )
+    if (!hasAccess(client.data.access as ResolvedDocumentAccessLevel, 'editor'))
       return;
 
     const update = new Uint8Array(updateArray);
@@ -343,10 +337,7 @@ export class DocumentGateway implements OnGatewayConnection {
 
     // Apply and broadcast the diff only for editors — viewers cannot push content.
     if (
-      this.documentAccessService.hasAccess(
-        client.data.access as ResolvedDocumentAccessLevel,
-        'editor',
-      )
+      hasAccess(client.data.access as ResolvedDocumentAccessLevel, 'editor')
     ) {
       const { serverSV } = await this.documentYjsService.applyDocUpdate(
         documentId,
@@ -400,12 +391,7 @@ export class DocumentGateway implements OnGatewayConnection {
     const diff = new Uint8Array(diffArray);
 
     // Apply the final diff only for editors — viewers cannot push content.
-    if (
-      this.documentAccessService.hasAccess(
-        client.data.access as ResolvedDocumentAccessLevel,
-        'editor',
-      )
-    )
+    if (hasAccess(client.data.access as ResolvedDocumentAccessLevel, 'editor'))
       await this.documentYjsService.applyDocUpdate(documentId, diff);
   }
 
@@ -425,12 +411,7 @@ export class DocumentGateway implements OnGatewayConnection {
     const userId = client.data.userId as number;
 
     // Reject writes from viewers — editor+ access required.
-    if (
-      !this.documentAccessService.hasAccess(
-        client.data.access as ResolvedDocumentAccessLevel,
-        'editor',
-      )
-    )
+    if (!hasAccess(client.data.access as ResolvedDocumentAccessLevel, 'editor'))
       return;
 
     // Persist the updated title to the database.
