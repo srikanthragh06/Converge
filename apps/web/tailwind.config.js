@@ -29,8 +29,6 @@ export default {
     },
     plugins: [],
     corePlugins: {
-        // Disable Tailwind's preflight reset — it conflicts with Mantine/BlockNote's own
-        // CSS reset and causes editor styles (buttons, dropdowns, lists) to break.
-        preflight: false,
+        preflight: true,
     },
 };
