@@ -98,8 +98,8 @@ export class DocumentService {
     }
 
     // Wrap in a transaction so the document and its metadata row are always
-    // created together — a document with no metadata row would break the
-    // library query which treats last_visited_at and last_edited_at as non-nullable.
+    // created together — the metadata seeds the creator's timestamps so the
+    // document appears in their library immediately with proper tracking.
     const row = await db.transaction().execute(async (tx) => {
       const documentRow = await tx
         .insertInto('documents')
@@ -113,8 +113,7 @@ export class DocumentService {
       if (!documentRow)
         throw new InternalServerErrorException('Failed to create document.');
 
-      // Create the initial metadata row so the library can always read
-      // last_visited_at and last_edited_at without needing a left join.
+      // Initialise metadata so the creator has timestamps from the start.
       await tx
         .insertInto('document_user_metadata')
         .values({ document_id: documentRow.id, user_id: userId })
@@ -162,11 +161,7 @@ export class DocumentService {
     // The workspace owner is the effective document owner.
     const workspaceRow = await db
       .selectFrom('documents as d')
-      .innerJoin(
-        'workspace_members as wm',
-        'wm.workspace_id',
-        'd.workspace_id',
-      )
+      .innerJoin('workspace_members as wm', 'wm.workspace_id', 'd.workspace_id')
       .select(['wm.user_id'])
       .where('d.id', '=', documentId)
       .where('wm.role', '=', 'owner')
@@ -230,87 +225,87 @@ export class DocumentService {
   }
 
   /**
-   * Returns a paginated list of documents the user has interacted with and has
-   * viewer+ access to, ordered by last_visited_at DESC with id DESC as a
-   * tiebreaker. Uses keyset pagination via a compound cursor (lastVisitedAt, id)
-   * so performance is consistent regardless of page depth.
+   * Returns a paginated list of documents in the given workspace that the user
+   * has viewer+ access to, ordered by last_visited_at DESC NULLS LAST with id
+   * DESC as a tiebreaker. Uses keyset pagination via a compound cursor.
    *
-   * A document appears only if the user has a document_user_metadata row (i.e.
-   * has opened it at least once via WebSocket) AND has viewer+ access via the
-   * three-tier resolution: owner > explicit document_access row > default_access.
+   * Access is resolved in a subquery CASE expression, then the outer query
+   * filters to viewer+ and applies ordering and pagination.
    *
    * @param userId - the authenticated user whose library to list
+   * @param workspaceId - the workspace to scope the library to
    * @param limit - maximum number of documents to return
    * @param cursor - compound cursor from the previous page; omit for the first page
    * @returns documents for this page and the nextCursor to fetch the following page
    */
   async getLibraryDocuments(
     userId: number,
+    workspaceId: number,
     limit: number,
-    cursor?: { lastVisitedAt: Date; id: number },
+    cursor?: { lastVisitedAt: Date | null; id: number },
   ): Promise<GetLibraryDocumentsResponseDto> {
     const db = this.dbService.kysely;
 
-    // document_user_metadata is the "has interacted" gate — only documents the
-    // user has opened at least once (creating a metadata row via recordLastVisited)
-    // can appear in the library.
-    // document_access is left-joined because owners have no explicit access row —
-    // their access is implied by documents.owner_id.
-    let query = db
-      .selectFrom('document_user_metadata as dum')
-      .innerJoin('documents as d', 'd.id', 'dum.document_id')
-      .leftJoin('document_access as da', (join) =>
+    // Inner subquery: join all tables and compute the resolved access level.
+    const inner = db
+      .selectFrom('documents as d')
+      .innerJoin('workspaces as w', 'w.id', 'd.workspace_id')
+      .leftJoin('document_user_metadata as dum', (join) =>
         join
-          .onRef('da.document_id', '=', 'dum.document_id')
-          .on('da.user_id', '=', userId),
+          .onRef('dum.document_id', '=', 'd.id')
+          .on('dum.user_id', '=', userId),
+      )
+      .leftJoin('workspace_members as wm', (join) =>
+        join
+          .onRef('wm.workspace_id', '=', 'd.workspace_id')
+          .on('wm.user_id', '=', userId),
+      )
+      .leftJoin('document_access as da', (join) =>
+        join.onRef('da.document_id', '=', 'd.id').on('da.user_id', '=', userId),
       )
       .select([
         'd.id',
         'd.title',
         'dum.last_visited_at as lastVisitedAt',
         'dum.last_edited_at as lastEditedAt',
-        // Resolve access using the same three-tier logic as resolveAccess:
-        // owner > explicit document_access row > default_access fallback.
         sql<ResolvedDocumentAccessLevel>`
           CASE
-            WHEN d.owner_id = ${userId} THEN 'owner'
+            WHEN wm.role = 'owner' THEN 'owner'
             WHEN da.access IS NOT NULL THEN da.access
-            ELSE d.default_access
+            WHEN wm.role = 'admin' THEN COALESCE(d.admin_doc_access, w.admin_doc_access)
+            WHEN wm.role = 'member' THEN COALESCE(d.member_doc_access, w.member_doc_access)
+            ELSE COALESCE(d.non_member_doc_access, w.non_member_doc_access)
           END
         `.as('access'),
       ])
-      .where('dum.user_id', '=', userId)
       .where('d.is_deleted', '=', false)
-      // Include the document only if the user has viewer+ access.
-      // da.user_id IS NULL means no explicit row exists — fall back to default_access.
-      .where(({ eb, or, and }) =>
-        or([
-          eb('d.owner_id', '=', userId),
-          and([
-            eb('da.user_id', 'is not', null),
-            eb('da.access', '!=', 'noAccess'),
-          ]),
-          and([
-            eb('da.user_id', 'is', null),
-            eb('d.default_access', '!=', 'noAccess'),
-          ]),
-        ]),
-      )
-      .orderBy('dum.last_visited_at', 'desc')
-      .orderBy('d.id', 'desc')
+      .where('d.workspace_id', '=', workspaceId)
+      .as('r');
+
+    // Outer query: filter out noAccess, apply ordering and pagination.
+    let query = db
+      .selectFrom(inner)
+      .selectAll()
+      .where('r.access', '!=', 'noAccess')
+      .orderBy(sql`"r"."lastVisitedAt" DESC NULLS LAST`)
+      .orderBy(sql`"r"."id" DESC`)
       .limit(limit);
 
-    // Apply the compound cursor to fetch only rows after the last seen position.
+    // Keyset pagination — handles transition into the NULL lastVisitedAt section.
     if (cursor) {
-      query = query.where(({ eb, and, or }) =>
-        or([
-          eb('dum.last_visited_at', '<', cursor.lastVisitedAt),
-          and([
-            eb('dum.last_visited_at', '=', cursor.lastVisitedAt),
-            eb('d.id', '<', cursor.id),
-          ]),
-        ]),
-      );
+      query =
+        cursor.lastVisitedAt !== null
+          ? query.where((eb) =>
+              eb.or([
+                eb('r.lastVisitedAt', '<', cursor.lastVisitedAt),
+                eb.and([
+                  eb('r.lastVisitedAt', '=', cursor.lastVisitedAt),
+                  eb('r.id', '<', cursor.id),
+                ]),
+                eb('r.lastVisitedAt', 'is', null),
+              ]),
+            )
+          : query.where('r.id', '<', cursor.id);
     }
 
     const rows = await query.execute();
@@ -323,8 +318,7 @@ export class DocumentService {
       lastEditedAt: row.lastEditedAt,
     }));
 
-    // If we got a full page there may be more results — return the cursor
-    // pointing at the last item. Otherwise signal end of results with null.
+    // nextCursor is null when there are no more results.
     const nextCursor =
       rows.length === limit
         ? {
@@ -337,32 +331,40 @@ export class DocumentService {
   }
 
   /**
-   * Searches documents the user has interacted with and has viewer+ access to,
-   * matching by title using trigram similarity. Applies the same three-tier
-   * access resolution and metadata row gate as getLibraryDocuments.
-   * Empty-title documents are excluded.
+   * Searches documents in the given workspace the user has viewer+ access to,
+   * matching by title using trigram similarity. Empty-title documents are
+   * excluded. Uses the same subquery access-resolution pattern as
+   * getLibraryDocuments.
    * @param userId - the authenticated user whose library to search
+   * @param workspaceId - the workspace to scope the search to
    * @param title - the search query to match against document titles
    * @param limit - maximum number of results to return
    * @returns matching documents ordered by similarity score descending
    */
   async searchLibraryDocuments(
     userId: number,
+    workspaceId: number,
     title: string,
     limit: number,
   ): Promise<SearchLibraryDocumentsResponseDto> {
     const db = this.dbService.kysely;
 
-    // Same join structure as getLibraryDocuments — metadata row as the
-    // "has interacted" gate, document_access left-joined for the access check.
-    // similarity() is provided by pg_trgm and scores how closely the title matches the query.
-    const rows = await db
-      .selectFrom('document_user_metadata as dum')
-      .innerJoin('documents as d', 'd.id', 'dum.document_id')
-      .leftJoin('document_access as da', (join) =>
+    // Inner subquery: same five-tier resolution as getLibraryDocuments.
+    const inner = db
+      .selectFrom('documents as d')
+      .innerJoin('workspaces as w', 'w.id', 'd.workspace_id')
+      .leftJoin('document_user_metadata as dum', (join) =>
         join
-          .onRef('da.document_id', '=', 'dum.document_id')
-          .on('da.user_id', '=', userId),
+          .onRef('dum.document_id', '=', 'd.id')
+          .on('dum.user_id', '=', userId),
+      )
+      .leftJoin('workspace_members as wm', (join) =>
+        join
+          .onRef('wm.workspace_id', '=', 'd.workspace_id')
+          .on('wm.user_id', '=', userId),
+      )
+      .leftJoin('document_access as da', (join) =>
+        join.onRef('da.document_id', '=', 'd.id').on('da.user_id', '=', userId),
       )
       .select([
         'd.id',
@@ -371,30 +373,26 @@ export class DocumentService {
         'dum.last_edited_at as lastEditedAt',
         sql<ResolvedDocumentAccessLevel>`
           CASE
-            WHEN d.owner_id = ${userId} THEN 'owner'
+            WHEN wm.role = 'owner' THEN 'owner'
             WHEN da.access IS NOT NULL THEN da.access
-            ELSE d.default_access
+            WHEN wm.role = 'admin' THEN COALESCE(d.admin_doc_access, w.admin_doc_access)
+            WHEN wm.role = 'member' THEN COALESCE(d.member_doc_access, w.member_doc_access)
+            ELSE COALESCE(d.non_member_doc_access, w.non_member_doc_access)
           END
         `.as('access'),
         sql<number>`similarity(d.title, ${title})`.as('score'),
       ])
-      .where('dum.user_id', '=', userId)
       .where('d.is_deleted', '=', false)
+      .where('d.workspace_id', '=', workspaceId)
       .where('d.title', '!=', '')
-      .where(({ eb, or, and }) =>
-        or([
-          eb('d.owner_id', '=', userId),
-          and([
-            eb('da.user_id', 'is not', null),
-            eb('da.access', '!=', 'noAccess'),
-          ]),
-          and([
-            eb('da.user_id', 'is', null),
-            eb('d.default_access', '!=', 'noAccess'),
-          ]),
-        ]),
-      )
-      .orderBy(sql`score`, 'desc')
+      .as('r');
+
+    // Outer query: filter out noAccess and order by similarity.
+    const rows = await db
+      .selectFrom(inner)
+      .selectAll()
+      .where('r.access', '!=', 'noAccess')
+      .orderBy('r.score', 'desc')
       .limit(limit)
       .execute();
 

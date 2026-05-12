@@ -110,20 +110,21 @@ export class DocumentController {
    * Searches the authenticated user's documents by title using trigram similarity,
    * returning results ordered by relevance descending.
    * @param req - the Express request, with userId stamped by AuthGuard
-   * @param query - title (non-empty, max 256 chars) and optional limit
+   * @param query - workspaceId, title (non-empty, max 256 chars), and optional limit
    * @returns matching documents ordered by similarity score descending
    */
   @Get('/library/search')
   async handleSearchLibraryDocuments(
     @Req() req: Request,
     @Query(new ZodHttpValidationPipe(SearchLibraryDocumentsRequestSchema))
-    query: { title: string; limit?: number },
+    query: { workspaceId: number; title: string; limit?: number },
   ): Promise<SearchLibraryDocumentsResponseDto> {
     const userId = (req as any).userId as number;
     const limit = query.limit ?? 20;
     return httpOK(
       await this.documentService.searchLibraryDocuments(
         userId,
+        query.workspaceId,
         query.title,
         limit,
       ),
@@ -131,18 +132,24 @@ export class DocumentController {
   }
 
   /**
-   * Returns a paginated list of the authenticated user's documents, ordered by
-   * last_visited_at DESC. Uses keyset pagination — pass cursorVisitedAt and
-   * cursorId from the previous response's nextCursor to fetch the next page.
+   * Returns a paginated list of documents in the given workspace the user has
+   * viewer+ access to, ordered by last_visited_at DESC. Uses keyset pagination
+   * — pass cursorVisitedAt and cursorId from the previous response's nextCursor
+   * to fetch the next page.
    * @param req - the Express request, with userId stamped by AuthGuard
-   * @param query - optional limit, cursorVisitedAt, and cursorId
+   * @param query - workspaceId, optional limit, cursorVisitedAt, and cursorId
    * @returns documents for this page and nextCursor (null on the last page)
    */
   @Get('/library')
   async handleGetLibraryDocuments(
     @Req() req: Request,
     @Query(new ZodHttpValidationPipe(GetLibraryDocumentsRequestSchema))
-    query: { limit?: number; cursorVisitedAt?: Date; cursorId?: number },
+    query: {
+      workspaceId: number;
+      limit?: number;
+      cursorVisitedAt?: Date;
+      cursorId?: number;
+    },
   ): Promise<GetLibraryDocumentsResponseDto> {
     const userId = (req as any).userId as number;
     const limit = query.limit ?? 20;
@@ -151,7 +158,12 @@ export class DocumentController {
         ? { lastVisitedAt: query.cursorVisitedAt, id: query.cursorId }
         : undefined;
     return httpOK(
-      await this.documentService.getLibraryDocuments(userId, limit, cursor),
+      await this.documentService.getLibraryDocuments(
+        userId,
+        query.workspaceId,
+        limit,
+        cursor,
+      ),
     );
   }
 }
