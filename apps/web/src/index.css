@@ -1,12 +1,34 @@
 @import "@blocknote/core/fonts/inter.css";
 @import "@blocknote/mantine/style.css";
 
+/* shadcn/ui Neutral theme — dark mode (HSL). */
+:root {
+    --background: 0 0% 9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 13%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 13%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 90%;
+    --primary-foreground: 0 0% 13%;
+    --secondary: 0 0% 17%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 17%;
+    --muted-foreground: 0 0% 63%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 13%;
+    --input: 0 0% 20%;
+    --ring: 0 0% 55%;
+    --radius: 0.5rem;
+}
+
 /* Tailwind base, component classes, and utility classes. */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Manual body reset since preflight is disabled — removes the browser's default 8px margin */
+/* Body reset — preflight handles most resets, but some need explicit overrides. */
 body {
     margin: 0;
     padding: 0;
