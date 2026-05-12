@@ -26,7 +26,8 @@ const EditorPage = () => {
     } = useEditor(); // editor instance, document ID, fetch status, and title state
     const [isSwitcherOpen, setIsSwitcherOpen] = useState(false); // controls document switcher overlay visibility
     const documentAccess = useAtomValue(documentAccessAtom); // resolved access level for the current document
-    const isEditable = documentAccess !== null && hasAccess(documentAccess, "editor"); // editor+ may write; viewers get a read-only instance
+    const isEditable =
+        documentAccess !== null && hasAccess(documentAccess, "editor"); // editor+ may write; viewers get a read-only instance
 
     // Opens the document switcher on Ctrl+P, preventing the browser print dialog.
     useEffect(() => {
@@ -44,10 +45,10 @@ const EditorPage = () => {
         // authRequired redirects unauthenticated users before rendering children
         <Page authRequired>
             {/* EditorPageHeader is sticky at top-0; title bar sticks independently below it */}
-            <EditorPageHeader
+            {/* <EditorPageHeader
                 documentStatus={documentStatus}
                 documentId={documentId}
-            />
+            /> */}
             {documentStatus === "ready" && (
                 <div className="sticky top-[52px] sm:top-[76px] z-40 bg-background-base w-full flex justify-start sm:pl-8 pl-4 pr-2 py-2 sm:mb-4 mb-2">
                     {/* Dims to 50% opacity while a title save is in-flight */}
