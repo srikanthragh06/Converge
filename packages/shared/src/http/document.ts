@@ -21,7 +21,6 @@ export type CreateDocumentResponseDto = z.infer<
 export const GetDocumentResponseSchema = z.object({
     id: z.number(),
     title: z.string(),
-    ownerId: z.number(),
     createdAt: z.coerce.date(),
     resolvedAccess: ResolvedDocumentAccessLevelSchema,
 });
@@ -36,8 +35,6 @@ export const GetDocumentOverviewResponseSchema = z.object({
     ownerName: z.string(),
     ownerEmail: z.string(),
     createdAt: z.coerce.date(),
-    lastVisitedAt: z.coerce.date(),
-    lastEditedAt: z.coerce.date(),
 });
 
 export type GetDocumentOverviewResponseDto = z.infer<
