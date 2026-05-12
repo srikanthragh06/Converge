@@ -13,6 +13,7 @@ import {
   hasWorkspaceRole,
   type ResolvedDocumentAccessLevel,
   type WorkspaceRole,
+  hasAccess,
 } from '@converge/shared';
 import { DatabaseService } from '../db/database.service';
 import { DocumentAccessService } from './document-access.service';
@@ -31,7 +32,7 @@ export class DocumentService {
    * requesting user has less than viewer access.
    * @param documentId - the ID of the document to fetch
    * @param userId - the ID of the authenticated requesting user
-   * @returns the document's id, title, ownerId, and createdAt
+   * @returns the document's id, title, and createdAt
    */
   async getDocumentOfUser(
     documentId: number,
@@ -44,13 +45,13 @@ export class DocumentService {
       documentId,
       userId,
     );
-    if (!this.documentAccessService.hasAccess(access, 'viewer'))
+    if (!hasAccess(access, 'viewer'))
       throw new ForbiddenException('You do not have access to this document.');
 
     // Fetch the document fields needed for the response.
     const row = await db
       .selectFrom('documents')
-      .select(['id', 'title', 'owner_id', 'created_at'])
+      .select(['id', 'title', 'created_at'])
       .where('id', '=', documentId)
       .where('is_deleted', '=', false)
       .executeTakeFirst();
@@ -60,7 +61,6 @@ export class DocumentService {
     return {
       id: row.id,
       title: row.title,
-      ownerId: row.owner_id,
       createdAt: row.created_at,
       resolvedAccess: access,
     };
@@ -128,10 +128,9 @@ export class DocumentService {
 
   /**
    * Returns overview metadata for the given document: title, creator and owner
-   * name and email, creation date, and the requesting user's last-visited and
-   * last-edited timestamps. Throws NotFoundException if the document does not
-   * exist or is deleted, and ForbiddenException if the requesting user has less
-   * than viewer access.
+   * name and email, and creation date. Throws NotFoundException if the document
+   * does not exist or is deleted, and ForbiddenException if the requesting user
+   * has less than viewer access.
    * @param documentId - the document to fetch overview data for
    * @param userId - the authenticated user performing the request
    * @returns overview metadata for the document
@@ -147,33 +146,39 @@ export class DocumentService {
       documentId,
       userId,
     );
-    if (!this.documentAccessService.hasAccess(access, 'viewer'))
+    if (!hasAccess(access, 'viewer'))
       throw new ForbiddenException('You do not have access to this document.');
 
     // Fetch the document fields needed for the overview response.
     const docRow = await db
       .selectFrom('documents')
-      .select(['title', 'owner_id', 'creator_id', 'created_at'])
+      .select(['title', 'creator_id', 'created_at'])
       .where('id', '=', documentId)
       .where('is_deleted', '=', false)
       .executeTakeFirst();
 
     if (!docRow) throw new NotFoundException('Document not found.');
 
-    const docUserRow = await db
-      .selectFrom('document_user_metadata')
-      .select([
-        sql<Date>`max(last_visited_at)`.as('lastVisitedAt'),
-        sql<Date>`max(last_edited_at)`.as('lastEditedAt'),
-      ])
-      .where('document_id', '=', documentId)
-      .where('user_id', '=', userId)
+    // The workspace owner is the effective document owner.
+    const workspaceRow = await db
+      .selectFrom('documents as d')
+      .innerJoin(
+        'workspace_members as wm',
+        'wm.workspace_id',
+        'd.workspace_id',
+      )
+      .select(['wm.user_id'])
+      .where('d.id', '=', documentId)
+      .where('wm.role', '=', 'owner')
       .executeTakeFirst();
+
+    if (!workspaceRow)
+      throw new NotFoundException('Workspace owner not found.');
 
     const ownerRow = await db
       .selectFrom('users')
       .select(['name', 'email'])
-      .where('id', '=', docRow.owner_id)
+      .where('id', '=', workspaceRow.user_id)
       .executeTakeFirst();
 
     if (!ownerRow) throw new NotFoundException('Owner not found.');
@@ -186,10 +191,6 @@ export class DocumentService {
 
     if (!creatorRow) throw new NotFoundException('Creator not found.');
 
-    // Fall back to now() for users who have no metadata row yet (non-owners
-    // who have not yet connected via WebSocket).
-    const now = new Date();
-
     return {
       title: docRow.title,
       creatorName: creatorRow.name,
@@ -197,8 +198,6 @@ export class DocumentService {
       ownerName: ownerRow.name,
       ownerEmail: ownerRow.email,
       createdAt: docRow.created_at,
-      lastVisitedAt: docUserRow?.lastVisitedAt ?? now,
-      lastEditedAt: docUserRow?.lastEditedAt ?? now,
     };
   }
 
@@ -217,8 +216,10 @@ export class DocumentService {
       documentId,
       userId,
     );
-    if (!this.documentAccessService.hasAccess(access, 'admin'))
-      throw new ForbiddenException('You do not have access to this document.');
+    if (!hasAccess(access, 'admin'))
+      throw new ForbiddenException(
+        'You must have admin access to delete this document.',
+      );
 
     // Mark the document as deleted without removing any rows.
     await db

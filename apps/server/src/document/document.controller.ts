@@ -37,7 +37,7 @@ export class DocumentController {
    * Throws 404 if the document does not exist, 403 if the user does not have access.
    * @param req - the Express request, with userId stamped by AuthGuard
    * @param documentId - the document ID parsed from the URL path
-   * @returns the document's id, title, ownerId, and createdAt
+   * @returns the document's id, title, and createdAt
    */
   @Get('/id/:documentId')
   async handleGetDocument(
