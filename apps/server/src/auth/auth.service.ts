@@ -1,15 +1,18 @@
-import { HttpService } from '@nestjs/axios';
 import {
-  BadRequestException,
+  forwardRef,
+  Inject,
   Injectable,
+  BadRequestException,
   InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 
 import * as jwt from 'jsonwebtoken';
 import { DatabaseService } from '../db/database.service';
+import { WorkspaceService } from '../workspace/workspace.service';
 import { type AuthResponseDto } from '@converge/shared';
 import type { Request, Response } from 'express';
 
@@ -21,6 +24,8 @@ export class AuthService {
     private readonly httpService: HttpService, // Used to POST the authorisation code to Google's token endpoint.
     private readonly configService: ConfigService, // Supplies OAuth credentials and redirect URI from environment config.
     private readonly dbService: DatabaseService, // Persists and upserts authenticated user records.
+    @Inject(forwardRef(() => WorkspaceService))
+    private readonly workspaceService: WorkspaceService, // Creates personal workspaces on first signup.
   ) {}
 
   /**
@@ -101,7 +106,10 @@ export class AuthService {
 
     // Create a personal workspace on first signup so the user immediately has
     // a workspace context. Existing users are a no-op.
-    const workspace = await this.upsertUserPersonalWorkspace(rows[0].id, name);
+    const workspace = await this.workspaceService.upsertUserPersonalWorkspace(
+      rows[0].id,
+      name,
+    );
 
     const authToken = this.prepareUserJWT(rows[0].id, rows[0].email);
 
@@ -300,66 +308,4 @@ export class AuthService {
     res.clearCookie('authToken');
   }
 
-  /**
-   * Creates a personal workspace with an owner membership row for the user if
-   * one does not already exist. Runs in a transaction so that a partial write
-   * (workspace without membership row) is never committed.
-   *
-   * @param userId - The user to create the personal workspace for.
-   * @param userName - The user's display name, used to form the workspace name.
-   * @returns The workspace's id and name — either the newly created one or the
-   *          existing personal workspace for this user.
-   */
-  private async upsertUserPersonalWorkspace(
-    userId: number,
-    userName: string,
-  ): Promise<{ id: number; name: string }> {
-    const db = this.dbService.kysely;
-
-    const workspace = await db.transaction().execute(async (tx) => {
-      // Check whether a personal workspace already exists for this user.
-      const existing = await tx
-        .selectFrom('workspaces')
-        .select(['id', 'name'])
-        .where('owner_id', '=', userId)
-        .where('type', '=', 'personal')
-        .executeTakeFirst();
-
-      if (existing) return existing; // already set up — nothing to do.
-
-      // Create the workspace using the user's name.
-      const name = `${userName}'s Workspace`;
-      const ws = await tx
-        .insertInto('workspaces')
-        .values({
-          name,
-          owner_id: userId,
-          type: 'personal',
-        })
-        .returning('id')
-        .executeTakeFirstOrThrow();
-
-      // Insert the owner membership row so access resolution sees role='owner'.
-      await tx
-        .insertInto('workspace_members')
-        .values({
-          workspace_id: ws.id,
-          user_id: userId,
-          role: 'owner',
-        })
-        .execute();
-
-      // Set this as the user's selected workspace so the client can read it
-      // from /auth/me on every page load.
-      await tx
-        .updateTable('users')
-        .set({ current_workspace_id: ws.id })
-        .where('id', '=', userId)
-        .execute();
-
-      return { id: ws.id, name };
-    });
-
-    return workspace;
-  }
 }
