@@ -52,6 +52,14 @@ export type {
     FindNewDocumentOwnerRequestDto,
     FindNewDocumentOwnerResponseDto,
 } from "./http/document";
+export {
+    GetWorkspacesResponseSchema,
+    SetSelectedWorkspaceResponseSchema,
+} from "./http/workspace";
+export type {
+    GetWorkspacesResponseDto,
+    SetSelectedWorkspaceResponseDto,
+} from "./http/workspace";
 export { INTERNAL_SERVER_ERROR_MESSAGE } from "./constants/constants";
 export {
     DocumentAccessLevel,
