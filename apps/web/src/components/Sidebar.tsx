@@ -34,11 +34,12 @@ const Sidebar = ({
     const {
         workspaces,
         currentWorkspace,
+        recentDocuments,
         isCreating,
         selectWorkspace,
         createDocument,
         refetchWorkspaces,
-    } = useSidebar(); // Workspace list, selected workspace state, create/handle workspace actions.
+    } = useSidebar(); // Workspace list, recent docs, selected workspace state, create/handle workspace actions.
 
     if (isOpen) {
         return (
@@ -107,6 +108,7 @@ const Sidebar = ({
                         }}
                     />
                 </div>
+                {/* divider */}
                 <div className="mt-3 flex flex-col space-y-0">
                     <button
                         onClick={createDocument}
@@ -146,16 +148,29 @@ const Sidebar = ({
                 <div className="mt-4 flex flex-col space-y-1">
                     <p className="opacity-50 text-xs">Documents</p>
                     <div className="flex flex-col">
-                        <button
-                            className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover
-                            rounded-md transition cursor-pointer text-text-primary"
-                            aria-label="Meeting Notes"
-                        >
-                            <MdDescription className="w-3 h-3 shrink-0" />
-                            <span className="text-xs sm:text-sm truncate">
-                                Meeting Notes
+                        {recentDocuments.length === 0 && (
+                            <span className="text-xs opacity-40 px-2 py-1">
+                                No recent documents
                             </span>
-                        </button>
+                        )}
+                        {recentDocuments.map((doc) => (
+                            <button
+                                key={doc.id}
+                                onClick={() => navigate(`/document/${doc.id}`)}
+                                className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover
+                            rounded-md transition cursor-pointer text-text-primary"
+                                aria-label={doc.title}
+                            >
+                                <MdDescription
+                                    className={`w-3 h-3 shrink-0 ${!doc.title ? "opacity-40" : ""}`}
+                                />
+                                <span
+                                    className={`text-xs sm:text-sm truncate ${!doc.title ? "opacity-40" : ""}`}
+                                >
+                                    {doc.title || "Untitled"}
+                                </span>
+                            </button>
+                        ))}
                     </div>
                 </div>
             </div>
