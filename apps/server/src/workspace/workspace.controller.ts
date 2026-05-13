@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -25,11 +26,23 @@ import type {
   SetSelectedWorkspaceResponseDto,
   UpdateWorkspaceRequestDto,
   WorkspaceOverviewResponseDto,
+  GetWorkspaceMembersRequestDto,
+  GetWorkspaceMembersResponseDto,
+  SearchWorkspaceMembersRequestDto,
+  SearchWorkspaceMembersResponseDto,
+  FindNewWorkspaceUserRequestDto,
+  FindNewWorkspaceUserResponseDto,
+  AddWorkspaceMemberRequestDto,
+  AddWorkspaceMemberResponseDto,
 } from '@converge/shared';
 import {
   CreateWorkspaceRequestSchema,
   SearchWorkspacesRequestSchema,
   UpdateWorkspaceRequestSchema,
+  GetWorkspaceMembersRequestSchema,
+  SearchWorkspaceMembersRequestSchema,
+  FindNewWorkspaceUserRequestSchema,
+  AddWorkspaceMemberRequestSchema,
 } from '@converge/shared';
 
 @Controller('/workspaces')
@@ -124,7 +137,9 @@ export class WorkspaceController {
     @Req() req: Request,
   ) {
     const userId = (req as any).userId as number;
-    return httpOK(await this.workspaceService.updateWorkspace(id, userId, body));
+    return httpOK(
+      await this.workspaceService.updateWorkspace(id, userId, body),
+    );
   }
 
   /**
@@ -147,5 +162,108 @@ export class WorkspaceController {
       userId,
     );
     return httpOK(workspace);
+  }
+
+  /**
+   * Returns a paginated list of workspace members. Accessible to all members.
+   *
+   * @param id - The workspace ID.
+   * @param query - Optional limit and cursorId for keyset pagination.
+   * @param req - The Express request with userId stamped by AuthGuard.
+   * @returns Members array and nextCursor.
+   */
+  @Get('/:id/members')
+  async handleGetWorkspaceMembers(
+    @Param('id', ParseIntPipe) id: number,
+    @Query(new ZodHttpValidationPipe(GetWorkspaceMembersRequestSchema))
+    query: GetWorkspaceMembersRequestDto,
+    @Req() req: Request,
+  ): Promise<GetWorkspaceMembersResponseDto> {
+    const userId = (req as any).userId as number;
+    const limit = query.limit ?? 20;
+    return httpOK(
+      await this.workspaceService.getMembers(id, userId, limit, query.cursorId),
+    );
+  }
+
+  /**
+   * Searches existing workspace members by email. Accessible to all members.
+   *
+   * @param id - The workspace ID.
+   * @param query - The email query string.
+   * @param req - The Express request with userId stamped by AuthGuard.
+   * @returns Matching members ordered by similarity descending.
+   */
+  @Get('/:id/members/search')
+  async handleSearchWorkspaceMembers(
+    @Param('id', ParseIntPipe) id: number,
+    @Query(new ZodHttpValidationPipe(SearchWorkspaceMembersRequestSchema))
+    query: SearchWorkspaceMembersRequestDto,
+    @Req() req: Request,
+  ): Promise<SearchWorkspaceMembersResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.workspaceService.searchMembers(id, userId, query.email),
+    );
+  }
+
+  /**
+   * Looks up a user by exact email who is not yet a member of this workspace.
+   * Requires admin+ access.
+   *
+   * @param id - The workspace ID.
+   * @param query - The exact email address to look up.
+   * @param req - The Express request with userId stamped by AuthGuard.
+   * @returns The matched user's id, name, email, and avatarUrl.
+   */
+  @Get('/:id/findNewUser')
+  async handleFindNewWorkspaceUser(
+    @Param('id', ParseIntPipe) id: number,
+    @Query(new ZodHttpValidationPipe(FindNewWorkspaceUserRequestSchema))
+    query: FindNewWorkspaceUserRequestDto,
+    @Req() req: Request,
+  ): Promise<FindNewWorkspaceUserResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.workspaceService.findNewUser(id, query.email, userId),
+    );
+  }
+
+  /**
+   * Adds a member or updates an existing member's role. Requires admin+
+   * access. Only the owner can assign admin or modify existing admins.
+   *
+   * @param id - The workspace ID.
+   * @param body - The email and role for the target user.
+   * @param req - The Express request with userId stamped by AuthGuard.
+   * @returns The added or updated member.
+   */
+  @Post('/:id/members')
+  async handleAddWorkspaceMember(
+    @Param('id', ParseIntPipe) id: number,
+    @Body(new ZodHttpValidationPipe(AddWorkspaceMemberRequestSchema))
+    body: AddWorkspaceMemberRequestDto,
+    @Req() req: Request,
+  ): Promise<AddWorkspaceMemberResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(await this.workspaceService.addMember(id, userId, body));
+  }
+
+  /**
+   * Removes a member from the workspace. Requires admin+ access. Only the
+   * owner can remove an admin.
+   *
+   * @param id - The workspace ID.
+   * @param targetUserId - The user ID to remove.
+   * @param req - The Express request with userId stamped by AuthGuard.
+   */
+  @Delete('/:id/members/:targetUserId')
+  async handleRemoveWorkspaceMember(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('targetUserId', ParseIntPipe) targetUserId: number,
+    @Req() req: Request,
+  ): Promise<void> {
+    const userId = (req as any).userId as number;
+    await this.workspaceService.removeMember(id, userId, targetUserId);
   }
 }

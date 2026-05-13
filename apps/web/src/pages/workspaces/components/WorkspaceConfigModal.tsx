@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { IoMdCloseCircleOutline } from "react-icons/io";
 import GeneralTab from "./generalTab/GeneralTab";
+import MembersTab from "./membersTab/MembersTab";
 
 /** Sidebar tab entries; extend this array to add new tabs. */
 const TABS: { key: string; label: string }[] = [
     { key: "general", label: "General" },
+    { key: "members", label: "Members" },
 ];
 
 /**
@@ -66,6 +68,9 @@ const WorkspaceConfigModal = ({
                     <div className="flex-1 min-h-0 flex flex-col px-4 py-3 sm:px-6 sm:py-5">
                         {selectedTab === "general" && (
                             <GeneralTab workspaceId={workspaceId} />
+                        )}
+                        {selectedTab === "members" && (
+                            <MembersTab workspaceId={workspaceId} />
                         )}
                     </div>
                 </div>
