@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAtom, useAtomValue } from "jotai";
-import { currentWorkspaceAtom, workspacesAtom } from "../atoms/workspace";
+import {
+    currentWorkspaceAtom,
+    refreshSidebarAtom,
+    workspacesAtom,
+} from "../atoms/workspace";
 import { authAtom } from "../atoms/auth";
 import apiClient from "../lib/http";
 import useNewDocument from "./useNewDocument";
@@ -22,6 +26,7 @@ const useSidebar = () => {
     const [currentWorkspace, setCurrentWorkspace] =
         useAtom(currentWorkspaceAtom); // currently selected workspace from the atom
     const auth = useAtomValue(authAtom); // auth state — used to seed the current workspace on mount
+    const refreshSidebar = useAtomValue(refreshSidebarAtom); // incremented externally to trigger a refetch
 
     const [recentDocuments, setRecentDocuments] = useState<
         LibraryDocumentDto[]
@@ -104,10 +109,11 @@ const useSidebar = () => {
         setCurrentWorkspace,
     ]);
 
-    // Fetches recent documents whenever the current workspace changes (and on mount once it's set).
+    // Fetches recent documents whenever the current workspace changes, or when
+    // refreshSidebarAtom is incremented externally (e.g. after create/delete/edit).
     useEffect(() => {
         if (currentWorkspace) fetchRecentDocuments(currentWorkspace.id);
-    }, [currentWorkspace, fetchRecentDocuments]);
+    }, [currentWorkspace, fetchRecentDocuments, refreshSidebar]);
 
     return {
         workspaces,

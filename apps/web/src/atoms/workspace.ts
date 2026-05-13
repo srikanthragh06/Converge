@@ -9,3 +9,6 @@ export const currentWorkspaceAtom = atom<{ id: number; name: string } | null>(
 export const workspacesAtom = atom<
     { id: number; name: string; type: string; role: string }[]
 >([]);
+
+/** Increment to trigger a sidebar data refresh (recent documents, etc.). */
+export const refreshSidebarAtom = atom(0);
