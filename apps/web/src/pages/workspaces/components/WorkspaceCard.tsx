@@ -11,10 +11,10 @@ const WorkspaceCard = ({ workspace }: { workspace: WorkspaceDto }) => {
             rounded-lg bg-background
             transition w-11/12 sm:w-[600px] gap-3"
         >
-            <MdOutlineWorkspaces className="w-5 h-5 mt-0.5 shrink-0 opacity-40" />
+            <MdOutlineWorkspaces className="w-4 h-4 mt-0.5 shrink-0 opacity-40" />
             <div className="flex flex-col gap-1.5 min-w-0">
                 <div className="flex items-center gap-2">
-                    <span className="text-white font-medium sm:text-lg text-base truncate">
+                    <span className="text-white font-medium sm:text-base text-sm truncate">
                         {workspace.name}
                     </span>
                     {workspace.type === "personal" && (
