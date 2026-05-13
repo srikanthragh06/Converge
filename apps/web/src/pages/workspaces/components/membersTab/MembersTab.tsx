@@ -35,8 +35,6 @@ const MembersTab = ({ workspaceId }: { workspaceId: number }) => {
 
     return (
         <div className="h-full flex flex-col">
-            <div className="text-base sm:text-xl mb-3 sm:mb-6">Members</div>
-
             <input
                 type="email"
                 value={email}
