@@ -14,6 +14,7 @@ import {
 } from "react-icons/md";
 import { Dropdown } from "primereact/dropdown";
 import "primereact/resources/themes/lara-dark-blue/theme.css";
+import { CiSettings } from "react-icons/ci";
 
 /**
  * Collapsible sidebar rendered alongside page content. Shows an expanded
@@ -77,7 +78,11 @@ const Sidebar = ({
                     )}
                 </div>
                 <div className="mt-4 flex flex-col sm:space-y-2 space-y-1">
-                    <p className="opacity-50 text-xs">Current Workspace</p>
+                    <div className="flex items-center space-x-2">
+                        <p className="opacity-50 text-sm">Current Workspace</p>
+                        <CiSettings className="w-4 h-4 sm:w-5 sm:h-5 text-white hover:opacity-80 transition cursor-pointer shrink-0" />
+                    </div>
+
                     <Dropdown
                         value={currentWorkspace?.id ?? null}
                         options={workspaces.map((w) => ({
