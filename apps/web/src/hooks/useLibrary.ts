@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import apiClient from "../lib/http";
+import useNewDocument from "./useNewDocument";
 import type {
-    CreateDocumentResponseDto,
     GetLibraryDocumentsResponseDto,
     LibraryDocumentDto,
     SearchLibraryDocumentsResponseDto,
@@ -17,11 +16,10 @@ const LIBRARY_SEARCH_PAGE_LIMIT = 5;
  * the returned sentinelRef to automatically load the next page on scroll.
  */
 const useLibrary = () => {
-    const navigate = useNavigate();
+    const { createDocument, isCreating } = useNewDocument(); // creates a new document in the current workspace
     const [searchText, setSearchText] = useState(""); // current search query string
     const [documents, setDocuments] = useState<LibraryDocumentDto[]>([]); // accumulated list of fetched documents
     const [isLoadingMore, setIsLoadingMore] = useState(false); // true when a library fetch is in flight
-    const [isCreating, setIsCreating] = useState(false); // true while the new-document request is in flight
 
     const nextCursor = useRef<{ lastVisitedAt: Date; id: number } | null>(null); // compound keyset cursor for the next page
     const hasMoreRef = useRef(true); // whether another page exists — ref so loadMore always reads the latest value without needing to be in its deps
@@ -47,7 +45,9 @@ const useLibrary = () => {
             nextCursor.current = data.nextCursor
                 ? {
                       id: data.nextCursor.id,
-                      lastVisitedAt: new Date(data.nextCursor.lastVisitedAt),
+                      lastVisitedAt: new Date(
+                          data.nextCursor.lastVisitedAt!,
+                      ),
                   }
                 : null;
             hasMoreRef.current = data.nextCursor !== null;
@@ -111,7 +111,9 @@ const useLibrary = () => {
             nextCursor.current = data.nextCursor
                 ? {
                       id: data.nextCursor.id,
-                      lastVisitedAt: new Date(data.nextCursor.lastVisitedAt),
+                      lastVisitedAt: new Date(
+                          data.nextCursor.lastVisitedAt!,
+                      ),
                   }
                 : null;
             hasMoreRef.current = data.nextCursor !== null;
@@ -154,21 +156,6 @@ const useLibrary = () => {
         observer.observe(sentinelEl);
         return () => observer.disconnect();
     }, [sentinelEl, loadMore]);
-
-    /** Calls POST /document to create a new document and navigates to its editor page. */
-    const createDocument = async () => {
-        if (isCreating) return;
-        try {
-            setIsCreating(true);
-            const { data } =
-                await apiClient.post<CreateDocumentResponseDto>("/document");
-            navigate(`/document/${data.documentId}`);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setIsCreating(false);
-        }
-    };
 
     return {
         searchText,
