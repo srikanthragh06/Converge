@@ -1,6 +1,6 @@
-import { useState } from "react";
 import { useAtomValue } from "jotai";
 import { authAtom } from "../atoms/auth";
+import useSidebar from "../hooks/useSidebar";
 import { IoIosMenu } from "react-icons/io";
 import {
     MdKeyboardDoubleArrowLeft,
@@ -12,12 +12,6 @@ import {
 } from "react-icons/md";
 import { Dropdown } from "primereact/dropdown";
 import "primereact/resources/themes/lara-dark-blue/theme.css";
-
-/** Dummy workspace options for the sidebar dropdown. */
-const WORKSPACE_OPTIONS = [
-    { label: "Workspace 1", value: "1" },
-    { label: "Workspace 2", value: "2" },
-];
 
 /**
  * Collapsible sidebar rendered alongside page content. Shows an expanded
@@ -33,12 +27,12 @@ const Sidebar = ({
 }) => {
     const auth = useAtomValue(authAtom); // Current auth state — drives avatar rendering and user info display.
     const user = auth.status === "authenticated" ? auth.user : null;
-    const [workspace, setWorkspace] = useState(WORKSPACE_OPTIONS[0].value); // Currently selected workspace ID.
+    const { workspaces, currentWorkspace, selectWorkspace } = useSidebar(); // Workspace list, selected workspace state, and workspace switcher.
 
     if (isOpen) {
         return (
             <div
-                className="max-w-[500px] min-w-[200px] shrink-0 h-full border-r border-border md:p-2 p-1
+                className="sm:w-[500px] min-w-[200px] shrink-0 h-full border-r border-border md:p-2 p-1
             flex flex-col"
             >
                 <div className="flex items-center justify-end">
@@ -73,9 +67,12 @@ const Sidebar = ({
                 <div className="mt-4 flex flex-col sm:space-y-2 space-y-1">
                     <p className="opacity-50 text-xs">Current Workspace</p>
                     <Dropdown
-                        value={workspace}
-                        options={WORKSPACE_OPTIONS}
-                        onChange={(e) => setWorkspace(e.value)}
+                        value={currentWorkspace?.id ?? null}
+                        options={workspaces.map((w) => ({
+                            label: w.name,
+                            value: w.id,
+                        }))}
+                        onChange={(e) => selectWorkspace(e.value)}
                         className="text-xs sm:text-sm"
                         pt={{
                             root: {
@@ -84,7 +81,7 @@ const Sidebar = ({
                             },
                             input: {
                                 className:
-                                    "text-xs sm:text-sm text-white py-0.5 sm:py-1 px-1.5 sm:px-2",
+                                    "text-xs sm:text-sm text-white py-0.5 sm:py-1 px-1.5 sm:px-2 overflow-hidden text-ellipsis whitespace-nowrap max-w-full",
                             },
                             trigger: { className: "text-white" },
                             panel: {
@@ -104,7 +101,9 @@ const Sidebar = ({
                         aria-label="New Document"
                     >
                         <MdNoteAdd className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                        <span className="text-sm sm:text-base">New Document</span>
+                        <span className="text-sm sm:text-base">
+                            New Document
+                        </span>
                     </button>
                     <button
                         className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
@@ -139,26 +138,6 @@ const Sidebar = ({
                             <MdDescription className="w-3 h-3 shrink-0" />
                             <span className="text-xs sm:text-sm truncate">
                                 Meeting Notes
-                            </span>
-                        </button>
-                        <button
-                            className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover
-                            rounded-md transition cursor-pointer text-text-primary"
-                            aria-label="Project Plan"
-                        >
-                            <MdDescription className="w-3 h-3 shrink-0" />
-                            <span className="text-sm truncate">
-                                Project Plan
-                            </span>
-                        </button>
-                        <button
-                            className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover
-                            rounded-md transition cursor-pointer text-text-primary"
-                            aria-label="Personal Journal"
-                        >
-                            <MdDescription className="w-3 h-3 shrink-0" />
-                            <span className="text-sm truncate">
-                                Personal Journal
                             </span>
                         </button>
                     </div>
