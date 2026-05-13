@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAtomValue, useSetAtom } from "jotai";
-import { currentWorkspaceAtom, refreshSidebarAtom } from "../atoms/workspace";
+import { currentWorkspaceAtom, refreshSidebarAtom } from "../atoms/sidebar";
 import apiClient from "../lib/http";
 import type { CreateDocumentResponseDto } from "@converge/shared";
 
