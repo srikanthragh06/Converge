@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAtomValue } from "jotai";
 import { authAtom } from "../atoms/auth";
@@ -15,6 +16,7 @@ import {
 import { Dropdown } from "primereact/dropdown";
 import "primereact/resources/themes/lara-dark-blue/theme.css";
 import { CiSettings } from "react-icons/ci";
+import WorkspaceConfigModal from "../pages/workspaces/components/WorkspaceConfigModal";
 
 /**
  * Collapsible sidebar rendered alongside page content. Shows an expanded
@@ -41,6 +43,7 @@ const Sidebar = ({
         createDocument,
         refetchWorkspaces,
     } = useSidebar(); // Workspace list, recent docs, selected workspace state, create/handle workspace actions.
+    const [isConfigOpen, setIsConfigOpen] = useState(false); // Controls workspace config modal visibility.
 
     if (isOpen) {
         return (
@@ -82,7 +85,10 @@ const Sidebar = ({
                         <p className="opacity-50 sm:text-sm text-xs">
                             Current Workspace
                         </p>
-                        <CiSettings className="w-4 h-4 sm:w-5 sm:h-5 text-white hover:opacity-80 transition cursor-pointer shrink-0" />
+                        <CiSettings
+                            onClick={() => setIsConfigOpen(true)}
+                            className="w-4 h-4 sm:w-5 sm:h-5 text-white hover:opacity-80 transition cursor-pointer shrink-0"
+                        />
                     </div>
 
                     <Dropdown
@@ -205,6 +211,13 @@ const Sidebar = ({
                         ))}
                     </div>
                 </div>
+
+                {isConfigOpen && currentWorkspace && (
+                    <WorkspaceConfigModal
+                        workspaceId={currentWorkspace.id}
+                        onClose={() => setIsConfigOpen(false)}
+                    />
+                )}
             </div>
         );
     }

@@ -7,9 +7,11 @@ import type { WorkspaceDto } from "@converge/shared";
 const WorkspaceCard = ({
     workspace,
     onSelect,
+    onManage,
 }: {
     workspace: WorkspaceDto;
     onSelect: (id: number) => void;
+    onManage: (id: number) => void;
 }) => {
     return (
         <div
@@ -33,7 +35,10 @@ const WorkspaceCard = ({
                     {workspace.role}
                 </span>
                 <div className="flex items-center gap-3 mt-1">
-                    <button className="text-xs text-white hover:opacity-80 transition cursor-pointer p-1">
+                    <button
+                        onClick={() => onManage(workspace.id)}
+                        className="text-xs text-white hover:opacity-80 transition cursor-pointer p-1"
+                    >
                         Manage Workspace
                     </button>{" "}
                     <button
