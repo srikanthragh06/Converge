@@ -1,7 +1,22 @@
+import { useState } from "react";
 import { useAtomValue } from "jotai";
 import { authAtom } from "../atoms/auth";
 import { IoIosMenu } from "react-icons/io";
-import { MdKeyboardDoubleArrowLeft } from "react-icons/md";
+import {
+    MdKeyboardDoubleArrowLeft,
+    MdNoteAdd,
+    MdWorkspaces,
+    MdLibraryBooks,
+    MdLogout,
+} from "react-icons/md";
+import { Dropdown } from "primereact/dropdown";
+import "primereact/resources/themes/lara-dark-blue/theme.css";
+
+/** Dummy workspace options for the sidebar dropdown. */
+const WORKSPACE_OPTIONS = [
+    { label: "Workspace 1", value: "1" },
+    { label: "Workspace 2", value: "2" },
+];
 
 /**
  * Collapsible sidebar rendered alongside page content. Shows an expanded
@@ -17,6 +32,8 @@ const Sidebar = ({
 }) => {
     const auth = useAtomValue(authAtom); // Current auth state — drives avatar rendering and user info display.
     const user = auth.status === "authenticated" ? auth.user : null;
+    const [workspace, setWorkspace] = useState(WORKSPACE_OPTIONS[0].value); // Currently selected workspace ID.
+
     if (isOpen) {
         return (
             <div
@@ -52,20 +69,77 @@ const Sidebar = ({
                         </div>
                     )}
                 </div>
-                <div></div>
+                <div className="mt-4 flex flex-col space-y-1">
+                    <p className="opacity-50 text-xs">Workspace</p>
+                    <Dropdown
+                        value={workspace}
+                        options={WORKSPACE_OPTIONS}
+                        onChange={(e) => setWorkspace(e.value)}
+                        className="text-xs sm:text-sm"
+                        pt={{
+                            root: {
+                                className:
+                                    "border-none bg-transparent focus:outline-none",
+                            },
+                            input: {
+                                className:
+                                    "text-xs sm:text-sm text-white py-0.5 sm:py-1 px-1.5 sm:px-2",
+                            },
+                            trigger: { className: "text-white" },
+                            panel: {
+                                className:
+                                    "bg-background-base border border-gray-700",
+                            },
+                            item: {
+                                className:
+                                    "text-xs sm:text-sm text-white hover:bg-background-elevated px-2 sm:px-3 py-1.5 sm:py-2",
+                            },
+                        }}
+                    />
+                </div>
+                <div className="mt-3 flex flex-col space-y-0">
+                    <button
+                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
+                        aria-label="New Document"
+                    >
+                        <MdNoteAdd className="w-4 h-4" />
+                        <span className="text-base">New Document</span>
+                    </button>
+                    <button
+                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
+                        aria-label="Library"
+                    >
+                        <MdLibraryBooks className="w-4 h-4" />
+                        <span className="text-base">Library</span>
+                    </button>
+                    <button
+                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
+                        aria-label="Workspaces"
+                    >
+                        <MdWorkspaces className="w-4 h-4" />
+                        <span className="text-base">Workspaces</span>
+                    </button>
+                    <button
+                        className="flex justify-start items-center gap-2 text-left py-1 px-2 mt-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
+                        aria-label="Log out"
+                    >
+                        <MdLogout className="w-4 h-4" />
+                        <span className="text-base">Log out</span>
+                    </button>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="w-10 shrink-0 h-full border-r border-border p-2">
+        <div className="sm:w-14 w-10 shrink-0 h-full border-r border-border p-2">
             <div className="flex items-center">
                 <button
                     onClick={onToggle}
                     className="p-1 rounded-md hover:bg-background-hover transition cursor-pointer"
                     aria-label="Open sidebar"
                 >
-                    <IoIosMenu className="md:w-[20px] md:h-[20px] w-[20px] h-[20px]" />
+                    <IoIosMenu className="md:w-[30px] md:h-[30px] w-[20px] h-[20px]" />
                 </button>
             </div>
             {/* Closed sidebar content */}
