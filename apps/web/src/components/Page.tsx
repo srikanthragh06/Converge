@@ -45,16 +45,16 @@ const Page = ({
         );
 
     return (
-        <div
-            className={`w-screen h-screen flex flex-row overflow-x-hidden ${className}`}
-        >
+        <div className={`w-screen h-screen flex flex-row overflow-x-hidden`}>
             {haveSidebar && (
                 <Sidebar
                     isOpen={sidebarOpen}
                     onToggle={() => setSidebarOpen(!sidebarOpen)}
                 />
             )}
-            <div className="flex-1 flex flex-col overflow-x-hidden">
+            <div
+                className={`flex-1 flex flex-col overflow-x-hidden ${className}`}
+            >
                 {children}
             </div>
         </div>

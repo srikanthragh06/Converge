@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useAtomValue } from "jotai";
 import { authAtom } from "../atoms/auth";
 import useSidebar from "../hooks/useSidebar";
+import useLogout from "../hooks/useLogout";
 import { IoIosMenu } from "react-icons/io";
 import {
     MdKeyboardDoubleArrowLeft,
@@ -27,6 +28,7 @@ const Sidebar = ({
     onToggle: () => void;
 }) => {
     const navigate = useNavigate();
+    const logout = useLogout(); // logs the user out and redirects to /
     const auth = useAtomValue(authAtom); // Current auth state — drives avatar rendering and user info display.
     const user = auth.status === "authenticated" ? auth.user : null;
     const {
@@ -133,6 +135,7 @@ const Sidebar = ({
                         <span className="text-sm sm:text-base">Workspaces</span>
                     </button>
                     <button
+                        onClick={logout}
                         className="flex justify-start items-center gap-2 text-left py-1 px-2 mt-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
                         aria-label="Log out"
                     >
