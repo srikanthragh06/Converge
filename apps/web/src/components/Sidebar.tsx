@@ -45,7 +45,7 @@ const Sidebar = ({
     if (isOpen) {
         return (
             <div
-                className="sm:w-[500px] min-w-[200px] shrink-0 h-full border-r border-border md:p-2 p-1
+                className="sm:w-[500px] w-screen shrink-0 h-full border-r border-border md:p-2 p-1
             flex flex-col"
             >
                 <div className="flex items-center justify-end">
