@@ -19,10 +19,19 @@ const MembersTab = ({ workspaceId }: { workspaceId: number }) => {
         isFetchingMore,
         isFindNewUserLoading,
         isFindNewUserConflict,
+        isRoleLoading,
         sentinelRef,
         currentUserRole,
         canManage,
     } = useMembersTab({ workspaceId });
+
+    if (isRoleLoading || currentUserRole === null) {
+        return (
+            <div className="h-full flex items-center justify-center">
+                <AiOutlineLoading3Quarters className="animate-spin" />
+            </div>
+        );
+    }
 
     return (
         <div className="h-full flex flex-col">

@@ -14,6 +14,7 @@ import type {
   SetSelectedWorkspaceResponseDto,
   UpdateWorkspaceRequestDto,
   WorkspaceOverviewResponseDto,
+  GetWorkspaceMyRoleResponseDto,
   GetWorkspaceMembersResponseDto,
   SearchWorkspaceMembersResponseDto,
   FindNewWorkspaceUserResponseDto,
@@ -332,6 +333,41 @@ export class WorkspaceService {
       .executeTakeFirstOrThrow();
 
     return { id: updated.id, name: updated.name };
+  }
+
+  /**
+   * Returns the authenticated user's role in the workspace.
+   *
+   * @param workspaceId - The workspace to check.
+   * @param userId - The authenticated user (must be a member).
+   * @returns The caller's role.
+   */
+  async getMyRole(
+    workspaceId: number,
+    userId: number,
+  ): Promise<GetWorkspaceMyRoleResponseDto> {
+    const db = this.dbService.kysely;
+
+    const ws = await db
+      .selectFrom('workspaces')
+      .select('id')
+      .where('id', '=', workspaceId)
+      .executeTakeFirst();
+
+    if (!ws) throw new NotFoundException('Workspace not found.');
+
+    const membership = await db
+      .selectFrom('workspace_members')
+      .select('role')
+      .where('workspace_id', '=', workspaceId)
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+
+    if (!membership) {
+      throw new ForbiddenException('You do not have access to this workspace.');
+    }
+
+    return { role: membership.role };
   }
 
   /**
