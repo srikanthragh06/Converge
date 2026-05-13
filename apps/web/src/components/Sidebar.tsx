@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useAtomValue } from "jotai";
 import { authAtom } from "../atoms/auth";
 import useSidebar from "../hooks/useSidebar";
@@ -25,6 +26,7 @@ const Sidebar = ({
     isOpen: boolean;
     onToggle: () => void;
 }) => {
+    const navigate = useNavigate();
     const auth = useAtomValue(authAtom); // Current auth state — drives avatar rendering and user info display.
     const user = auth.status === "authenticated" ? auth.user : null;
     const {
@@ -33,6 +35,7 @@ const Sidebar = ({
         isCreating,
         selectWorkspace,
         createDocument,
+        refetchWorkspaces,
     } = useSidebar(); // Workspace list, selected workspace state, create/handle workspace actions.
 
     if (isOpen) {
@@ -79,6 +82,7 @@ const Sidebar = ({
                             value: w.id,
                         }))}
                         onChange={(e) => selectWorkspace(e.value)}
+                        onShow={refetchWorkspaces}
                         className="text-xs sm:text-sm"
                         pt={{
                             root: {
@@ -114,6 +118,7 @@ const Sidebar = ({
                         </span>
                     </button>
                     <button
+                        onClick={() => navigate("/library")}
                         className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
                         aria-label="Library"
                     >

@@ -4,3 +4,8 @@ import { atom } from "jotai";
 export const currentWorkspaceAtom = atom<{ id: number; name: string } | null>(
     null,
 );
+
+/** All workspaces the authenticated user belongs to. Populated on sidebar mount. */
+export const workspacesAtom = atom<
+    { id: number; name: string; type: string; role: string }[]
+>([]);
