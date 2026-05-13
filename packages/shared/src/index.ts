@@ -64,6 +64,15 @@ export {
     WorkspaceDtoSchema,
     WorkspaceOverviewResponseSchema,
     UpdateWorkspaceRequestSchema,
+    WorkspaceMemberSchema,
+    GetWorkspaceMembersResponseSchema,
+    GetWorkspaceMembersRequestSchema,
+    SearchWorkspaceMembersRequestSchema,
+    SearchWorkspaceMembersResponseSchema,
+    FindNewWorkspaceUserRequestSchema,
+    FindNewWorkspaceUserResponseSchema,
+    AddWorkspaceMemberRequestSchema,
+    AddWorkspaceMemberResponseSchema,
 } from "./http/workspace";
 export type {
     GetWorkspacesResponseDto,
@@ -75,6 +84,15 @@ export type {
     WorkspaceDto,
     WorkspaceOverviewResponseDto,
     UpdateWorkspaceRequestDto,
+    WorkspaceMemberDto,
+    GetWorkspaceMembersResponseDto,
+    GetWorkspaceMembersRequestDto,
+    SearchWorkspaceMembersRequestDto,
+    SearchWorkspaceMembersResponseDto,
+    FindNewWorkspaceUserRequestDto,
+    FindNewWorkspaceUserResponseDto,
+    AddWorkspaceMemberRequestDto,
+    AddWorkspaceMemberResponseDto,
 } from "./http/workspace";
 export { INTERNAL_SERVER_ERROR_MESSAGE } from "./constants/constants";
 export {

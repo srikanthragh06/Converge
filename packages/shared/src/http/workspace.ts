@@ -95,3 +95,96 @@ export const WorkspaceOverviewResponseSchema = z.object({
 export type WorkspaceOverviewResponseDto = z.infer<
     typeof WorkspaceOverviewResponseSchema
 >;
+
+/** A member of a workspace with their profile and role. */
+export const WorkspaceMemberSchema = z.object({
+    id: z.number(),
+    name: z.string(),
+    email: z.email(),
+    avatarUrl: z.string().nullable(),
+    role: WorkspaceRoleSchema,
+});
+
+export type WorkspaceMemberDto = z.infer<typeof WorkspaceMemberSchema>;
+
+/** Response for GET /workspaces/:id/members — paginated member list with keyset cursor. */
+export const GetWorkspaceMembersResponseSchema = z.object({
+    members: z.array(WorkspaceMemberSchema),
+    nextCursor: z.number().nullable(),
+});
+
+export type GetWorkspaceMembersResponseDto = z.infer<
+    typeof GetWorkspaceMembersResponseSchema
+>;
+
+/** Query params for GET /workspaces/:id/members — optional limit and cursorId for keyset pagination. */
+export const GetWorkspaceMembersRequestSchema = z.object({
+    limit: z.coerce.number().int().positive().optional(),
+    cursorId: z.coerce.number().int().positive().optional(),
+});
+
+export type GetWorkspaceMembersRequestDto = z.infer<
+    typeof GetWorkspaceMembersRequestSchema
+>;
+
+/** Query params for GET /workspaces/:id/members/search — searches existing members by email. */
+export const SearchWorkspaceMembersRequestSchema = z.object({
+    email: z.string().min(1).max(256),
+});
+
+export type SearchWorkspaceMembersRequestDto = z.infer<
+    typeof SearchWorkspaceMembersRequestSchema
+>;
+
+/** Response for GET /workspaces/:id/members/search — matching members. */
+export const SearchWorkspaceMembersResponseSchema = z.object({
+    members: z.array(WorkspaceMemberSchema),
+});
+
+export type SearchWorkspaceMembersResponseDto = z.infer<
+    typeof SearchWorkspaceMembersResponseSchema
+>;
+
+/** Query params for GET /workspaces/:id/findNewUser — finds a user by exact email who isn't a member yet. */
+export const FindNewWorkspaceUserRequestSchema = z.object({
+    email: z.string().min(1).max(256),
+});
+
+export type FindNewWorkspaceUserRequestDto = z.infer<
+    typeof FindNewWorkspaceUserRequestSchema
+>;
+
+/** Response for GET /workspaces/:id/findNewUser — the matched user's basic profile. */
+export const FindNewWorkspaceUserResponseSchema = z.object({
+    id: z.number(),
+    name: z.string(),
+    email: z.email(),
+    avatarUrl: z.string().nullable(),
+});
+
+export type FindNewWorkspaceUserResponseDto = z.infer<
+    typeof FindNewWorkspaceUserResponseSchema
+>;
+
+/** Request body for POST /workspaces/:id/members — adds a member or updates their role. */
+export const AddWorkspaceMemberRequestSchema = z.object({
+    email: z.string().min(1).max(256),
+    role: WorkspaceRoleSchema,
+});
+
+export type AddWorkspaceMemberRequestDto = z.infer<
+    typeof AddWorkspaceMemberRequestSchema
+>;
+
+/** Response for POST /workspaces/:id/members — the added or updated member. */
+export const AddWorkspaceMemberResponseSchema = z.object({
+    id: z.number(),
+    name: z.string(),
+    email: z.email(),
+    avatarUrl: z.string().nullable(),
+    role: WorkspaceRoleSchema,
+});
+
+export type AddWorkspaceMemberResponseDto = z.infer<
+    typeof AddWorkspaceMemberResponseSchema
+>;
