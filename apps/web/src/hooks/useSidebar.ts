@@ -1,18 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { useAtom, useAtomValue } from "jotai";
-import { currentWorkspaceAtom } from "../atoms/workspace";
+import { currentWorkspaceAtom, workspacesAtom } from "../atoms/workspace";
 import { authAtom } from "../atoms/auth";
 import apiClient from "../lib/http";
 import useNewDocument from "./useNewDocument";
 import type { GetWorkspacesResponseDto } from "@converge/shared";
-
-/** Shape of a workspace member from GET /workspaces. */
-interface WorkspaceMember {
-    id: number;
-    name: string;
-    type: "personal" | "custom";
-    role: "owner" | "admin" | "member";
-}
 
 /**
  * Manages sidebar workspace state. Fetches the user's workspaces on mount,
@@ -21,42 +13,10 @@ interface WorkspaceMember {
  */
 const useSidebar = () => {
     const { createDocument, isCreating } = useNewDocument(); // creates a new document in the current workspace
-    const [workspaces, setWorkspaces] = useState<WorkspaceMember[]>([]); // all workspaces the user belongs to
+    const [workspaces, setWorkspaces] = useAtom(workspacesAtom); // all workspaces the user belongs to (persisted in atom to survive remounts)
     const [currentWorkspace, setCurrentWorkspace] =
         useAtom(currentWorkspaceAtom); // currently selected workspace from the atom
     const auth = useAtomValue(authAtom); // auth state — used to seed the current workspace on mount
-
-    // Fetches the user's workspace list on mount.
-    useEffect(() => {
-        const fetchWorkspaces = async () => {
-            try {
-                const { data } =
-                    await apiClient.get<GetWorkspacesResponseDto>(
-                        "/workspaces",
-                    );
-                setWorkspaces(data.workspaces);
-            } catch (err) {
-                console.error("useSidebar: failed to fetch workspaces", err);
-            }
-        };
-        fetchWorkspaces();
-    }, []);
-
-    // Seeds currentWorkspaceAtom from authAtom if not already set.
-    useEffect(() => {
-        if (
-            !currentWorkspace &&
-            auth.status === "authenticated" &&
-            auth.user?.selectedWorkspace
-        ) {
-            setCurrentWorkspace(auth.user.selectedWorkspace);
-        }
-    }, [
-        auth.status,
-        auth.user?.selectedWorkspace,
-        currentWorkspace,
-        setCurrentWorkspace,
-    ]);
 
     /**
      * Switches the user's selected workspace via PUT /workspaces/:id/select
@@ -77,7 +37,58 @@ const useSidebar = () => {
         [setCurrentWorkspace],
     );
 
-    return { workspaces, currentWorkspace, isCreating, selectWorkspace, createDocument };
+    /** Re-fetches the workspace list from the server (e.g. when the user opens the dropdown). */
+    const refetchWorkspaces = useCallback(async () => {
+        try {
+            const { data } =
+                await apiClient.get<GetWorkspacesResponseDto>("/workspaces");
+            setWorkspaces(data.workspaces);
+        } catch (err) {
+            console.error("useSidebar: failed to refetch workspaces", err);
+        }
+    }, [setWorkspaces]);
+
+    // Fetches the user's workspace list once (skips if the atom already has data).
+    useEffect(() => {
+        if (workspaces.length > 0) return;
+        const fetchWorkspaces = async () => {
+            try {
+                const { data } =
+                    await apiClient.get<GetWorkspacesResponseDto>(
+                        "/workspaces",
+                    );
+                setWorkspaces(data.workspaces);
+            } catch (err) {
+                console.error("useSidebar: failed to fetch workspaces", err);
+            }
+        };
+        fetchWorkspaces();
+    }, [workspaces.length, setWorkspaces]);
+
+    // Seeds currentWorkspaceAtom from authAtom if not already set.
+    useEffect(() => {
+        if (
+            !currentWorkspace &&
+            auth.status === "authenticated" &&
+            auth.user?.selectedWorkspace
+        ) {
+            setCurrentWorkspace(auth.user.selectedWorkspace);
+        }
+    }, [
+        auth.status,
+        auth.user?.selectedWorkspace,
+        currentWorkspace,
+        setCurrentWorkspace,
+    ]);
+
+    return {
+        workspaces,
+        currentWorkspace,
+        isCreating,
+        selectWorkspace,
+        createDocument,
+        refetchWorkspaces,
+    };
 };
 
 export default useSidebar;
