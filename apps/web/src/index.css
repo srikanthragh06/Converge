@@ -58,3 +58,10 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background: #525252;
 }
+
+/* Reduce editor right padding on mobile — sidebar already takes left space */
+@media (max-width: 767px) {
+    .bn-editor {
+        padding-right: 10px !important;
+    }
+}
