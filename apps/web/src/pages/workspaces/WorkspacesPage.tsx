@@ -3,6 +3,7 @@ import Page from "../../components/Page";
 import useCreateWorkspace from "../../hooks/useCreateWorkspace";
 import useWorkspaces from "../../hooks/useWorkspaces";
 import WorkspaceCard from "./components/WorkspaceCard";
+import WorkspaceConfigModal from "./components/WorkspaceConfigModal";
 import CreateWorkspaceModal from "./components/CreateWorkspaceModal";
 
 /**
@@ -11,9 +12,18 @@ import CreateWorkspaceModal from "./components/CreateWorkspaceModal";
  */
 const WorkspacesPage = () => {
     const { createWorkspace, isCreating, error } = useCreateWorkspace();
-    const { searchText, setSearchText, workspaces, isLoading, selectWorkspace } =
-        useWorkspaces();
+    const {
+        searchText,
+        setSearchText,
+        workspaces,
+        isLoading,
+        selectWorkspace,
+    } = useWorkspaces();
     const [showModal, setShowModal] = useState(false);
+    const [configModal, setConfigModal] = useState<{
+        isOpen: boolean;
+        workspaceId: number | null;
+    }>({ isOpen: false, workspaceId: null }); // Controls workspace config modal visibility and target workspace.
 
     /**
      * Creates a workspace via the useCreateWorkspace hook and closes the
@@ -72,7 +82,14 @@ const WorkspacesPage = () => {
                 )}
 
                 {workspaces.map((w) => (
-                    <WorkspaceCard key={w.id} workspace={w} onSelect={selectWorkspace} />
+                    <WorkspaceCard
+                        key={w.id}
+                        workspace={w}
+                        onSelect={selectWorkspace}
+                        onManage={(id) =>
+                            setConfigModal({ isOpen: true, workspaceId: id })
+                        }
+                    />
                 ))}
             </div>
 
@@ -82,6 +99,15 @@ const WorkspacesPage = () => {
                     onCancel={() => setShowModal(false)}
                     isCreating={isCreating}
                     error={error}
+                />
+            )}
+
+            {configModal.isOpen && configModal.workspaceId && (
+                <WorkspaceConfigModal
+                    workspaceId={configModal.workspaceId}
+                    onClose={() =>
+                        setConfigModal({ isOpen: false, workspaceId: null })
+                    }
                 />
             )}
         </Page>
