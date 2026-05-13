@@ -105,6 +105,8 @@ export interface WorkspaceMembersTable {
   user_id: number;
   /** Role the user holds within this workspace. */
   role: WorkspaceRole;
+  /** Set on every workspace switch; used for recency-based sorting. */
+  last_visited_at: Date | null;
   created_at: Generated<Date>;
 }
 

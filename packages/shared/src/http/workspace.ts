@@ -1,18 +1,22 @@
 import { z } from "zod";
 import { WorkspaceRoleSchema, WorkspaceTypeSchema } from "../types/types";
 
-const WorkspaceMemberDtoSchema = z.object({
+/** A workspace entry in the workspaces listing, enriched with owner info and selection state. */
+export const WorkspaceDtoSchema = z.object({
     id: z.number(),
     name: z.string(),
     type: WorkspaceTypeSchema,
     role: WorkspaceRoleSchema,
+    ownerId: z.number(),
+    ownerName: z.string(),
+    isSelected: z.boolean(),
 });
 
-export type WorkspaceMemberDto = z.infer<typeof WorkspaceMemberDtoSchema>;
+export type WorkspaceDto = z.infer<typeof WorkspaceDtoSchema>;
 
 /** Response for GET /workspaces — lists every workspace the user belongs to. */
 export const GetWorkspacesResponseSchema = z.object({
-    workspaces: z.array(WorkspaceMemberDtoSchema),
+    workspaces: z.array(WorkspaceDtoSchema),
 });
 
 export type GetWorkspacesResponseDto = z.infer<
