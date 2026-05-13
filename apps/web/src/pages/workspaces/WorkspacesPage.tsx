@@ -1,6 +1,8 @@
 import { useState } from "react";
 import Page from "../../components/Page";
 import useCreateWorkspace from "../../hooks/useCreateWorkspace";
+import useWorkspaces from "../../hooks/useWorkspaces";
+import WorkspaceCard from "./components/WorkspaceCard";
 import CreateWorkspaceModal from "./components/CreateWorkspaceModal";
 
 /**
@@ -9,6 +11,8 @@ import CreateWorkspaceModal from "./components/CreateWorkspaceModal";
  */
 const WorkspacesPage = () => {
     const { createWorkspace, isCreating, error } = useCreateWorkspace();
+    const { searchText, setSearchText, workspaces, isLoading } =
+        useWorkspaces();
     const [showModal, setShowModal] = useState(false);
 
     const handleCreate = async (name: string) => {
@@ -19,12 +23,12 @@ const WorkspacesPage = () => {
     return (
         <Page authRequired haveSidebar>
             <div
-                className="mr-10 bg-background-base sticky top-[52px] sm:top-[76px] z-40 pb-4 pt-4 sm:pt-8 w-full
+                className="bg-background-base pb-4 pt-4 sm:pt-8 w-full
                     flex flex-col space-y-4"
             >
                 <div
                     className="text-text-primary px-4 sm:px-8 font-bold
-                                flex sm:justify-center justify-start"
+                                flex sm:justify-center justify-start sm:mb-6 mb-3"
                 >
                     <h1 className="sm:text-4xl text-2xl sm:mr-[560px]">
                         Workspaces
@@ -33,6 +37,8 @@ const WorkspacesPage = () => {
                 <div className="w-full flex flex-col items-center space-y-2 sm:flex-row sm:justify-center sm:space-y-0 sm:space-x-8">
                     <input
                         type="text"
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
                         placeholder="Search workspaces..."
                         className="sm:w-[500px] w-5/6 px-3 py-1 sm:text-base text-sm rounded-md
                         bg-background-elevated
@@ -47,6 +53,22 @@ const WorkspacesPage = () => {
                         <span>New Workspace</span>
                     </button>
                 </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto flex flex-col items-center gap-2 pb-6">
+                {isLoading && workspaces.length === 0 && (
+                    <span className="text-sm opacity-40 mt-8">Loading...</span>
+                )}
+
+                {!isLoading && workspaces.length === 0 && (
+                    <span className="text-sm opacity-40 mt-8">
+                        No workspaces found
+                    </span>
+                )}
+
+                {workspaces.map((w) => (
+                    <WorkspaceCard key={w.id} workspace={w} />
+                ))}
             </div>
 
             {showModal && (
