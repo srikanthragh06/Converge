@@ -1,17 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { useAtom, useAtomValue } from "jotai";
 import {
     currentWorkspaceAtom,
+    recentDocumentsAtom,
     refreshSidebarAtom,
     workspacesAtom,
-} from "../atoms/workspace";
+} from "../atoms/sidebar";
 import { authAtom } from "../atoms/auth";
 import apiClient from "../lib/http";
 import useNewDocument from "./useNewDocument";
 import type {
     GetLibraryDocumentsResponseDto,
     GetWorkspacesResponseDto,
-    LibraryDocumentDto,
 } from "@converge/shared";
 
 /**
@@ -28,9 +28,7 @@ const useSidebar = () => {
     const auth = useAtomValue(authAtom); // auth state — used to seed the current workspace on mount
     const refreshSidebar = useAtomValue(refreshSidebarAtom); // incremented externally to trigger a refetch
 
-    const [recentDocuments, setRecentDocuments] = useState<
-        LibraryDocumentDto[]
-    >([]); // most recent documents in the current workspace, shown in the sidebar
+    const [recentDocuments, setRecentDocuments] = useAtom(recentDocumentsAtom); // most recent documents in the current workspace, shown in the sidebar
 
     /**
      * Switches the user's selected workspace via PUT /workspaces/:id/select
