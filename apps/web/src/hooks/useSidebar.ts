@@ -74,9 +74,9 @@ const useSidebar = () => {
         }
     }, []);
 
-    // Fetches the user's workspace list once (skips if the atom already has data).
+    // Fetches the user's workspace list on mount and whenever refreshSidebar is
+    // incremented externally (e.g. after workspace create/rename).
     useEffect(() => {
-        if (workspaces.length > 0) return;
         const fetchWorkspaces = async () => {
             try {
                 const { data } =
@@ -84,12 +84,24 @@ const useSidebar = () => {
                         "/workspaces",
                     );
                 setWorkspaces(data.workspaces);
+
+                // Sync the selected workspace name if it changed on the server (e.g. after rename via GeneralTab).
+                if (currentWorkspace) {
+                    const updated = data.workspaces.find(
+                        (w) => w.id === currentWorkspace.id,
+                    );
+                    if (updated)
+                        setCurrentWorkspace({
+                            id: updated.id,
+                            name: updated.name,
+                        });
+                }
             } catch (err) {
                 console.error("useSidebar: failed to fetch workspaces", err);
             }
         };
         fetchWorkspaces();
-    }, [workspaces.length, setWorkspaces]);
+    }, [refreshSidebar, setWorkspaces, setCurrentWorkspace]);
 
     // Seeds currentWorkspaceAtom from authAtom if not already set.
     useEffect(() => {
@@ -100,12 +112,7 @@ const useSidebar = () => {
         ) {
             setCurrentWorkspace(auth.user.selectedWorkspace);
         }
-    }, [
-        auth.status,
-        auth.user?.selectedWorkspace,
-        currentWorkspace,
-        setCurrentWorkspace,
-    ]);
+    }, [auth.status, auth.user?.selectedWorkspace, setCurrentWorkspace]);
 
     // Fetches recent documents whenever the current workspace changes, or when
     // refreshSidebarAtom is incremented externally (e.g. after create/delete/edit).

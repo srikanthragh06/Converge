@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAtomValue } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { authAtom } from "../atoms/auth";
 import useSidebar from "../hooks/useSidebar";
 import useLogout from "../hooks/useLogout";
@@ -17,6 +17,7 @@ import { Dropdown } from "primereact/dropdown";
 import "primereact/resources/themes/lara-dark-blue/theme.css";
 import { CiSettings } from "react-icons/ci";
 import WorkspaceConfigModal from "../pages/workspaces/components/WorkspaceConfigModal";
+import { refreshSidebarAtom } from "@/atoms/sidebar";
 
 /**
  * Collapsible sidebar rendered alongside page content. Shows an expanded
@@ -44,6 +45,7 @@ const Sidebar = ({
         refetchWorkspaces,
     } = useSidebar(); // Workspace list, recent docs, selected workspace state, create/handle workspace actions.
     const [isConfigOpen, setIsConfigOpen] = useState(false); // Controls workspace config modal visibility.
+    const refreshSidebar = useSetAtom(refreshSidebarAtom); // Incremented on modal close to trigger workspace/document refetch in useSidebar.
 
     if (isOpen) {
         return (
@@ -215,7 +217,10 @@ const Sidebar = ({
                 {isConfigOpen && currentWorkspace && (
                     <WorkspaceConfigModal
                         workspaceId={currentWorkspace.id}
-                        onClose={() => setIsConfigOpen(false)}
+                        onClose={() => {
+                            setIsConfigOpen(false);
+                            refreshSidebar((prev) => prev + 1);
+                        }}
                     />
                 )}
             </div>

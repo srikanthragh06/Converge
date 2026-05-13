@@ -18,6 +18,8 @@ const WorkspacesPage = () => {
         workspaces,
         isLoading,
         selectWorkspace,
+        fetchAll,
+        fetchSearch,
     } = useWorkspaces();
     const [showModal, setShowModal] = useState(false);
     const [configModal, setConfigModal] = useState<{
@@ -109,9 +111,14 @@ const WorkspacesPage = () => {
             {configModal.isOpen && configModal.workspaceId && (
                 <WorkspaceConfigModal
                     workspaceId={configModal.workspaceId}
-                    onClose={() =>
-                        setConfigModal({ isOpen: false, workspaceId: null })
-                    }
+                    onClose={() => {
+                        setConfigModal({ isOpen: false, workspaceId: null });
+                        if (searchText.trim()) {
+                            fetchSearch(searchText.trim());
+                        } else {
+                            fetchAll();
+                        }
+                    }}
                 />
             )}
         </Page>
