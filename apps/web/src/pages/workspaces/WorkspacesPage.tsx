@@ -1,11 +1,21 @@
+import { useState } from "react";
 import Page from "../../components/Page";
-import AnimatedDots from "../../components/AnimatedDots";
+import useCreateWorkspace from "../../hooks/useCreateWorkspace";
+import CreateWorkspaceModal from "./components/CreateWorkspaceModal";
 
 /**
  * Full-screen workspaces page. Lists the authenticated user's workspaces
  * and allows switching between them.
  */
 const WorkspacesPage = () => {
+    const { createWorkspace, isCreating, error } = useCreateWorkspace();
+    const [showModal, setShowModal] = useState(false);
+
+    const handleCreate = async (name: string) => {
+        const ok = await createWorkspace(name);
+        if (ok) setShowModal(false);
+    };
+
     return (
         <Page authRequired haveSidebar>
             <div
@@ -29,6 +39,7 @@ const WorkspacesPage = () => {
                         outline-none text-white border-0"
                     />
                     <button
+                        onClick={() => setShowModal(true)}
                         className="hidden sm:block sm:px-3 sm:py-1 px-2 py-1 sm:text-sm text-xs rounded-md bg-white text-black
                          hover:opacity-90 active:opacity-80 transition
                         cursor-pointer"
@@ -37,6 +48,15 @@ const WorkspacesPage = () => {
                     </button>
                 </div>
             </div>
+
+            {showModal && (
+                <CreateWorkspaceModal
+                    onCreate={handleCreate}
+                    onCancel={() => setShowModal(false)}
+                    isCreating={isCreating}
+                    error={error}
+                />
+            )}
         </Page>
     );
 };
