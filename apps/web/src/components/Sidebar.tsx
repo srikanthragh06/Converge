@@ -79,7 +79,9 @@ const Sidebar = ({
                 </div>
                 <div className="mt-4 flex flex-col sm:space-y-2 space-y-1">
                     <div className="flex items-center space-x-2">
-                        <p className="opacity-50 text-sm">Current Workspace</p>
+                        <p className="opacity-50 sm:text-sm text-xs">
+                            Current Workspace
+                        </p>
                         <CiSettings className="w-4 h-4 sm:w-5 sm:h-5 text-white hover:opacity-80 transition cursor-pointer shrink-0" />
                     </div>
 
@@ -88,10 +90,35 @@ const Sidebar = ({
                         options={workspaces.map((w) => ({
                             label: w.name,
                             value: w.id,
+                            type: w.type,
                         }))}
                         onChange={(e) => selectWorkspace(e.value)}
                         onShow={refetchWorkspaces}
                         className="text-xs sm:text-sm"
+                        itemTemplate={(option) => (
+                            <div className="flex items-center justify-between w-full">
+                                <span className="truncate">{option.label}</span>
+                                {option.type === "personal" && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 font-medium ml-2 shrink-0">
+                                        Personal
+                                    </span>
+                                )}
+                            </div>
+                        )}
+                        valueTemplate={(option) =>
+                            option && (
+                                <div className="flex items-center gap-2">
+                                    <span className="truncate">
+                                        {option.label}
+                                    </span>
+                                    {option.type === "personal" && (
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 font-medium shrink-0">
+                                            Personal
+                                        </span>
+                                    )}
+                                </div>
+                            )
+                        }
                         pt={{
                             root: {
                                 className:
