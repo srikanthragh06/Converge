@@ -1,8 +1,10 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
   ParseIntPipe,
+  Post,
   Put,
   Req,
   UseGuards,
@@ -11,15 +13,38 @@ import { AuthGuard } from '../auth/auth.guard';
 import type { Request } from 'express';
 import { WorkspaceService } from './workspace.service';
 import { httpOK } from '../utils/http-response.util';
+import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe';
 import type {
+  CreateWorkspaceRequestDto,
+  CreateWorkspaceResponseDto,
   GetWorkspacesResponseDto,
   SetSelectedWorkspaceResponseDto,
 } from '@converge/shared';
+import { CreateWorkspaceRequestSchema } from '@converge/shared';
 
 @Controller('/workspaces')
 @UseGuards(AuthGuard)
 export class WorkspaceController {
   constructor(private readonly workspaceService: WorkspaceService) {}
+
+  /**
+   * Creates a new custom workspace with the authenticated user as owner.
+   *
+   * @param req - The Express request with userId stamped by AuthGuard.
+   * @param body - The workspace name.
+   * @returns The newly created workspace with the caller's role.
+   */
+  @Post('/')
+  async handleCreateWorkspace(
+    @Req() req: Request,
+    @Body(new ZodHttpValidationPipe(CreateWorkspaceRequestSchema))
+    body: CreateWorkspaceRequestDto,
+  ): Promise<CreateWorkspaceResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.workspaceService.createWorkspace(userId, body.name),
+    );
+  }
 
   /**
    * Returns all workspaces the authenticated user is a member of.

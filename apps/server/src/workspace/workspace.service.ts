@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../db/database.service';
 import type {
+  CreateWorkspaceResponseDto,
   GetWorkspacesResponseDto,
   SetSelectedWorkspaceResponseDto,
 } from '@converge/shared';
@@ -70,6 +71,41 @@ export class WorkspaceService {
     });
 
     return workspace;
+  }
+
+  /**
+   * Creates a new custom workspace with the caller as owner.
+   * Runs in a transaction so a workspace without a membership row is never committed.
+   *
+   * @param userId - The authenticated user who will own the workspace.
+   * @param name - The display name for the workspace.
+   * @returns The created workspace with the caller's role (owner).
+   */
+  async createWorkspace(
+    userId: number,
+    name: string,
+  ): Promise<CreateWorkspaceResponseDto> {
+    const db = this.dbService.kysely;
+
+    return await db.transaction().execute(async (tx) => {
+      const ws = await tx
+        .insertInto('workspaces')
+        .values({ name, owner_id: userId, type: 'custom' })
+        .returning(['id', 'name', 'type'])
+        .executeTakeFirstOrThrow();
+
+      await tx
+        .insertInto('workspace_members')
+        .values({ workspace_id: ws.id, user_id: userId, role: 'owner' })
+        .execute();
+
+      return {
+        id: ws.id,
+        name: ws.name,
+        type: ws.type,
+        role: 'owner' as const,
+      };
+    });
   }
 
   /**

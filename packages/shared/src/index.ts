@@ -57,10 +57,14 @@ export type {
 export {
     GetWorkspacesResponseSchema,
     SetSelectedWorkspaceResponseSchema,
+    CreateWorkspaceRequestSchema,
+    CreateWorkspaceResponseSchema,
 } from "./http/workspace";
 export type {
     GetWorkspacesResponseDto,
     SetSelectedWorkspaceResponseDto,
+    CreateWorkspaceRequestDto,
+    CreateWorkspaceResponseDto,
 } from "./http/workspace";
 export { INTERNAL_SERVER_ERROR_MESSAGE } from "./constants/constants";
 export {
