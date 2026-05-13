@@ -2,12 +2,15 @@ import { useCallback, useState } from "react";
 import { useSetAtom } from "jotai";
 import { currentWorkspaceAtom, workspacesAtom } from "../atoms/sidebar";
 import apiClient from "../lib/http";
-import type { CreateWorkspaceResponseDto } from "@converge/shared";
+import type {
+    CreateWorkspaceResponseDto,
+    GetWorkspacesResponseDto,
+} from "@converge/shared";
 
 /**
  * Returns a createWorkspace function that POST /workspaces with the given
- * name, then PUT /workspaces/:id/select to switch to it, and finally updates
- * the sidebar atoms with the new workspace data.
+ * name, selects it via PUT /workspaces/:id/select, and refreshes the sidebar
+ * workspace list so the atom reflects the enriched server-side data.
  */
 const useCreateWorkspace = () => {
     const setCurrentWorkspace = useSetAtom(currentWorkspaceAtom);
@@ -25,20 +28,20 @@ const useCreateWorkspace = () => {
                         "/workspaces",
                         { name },
                     );
-                // Select the newly created workspace on the server so the
-                // preference persists across reloads.
+
+                // Persist the selection across reloads.
                 await apiClient.put(`/workspaces/${data.id}/select`);
-                // Update client-side atoms to reflect the new workspace.
+
+                // Refetch the full enriched list from the server.
+                const { data: list } =
+                    await apiClient.get<GetWorkspacesResponseDto>(
+                        "/workspaces",
+                    );
+                setWorkspaces(list.workspaces);
+
+                // Update the selected workspace atom.
                 setCurrentWorkspace({ id: data.id, name: data.name });
-                setWorkspaces((prev) => [
-                    ...prev,
-                    {
-                        id: data.id,
-                        name: data.name,
-                        type: data.type,
-                        role: data.role,
-                    },
-                ]);
+
                 return true;
             } catch (err) {
                 const message =

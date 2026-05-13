@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../db/database.service';
+import { sql } from 'kysely';
 import type {
   CreateWorkspaceResponseDto,
   GetWorkspacesResponseDto,
@@ -96,7 +97,12 @@ export class WorkspaceService {
 
       await tx
         .insertInto('workspace_members')
-        .values({ workspace_id: ws.id, user_id: userId, role: 'owner' })
+        .values({
+          workspace_id: ws.id,
+          user_id: userId,
+          role: 'owner',
+          last_visited_at: new Date(),
+        })
         .execute();
 
       return {
@@ -120,11 +126,32 @@ export class WorkspaceService {
     const rows = await db
       .selectFrom('workspace_members as wm')
       .innerJoin('workspaces as w', 'w.id', 'wm.workspace_id')
-      .select(['w.id', 'w.name', 'w.type', 'wm.role'])
+      .innerJoin('users as owner', 'owner.id', 'w.owner_id')
+      .leftJoin('users as me', 'me.id', 'wm.user_id')
+      .select([
+        'w.id',
+        'w.name',
+        'w.type',
+        'wm.role',
+        'w.owner_id',
+        'owner.name as ownerName',
+        'me.current_workspace_id',
+      ])
       .where('wm.user_id', '=', userId)
+      .orderBy(sql`wm.last_visited_at DESC NULLS LAST`)
       .execute();
 
-    return { workspaces: rows };
+    return {
+      workspaces: rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        type: r.type,
+        role: r.role,
+        ownerId: r.owner_id,
+        ownerName: r.ownerName,
+        isSelected: r.id === r.current_workspace_id,
+      })),
+    };
   }
 
   /**
@@ -151,12 +178,21 @@ export class WorkspaceService {
 
     if (!ws) throw new NotFoundException('Workspace not found.');
 
-    // Persist the selection so it survives page reloads.
-    await db
-      .updateTable('users')
-      .set({ current_workspace_id: workspaceId })
-      .where('id', '=', userId)
-      .execute();
+    // Persist the selection and bump recency in a single transaction.
+    await db.transaction().execute(async (tx) => {
+      await tx
+        .updateTable('users')
+        .set({ current_workspace_id: workspaceId })
+        .where('id', '=', userId)
+        .execute();
+
+      await tx
+        .updateTable('workspace_members')
+        .set({ last_visited_at: new Date() })
+        .where('workspace_id', '=', workspaceId)
+        .where('user_id', '=', userId)
+        .execute();
+    });
 
     return { id: ws.id, name: ws.name };
   }
