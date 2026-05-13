@@ -40,33 +40,37 @@ const WorkspacesPage = () => {
                 className="bg-background-base pb-4 pt-4 sm:pt-8 w-full
                     flex flex-col space-y-4"
             >
-                <div
-                    className="text-text-primary px-4 sm:px-8 font-bold
-                                flex sm:justify-center justify-start sm:mb-6 mb-3"
-                >
-                    <h1 className="sm:text-4xl text-xl sm:mr-[560px]">
-                        Workspaces
-                    </h1>
-                </div>
-                <div className="w-full flex flex-row items-center justify-center space-x-2 sm:space-x-8 px-4 sm:px-0">
-                    <input
-                        type="text"
-                        value={searchText}
-                        onChange={(e) => setSearchText(e.target.value)}
-                        placeholder="Search workspaces..."
-                        className="flex-1 sm:w-[500px] sm:flex-none px-3 py-1 sm:text-base text-sm rounded-md
-                        bg-background-elevated
-                        outline-none text-white border-0"
-                    />
-                    <button
-                        onClick={() => setShowModal(true)}
-                        className="block sm:px-3 sm:py-1 px-2 py-1 sm:text-sm text-xs rounded-md bg-white text-black
-                         hover:opacity-90 active:opacity-80 transition
-                        cursor-pointer"
-                    >
-                        <span className="sm:hidden">+</span>
-                        <span className="hidden sm:inline">New Workspace</span>
-                    </button>
+                <div className="flex flex-col items-center w-full px-4 sm:px-0">
+                    <div className="w-full sm:max-w-[720px]">
+                        <div
+                            className="text-text-primary font-bold
+                                        flex justify-start sm:mb-4 mb-2"
+                        >
+                            <h1 className="sm:text-3xl text-xl">Workspaces</h1>
+                        </div>
+                        <div className="w-full flex flex-row items-center justify-start space-x-2 sm:space-x-8">
+                            <input
+                                type="text"
+                                value={searchText}
+                                onChange={(e) => setSearchText(e.target.value)}
+                                placeholder="Search workspaces..."
+                                className="flex-1 sm:w-[500px] sm:flex-none px-3 py-1 sm:text-base text-sm rounded-md
+                                bg-background-elevated
+                                outline-none text-white border-0"
+                            />
+                            <button
+                                onClick={() => setShowModal(true)}
+                                className="block sm:px-3 sm:py-1 px-2 py-1 sm:text-sm text-xs rounded-md bg-white text-black
+                                 hover:opacity-90 active:opacity-80 transition
+                                cursor-pointer"
+                            >
+                                <span className="sm:hidden">+</span>
+                                <span className="hidden sm:inline">
+                                    New Workspace
+                                </span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
