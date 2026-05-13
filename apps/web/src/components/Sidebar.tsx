@@ -27,7 +27,13 @@ const Sidebar = ({
 }) => {
     const auth = useAtomValue(authAtom); // Current auth state — drives avatar rendering and user info display.
     const user = auth.status === "authenticated" ? auth.user : null;
-    const { workspaces, currentWorkspace, selectWorkspace } = useSidebar(); // Workspace list, selected workspace state, and workspace switcher.
+    const {
+        workspaces,
+        currentWorkspace,
+        isCreating,
+        selectWorkspace,
+        createDocument,
+    } = useSidebar(); // Workspace list, selected workspace state, create/handle workspace actions.
 
     if (isOpen) {
         return (
@@ -97,7 +103,9 @@ const Sidebar = ({
                 </div>
                 <div className="mt-3 flex flex-col space-y-0">
                     <button
-                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
+                        onClick={createDocument}
+                        disabled={isCreating}
+                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary disabled:opacity-50 disabled:cursor-not-allowed"
                         aria-label="New Document"
                     >
                         <MdNoteAdd className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />

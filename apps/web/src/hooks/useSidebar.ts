@@ -3,6 +3,7 @@ import { useAtom, useAtomValue } from "jotai";
 import { currentWorkspaceAtom } from "../atoms/workspace";
 import { authAtom } from "../atoms/auth";
 import apiClient from "../lib/http";
+import useNewDocument from "./useNewDocument";
 import type { GetWorkspacesResponseDto } from "@converge/shared";
 
 /** Shape of a workspace member from GET /workspaces. */
@@ -19,6 +20,7 @@ interface WorkspaceMember {
  * selectWorkspace function that calls PUT /workspaces/:id/select.
  */
 const useSidebar = () => {
+    const { createDocument, isCreating } = useNewDocument(); // creates a new document in the current workspace
     const [workspaces, setWorkspaces] = useState<WorkspaceMember[]>([]); // all workspaces the user belongs to
     const [currentWorkspace, setCurrentWorkspace] =
         useAtom(currentWorkspaceAtom); // currently selected workspace from the atom
@@ -75,7 +77,7 @@ const useSidebar = () => {
         [setCurrentWorkspace],
     );
 
-    return { workspaces, currentWorkspace, selectWorkspace };
+    return { workspaces, currentWorkspace, isCreating, selectWorkspace, createDocument };
 };
 
 export default useSidebar;
