@@ -62,6 +62,8 @@ export {
     SearchWorkspacesRequestSchema,
     SearchWorkspacesResponseSchema,
     WorkspaceDtoSchema,
+    WorkspaceOverviewResponseSchema,
+    UpdateWorkspaceRequestSchema,
 } from "./http/workspace";
 export type {
     GetWorkspacesResponseDto,
@@ -71,6 +73,8 @@ export type {
     SearchWorkspacesRequestDto,
     SearchWorkspacesResponseDto,
     WorkspaceDto,
+    WorkspaceOverviewResponseDto,
+    UpdateWorkspaceRequestDto,
 } from "./http/workspace";
 export { INTERNAL_SERVER_ERROR_MESSAGE } from "./constants/constants";
 export {
