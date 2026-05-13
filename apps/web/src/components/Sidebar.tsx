@@ -129,6 +129,7 @@ const Sidebar = ({
                         <span className="text-sm sm:text-base">Library</span>
                     </button>
                     <button
+                        onClick={() => navigate("/workspaces")}
                         className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
                         aria-label="Workspaces"
                     >
