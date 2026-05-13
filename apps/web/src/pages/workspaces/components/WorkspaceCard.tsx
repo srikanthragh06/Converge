@@ -17,7 +17,8 @@ const WorkspaceCard = ({
         <div
             className="flex items-start sm:px-4 sm:py-3 py-2 px-3
             rounded-lg bg-background
-            transition w-11/12 sm:w-[600px] gap-3"
+            transition w-11/12 sm:w-[600px] gap-3
+            hover:opacity-85"
         >
             <MdOutlineWorkspaces className="w-4 h-4 mt-0.5 shrink-0 opacity-40" />
             <div className="flex flex-col gap-1.5 min-w-0">
