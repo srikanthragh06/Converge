@@ -71,3 +71,27 @@ export const SearchWorkspacesResponseSchema = z.object({
 export type SearchWorkspacesResponseDto = z.infer<
     typeof SearchWorkspacesResponseSchema
 >;
+
+/** Request body for PATCH /workspaces/:id — updates workspace fields. */
+export const UpdateWorkspaceRequestSchema = z.object({
+    name: z.string().min(1, "Name is required").max(128),
+});
+
+export type UpdateWorkspaceRequestDto = z.infer<
+    typeof UpdateWorkspaceRequestSchema
+>;
+
+/** Response for GET /workspaces/:id/overview — workspace details with counts and owner info. */
+export const WorkspaceOverviewResponseSchema = z.object({
+    name: z.string(),
+    type: WorkspaceTypeSchema,
+    membersCount: z.number(),
+    documentsCount: z.number(),
+    ownerName: z.string(),
+    ownerEmail: z.string(),
+    createdAt: z.string(),
+});
+
+export type WorkspaceOverviewResponseDto = z.infer<
+    typeof WorkspaceOverviewResponseSchema
+>;

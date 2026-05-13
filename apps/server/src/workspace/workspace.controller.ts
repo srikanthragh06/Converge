@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Put,
   Query,
@@ -22,10 +23,13 @@ import type {
   SearchWorkspacesRequestDto,
   SearchWorkspacesResponseDto,
   SetSelectedWorkspaceResponseDto,
+  UpdateWorkspaceRequestDto,
+  WorkspaceOverviewResponseDto,
 } from '@converge/shared';
 import {
   CreateWorkspaceRequestSchema,
   SearchWorkspacesRequestSchema,
+  UpdateWorkspaceRequestSchema,
 } from '@converge/shared';
 
 @Controller('/workspaces')
@@ -85,6 +89,42 @@ export class WorkspaceController {
     return httpOK(
       await this.workspaceService.searchWorkspaces(userId, query.q),
     );
+  }
+
+  /**
+   * Returns workspace overview details (member count, document count, owner
+   * info, created date). Only accessible to workspace members.
+   *
+   * @param id - The workspace ID.
+   * @param req - The Express request with userId stamped by AuthGuard.
+   * @returns Workspace name, type, member/doc counts, owner name/email, created date.
+   */
+  @Get('/:id/overview')
+  async handleGetWorkspaceOverview(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request,
+  ): Promise<WorkspaceOverviewResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(await this.workspaceService.getOverview(id, userId));
+  }
+
+  /**
+   * Updates the workspace name. Only workspace admins and owners can rename.
+   *
+   * @param id - The workspace ID.
+   * @param body - The updated fields.
+   * @param req - The Express request with userId stamped by AuthGuard.
+   * @returns The updated workspace.
+   */
+  @Patch('/:id')
+  async handleUpdateWorkspace(
+    @Param('id', ParseIntPipe) id: number,
+    @Body(new ZodHttpValidationPipe(UpdateWorkspaceRequestSchema))
+    body: UpdateWorkspaceRequestDto,
+    @Req() req: Request,
+  ) {
+    const userId = (req as any).userId as number;
+    return httpOK(await this.workspaceService.updateWorkspace(id, userId, body));
   }
 
   /**

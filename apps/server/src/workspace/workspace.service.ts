@@ -1,11 +1,21 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { DatabaseService } from '../db/database.service';
 import { sql } from 'kysely';
+import {
+  hasWorkspaceRole,
+  WORKSPACE_ROLE_RANK,
+} from '@converge/shared';
 import type {
   CreateWorkspaceResponseDto,
   GetWorkspacesResponseDto,
   SearchWorkspacesResponseDto,
   SetSelectedWorkspaceResponseDto,
+  UpdateWorkspaceRequestDto,
+  WorkspaceOverviewResponseDto,
 } from '@converge/shared';
 
 @Injectable()
@@ -200,6 +210,127 @@ export class WorkspaceService {
         isSelected: r.id === r.current_workspace_id,
       })),
     };
+  }
+
+  /**
+   * Returns workspace overview details including member count, document count,
+   * and owner info. Only accessible to workspace members — a non-member gets 403.
+   *
+   * @param workspaceId - The workspace to get overview for.
+   * @param userId - The authenticated user whose membership is verified.
+   * @returns Workspace name, type, member/doc counts, owner name/email, created date.
+   */
+  async getOverview(
+    workspaceId: number,
+    userId: number,
+  ): Promise<WorkspaceOverviewResponseDto> {
+    const db = this.dbService.kysely;
+
+    // Verify the workspace exists.
+    const ws = await db
+      .selectFrom('workspaces')
+      .select('id')
+      .where('id', '=', workspaceId)
+      .executeTakeFirst();
+
+    if (!ws) throw new NotFoundException('Workspace not found.');
+
+    // Verify the caller is a member.
+    const membership = await db
+      .selectFrom('workspace_members')
+      .select('user_id')
+      .where('workspace_id', '=', workspaceId)
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+
+    if (!membership) {
+      throw new ForbiddenException('You do not have access to this workspace.');
+    }
+
+    // Fetch workspace + owner info.
+    const workspace = await db
+      .selectFrom('workspaces as w')
+      .innerJoin('users as owner', 'owner.id', 'w.owner_id')
+      .select([
+        'w.name',
+        'w.type',
+        'w.created_at',
+        'owner.name as ownerName',
+        'owner.email as ownerEmail',
+      ])
+      .where('w.id', '=', workspaceId)
+      .executeTakeFirstOrThrow();
+
+    const membersCount = await db
+      .selectFrom('workspace_members')
+      .select(db.fn.countAll<number>().as('count'))
+      .where('workspace_id', '=', workspaceId)
+      .executeTakeFirstOrThrow();
+
+    const documentsCount = await db
+      .selectFrom('documents')
+      .select(db.fn.countAll<number>().as('count'))
+      .where('workspace_id', '=', workspaceId)
+      .executeTakeFirstOrThrow();
+
+    return {
+      name: workspace.name,
+      type: workspace.type,
+      membersCount: Number(membersCount.count),
+      documentsCount: Number(documentsCount.count),
+      ownerName: workspace.ownerName,
+      ownerEmail: workspace.ownerEmail,
+      createdAt: (workspace.created_at as Date).toISOString(),
+    };
+  }
+
+  /**
+   * Updates workspace fields. Only workspace admins and owners can perform
+   * this action.
+   *
+   * @param workspaceId - The workspace to update.
+   * @param userId - The authenticated user.
+   * @param body - The fields to update.
+   * @returns The updated workspace id and name.
+   */
+  async updateWorkspace(
+    workspaceId: number,
+    userId: number,
+    body: UpdateWorkspaceRequestDto,
+  ): Promise<{ id: number; name: string }> {
+    const db = this.dbService.kysely;
+
+    // Verify the workspace exists.
+    const ws = await db
+      .selectFrom('workspaces')
+      .select('id')
+      .where('id', '=', workspaceId)
+      .executeTakeFirst();
+
+    if (!ws) throw new NotFoundException('Workspace not found.');
+
+    // Verify the caller is an admin or owner.
+    const membership = await db
+      .selectFrom('workspace_members')
+      .select(['user_id', 'role'])
+      .where('workspace_id', '=', workspaceId)
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+
+    if (!membership || !hasWorkspaceRole(membership.role, 'admin')) {
+      throw new ForbiddenException(
+        'You do not have access to this workspace.',
+      );
+    }
+
+    const updated = await db
+      .updateTable('workspaces')
+      .set({ name: body.name })
+      .where('id', '=', workspaceId)
+      .returning(['id', 'name'])
+      .executeTakeFirstOrThrow();
+
+    return { id: updated.id, name: updated.name };
   }
 
   /**
