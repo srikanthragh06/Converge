@@ -4,7 +4,13 @@ import type { WorkspaceDto } from "@converge/shared";
 /**
  * A single workspace card showing name, type badge, role, and action buttons.
  */
-const WorkspaceCard = ({ workspace }: { workspace: WorkspaceDto }) => {
+const WorkspaceCard = ({
+    workspace,
+    onSelect,
+}: {
+    workspace: WorkspaceDto;
+    onSelect: (id: number) => void;
+}) => {
     return (
         <div
             className="flex items-start sm:px-4 sm:py-3 py-2 px-3
@@ -27,18 +33,19 @@ const WorkspaceCard = ({ workspace }: { workspace: WorkspaceDto }) => {
                     {workspace.role}
                 </span>
                 <div className="flex items-center gap-3 mt-1">
+                    <button className="text-xs text-white hover:opacity-80 transition cursor-pointer p-1">
+                        Manage Workspace
+                    </button>{" "}
                     <button
                         disabled={workspace.isSelected}
-                        className={`text-xs transition cursor-pointer ${
+                        onClick={() => onSelect(workspace.id)}
+                        className={`text-xs transition cursor-pointer p-1 text-white ${
                             workspace.isSelected
-                                ? "opacity-70 cursor-auto"
-                                : "text-text-secondary hover:text-white active:opacity-80"
+                                ? "bg-green-900 rounded-lg cursor-auto"
+                                : "hover:opacity-80"
                         }`}
                     >
                         {workspace.isSelected ? "Selected" : "Select Workspace"}
-                    </button>
-                    <button className="text-xs text-white hover:opacity-80 transition cursor-pointer">
-                        Manage Workspace
                     </button>
                 </div>
             </div>

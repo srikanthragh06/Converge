@@ -11,10 +11,14 @@ import CreateWorkspaceModal from "./components/CreateWorkspaceModal";
  */
 const WorkspacesPage = () => {
     const { createWorkspace, isCreating, error } = useCreateWorkspace();
-    const { searchText, setSearchText, workspaces, isLoading } =
+    const { searchText, setSearchText, workspaces, isLoading, selectWorkspace } =
         useWorkspaces();
     const [showModal, setShowModal] = useState(false);
 
+    /**
+     * Creates a workspace via the useCreateWorkspace hook and closes the
+     * modal on success.
+     */
     const handleCreate = async (name: string) => {
         const ok = await createWorkspace(name);
         if (ok) setShowModal(false);
@@ -68,7 +72,7 @@ const WorkspacesPage = () => {
                 )}
 
                 {workspaces.map((w) => (
-                    <WorkspaceCard key={w.id} workspace={w} />
+                    <WorkspaceCard key={w.id} workspace={w} onSelect={selectWorkspace} />
                 ))}
             </div>
 
