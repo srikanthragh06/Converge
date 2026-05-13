@@ -21,10 +21,9 @@ const LibraryPage = () => {
     } = useLibrary(); // search state, paginated document list, infinite scroll sentinel, and document creation state
 
     return (
-        <Page authRequired>
-            <LibraryPageHeader />
+        <Page authRequired haveSidebar>
             <div
-                className="bg-background-base sticky top-[52px] sm:top-[76px] z-40 pb-4 pt-4 sm:pt-8 w-full
+                className=" mr-10 bg-background-base sticky top-[52px] sm:top-[76px] z-40 pb-4 pt-4 sm:pt-8 w-full
                     flex flex-col space-y-4"
             >
                 <div
@@ -68,7 +67,7 @@ const LibraryPage = () => {
                 )}
                 <div ref={sentinelRef} />
             </div>
-            <div className="sm:hidden fixed bottom-0 left-0 right-0 px-4">
+            {/* <div className="sm:hidden fixed bottom-0 left-0 right-0 px-4">
                 <button
                     onClick={createDocument}
                     disabled={isCreating}
@@ -79,7 +78,7 @@ const LibraryPage = () => {
                         {isCreating && <AnimatedDots />}
                     </span>
                 </button>
-            </div>
+            </div> */}
         </Page>
     );
 };
