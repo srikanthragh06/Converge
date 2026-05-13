@@ -81,6 +81,15 @@ export type UpdateWorkspaceRequestDto = z.infer<
     typeof UpdateWorkspaceRequestSchema
 >;
 
+/** Response for GET /workspaces/:id/my-role — the caller's role in the workspace. */
+export const GetWorkspaceMyRoleResponseSchema = z.object({
+    role: WorkspaceRoleSchema,
+});
+
+export type GetWorkspaceMyRoleResponseDto = z.infer<
+    typeof GetWorkspaceMyRoleResponseSchema
+>;
+
 /** Response for GET /workspaces/:id/overview — workspace details with counts and owner info. */
 export const WorkspaceOverviewResponseSchema = z.object({
     name: z.string(),

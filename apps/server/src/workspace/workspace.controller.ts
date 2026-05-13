@@ -21,6 +21,7 @@ import type {
   CreateWorkspaceRequestDto,
   CreateWorkspaceResponseDto,
   GetWorkspacesResponseDto,
+  GetWorkspaceMyRoleResponseDto,
   SearchWorkspacesRequestDto,
   SearchWorkspacesResponseDto,
   SetSelectedWorkspaceResponseDto,
@@ -119,6 +120,22 @@ export class WorkspaceController {
   ): Promise<WorkspaceOverviewResponseDto> {
     const userId = (req as any).userId as number;
     return httpOK(await this.workspaceService.getOverview(id, userId));
+  }
+
+  /**
+   * Returns the authenticated user's role in the workspace.
+   *
+   * @param id - The workspace ID.
+   * @param req - The Express request with userId stamped by AuthGuard.
+   * @returns The caller's role.
+   */
+  @Get('/:id/my-role')
+  async handleGetMyRole(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request,
+  ): Promise<GetWorkspaceMyRoleResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(await this.workspaceService.getMyRole(id, userId));
   }
 
   /**

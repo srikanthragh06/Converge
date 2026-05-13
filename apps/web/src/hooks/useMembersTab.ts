@@ -9,8 +9,6 @@ import type {
     SearchWorkspaceMembersResponseDto,
     WorkspaceRole,
 } from "@converge/shared";
-import { useAtomValue } from "jotai";
-import { workspacesAtom } from "../atoms/sidebar";
 
 const MEMBERS_LIST_LIMIT = 20;
 
@@ -31,10 +29,27 @@ const useMembersTab = ({ workspaceId }: { workspaceId: number }) => {
     const [isFindNewUserLoading, setIsFindNewUserLoading] = useState(false); // true while the find-new fetch is in flight
     const [isFindNewUserConflict, setIsFindNewUserConflict] = useState(false); // true when find-new returns 409 (user is owner or already a member)
 
-    const workspaces = useAtomValue(workspacesAtom);
-    const currentUserRole: WorkspaceRole =
-        workspaces.find((w) => w.id === workspaceId)?.role ?? "member";
-    const canManage = hasWorkspaceRole(currentUserRole, "admin");
+    const [currentUserRole, setCurrentUserRole] = useState<WorkspaceRole | null>(null); // caller's role in this workspace; null until loaded
+    const [isRoleLoading, setIsRoleLoading] = useState(true); // true while the role fetch is in flight
+    const canManage =
+        currentUserRole !== null && hasWorkspaceRole(currentUserRole, "admin");
+
+    // Fetches the caller's role on mount so we don't rely on the sidebar atom.
+    useEffect(() => {
+        const fetchRole = async () => {
+            try {
+                const { data } = await apiClient.get<{ role: WorkspaceRole }>(
+                    `/workspaces/${workspaceId}/my-role`,
+                );
+                setCurrentUserRole(data.role);
+            } catch (err) {
+                console.error("useMembersTab: failed to fetch role:", err);
+            } finally {
+                setIsRoleLoading(false);
+            }
+        };
+        fetchRole();
+    }, [workspaceId]);
 
     const nextCursorRef = useRef<number | null>(null); // keyset cursor for the next page; null when no more pages exist
     const hasMoreRef = useRef(true); // whether another page exists — ref so loadMore always reads the latest value without being in deps
@@ -152,10 +167,13 @@ const useMembersTab = ({ workspaceId }: { workspaceId: number }) => {
     };
 
     // Switches between full paginated list and email-driven fetches depending
-    // on email state. When email is empty, resets find state and fetches the
-    // first page of the full list. When non-empty, debounces 300 ms then fires
-    // search and, for admin+ users, find-new.
+    // on email state. Waits until the role is loaded before fetching anything.
+    // When email is empty, resets find state and fetches the first page of the
+    // full list. When non-empty, debounces 300 ms then fires search and, for
+    // admin+ users, find-new.
     useEffect(() => {
+        if (currentUserRole === null) return;
+
         if (email.trim() === "") {
             setFoundUser(null);
             setIsFindNewUserConflict(false);
@@ -170,7 +188,7 @@ const useMembersTab = ({ workspaceId }: { workspaceId: number }) => {
         }, 300);
 
         return () => clearTimeout(timeout);
-    }, [workspaceId, email, canManage]);
+    }, [workspaceId, email, canManage, currentUserRole]);
 
     // Observes the sentinel element and calls loadMore when it enters the viewport.
     useEffect(() => {
@@ -198,6 +216,7 @@ const useMembersTab = ({ workspaceId }: { workspaceId: number }) => {
         isFetchingMore,
         isFindNewUserLoading,
         isFindNewUserConflict,
+        isRoleLoading,
         sentinelRef,
         currentUserRole,
         canManage,
