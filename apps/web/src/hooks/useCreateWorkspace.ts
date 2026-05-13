@@ -6,17 +6,19 @@ import type {
     CreateWorkspaceResponseDto,
     GetWorkspacesResponseDto,
 } from "@converge/shared";
+import { useNavigate } from "react-router-dom";
 
 /**
  * Returns a createWorkspace function that POST /workspaces with the given
- * name, selects it via PUT /workspaces/:id/select, and refreshes the sidebar
- * workspace list so the atom reflects the enriched server-side data.
+ * name, selects it via PUT /workspaces/:id/select, refreshes the sidebar
+ * workspace list from the server, and navigates to /library.
  */
 const useCreateWorkspace = () => {
     const setCurrentWorkspace = useSetAtom(currentWorkspaceAtom);
     const setWorkspaces = useSetAtom(workspacesAtom);
     const [isCreating, setIsCreating] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const navigate = useNavigate();
 
     const createWorkspace = useCallback(
         async (name: string) => {
@@ -41,6 +43,8 @@ const useCreateWorkspace = () => {
 
                 // Update the selected workspace atom.
                 setCurrentWorkspace({ id: data.id, name: data.name });
+
+                navigate("/library");
 
                 return true;
             } catch (err) {
