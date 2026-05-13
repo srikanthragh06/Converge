@@ -8,6 +8,7 @@ import {
     MdWorkspaces,
     MdLibraryBooks,
     MdLogout,
+    MdDescription,
 } from "react-icons/md";
 import { Dropdown } from "primereact/dropdown";
 import "primereact/resources/themes/lara-dark-blue/theme.css";
@@ -37,7 +38,7 @@ const Sidebar = ({
     if (isOpen) {
         return (
             <div
-                className="max-w-[500px] min-w-[200px] shrink-0 h-full border-r border-border md:p-2
+                className="max-w-[500px] min-w-[200px] shrink-0 h-full border-r border-border md:p-2 p-1
             flex flex-col"
             >
                 <div className="flex items-center justify-end">
@@ -69,8 +70,8 @@ const Sidebar = ({
                         </div>
                     )}
                 </div>
-                <div className="mt-4 flex flex-col space-y-1">
-                    <p className="opacity-50 text-xs">Workspace</p>
+                <div className="mt-4 flex flex-col sm:space-y-2 space-y-1">
+                    <p className="opacity-50 text-xs">Current Workspace</p>
                     <Dropdown
                         value={workspace}
                         options={WORKSPACE_OPTIONS}
@@ -126,6 +127,41 @@ const Sidebar = ({
                         <MdLogout className="w-4 h-4" />
                         <span className="text-base">Log out</span>
                     </button>
+                </div>
+                <div className="mt-4 flex flex-col space-y-1">
+                    <p className="opacity-50 text-xs">Documents</p>
+                    <div className="flex flex-col">
+                        <button
+                            className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover
+                            rounded-md transition cursor-pointer text-text-primary"
+                            aria-label="Meeting Notes"
+                        >
+                            <MdDescription className="w-3 h-3 shrink-0" />
+                            <span className="text-sm truncate">
+                                Meeting Notes
+                            </span>
+                        </button>
+                        <button
+                            className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover
+                            rounded-md transition cursor-pointer text-text-primary"
+                            aria-label="Project Plan"
+                        >
+                            <MdDescription className="w-3 h-3 shrink-0" />
+                            <span className="text-sm truncate">
+                                Project Plan
+                            </span>
+                        </button>
+                        <button
+                            className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover
+                            rounded-md transition cursor-pointer text-text-primary"
+                            aria-label="Personal Journal"
+                        >
+                            <MdDescription className="w-3 h-3 shrink-0" />
+                            <span className="text-sm truncate">
+                                Personal Journal
+                            </span>
+                        </button>
+                    </div>
                 </div>
             </div>
         );
