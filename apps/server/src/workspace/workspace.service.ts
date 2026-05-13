@@ -4,6 +4,7 @@ import { sql } from 'kysely';
 import type {
   CreateWorkspaceResponseDto,
   GetWorkspacesResponseDto,
+  SearchWorkspacesResponseDto,
   SetSelectedWorkspaceResponseDto,
 } from '@converge/shared';
 
@@ -143,6 +144,53 @@ export class WorkspaceService {
 
     return {
       workspaces: rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        type: r.type,
+        role: r.role,
+        ownerId: r.owner_id,
+        ownerName: r.ownerName,
+        isSelected: r.id === r.current_workspace_id,
+      })),
+    };
+  }
+
+  /**
+   * Searches the user's workspaces by name using trigram similarity,
+   * ordered by relevance descending.
+   *
+   * @param userId - The authenticated user.
+   * @param query - The search string.
+   * @returns Matching workspaces ordered by similarity score descending.
+   */
+  async searchWorkspaces(
+    userId: number,
+    query: string,
+  ): Promise<SearchWorkspacesResponseDto> {
+    const db = this.dbService.kysely;
+
+    const rows = await db
+      .selectFrom('workspace_members as wm')
+      .innerJoin('workspaces as w', 'w.id', 'wm.workspace_id')
+      .innerJoin('users as owner', 'owner.id', 'w.owner_id')
+      .leftJoin('users as me', 'me.id', 'wm.user_id')
+      .select([
+        'w.id',
+        'w.name',
+        'w.type',
+        'wm.role',
+        'w.owner_id',
+        'owner.name as ownerName',
+        'me.current_workspace_id',
+        sql<number>`similarity(w.name, ${query})`.as('score'),
+      ])
+      .where('wm.user_id', '=', userId)
+      .orderBy('score', 'desc')
+      .limit(5)
+      .execute();
+
+    return {
+      workspaces: rows.map((r: any) => ({
         id: r.id,
         name: r.name,
         type: r.type,

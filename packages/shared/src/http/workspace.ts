@@ -53,3 +53,21 @@ export const CreateWorkspaceResponseSchema = z.object({
 export type CreateWorkspaceResponseDto = z.infer<
     typeof CreateWorkspaceResponseSchema
 >;
+
+/** Query params for GET /workspaces/search — searches workspaces by name. */
+export const SearchWorkspacesRequestSchema = z.object({
+    q: z.string().min(1).max(256),
+});
+
+export type SearchWorkspacesRequestDto = z.infer<
+    typeof SearchWorkspacesRequestSchema
+>;
+
+/** Response for GET /workspaces/search — same shape as the list endpoint. */
+export const SearchWorkspacesResponseSchema = z.object({
+    workspaces: z.array(WorkspaceDtoSchema),
+});
+
+export type SearchWorkspacesResponseDto = z.infer<
+    typeof SearchWorkspacesResponseSchema
+>;

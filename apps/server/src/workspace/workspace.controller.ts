@@ -6,6 +6,7 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -18,9 +19,14 @@ import type {
   CreateWorkspaceRequestDto,
   CreateWorkspaceResponseDto,
   GetWorkspacesResponseDto,
+  SearchWorkspacesRequestDto,
+  SearchWorkspacesResponseDto,
   SetSelectedWorkspaceResponseDto,
 } from '@converge/shared';
-import { CreateWorkspaceRequestSchema } from '@converge/shared';
+import {
+  CreateWorkspaceRequestSchema,
+  SearchWorkspacesRequestSchema,
+} from '@converge/shared';
 
 @Controller('/workspaces')
 @UseGuards(AuthGuard)
@@ -59,6 +65,26 @@ export class WorkspaceController {
     const userId = (req as any).userId as number;
     const workspaces = await this.workspaceService.getWorkspaces(userId);
     return httpOK(workspaces);
+  }
+
+  /**
+   * Searches the authenticated user's workspaces by name using trigram
+   * similarity, ordered by relevance descending.
+   *
+   * @param req - The Express request with userId stamped by AuthGuard.
+   * @param query - The search query.
+   * @returns Matching workspaces ordered by similarity score descending.
+   */
+  @Get('/search')
+  async handleSearchWorkspaces(
+    @Req() req: Request,
+    @Query(new ZodHttpValidationPipe(SearchWorkspacesRequestSchema))
+    query: SearchWorkspacesRequestDto,
+  ): Promise<SearchWorkspacesResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.workspaceService.searchWorkspaces(userId, query.q),
+    );
   }
 
   /**
