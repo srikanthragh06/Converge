@@ -59,6 +59,8 @@ export {
     SetSelectedWorkspaceResponseSchema,
     CreateWorkspaceRequestSchema,
     CreateWorkspaceResponseSchema,
+    SearchWorkspacesRequestSchema,
+    SearchWorkspacesResponseSchema,
     WorkspaceDtoSchema,
 } from "./http/workspace";
 export type {
@@ -66,6 +68,8 @@ export type {
     SetSelectedWorkspaceResponseDto,
     CreateWorkspaceRequestDto,
     CreateWorkspaceResponseDto,
+    SearchWorkspacesRequestDto,
+    SearchWorkspacesResponseDto,
     WorkspaceDto,
 } from "./http/workspace";
 export { INTERNAL_SERVER_ERROR_MESSAGE } from "./constants/constants";
