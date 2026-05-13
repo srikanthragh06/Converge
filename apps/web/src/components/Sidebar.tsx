@@ -103,29 +103,29 @@ const Sidebar = ({
                         className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
                         aria-label="New Document"
                     >
-                        <MdNoteAdd className="w-4 h-4" />
-                        <span className="text-base">New Document</span>
+                        <MdNoteAdd className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                        <span className="text-sm sm:text-base">New Document</span>
                     </button>
                     <button
                         className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
                         aria-label="Library"
                     >
-                        <MdLibraryBooks className="w-4 h-4" />
-                        <span className="text-base">Library</span>
+                        <MdLibraryBooks className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                        <span className="text-sm sm:text-base">Library</span>
                     </button>
                     <button
                         className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
                         aria-label="Workspaces"
                     >
-                        <MdWorkspaces className="w-4 h-4" />
-                        <span className="text-base">Workspaces</span>
+                        <MdWorkspaces className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                        <span className="text-sm sm:text-base">Workspaces</span>
                     </button>
                     <button
                         className="flex justify-start items-center gap-2 text-left py-1 px-2 mt-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
                         aria-label="Log out"
                     >
-                        <MdLogout className="w-4 h-4" />
-                        <span className="text-base">Log out</span>
+                        <MdLogout className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                        <span className="text-sm sm:text-base">Log out</span>
                     </button>
                 </div>
                 <div className="mt-4 flex flex-col space-y-1">
@@ -137,7 +137,7 @@ const Sidebar = ({
                             aria-label="Meeting Notes"
                         >
                             <MdDescription className="w-3 h-3 shrink-0" />
-                            <span className="text-sm truncate">
+                            <span className="text-xs sm:text-sm truncate">
                                 Meeting Notes
                             </span>
                         </button>
