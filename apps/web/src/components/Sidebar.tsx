@@ -90,7 +90,7 @@ const Sidebar = ({
                         pt={{
                             root: {
                                 className:
-                                    "border-none bg-transparent focus:outline-none",
+                                    "border border-border/70 bg-transparent focus:outline-none",
                             },
                             input: {
                                 className:
@@ -108,7 +108,6 @@ const Sidebar = ({
                         }}
                     />
                 </div>
-                {/* divider */}
                 <div className="mt-3 flex flex-col space-y-0">
                     <button
                         onClick={createDocument}

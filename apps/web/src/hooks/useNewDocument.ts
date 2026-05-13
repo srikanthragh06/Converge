@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAtomValue } from "jotai";
-import { currentWorkspaceAtom } from "../atoms/workspace";
+import { useAtomValue, useSetAtom } from "jotai";
+import { currentWorkspaceAtom, refreshSidebarAtom } from "../atoms/workspace";
 import apiClient from "../lib/http";
 import type { CreateDocumentResponseDto } from "@converge/shared";
 
@@ -13,6 +13,7 @@ import type { CreateDocumentResponseDto } from "@converge/shared";
 const useNewDocument = () => {
     const navigate = useNavigate();
     const currentWorkspace = useAtomValue(currentWorkspaceAtom); // used to scope the new document to the current workspace
+    const refreshSidebar = useSetAtom(refreshSidebarAtom); // increments to tell the sidebar to refetch
     const [isCreating, setIsCreating] = useState(false); // true while the POST is in flight
 
     /**
@@ -29,6 +30,7 @@ const useNewDocument = () => {
                     workspaceId: currentWorkspace.id,
                 },
             );
+            refreshSidebar((c) => c + 1);
             navigate(`/document/${data.documentId}`);
         } catch (err) {
             console.error("useNewDocument: failed to create document", err);
