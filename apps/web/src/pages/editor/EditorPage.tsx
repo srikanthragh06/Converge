@@ -67,7 +67,7 @@ const EditorPage = () => {
 
     return (
         // authRequired redirects unauthenticated users before rendering children
-        <Page authRequired>
+        <Page authRequired haveSidebar>
             {/* EditorPageHeader is sticky at top-0; title bar sticks independently below it */}
             {/* <EditorPageHeader
                 documentStatus={documentStatus}
