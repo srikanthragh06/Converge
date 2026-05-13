@@ -66,7 +66,7 @@ const Page = ({
             )}
             {/* Collapsed sidebar — slim column with just the hamburger open button. */}
             {haveSidebar && !sidebarOpen && (
-                <div className="md:w-14 w-8 shrink-0 h-full border- border-border md:p-2">
+                <div className="md:w-14 w-8 shrink-0 h-full border-r border-border md:p-2">
                     <div className="flex items-center">
                         <button
                             onClick={() => setSidebarOpen(true)}
