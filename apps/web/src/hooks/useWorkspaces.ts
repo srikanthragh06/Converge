@@ -87,6 +87,7 @@ const useWorkspaces = () => {
         workspaces,
         isLoading,
         fetchAll,
+        fetchSearch,
         selectWorkspace,
     };
 };

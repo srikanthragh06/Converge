@@ -31,8 +31,7 @@ const GeneralTab = ({ workspaceId }: { workspaceId: number }) => {
                 />
                 <button
                     onClick={() => save(name)}
-                    disabled={saveStatus !== "idle"}
-                    className="px-3 py-1 text-xs sm:text-sm rounded-md bg-white text-black hover:opacity-90 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-3 py-1 text-xs sm:text-sm rounded-md bg-white text-black hover:opacity-90 transition cursor-pointer"
                 >
                     {saveStatus === "saving"
                         ? "Saving..."
