@@ -16,9 +16,11 @@ const TABS: { key: string; label: string }[] = [
 const WorkspaceConfigModal = ({
     workspaceId,
     onClose,
+    onLeave,
 }: {
     workspaceId: number;
     onClose: () => void;
+    onLeave: () => void;
 }) => {
     const [selectedTab, setSelectedTab] = useState("general"); // Currently active tab key.
 
@@ -67,7 +69,10 @@ const WorkspaceConfigModal = ({
                     <div className="h-[1px] w-full sm:h-auto sm:w-[1px] bg-background-elevated shrink-0" />
                     <div className="flex-1 min-h-0 flex flex-col px-4 py-3 sm:px-6 sm:py-5">
                         {selectedTab === "general" && (
-                            <GeneralTab workspaceId={workspaceId} />
+                            <GeneralTab
+                                workspaceId={workspaceId}
+                                onLeave={onLeave}
+                            />
                         )}
                         {selectedTab === "members" && (
                             <MembersTab workspaceId={workspaceId} />

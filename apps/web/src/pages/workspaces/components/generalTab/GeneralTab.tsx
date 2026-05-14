@@ -1,19 +1,40 @@
-import { useEffect, useState } from "react";
 import useWorkspaceOverview from "../../../../hooks/useWorkspaceOverview";
+import LeaveWorkspaceConfirmationModal from "./LeaveWorkspaceConfirmationModal";
 
 /**
  * General workspace settings tab. Displays workspace name, type, member
- * and document counts, owner info, and creation date.
+ * and document counts, owner info, and creation date. Fetches its own data
+ * and role via useWorkspaceOverview.
  */
-const GeneralTab = ({ workspaceId }: { workspaceId: number }) => {
-    const { overview, isLoading, saveStatus, save } =
-        useWorkspaceOverview(workspaceId);
-    const [name, setName] = useState(""); // editable workspace name, seeded from overview
+const GeneralTab = ({
+    workspaceId,
+    onLeave,
+}: {
+    workspaceId: number;
+    /** Called after a successful leave so the parent can close and refetch. */
+    onLeave?: () => void;
+}) => {
+    const {
+        overview,
+        saveStatus,
+        save,
+        name,
+        setName,
+        isConfirmOpen,
+        setIsConfirmOpen,
+        isInitialLoading,
+        canLeave,
+        handleLeave,
+        isLeaving,
+    } = useWorkspaceOverview(workspaceId, onLeave);
 
-    // Seed the name input when overview loads.
-    useEffect(() => {
-        if (overview) setName(overview.name);
-    }, [overview]);
+    if (isInitialLoading) {
+        return (
+            <div className="h-full flex items-center justify-center">
+                <span className="text-sm opacity-40">Loading...</span>
+            </div>
+        );
+    }
 
     return (
         <>
@@ -87,6 +108,32 @@ const GeneralTab = ({ workspaceId }: { workspaceId: number }) => {
                     </span>
                 </div>
             </div>
+
+            {canLeave && (
+                <button
+                    onClick={() => setIsConfirmOpen(true)}
+                    className="border-none bg-red-800 text-white text-xs sm:text-sm
+            text-center rounded-lg px-3 py-1 mt-8 sm:mt-10 cursor-pointer
+            hover:opacity-80 active:opacity-70 transition w-40"
+                >
+                    Leave Workspace
+                </button>
+            )}
+            {!isInitialLoading && !canLeave && (
+                <p className="text-xs opacity-40 mt-8 sm:mt-10">
+                    To leave this workspace, you must not be the owner and this
+                    workspace must not be your selected workspace.
+                </p>
+            )}
+
+            {isConfirmOpen && (
+                <LeaveWorkspaceConfirmationModal
+                    workspaceName={overview?.name ?? "this workspace"}
+                    onCancel={() => setIsConfirmOpen(false)}
+                    onConfirm={handleLeave}
+                    isLeaving={isLeaving}
+                />
+            )}
         </>
     );
 };
