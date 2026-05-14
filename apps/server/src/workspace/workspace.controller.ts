@@ -160,6 +160,20 @@ export class WorkspaceController {
   }
 
   /**
+   * Removes the authenticated user from the workspace. Owners cannot leave
+   * (must transfer ownership first). Personal workspaces cannot be left.
+   * Clears current_workspace_id if the left workspace was selected.
+   */
+  @Post('/:id/leave-workspace')
+  async handleLeaveWorkspace(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request,
+  ): Promise<void> {
+    const userId = (req as any).userId as number;
+    await this.workspaceService.leaveWorkspace(id, userId);
+  }
+
+  /**
    * Sets the authenticated user's selected workspace. No membership check
    * is required — guests can be switched to a foreign workspace when visiting
    * a document link so the sidebar stays in sync.
