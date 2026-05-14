@@ -112,12 +112,22 @@ const WorkspacesPage = () => {
                 <WorkspaceConfigModal
                     workspaceId={configModal.workspaceId}
                     onClose={() => {
-                        setConfigModal({ isOpen: false, workspaceId: null });
+                        setConfigModal({
+                            isOpen: false,
+                            workspaceId: null,
+                        });
                         if (searchText.trim()) {
                             fetchSearch(searchText.trim());
                         } else {
                             fetchAll();
                         }
+                    }}
+                    onLeave={() => {
+                        setConfigModal({
+                            isOpen: false,
+                            workspaceId: null,
+                        });
+                        fetchAll();
                     }}
                 />
             )}

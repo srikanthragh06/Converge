@@ -29,7 +29,8 @@ const useMembersTab = ({ workspaceId }: { workspaceId: number }) => {
     const [isFindNewUserLoading, setIsFindNewUserLoading] = useState(false); // true while the find-new fetch is in flight
     const [isFindNewUserConflict, setIsFindNewUserConflict] = useState(false); // true when find-new returns 409 (user is owner or already a member)
 
-    const [currentUserRole, setCurrentUserRole] = useState<WorkspaceRole | null>(null); // caller's role in this workspace; null until loaded
+    const [currentUserRole, setCurrentUserRole] =
+        useState<WorkspaceRole | null>(null); // caller's role in this workspace; null until loaded
     const [isRoleLoading, setIsRoleLoading] = useState(true); // true while the role fetch is in flight
     const canManage =
         currentUserRole !== null && hasWorkspaceRole(currentUserRole, "admin");
