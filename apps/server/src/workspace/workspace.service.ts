@@ -741,6 +741,54 @@ export class WorkspaceService {
   }
 
   /**
+   * Removes the caller from the workspace. Owners cannot leave. Users cannot
+   * leave their currently selected workspace. Just removes the membership row
+   * — never deletes the workspace itself.
+   */
+  async leaveWorkspace(workspaceId: number, userId: number): Promise<void> {
+    const db = this.dbService.kysely;
+
+    await db.transaction().execute(async (tx) => {
+      const ws = await tx
+        .selectFrom('workspaces')
+        .select(['id', 'owner_id'])
+        .where('id', '=', workspaceId)
+        .executeTakeFirst();
+
+      if (!ws) throw new NotFoundException('Workspace not found.');
+
+      // Owner cannot leave.
+      if (ws.owner_id === userId) {
+        throw new ConflictException('Cannot leave a workspace you own.');
+      }
+
+      // Cannot leave if it's the user's selected workspace.
+      const user = await tx
+        .selectFrom('users')
+        .select('current_workspace_id')
+        .where('id', '=', userId)
+        .executeTakeFirst();
+
+      if (user && user.current_workspace_id === workspaceId) {
+        throw new ConflictException(
+          'Cannot leave your selected workspace. Switch to another workspace first.',
+        );
+      }
+
+      // Remove the membership row.
+      const result = await tx
+        .deleteFrom('workspace_members')
+        .where('workspace_id', '=', workspaceId)
+        .where('user_id', '=', userId)
+        .executeTakeFirst();
+
+      if (!result.numDeletedRows) {
+        throw new NotFoundException('Membership not found.');
+      }
+    });
+  }
+
+  /**
    * Sets the user's selected workspace. No membership check — guests can
    * be switched to a foreign workspace when visiting a document link.
    *
