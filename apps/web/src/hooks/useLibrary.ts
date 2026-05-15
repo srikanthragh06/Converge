@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useAtomValue } from "jotai";
 import apiClient from "../lib/http";
 import useNewDocument from "./useNewDocument";
 import type {
@@ -6,6 +7,7 @@ import type {
     LibraryDocumentDto,
     SearchLibraryDocumentsResponseDto,
 } from "@converge/shared";
+import { currentWorkspaceAtom } from "../atoms/sidebar";
 
 const LIBRARY_PAGE_LIMIT = 12;
 const LIBRARY_SEARCH_PAGE_LIMIT = 5;
@@ -17,6 +19,7 @@ const LIBRARY_SEARCH_PAGE_LIMIT = 5;
  */
 const useLibrary = () => {
     const { createDocument, isCreating } = useNewDocument(); // creates a new document in the current workspace
+    const currentWorkspace = useAtomValue(currentWorkspaceAtom); // active workspace — its ID is required by all library API calls
     const [searchText, setSearchText] = useState(""); // current search query string
     const [documents, setDocuments] = useState<LibraryDocumentDto[]>([]); // accumulated list of fetched documents
     const [isLoadingMore, setIsLoadingMore] = useState(false); // true when a library fetch is in flight
@@ -34,12 +37,18 @@ const useLibrary = () => {
 
     /** Fetches the first page of the user's library and resets pagination state. */
     const fetchFirstPage = async () => {
+        if (!currentWorkspace) return;
         try {
             setIsLoadingMore(true);
             const { data } =
                 await apiClient.get<GetLibraryDocumentsResponseDto>(
                     "/document/library",
-                    { params: { limit: LIBRARY_PAGE_LIMIT } },
+                    {
+                        params: {
+                            workspaceId: currentWorkspace.id,
+                            limit: LIBRARY_PAGE_LIMIT,
+                        },
+                    },
                 );
             setDocuments(data.documents);
             nextCursor.current = data.nextCursor
@@ -63,6 +72,7 @@ const useLibrary = () => {
      * Replaces the current document list and disables infinite scroll.
      */
     const fetchSearchedDocs = async (query: string) => {
+        if (!currentWorkspace) return;
         try {
             setIsLoadingMore(true);
             const { data } =
@@ -70,6 +80,7 @@ const useLibrary = () => {
                     "/document/library/search",
                     {
                         params: {
+                            workspaceId: currentWorkspace.id,
                             title: query,
                             limit: LIBRARY_SEARCH_PAGE_LIMIT,
                         },
@@ -90,7 +101,7 @@ const useLibrary = () => {
      * No-ops if a fetch is already in flight or there are no more pages.
      */
     const loadMore = async () => {
-        if (isLoadingMore || !hasMoreRef.current || !nextCursor.current) return;
+        if (!currentWorkspace || isLoadingMore || !hasMoreRef.current || !nextCursor.current) return;
 
         try {
             setIsLoadingMore(true);
@@ -99,6 +110,7 @@ const useLibrary = () => {
                     "/document/library",
                     {
                         params: {
+                            workspaceId: currentWorkspace.id,
                             limit: LIBRARY_PAGE_LIMIT,
                             cursorVisitedAt:
                                 nextCursor.current.lastVisitedAt.toISOString(),
@@ -139,7 +151,7 @@ const useLibrary = () => {
         return () => {
             if (timeout) clearTimeout(timeout);
         };
-    }, [searchText]);
+    }, [searchText, currentWorkspace]);
 
     // Observes the sentinel element and calls loadMore when it enters the viewport.
     // Depends on sentinelEl so it re-runs once the element actually mounts.
