@@ -23,7 +23,8 @@ const OverviewTab = ({
         setIsDeleteDocumentConfirmOpen,
     } = useOverviewTab({ documentId, onClose });
     const documentAccess = useAtomValue(documentAccessAtom); // resolved access level for the current document
-    const canDelete = documentAccess !== null && hasAccess(documentAccess, "admin"); // only admins and above may delete
+    const canDelete =
+        documentAccess !== null && hasAccess(documentAccess, "admin"); // only admins and above may delete
 
     return (
         <>
@@ -40,13 +41,23 @@ const OverviewTab = ({
                 <div className="text-xs sm:text-sm">
                     <span className="opacity-50">Last visited: </span>
                     <span className="text-text-secondary">
-                        {overview ? formatDate((overview as any).lastVisitedAt ?? overview.createdAt) : "—"}
+                        {overview
+                            ? formatDate(
+                                  (overview as any).lastVisitedAt ??
+                                      overview.createdAt,
+                              )
+                            : "—"}
                     </span>
                 </div>
                 <div className="text-xs sm:text-sm">
                     <span className="opacity-50">Last edited: </span>
                     <span className="text-text-secondary">
-                        {overview ? formatDate((overview as any).lastEditedAt ?? overview.createdAt) : "—"}
+                        {overview
+                            ? formatDate(
+                                  (overview as any).lastEditedAt ??
+                                      overview.createdAt,
+                              )
+                            : "—"}
                     </span>
                 </div>
                 <div className="text-xs sm:text-sm">

@@ -6,9 +6,9 @@ const TABS: {
     label: string;
 }[] = [
     { key: "overview", label: "Overview" },
-    { key: "manage-access", label: "Manage Access" },
-    { key: "default-access", label: "Default Access" },
-    { key: "owner", label: "Owner" },
+    // { key: "manage-access", label: "Manage Access" },
+    // { key: "default-access", label: "Default Access" },
+    // { key: "owner", label: "Owner" },
 ];
 
 /** Manages ManageDocumentModal state: the active sidebar tab. */

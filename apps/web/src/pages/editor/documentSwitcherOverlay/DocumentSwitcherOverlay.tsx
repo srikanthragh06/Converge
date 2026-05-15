@@ -48,7 +48,7 @@ const DocumentSwitcherOverlay = ({
                     onChange={(e) => setSearchText(e.target.value)}
                     placeholder="Search documents..."
                     className="w-full px-3 py-2 sm:text-sm text-xs rounded-md
-                        bg-background-elevated
+                        bg-background-base
                         outline-none text-white border-0 border-b border-none"
                 />
 
@@ -70,20 +70,24 @@ const DocumentSwitcherOverlay = ({
                             <div
                                 key={doc.id}
                                 onClick={() => handleDocumentClick(doc.id)}
-                                className={`bg-background-base flex flex-col gap-1 px-4 py-2 cursor-pointer hover:opacity-80 active:opacity-70 transition ${focusedIndex === i ? "opacity-70" : ""}`}
+                                className="group bg-background-base flex flex-col gap-1 px-4 py-2 cursor-pointer"
                             >
-                                <span
-                                    className={`text-white text-sm font-medium truncate ${!doc.title && "opacity-20"}`}
+                                <div
+                                    className={`flex flex-col gap-1 transition group-hover:opacity-100 group-active:opacity-60 ${focusedIndex === i ? "opacity-90" : "opacity-50"}`}
                                 >
-                                    {doc.title || "Untitled"}
-                                </span>
-                                <span className="text-text-disabled text-xs truncate">
-                                    {[
-                                        formatAccessLevel(doc.access),
-                                        `Last visited ${timeAgo(doc.lastVisitedAt || "")}`,
-                                        `Edited ${timeAgo(doc.lastEditedAt || "")}`,
-                                    ].join(" · ")}
-                                </span>
+                                    <span
+                                        className={`text-white text-sm font-medium truncate ${!doc.title && "opacity-20"}`}
+                                    >
+                                        {doc.title || "Untitled"}
+                                    </span>
+                                    <span className="text-text-disabled text-xs truncate">
+                                        {[
+                                            formatAccessLevel(doc.access),
+                                            `Last visited ${timeAgo(doc.lastVisitedAt || "")}`,
+                                            `Edited ${timeAgo(doc.lastEditedAt || "")}`,
+                                        ].join(" · ")}
+                                    </span>
+                                </div>
                             </div>
                         ))
                     )}

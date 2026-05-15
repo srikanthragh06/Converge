@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useAtomValue } from "jotai";
 import apiClient from "../lib/http";
 import type {
     GetLibraryDocumentsResponseDto,
@@ -7,6 +8,7 @@ import type {
 } from "@converge/shared";
 import { useNavigate } from "react-router-dom";
 import useKeyboardNav from "./useKeyboardNav";
+import { currentWorkspaceAtom } from "../atoms/sidebar";
 
 const SWITCHER_PAGE_LIMIT = 6;
 const SWITCHER_SEARCH_LIMIT = 5;
@@ -24,6 +26,7 @@ const useDocumentSwitcher = (
     onClose: () => void,
 ) => {
     const navigate = useNavigate(); // router navigation for switching to a selected document
+    const currentWorkspace = useAtomValue(currentWorkspaceAtom); // active workspace — its ID is required by both library API calls
 
     const [searchText, setSearchText] = useState(""); // current search query string
     const [documents, setDocuments] = useState<LibraryDocumentDto[]>([]); // filtered list of fetched documents
@@ -50,12 +53,18 @@ const useDocumentSwitcher = (
 
     /** Fetches the first page of the user's library. */
     const fetchFirstPage = async () => {
+        if (!currentWorkspace) return;
         try {
             setIsLoading(true);
             const { data } =
                 await apiClient.get<GetLibraryDocumentsResponseDto>(
                     "/document/library",
-                    { params: { limit: SWITCHER_PAGE_LIMIT } },
+                    {
+                        params: {
+                            workspaceId: currentWorkspace.id,
+                            limit: SWITCHER_PAGE_LIMIT,
+                        },
+                    },
                 );
             setDocuments(filterCurrent(data.documents));
         } catch (err) {
@@ -67,12 +76,19 @@ const useDocumentSwitcher = (
 
     /** Fetches documents matching the given title query from the search endpoint. */
     const fetchSearchedDocs = async (query: string) => {
+        if (!currentWorkspace) return;
         try {
             setIsLoading(true);
             const { data } =
                 await apiClient.get<SearchLibraryDocumentsResponseDto>(
                     "/document/library/search",
-                    { params: { title: query, limit: SWITCHER_SEARCH_LIMIT } },
+                    {
+                        params: {
+                            workspaceId: currentWorkspace.id,
+                            title: query,
+                            limit: SWITCHER_SEARCH_LIMIT,
+                        },
+                    },
                 );
             setDocuments(filterCurrent(data.documents));
         } catch (err) {
@@ -97,7 +113,7 @@ const useDocumentSwitcher = (
         return () => {
             if (timeout) clearTimeout(timeout);
         };
-    }, [searchText]);
+    }, [searchText, currentWorkspace]);
 
     // Auto-focus the search input when the overlay mounts.
     useEffect(() => {
