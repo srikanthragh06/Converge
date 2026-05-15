@@ -20,6 +20,13 @@ export default defineConfig({
         postcss: {
             plugins: [tailwindcss(), autoprefixer()],
         },
+        // lightningcss rejects `em()` in a @media query from BlockNote's
+        // published mantine CSS (upstream bug). Disable CSS minification to
+        // unblock the build; JS is still minified by esbuild.
+        transformer: "postcss",
+    },
+    build: {
+        cssMinify: false,
     },
     optimizeDeps: {
         // shared is a local workspace package — Vite skips its normal CJS→ESM
