@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { convergeTheme } from "../../theme/editorTheme";
 import useEditor from "../../hooks/useEditor";
@@ -7,6 +7,7 @@ import DocumentSwitcherOverlay from "./documentSwitcherOverlay/DocumentSwitcherO
 import EditorPageHeader from "./header/EditorPageHeader";
 import AnimatedDots from "../../components/AnimatedDots";
 import { hasAccess } from "../../utils/utils";
+import useEditorScrollGap from "../../hooks/useEditorScrollGap";
 
 /**
  * Full-screen editor page. Fetches the document by ID from the URL, redirects
@@ -24,30 +25,9 @@ const EditorPage = () => {
         isTitlePending,
     } = useEditor(); // editor instance, document ID, fetch status, title state, and resolved access level
     const [isSwitcherOpen, setIsSwitcherOpen] = useState(false); // controls document switcher overlay visibility
-    const scrollRef = useRef<HTMLDivElement>(null); // ref to the scrollable editor container
+    const scrollRef = useEditorScrollGap(editor); // ref for the scroll container — maintains a gap below the last block
     const isEditable =
         documentAccess !== null && hasAccess(documentAccess, "editor"); // editor+ may write; viewers get a read-only instance
-
-    // After every content change, if the cursor is near the bottom of the scroll
-    // container, nudge the scroll down by 128px so there's always a gap below
-    // the active block. ProseMirror's own scrollIntoView only ensures the cursor
-    // is barely visible — it doesn't account for a trailing gap.
-    useEffect(() => {
-        if (!editor) return;
-        return editor.onChange(() => {
-            const container = scrollRef.current;
-            if (!container) return;
-            const gap = 128;
-            const distanceFromBottom =
-                container.scrollHeight -
-                container.scrollTop -
-                container.clientHeight;
-            if (distanceFromBottom < gap) {
-                container.scrollTop =
-                    container.scrollHeight - container.clientHeight + gap;
-            }
-        });
-    }, [editor]);
 
     // Opens the document switcher on Ctrl+P, preventing the browser print dialog.
     useEffect(() => {
@@ -114,7 +94,7 @@ const EditorPage = () => {
 
             {/* Ready state — only the editor scrolls; header and title stay fixed above */}
             {documentStatus === "ready" && (
-                <div className="flex-1 overflow-y-auto">
+                <div ref={scrollRef} className="flex-1 overflow-y-auto">
                     <BlockNoteView
                         editor={editor}
                         theme={convergeTheme}
