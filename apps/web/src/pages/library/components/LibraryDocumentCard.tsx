@@ -15,9 +15,9 @@ const LibraryDocumentCard = ({
     const navigate = useNavigate(); // router navigation for opening the selected document
     const meta = [
         formatAccessLevel(document.access),
-        `Last visited ${timeAgo(document.lastVisitedAt)}`,
-        `Edited ${timeAgo(document.lastEditedAt)}`,
-    ];
+        document.lastVisitedAt ? `Last visited ${timeAgo(document.lastVisitedAt)}` : null,
+        document.lastEditedAt ? `Edited ${timeAgo(document.lastEditedAt)}` : null,
+    ].filter(Boolean);
 
     return (
         <div

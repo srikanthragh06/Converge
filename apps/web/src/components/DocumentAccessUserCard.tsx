@@ -82,7 +82,7 @@ const DocumentAccessUserCard = ({
     // The dropdown is interactive only when:
     // - the card is not for the current user (can't modify your own access)
     // - the requester is owner, OR is admin and the target is editor or below
-    const isSelf = currentUserId === userId;
+    const isSelf = Number(currentUserId) === userId;
     const canInteract =
         !isSelf &&
         documentAccess !== null &&

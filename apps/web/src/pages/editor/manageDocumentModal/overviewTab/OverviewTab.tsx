@@ -40,13 +40,13 @@ const OverviewTab = ({
                 <div className="text-xs sm:text-sm">
                     <span className="opacity-50">Last visited: </span>
                     <span className="text-text-secondary">
-                        {overview ? formatDate(overview.lastVisitedAt) : "—"}
+                        {overview ? formatDate((overview as any).lastVisitedAt ?? overview.createdAt) : "—"}
                     </span>
                 </div>
                 <div className="text-xs sm:text-sm">
                     <span className="opacity-50">Last edited: </span>
                     <span className="text-text-secondary">
-                        {overview ? formatDate(overview.lastEditedAt) : "—"}
+                        {overview ? formatDate((overview as any).lastEditedAt ?? overview.createdAt) : "—"}
                     </span>
                 </div>
                 <div className="text-xs sm:text-sm">

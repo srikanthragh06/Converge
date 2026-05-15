@@ -3,7 +3,6 @@ import LibraryDocumentCard from "./components/LibraryDocumentCard";
 import useLibrary from "../../hooks/useLibrary";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import AnimatedDots from "../../components/AnimatedDots";
-import LibraryPageHeader from "./header/LibraryPageHeader";
 
 /**
  * Full-screen library page. Lists the authenticated user's documents
