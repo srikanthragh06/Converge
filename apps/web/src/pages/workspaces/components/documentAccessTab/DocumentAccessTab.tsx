@@ -13,7 +13,7 @@ const DocumentAccessTab = ({ workspaceId }: { workspaceId: number }) => {
 
     return (
         <div>
-            <p className="text-text-secondary text-sm">
+            <p className="text-xs opacity-50">
                 Controls the default access level workspace members have on
                 documents based on their workspace role. For per-document
                 permissions, configure access within the document itself.

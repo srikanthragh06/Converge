@@ -29,8 +29,6 @@ const OwnerTab = ({ workspaceId }: { workspaceId: number }) => {
 
     return (
         <>
-            <div className="text-base sm:text-xl mb-3 sm:mb-6">Owner</div>
-
             {/* Current owner card */}
             {isOwnerLoading ? (
                 <AiOutlineLoading3Quarters className="animate-spin" />
