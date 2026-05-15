@@ -19,7 +19,7 @@ const useEditor = () => {
     const { title, setTitle, isTitlePending, handleTitleChange } =
         useDocumentTitle();
 
-    const { documentStatus } = useDocumentFetch(documentId, setTitle);
+    const { documentStatus, documentAccess } = useDocumentFetch(documentId, setTitle);
 
     // Connect the socket only once the document is confirmed — prevents the gateway
     // from receiving a connection with an invalid or inaccessible document ID.
@@ -52,6 +52,7 @@ const useEditor = () => {
     return {
         editor,
         documentStatus,
+        documentAccess,
         title,
         handleTitleChange,
         isTitlePending,

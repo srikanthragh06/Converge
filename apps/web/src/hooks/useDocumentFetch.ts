@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import apiClient from "../lib/http";
 import type { GetDocumentResponseDto } from "@converge/shared";
+import type { ResolvedDocumentAccessLevel } from "@converge/shared";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { useSetAtom } from "jotai";
-import { documentAccessAtom } from "../atoms/document";
 
 /**
  * Fetches the document by ID on mount and whenever documentId changes, driving the document status state.
@@ -18,11 +17,12 @@ const useDocumentFetch = (
     setTitle: React.Dispatch<React.SetStateAction<string>>,
 ) => {
     const navigate = useNavigate();
-    const setDocumentAccess = useSetAtom(documentAccessAtom);
 
     const [documentStatus, setDocumentStatus] = useState<
         "loading" | "ready" | "forbidden" | "notFound"
     >("loading"); // tracks the outcome of the document fetch
+    const [documentAccess, setDocumentAccess] =
+        useState<ResolvedDocumentAccessLevel | null>(null); // resolved access level for the current user on this document
 
     // Fetches the document whenever documentId changes — resets to loading first so stale content is hidden.
     useEffect(() => {
@@ -58,7 +58,7 @@ const useDocumentFetch = (
         return () => setDocumentAccess(null);
     }, [documentId]);
 
-    return { documentStatus };
+    return { documentStatus, documentAccess };
 };
 
 export default useDocumentFetch;
