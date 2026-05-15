@@ -118,27 +118,6 @@ export const SearchLibraryDocumentsResponseSchema = z.object({
 export type SearchLibraryDocumentsResponseDto = z.infer<
     typeof SearchLibraryDocumentsResponseSchema
 >;
-
-/** Query params for GET /document/:id/access/search. email must be non-empty and at most 256 characters. */
-export const SearchDocumentAccessUsersRequestSchema = z.object({
-    email: z.string().min(1).max(256),
-    limit: z.coerce.number().int().positive().optional(),
-});
-
-export type SearchDocumentAccessUsersRequestDto = z.infer<
-    typeof SearchDocumentAccessUsersRequestSchema
->;
-
-/** Query params for GET /document/:id/access. cursorId is the user_id of the last item from the previous page. */
-export const GetDocumentAccessRequestSchema = z.object({
-    limit: z.coerce.number().int().positive().optional(),
-    cursorId: z.coerce.number().int().positive().optional(),
-});
-
-export type GetDocumentAccessRequestDto = z.infer<
-    typeof GetDocumentAccessRequestSchema
->;
-
 /** A single user entry in the document access list. Shared by both the access list and search endpoints. */
 export const DocumentAccessUserSchema = z.object({
     id: z.number(),
@@ -180,25 +159,6 @@ export const GetDocumentOwnerResponseSchema = z.object({
 export type GetDocumentOwnerResponseDto = z.infer<
     typeof GetDocumentOwnerResponseSchema
 >;
-
-/** Request body for PUT /document/:id/access/:targetUserId — sets or updates a user's access level. */
-export const SetDocumentAccessRequestSchema = z.object({
-    access: DocumentAccessLevelSchema,
-});
-
-export type SetDocumentAccessRequestDto = z.infer<
-    typeof SetDocumentAccessRequestSchema
->;
-
-/** Query params for GET /document/:id/access/find-new. */
-export const FindNewDocumentAccessUserRequestSchema = z.object({
-    email: z.string().min(1).max(256),
-});
-
-export type FindNewDocumentAccessUserRequestDto = z.infer<
-    typeof FindNewDocumentAccessUserRequestSchema
->;
-
 /** Response for GET /document/:id/access/find-new — a user who exists but has no access yet. */
 export const FindNewDocumentAccessUserResponseSchema = z.object({
     id: z.number(),
@@ -210,16 +170,6 @@ export const FindNewDocumentAccessUserResponseSchema = z.object({
 export type FindNewDocumentAccessUserResponseDto = z.infer<
     typeof FindNewDocumentAccessUserResponseSchema
 >;
-
-/** Query params for GET /document/:id/owner/find — finds a user by exact email to assign as new owner. */
-export const FindNewDocumentOwnerRequestSchema = z.object({
-    email: z.string().min(1).max(256),
-});
-
-export type FindNewDocumentOwnerRequestDto = z.infer<
-    typeof FindNewDocumentOwnerRequestSchema
->;
-
 /** Response for GET /document/:id/owner/find — the matched user's basic profile. */
 export const FindNewDocumentOwnerResponseSchema = z.object({
     id: z.number(),
@@ -231,16 +181,6 @@ export const FindNewDocumentOwnerResponseSchema = z.object({
 export type FindNewDocumentOwnerResponseDto = z.infer<
     typeof FindNewDocumentOwnerResponseSchema
 >;
-
-/** Request body for PUT /document/:id/owner — transfers ownership to another user. */
-export const TransferDocumentOwnerRequestSchema = z.object({
-    newOwnerId: z.number().int().positive(),
-});
-
-export type TransferDocumentOwnerRequestDto = z.infer<
-    typeof TransferDocumentOwnerRequestSchema
->;
-
 /** Response for PUT /document/:id/owner — the new owner's basic profile. */
 export const TransferDocumentOwnerResponseSchema = z.object({
     id: z.number(),
@@ -261,16 +201,6 @@ export const GetDocumentDefaultAccessResponseSchema = z.object({
 export type GetDocumentDefaultAccessResponseDto = z.infer<
     typeof GetDocumentDefaultAccessResponseSchema
 >;
-
-/** Request body for PUT /document/:id/access/default — sets the document's fallback access level. */
-export const SetDocumentDefaultAccessRequestSchema = z.object({
-    defaultAccess: DocumentAccessLevelSchema,
-});
-
-export type SetDocumentDefaultAccessRequestDto = z.infer<
-    typeof SetDocumentDefaultAccessRequestSchema
->;
-
 /** Response for PUT /document/:id/access/default — echoes back the updated fallback access level. */
 export const SetDocumentDefaultAccessResponseSchema = z.object({
     defaultAccess: DocumentAccessLevelSchema,
