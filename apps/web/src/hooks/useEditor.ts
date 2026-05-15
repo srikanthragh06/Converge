@@ -1,11 +1,11 @@
 import { BlockNoteEditor } from "@blocknote/core";
-import { useEffect, useMemo } from "react";
-import { yUndoPluginKey } from "y-prosemirror";
+import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 import useSocket from "./useSocket";
 import useYjsSync from "./useYjsSync";
 import useDocumentTitle from "./useDocumentTitle";
 import useDocumentFetch from "./useDocumentFetch";
+import useUndoManagerGuard from "./useUndoManagerGuard";
 
 /**
  * Composes the sub-hooks for document fetching, Yjs sync, and title sync into
@@ -53,34 +53,7 @@ const useEditor = () => {
         });
     }, [yDoc]);
 
-    // Workaround for a BlockNote/TipTap lifecycle bug that breaks undo and redo.
-    //
-    // When BlockNoteView unmounts (React Strict Mode double-invoke, or navigating
-    // away then back), TipTap calls editor.unmount() → editorView.destroy() →
-    // yUndoPlugin.view.destroy() → undoManager.destroy(). destroy() permanently
-    // breaks undo/redo — re-registering the handler afterwards does not fully
-    // restore behaviour because super.destroy() clears internal ObservableV2 state
-    // that the handler relies on.
-    //
-    // Fix: override destroy() to a no-op so BlockNoteView unmount cannot break the
-    // UndoManager. The real cleanup is deferred to the effect's return function,
-    // which fires when editor/yDoc change (document switch) or the component
-    // unmounts, at which point the actual destroy is called on the old instance.
-    useEffect(() => {
-        if (!editor || !yDoc) return;
-        const undoManager = yUndoPluginKey.getState(
-            editor._tiptapEditor.state,
-        )?.undoManager;
-        if (!undoManager) return;
-
-        const originalDestroy = undoManager.destroy.bind(undoManager);
-        undoManager.destroy = () => {};
-
-        return () => {
-            undoManager.destroy = originalDestroy;
-            originalDestroy();
-        };
-    }, [editor, yDoc]);
+    useUndoManagerGuard(editor, yDoc);
 
     return {
         editor,
