@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { WorkspaceRoleSchema, WorkspaceTypeSchema } from "../types/types";
+import {
+    DocumentAccessLevelSchema,
+    WorkspaceRoleSchema,
+    WorkspaceTypeSchema,
+} from "../types/types";
 
 /** A workspace entry in the workspaces listing, enriched with owner info and selection state. */
 export const WorkspaceDtoSchema = z.object({
@@ -196,4 +200,34 @@ export const AddWorkspaceMemberResponseSchema = z.object({
 
 export type AddWorkspaceMemberResponseDto = z.infer<
     typeof AddWorkspaceMemberResponseSchema
+>;
+
+/** Response for GET /workspaces/:id/doc-access-defaults — per-role document access defaults. */
+export const GetWorkspaceDocAccessDefaultsResponseSchema = z.object({
+    adminDocAccess: DocumentAccessLevelSchema,
+    memberDocAccess: DocumentAccessLevelSchema,
+    nonMemberDocAccess: DocumentAccessLevelSchema,
+});
+
+export type GetWorkspaceDocAccessDefaultsResponseDto = z.infer<
+    typeof GetWorkspaceDocAccessDefaultsResponseSchema
+>;
+
+/** Request body for PATCH /workspaces/:id/doc-access-defaults — updates one or more per-role defaults. At least one field must be provided. */
+export const UpdateWorkspaceDocAccessDefaultsRequestSchema = z
+    .object({
+        adminDocAccess: DocumentAccessLevelSchema.optional(),
+        memberDocAccess: DocumentAccessLevelSchema.optional(),
+        nonMemberDocAccess: DocumentAccessLevelSchema.optional(),
+    })
+    .refine(
+        (d) =>
+            d.adminDocAccess !== undefined ||
+            d.memberDocAccess !== undefined ||
+            d.nonMemberDocAccess !== undefined,
+        { message: "At least one field must be provided." },
+    );
+
+export type UpdateWorkspaceDocAccessDefaultsRequestDto = z.infer<
+    typeof UpdateWorkspaceDocAccessDefaultsRequestSchema
 >;
