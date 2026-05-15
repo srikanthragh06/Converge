@@ -74,6 +74,8 @@ export {
     FindNewWorkspaceUserResponseSchema,
     AddWorkspaceMemberRequestSchema,
     AddWorkspaceMemberResponseSchema,
+    GetWorkspaceDocAccessDefaultsResponseSchema,
+    UpdateWorkspaceDocAccessDefaultsRequestSchema,
 } from "./http/workspace";
 export type {
     GetWorkspacesResponseDto,
@@ -95,6 +97,8 @@ export type {
     FindNewWorkspaceUserResponseDto,
     AddWorkspaceMemberRequestDto,
     AddWorkspaceMemberResponseDto,
+    GetWorkspaceDocAccessDefaultsResponseDto,
+    UpdateWorkspaceDocAccessDefaultsRequestDto,
 } from "./http/workspace";
 export { INTERNAL_SERVER_ERROR_MESSAGE } from "./constants/constants";
 export {

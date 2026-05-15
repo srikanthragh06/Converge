@@ -35,6 +35,8 @@ import type {
   FindNewWorkspaceUserResponseDto,
   AddWorkspaceMemberRequestDto,
   AddWorkspaceMemberResponseDto,
+  GetWorkspaceDocAccessDefaultsResponseDto,
+  UpdateWorkspaceDocAccessDefaultsRequestDto,
 } from '@converge/shared';
 import {
   CreateWorkspaceRequestSchema,
@@ -44,6 +46,7 @@ import {
   SearchWorkspaceMembersRequestSchema,
   FindNewWorkspaceUserRequestSchema,
   AddWorkspaceMemberRequestSchema,
+  UpdateWorkspaceDocAccessDefaultsRequestSchema,
 } from '@converge/shared';
 
 @Controller('/workspaces')
@@ -296,5 +299,44 @@ export class WorkspaceController {
   ): Promise<void> {
     const userId = (req as any).userId as number;
     await this.workspaceService.removeMember(id, userId, targetUserId);
+  }
+
+  /**
+   * Returns the per-role document access defaults for a workspace.
+   * Accessible to all workspace members.
+   *
+   * @param id - The workspace ID.
+   * @param req - The Express request with userId stamped by AuthGuard.
+   * @returns The admin, member, and non-member default document access levels.
+   */
+  @Get('/:id/doc-access-defaults')
+  async handleGetDocAccessDefaults(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request,
+  ): Promise<GetWorkspaceDocAccessDefaultsResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(await this.workspaceService.getDocAccessDefaults(id, userId));
+  }
+
+  /**
+   * Updates the per-role document access defaults for a workspace.
+   * Requires admin+. Only the owner may change the admin role's default.
+   *
+   * @param id - The workspace ID.
+   * @param body - The fields to update.
+   * @param req - The Express request with userId stamped by AuthGuard.
+   * @returns The updated per-role document access defaults.
+   */
+  @Patch('/:id/doc-access-defaults')
+  async handleUpdateDocAccessDefaults(
+    @Param('id', ParseIntPipe) id: number,
+    @Body(new ZodHttpValidationPipe(UpdateWorkspaceDocAccessDefaultsRequestSchema))
+    body: UpdateWorkspaceDocAccessDefaultsRequestDto,
+    @Req() req: Request,
+  ): Promise<GetWorkspaceDocAccessDefaultsResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.workspaceService.updateDocAccessDefaults(id, userId, body),
+    );
   }
 }

@@ -20,6 +20,8 @@ import type {
   FindNewWorkspaceUserResponseDto,
   AddWorkspaceMemberRequestDto,
   AddWorkspaceMemberResponseDto,
+  GetWorkspaceDocAccessDefaultsResponseDto,
+  UpdateWorkspaceDocAccessDefaultsRequestDto,
 } from '@converge/shared';
 
 @Injectable()
@@ -786,6 +788,118 @@ export class WorkspaceService {
         throw new NotFoundException('Membership not found.');
       }
     });
+  }
+
+  /**
+   * Returns the per-role document access defaults for a workspace.
+   * Any workspace member may call this — read-only.
+   *
+   * @param workspaceId - The workspace to query.
+   * @param userId - The authenticated user (must be a member).
+   * @returns The admin, member, and non-member default document access levels.
+   */
+  async getDocAccessDefaults(
+    workspaceId: number,
+    userId: number,
+  ): Promise<GetWorkspaceDocAccessDefaultsResponseDto> {
+    const db = this.dbService.kysely;
+
+    // Verify the workspace exists and read its access defaults.
+    const ws = await db
+      .selectFrom('workspaces')
+      .select(['id', 'admin_doc_access', 'member_doc_access', 'non_member_doc_access'])
+      .where('id', '=', workspaceId)
+      .executeTakeFirst();
+
+    if (!ws) throw new NotFoundException('Workspace not found.');
+
+    // Verify the caller is a member.
+    const membership = await db
+      .selectFrom('workspace_members')
+      .select('user_id')
+      .where('workspace_id', '=', workspaceId)
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+
+    if (!membership) {
+      throw new ForbiddenException('You do not have access to this workspace.');
+    }
+
+    return {
+      adminDocAccess: ws.admin_doc_access,
+      memberDocAccess: ws.member_doc_access,
+      nonMemberDocAccess: ws.non_member_doc_access,
+    };
+  }
+
+  /**
+   * Updates the per-role document access defaults for a workspace.
+   * Requires admin+. Only the owner may change the admin role's default.
+   *
+   * @param workspaceId - The workspace to update.
+   * @param userId - The authenticated user (must be admin+).
+   * @param body - The fields to update (all optional; at least one must be provided).
+   * @returns The updated per-role document access defaults.
+   */
+  async updateDocAccessDefaults(
+    workspaceId: number,
+    userId: number,
+    body: UpdateWorkspaceDocAccessDefaultsRequestDto,
+  ): Promise<GetWorkspaceDocAccessDefaultsResponseDto> {
+    const db = this.dbService.kysely;
+
+    // Verify the workspace exists.
+    const ws = await db
+      .selectFrom('workspaces')
+      .select('id')
+      .where('id', '=', workspaceId)
+      .executeTakeFirst();
+
+    if (!ws) throw new NotFoundException('Workspace not found.');
+
+    // Verify the caller is admin+.
+    const membership = await db
+      .selectFrom('workspace_members')
+      .select('role')
+      .where('workspace_id', '=', workspaceId)
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+
+    if (!membership || !hasWorkspaceRole(membership.role, 'admin')) {
+      throw new ForbiddenException('You do not have access to this workspace.');
+    }
+
+    // Only the owner can change the admin role's default access.
+    if (body.adminDocAccess !== undefined && membership.role !== 'owner') {
+      throw new ForbiddenException(
+        'Only the workspace owner can change the admin document access default.',
+      );
+    }
+
+    // Build the partial update object from the provided fields.
+    const update: Partial<{
+      admin_doc_access: typeof body.adminDocAccess;
+      member_doc_access: typeof body.memberDocAccess;
+      non_member_doc_access: typeof body.nonMemberDocAccess;
+    }> = {};
+
+    if (body.adminDocAccess !== undefined) update.admin_doc_access = body.adminDocAccess;
+    if (body.memberDocAccess !== undefined) update.member_doc_access = body.memberDocAccess;
+    if (body.nonMemberDocAccess !== undefined) update.non_member_doc_access = body.nonMemberDocAccess;
+
+    // Persist the changes and return the updated defaults.
+    const updated = await db
+      .updateTable('workspaces')
+      .set(update)
+      .where('id', '=', workspaceId)
+      .returning(['admin_doc_access', 'member_doc_access', 'non_member_doc_access'])
+      .executeTakeFirstOrThrow();
+
+    return {
+      adminDocAccess: updated.admin_doc_access,
+      memberDocAccess: updated.member_doc_access,
+      nonMemberDocAccess: updated.non_member_doc_access,
+    };
   }
 
   /**
