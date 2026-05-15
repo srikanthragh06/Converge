@@ -21,63 +21,51 @@ const LibraryPage = () => {
 
     return (
         <Page authRequired haveSidebar>
-            <div
-                className=" mr-10 bg-background-base sticky top-[52px] sm:top-[76px] z-40 pb-4 pt-4 sm:pt-8 w-full
-                    flex flex-col space-y-4"
-            >
-                <div
-                    className="text-text-primary px-4 sm:px-8 font-bold 
-                                flex sm:justify-center justify-start"
-                >
-                    <h1 className="sm:text-4xl text-2xl sm:mr-[560px]">
-                        Library
-                    </h1>
-                </div>
-                <div className="w-full flex flex-col items-center space-y-2 sm:flex-row sm:justify-center sm:space-y-0 sm:space-x-8">
-                    <input
-                        type="text"
-                        value={searchText}
-                        onChange={(e) => setSearchText(e.target.value)}
-                        placeholder="Search documents..."
-                        className="sm:w-[500px] w-5/6 px-3 py-1 sm:text-base text-sm rounded-md
-                        bg-background-elevated
-                        outline-none text-white border-0"
-                    />
-                    <button
-                        onClick={createDocument}
-                        disabled={isCreating}
-                        className="hidden sm:block sm:px-3 sm:py-1 px-2 py-1 sm:text-sm text-xs rounded-md bg-white text-black
-                         hover:opacity-90 active:opacity-80 transition
-                        cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        <span>
-                            {isCreating ? "Creating" : "New Document"}
-                            {isCreating && <AnimatedDots />}
-                        </span>
-                    </button>
+            {/* Header — title and search bar, does not scroll */}
+            <div className="bg-background-base pb-4 pt-4 sm:pt-8 w-full flex flex-col space-y-4">
+                <div className="flex flex-col items-center w-full px-4 sm:px-0">
+                    <div className="w-full sm:max-w-[600px]">
+                        <div className="text-text-primary font-bold flex justify-start sm:mb-4 mb-2">
+                            <h1 className="sm:text-3xl text-xl">Library</h1>
+                        </div>
+                        <div className="w-full flex flex-row items-center justify-start space-x-2 sm:space-x-4">
+                            <input
+                                type="text"
+                                value={searchText}
+                                onChange={(e) => setSearchText(e.target.value)}
+                                placeholder="Search documents..."
+                                className="flex-1 px-3 py-1 sm:text-base text-sm rounded-md
+                                bg-background-elevated
+                                outline-none text-white border-0"
+                            />
+                            <button
+                                onClick={createDocument}
+                                disabled={isCreating}
+                                className="sm:px-3 sm:py-1 px-2 py-1 sm:text-sm text-xs rounded-md bg-white text-black
+                                 hover:opacity-90 active:opacity-80 transition
+                                cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <span className="sm:hidden">+</span>
+                                <span className="hidden sm:inline">
+                                    {isCreating ? "Creating" : "New Document"}
+                                    {isCreating && <AnimatedDots />}
+                                </span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div className="flex flex-col items-center w-full mb-16 sm:mb-6">
+
+            {/* Document list — scrolls independently within the remaining page height */}
+            <div className="flex-1 overflow-y-auto flex flex-col items-center gap-1 pb-6">
                 {documents.map((doc) => (
                     <LibraryDocumentCard key={doc.id} document={doc} />
                 ))}
                 {isLoadingMore && (
-                    <AiOutlineLoading3Quarters className=" animate-spin" />
+                    <AiOutlineLoading3Quarters className="animate-spin mt-2" />
                 )}
                 <div ref={sentinelRef} />
             </div>
-            {/* <div className="sm:hidden fixed bottom-0 left-0 right-0 px-4">
-                <button
-                    onClick={createDocument}
-                    disabled={isCreating}
-                    className="w-full px-2 py-2 text-xs rounded-md bg-white text-black hover:opacity-90 active:opacity-80 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    <span>
-                        {isCreating ? "Creating" : "New Document"}
-                        {isCreating && <AnimatedDots />}
-                    </span>
-                </button>
-            </div> */}
         </Page>
     );
 };
