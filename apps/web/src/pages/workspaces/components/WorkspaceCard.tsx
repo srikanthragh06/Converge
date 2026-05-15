@@ -21,7 +21,7 @@ const WorkspaceCard = ({
             hover:opacity-85"
         >
             <MdOutlineWorkspaces className="w-4 h-4 mt-0.5 shrink-0 opacity-40" />
-            <div className="flex flex-col gap-1.5 min-w-0">
+            <div className="flex flex-col gap-1 min-w-0">
                 <div className="flex items-center gap-2">
                     <span className="text-white font-medium sm:text-base text-sm truncate">
                         {workspace.name}
