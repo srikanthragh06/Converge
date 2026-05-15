@@ -37,6 +37,11 @@ import type {
   AddWorkspaceMemberResponseDto,
   GetWorkspaceDocAccessDefaultsResponseDto,
   UpdateWorkspaceDocAccessDefaultsRequestDto,
+  GetWorkspaceOwnerResponseDto,
+  FindWorkspaceOwnerCandidateRequestDto,
+  FindWorkspaceOwnerCandidateResponseDto,
+  TransferWorkspaceOwnerRequestDto,
+  TransferWorkspaceOwnerResponseDto,
 } from '@converge/shared';
 import {
   CreateWorkspaceRequestSchema,
@@ -47,6 +52,8 @@ import {
   FindNewWorkspaceUserRequestSchema,
   AddWorkspaceMemberRequestSchema,
   UpdateWorkspaceDocAccessDefaultsRequestSchema,
+  FindWorkspaceOwnerCandidateRequestSchema,
+  TransferWorkspaceOwnerRequestSchema,
 } from '@converge/shared';
 
 @Controller('/workspaces')
@@ -299,6 +306,66 @@ export class WorkspaceController {
   ): Promise<void> {
     const userId = (req as any).userId as number;
     await this.workspaceService.removeMember(id, userId, targetUserId);
+  }
+
+  /**
+   * Returns the workspace owner's profile. Accessible to all workspace members.
+   *
+   * @param id - The workspace ID.
+   * @param req - The Express request with userId stamped by AuthGuard.
+   * @returns The owner's id, name, email, and avatarUrl.
+   */
+  @Get('/:id/owner')
+  async handleGetWorkspaceOwner(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request,
+  ): Promise<GetWorkspaceOwnerResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(await this.workspaceService.getOwner(id, userId));
+  }
+
+  /**
+   * Finds an existing user by exact email as an ownership transfer
+   * candidate. Only the current owner may call this.
+   *
+   * @param id - The workspace ID.
+   * @param query - The exact email to search for.
+   * @param req - The Express request with userId stamped by AuthGuard.
+   * @returns The matched user's profile.
+   */
+  @Get('/:id/owner/find')
+  async handleFindWorkspaceOwnerCandidate(
+    @Param('id', ParseIntPipe) id: number,
+    @Query(new ZodHttpValidationPipe(FindWorkspaceOwnerCandidateRequestSchema))
+    query: FindWorkspaceOwnerCandidateRequestDto,
+    @Req() req: Request,
+  ): Promise<FindWorkspaceOwnerCandidateResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.workspaceService.findOwnerCandidate(id, userId, query.email),
+    );
+  }
+
+  /**
+   * Transfers workspace ownership to an existing user. The caller is demoted
+   * to admin. Personal workspaces cannot be transferred.
+   *
+   * @param id - The workspace ID.
+   * @param body - The ID of the incoming owner.
+   * @param req - The Express request with userId stamped by AuthGuard.
+   * @returns The new owner's profile.
+   */
+  @Post('/:id/transfer-owner')
+  async handleTransferWorkspaceOwner(
+    @Param('id', ParseIntPipe) id: number,
+    @Body(new ZodHttpValidationPipe(TransferWorkspaceOwnerRequestSchema))
+    body: TransferWorkspaceOwnerRequestDto,
+    @Req() req: Request,
+  ): Promise<TransferWorkspaceOwnerResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.workspaceService.transferOwner(id, userId, body.newOwnerId),
+    );
   }
 
   /**

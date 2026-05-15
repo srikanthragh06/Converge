@@ -76,6 +76,11 @@ export {
     AddWorkspaceMemberResponseSchema,
     GetWorkspaceDocAccessDefaultsResponseSchema,
     UpdateWorkspaceDocAccessDefaultsRequestSchema,
+    GetWorkspaceOwnerResponseSchema,
+    FindWorkspaceOwnerCandidateRequestSchema,
+    FindWorkspaceOwnerCandidateResponseSchema,
+    TransferWorkspaceOwnerRequestSchema,
+    TransferWorkspaceOwnerResponseSchema,
 } from "./http/workspace";
 export type {
     GetWorkspacesResponseDto,
@@ -99,6 +104,11 @@ export type {
     AddWorkspaceMemberResponseDto,
     GetWorkspaceDocAccessDefaultsResponseDto,
     UpdateWorkspaceDocAccessDefaultsRequestDto,
+    GetWorkspaceOwnerResponseDto,
+    FindWorkspaceOwnerCandidateRequestDto,
+    FindWorkspaceOwnerCandidateResponseDto,
+    TransferWorkspaceOwnerRequestDto,
+    TransferWorkspaceOwnerResponseDto,
 } from "./http/workspace";
 export { INTERNAL_SERVER_ERROR_MESSAGE } from "./constants/constants";
 export {

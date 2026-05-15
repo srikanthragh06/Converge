@@ -213,6 +213,60 @@ export type GetWorkspaceDocAccessDefaultsResponseDto = z.infer<
     typeof GetWorkspaceDocAccessDefaultsResponseSchema
 >;
 
+/** Response for GET /workspaces/:id/owner — the workspace owner's profile. */
+export const GetWorkspaceOwnerResponseSchema = z.object({
+    id: z.number(),
+    name: z.string(),
+    email: z.email(),
+    avatarUrl: z.string().nullable(),
+});
+
+export type GetWorkspaceOwnerResponseDto = z.infer<
+    typeof GetWorkspaceOwnerResponseSchema
+>;
+
+/** Query params for GET /workspaces/:id/owner/find — finds an existing user by exact email as an ownership transfer candidate. */
+export const FindWorkspaceOwnerCandidateRequestSchema = z.object({
+    email: z.string().min(1).max(256),
+});
+
+export type FindWorkspaceOwnerCandidateRequestDto = z.infer<
+    typeof FindWorkspaceOwnerCandidateRequestSchema
+>;
+
+/** Response for GET /workspaces/:id/owner/find — the matched user's profile. */
+export const FindWorkspaceOwnerCandidateResponseSchema = z.object({
+    id: z.number(),
+    name: z.string(),
+    email: z.email(),
+    avatarUrl: z.string().nullable(),
+});
+
+export type FindWorkspaceOwnerCandidateResponseDto = z.infer<
+    typeof FindWorkspaceOwnerCandidateResponseSchema
+>;
+
+/** Request body for POST /workspaces/:id/transfer-owner — transfers workspace ownership to an existing user. */
+export const TransferWorkspaceOwnerRequestSchema = z.object({
+    newOwnerId: z.number().int().positive(),
+});
+
+export type TransferWorkspaceOwnerRequestDto = z.infer<
+    typeof TransferWorkspaceOwnerRequestSchema
+>;
+
+/** Response for POST /workspaces/:id/transfer-owner — the new owner's profile. */
+export const TransferWorkspaceOwnerResponseSchema = z.object({
+    id: z.number(),
+    name: z.string(),
+    email: z.email(),
+    avatarUrl: z.string().nullable(),
+});
+
+export type TransferWorkspaceOwnerResponseDto = z.infer<
+    typeof TransferWorkspaceOwnerResponseSchema
+>;
+
 /** Request body for PATCH /workspaces/:id/doc-access-defaults — updates one or more per-role defaults. At least one field must be provided. */
 export const UpdateWorkspaceDocAccessDefaultsRequestSchema = z
     .object({
