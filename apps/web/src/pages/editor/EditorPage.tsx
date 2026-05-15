@@ -73,7 +73,7 @@ const EditorPage = () => {
 
             {/* Loading state — shown while the document is being fetched */}
             {documentStatus === "loading" && (
-                <div className="w-full h-full flex justify-center items-center">
+                <div className="flex-1 w-full flex justify-center items-center">
                     <p className="text-text-secondary">
                         <span>Loading</span>
                         <AnimatedDots />
@@ -83,21 +83,22 @@ const EditorPage = () => {
 
             {/* Forbidden state — shown when the user lacks access to this document */}
             {documentStatus === "forbidden" && (
-                <div className="w-full h-full flex justify-center items-center">
+                <div className="flex-1 w-full flex justify-center items-center">
                     <p className="text-text-secondary">
                         You don&apos;t have access to this document.
                     </p>
                 </div>
             )}
 
-            {/* Ready state — document loaded successfully; render the editor */}
+            {/* Ready state — only the editor scrolls; header and title stay fixed above */}
             {documentStatus === "ready" && (
-                <BlockNoteView
-                    editor={editor}
-                    theme={convergeTheme}
-                    className="h-full"
-                    editable={isEditable}
-                />
+                <div className="flex-1 overflow-y-auto">
+                    <BlockNoteView
+                        editor={editor}
+                        theme={convergeTheme}
+                        editable={isEditable}
+                    />
+                </div>
             )}
             {isSwitcherOpen && (
                 <DocumentSwitcherOverlay
