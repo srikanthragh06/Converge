@@ -71,3 +71,13 @@ body {
         padding-right: 10px !important;
     }
 }
+
+/* Firefox renders a red box-shadow on :invalid inputs by default; suppress it. */
+input:invalid {
+    box-shadow: none;
+}
+
+/* Firefox adds a focus outline to contenteditable elements; suppress it. */
+.ProseMirror:focus {
+    outline: none;
+}
