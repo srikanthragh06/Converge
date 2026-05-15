@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { convergeTheme } from "../../theme/editorTheme";
 import useEditor from "../../hooks/useEditor";
@@ -24,8 +24,30 @@ const EditorPage = () => {
         isTitlePending,
     } = useEditor(); // editor instance, document ID, fetch status, title state, and resolved access level
     const [isSwitcherOpen, setIsSwitcherOpen] = useState(false); // controls document switcher overlay visibility
+    const scrollRef = useRef<HTMLDivElement>(null); // ref to the scrollable editor container
     const isEditable =
         documentAccess !== null && hasAccess(documentAccess, "editor"); // editor+ may write; viewers get a read-only instance
+
+    // After every content change, if the cursor is near the bottom of the scroll
+    // container, nudge the scroll down by 128px so there's always a gap below
+    // the active block. ProseMirror's own scrollIntoView only ensures the cursor
+    // is barely visible — it doesn't account for a trailing gap.
+    useEffect(() => {
+        if (!editor) return;
+        return editor.onChange(() => {
+            const container = scrollRef.current;
+            if (!container) return;
+            const gap = 128;
+            const distanceFromBottom =
+                container.scrollHeight -
+                container.scrollTop -
+                container.clientHeight;
+            if (distanceFromBottom < gap) {
+                container.scrollTop =
+                    container.scrollHeight - container.clientHeight + gap;
+            }
+        });
+    }, [editor]);
 
     // Opens the document switcher on Ctrl+P, preventing the browser print dialog.
     useEffect(() => {
