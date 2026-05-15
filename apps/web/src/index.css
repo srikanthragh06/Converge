@@ -59,6 +59,12 @@ body {
     background: #525252;
 }
 
+/* Breathing room below the last block. Padding on the outer scroll container
+   doesn't work because that container wasn't the true scroll root. */
+.bn-editor {
+    padding-bottom: 8rem;
+}
+
 /* Reduce editor right padding on mobile — sidebar already takes left space */
 @media (max-width: 767px) {
     .bn-editor {
