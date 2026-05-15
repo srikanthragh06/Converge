@@ -33,7 +33,7 @@ tmux select-layout -t "$SESSION":infra even-horizontal
 
 # Pane 0 -> docker compose logs / shell
 tmux send-keys -t "$SESSION":infra.0 \
-  "docker compose -f docker-compose.dev.yml logs -f" C-m
+  "" C-m
 
 # Pane 1 -> psql
 tmux send-keys -t "$SESSION":infra.1 \
@@ -55,27 +55,6 @@ tmux send-keys -t "$SESSION":logs.0 \
 # Pane 1 -> frontend logs
 tmux send-keys -t "$SESSION":logs.1 \
   "docker logs -f converge2-web-1-1" C-m
-
-# =========================
-# Window 2 -> ai
-# =========================
-
-tmux new-window -t "$SESSION" -n ai
-
-tmux split-window -h -t "$SESSION":ai
-tmux select-layout -t "$SESSION":ai even-horizontal
-
-# Pane 0 -> Claude
-tmux send-keys -t "$SESSION":ai.0 \
-  "claude" C-m
-
-# Pane 1 -> Codex
-tmux send-keys -t "$SESSION":ai.1 \
-  "codex" C-m
-
-# Open on AI window
-tmux select-window -t "$SESSION":ai
-tmux select-pane -t "$SESSION":ai.0
 
 # Attach
 tmux attach-session -t "$SESSION"
