@@ -1,4 +1,4 @@
-import { useAtomValue } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { isSocketConnectedAtom } from "../atoms/socket";
 import { socketReceive } from "../lib/socket-receive.util";
@@ -10,6 +10,7 @@ import {
 } from "@converge/shared";
 import { socket } from "../lib/socket";
 import { socketEmit } from "../lib/socket-emit.util";
+import { refreshSidebarAtom } from "@/atoms/sidebar";
 
 /**
  * Manages document title state and sync. Exposes a debounced change handler
@@ -24,6 +25,8 @@ const useDocumentTitle = () => {
 
     const titleTimeoutIdRef = useRef<number | null>(null); // debounce timer for outgoing title sync events
     const lastTitleChangeIdRef = useRef<string | null>(null); // changeId of the most recent title emit — used to match acks
+
+    const refreshSidebar = useSetAtom(refreshSidebarAtom);
 
     /**
      * Updates local title state and debounces a sync-doc-title-server emit so
@@ -78,9 +81,11 @@ const useDocumentTitle = () => {
         const handleSyncDocTitleAck = (data: unknown) => {
             const res = socketReceive(SyncDocTitleAckSchema, data);
             if (!res) return;
-            // Only clear the pending state if the ack matches the latest emit.
-            if (res.changeId === lastTitleChangeIdRef.current)
+            // Only clear the pending state and refresh the sidebar if the ack matches the latest emit.
+            if (res.changeId === lastTitleChangeIdRef.current) {
                 setIsTitlePending(false);
+                refreshSidebar((prev) => prev + 1);
+            }
         };
 
         socket.on(

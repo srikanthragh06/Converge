@@ -114,11 +114,10 @@ const useSidebar = () => {
         }
     }, [auth.status, auth.user?.selectedWorkspace, setCurrentWorkspace]);
 
-    // Fetches recent documents whenever the current workspace changes, or when
-    // refreshSidebarAtom is incremented externally (e.g. after create/delete/edit).
+    // Fetches recent documents whenever the current workspace changes.
     useEffect(() => {
         if (currentWorkspace) fetchRecentDocuments(currentWorkspace.id);
-    }, [currentWorkspace, fetchRecentDocuments, refreshSidebar]);
+    }, [currentWorkspace, fetchRecentDocuments]);
 
     return {
         workspaces,
