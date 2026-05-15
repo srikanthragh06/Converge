@@ -3,12 +3,14 @@ import { IoMdCloseCircleOutline } from "react-icons/io";
 import DocumentAccessTab from "./documentAccessTab/DocumentAccessTab";
 import GeneralTab from "./generalTab/GeneralTab";
 import MembersTab from "./membersTab/MembersTab";
+import OwnerTab from "./ownerTab/OwnerTab";
 
 /** Sidebar tab entries; extend this array to add new tabs. */
 const TABS: { key: string; label: string }[] = [
     { key: "general", label: "General" },
     { key: "members", label: "Members" },
     { key: "document-access", label: "Document Access" },
+    { key: "owner", label: "Owner" },
 ];
 
 /**
@@ -81,6 +83,9 @@ const WorkspaceConfigModal = ({
                         )}
                         {selectedTab === "document-access" && (
                             <DocumentAccessTab workspaceId={workspaceId} />
+                        )}
+                        {selectedTab === "owner" && (
+                            <OwnerTab workspaceId={workspaceId} />
                         )}
                     </div>
                 </div>
