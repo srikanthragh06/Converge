@@ -33,7 +33,7 @@ tmux select-layout -t "$SESSION":infra even-horizontal
 
 # Pane 0 -> docker compose logs / shell
 tmux send-keys -t "$SESSION":infra.0 \
-  "docker compose -f docker-compose.dev.yml logs -f" C-m
+  "docker compose -f docker-compose.dev.yml up --build -d" C-m
 
 # Pane 1 -> psql
 tmux send-keys -t "$SESSION":infra.1 \
