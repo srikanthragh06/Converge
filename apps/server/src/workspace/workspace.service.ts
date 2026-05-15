@@ -22,6 +22,9 @@ import type {
   AddWorkspaceMemberResponseDto,
   GetWorkspaceDocAccessDefaultsResponseDto,
   UpdateWorkspaceDocAccessDefaultsRequestDto,
+  GetWorkspaceOwnerResponseDto,
+  FindWorkspaceOwnerCandidateResponseDto,
+  TransferWorkspaceOwnerResponseDto,
 } from '@converge/shared';
 
 @Injectable()
@@ -900,6 +903,207 @@ export class WorkspaceService {
       memberDocAccess: updated.member_doc_access,
       nonMemberDocAccess: updated.non_member_doc_access,
     };
+  }
+
+  /**
+   * Returns the workspace owner's profile. Accessible to any workspace member.
+   *
+   * @param workspaceId - The workspace to query.
+   * @param userId - The authenticated user (must be a member).
+   * @returns The owner's id, name, email, and avatarUrl.
+   * @throws 404 if the workspace is not found.
+   * @throws 403 if the caller is not a member.
+   */
+  async getOwner(
+    workspaceId: number,
+    userId: number,
+  ): Promise<GetWorkspaceOwnerResponseDto> {
+    const db = this.dbService.kysely;
+
+    // Verify the workspace exists before checking access.
+    const ws = await db
+      .selectFrom('workspaces')
+      .select('id')
+      .where('id', '=', workspaceId)
+      .executeTakeFirst();
+
+    if (!ws) throw new NotFoundException('Workspace not found.');
+
+    // Verify the caller is allowed to read workspace metadata.
+    const membership = await db
+      .selectFrom('workspace_members')
+      .select('user_id')
+      .where('workspace_id', '=', workspaceId)
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+
+    if (!membership) {
+      throw new ForbiddenException('You do not have access to this workspace.');
+    }
+
+    // Load the current owner profile from the workspace row.
+    const owner = await db
+      .selectFrom('workspaces as w')
+      .innerJoin('users as u', 'u.id', 'w.owner_id')
+      .select(['u.id', 'u.name', 'u.email', 'u.avatar_url'])
+      .where('w.id', '=', workspaceId)
+      .executeTakeFirstOrThrow();
+
+    return {
+      id: owner.id,
+      name: owner.name,
+      email: owner.email,
+      avatarUrl: owner.avatar_url,
+    };
+  }
+
+  /**
+   * Finds an existing user by exact email as an ownership transfer
+   * candidate. Only the current owner may call this.
+   *
+   * @param workspaceId - The workspace to search within.
+   * @param userId - The authenticated user (must be the owner).
+   * @param email - The exact email address to match.
+   * @returns The matched user's profile.
+   * @throws 404 if the workspace is not found or no user matches the email.
+   * @throws 403 if the caller is not the owner.
+   * @throws 409 if the matched user is the current owner (themselves).
+   */
+  async findOwnerCandidate(
+    workspaceId: number,
+    userId: number,
+    email: string,
+  ): Promise<FindWorkspaceOwnerCandidateResponseDto> {
+    const db = this.dbService.kysely;
+
+    // Verify the workspace exists and capture ownership metadata.
+    const ws = await db
+      .selectFrom('workspaces')
+      .select(['id', 'type', 'owner_id'])
+      .where('id', '=', workspaceId)
+      .executeTakeFirst();
+
+    if (!ws) throw new NotFoundException('Workspace not found.');
+
+    // Reject lookups for personal workspaces because they cannot be transferred.
+    if (ws.type === 'personal') {
+      throw new ConflictException('Personal workspaces cannot be transferred.');
+    }
+
+    // Only the owner can initiate a transfer.
+    if (ws.owner_id !== userId) {
+      throw new ForbiddenException('Only the workspace owner can transfer ownership.');
+    }
+
+    // Find the candidate by exact email across all users.
+    const candidate = await db
+      .selectFrom('users')
+      .select(['id', 'name', 'email', 'avatar_url'])
+      .where('email', '=', email)
+      .executeTakeFirst();
+
+    if (!candidate) throw new NotFoundException('No user found with that email.');
+
+    // Reject if the candidate is already the owner.
+    if (candidate.id === userId) {
+      throw new ConflictException('You are already the workspace owner.');
+    }
+
+    // Return the candidate profile for confirmation in the transfer UI.
+    return {
+      id: candidate.id,
+      name: candidate.name,
+      email: candidate.email,
+      avatarUrl: candidate.avatar_url,
+    };
+  }
+
+  /**
+   * Transfers workspace ownership to an existing user. The caller is demoted
+   * to admin; the target is promoted to owner. Personal workspaces cannot be
+   * transferred.
+   *
+   * @param workspaceId - The workspace to transfer ownership of.
+   * @param userId - The authenticated user (must be the current owner).
+   * @param newOwnerId - The user ID of the incoming owner.
+   * @returns The new owner's profile.
+   * @throws 404 if the workspace or target user is not found.
+   * @throws 403 if the caller is not the owner.
+   * @throws 409 if the workspace is personal, or if newOwnerId equals the current owner.
+   */
+  async transferOwner(
+    workspaceId: number,
+    userId: number,
+    newOwnerId: number,
+  ): Promise<TransferWorkspaceOwnerResponseDto> {
+    const db = this.dbService.kysely;
+
+    return await db.transaction().execute(async (tx) => {
+      // Verify the workspace exists and collect transfer preconditions.
+      const ws = await tx
+        .selectFrom('workspaces')
+        .select(['id', 'type', 'owner_id'])
+        .where('id', '=', workspaceId)
+        .executeTakeFirst();
+
+      if (!ws) throw new NotFoundException('Workspace not found.');
+
+      // Personal workspaces cannot be transferred.
+      if (ws.type === 'personal') {
+        throw new ConflictException('Personal workspaces cannot be transferred.');
+      }
+
+      // Only the current owner may transfer.
+      if (ws.owner_id !== userId) {
+        throw new ForbiddenException('Only the workspace owner can transfer ownership.');
+      }
+
+      // Belt-and-suspenders: caller cannot transfer to themselves.
+      if (newOwnerId === userId) {
+        throw new ConflictException('You are already the workspace owner.');
+      }
+
+      // Look up the target user before mutating membership and ownership rows.
+      const targetUser = await tx
+        .selectFrom('users')
+        .select(['id', 'name', 'email', 'avatar_url'])
+        .where('id', '=', newOwnerId)
+        .executeTakeFirst();
+
+      if (!targetUser) throw new NotFoundException('Target user not found.');
+
+      // Promote the target to owner, adding a membership row if needed.
+      await tx
+        .insertInto('workspace_members')
+        .values({ workspace_id: workspaceId, user_id: newOwnerId, role: 'owner' })
+        .onConflict((oc) =>
+          oc.columns(['workspace_id', 'user_id']).doUpdateSet({ role: 'owner' }),
+        )
+        .execute();
+
+      // Demote the previous owner now that a successor has been chosen.
+      await tx
+        .updateTable('workspace_members')
+        .set({ role: 'admin' })
+        .where('workspace_id', '=', workspaceId)
+        .where('user_id', '=', userId)
+        .execute();
+
+      // Persist the canonical owner on the workspace row.
+      await tx
+        .updateTable('workspaces')
+        .set({ owner_id: newOwnerId })
+        .where('id', '=', workspaceId)
+        .execute();
+
+      // Return the new owner profile so the client can refresh immediately.
+      return {
+        id: targetUser.id,
+        name: targetUser.name,
+        email: targetUser.email,
+        avatarUrl: targetUser.avatar_url,
+      };
+    });
   }
 
   /**
