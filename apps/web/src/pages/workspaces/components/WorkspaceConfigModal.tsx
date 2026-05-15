@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { IoMdCloseCircleOutline } from "react-icons/io";
+import DocumentAccessTab from "./documentAccessTab/DocumentAccessTab";
 import GeneralTab from "./generalTab/GeneralTab";
 import MembersTab from "./membersTab/MembersTab";
 
@@ -7,6 +8,7 @@ import MembersTab from "./membersTab/MembersTab";
 const TABS: { key: string; label: string }[] = [
     { key: "general", label: "General" },
     { key: "members", label: "Members" },
+    { key: "document-access", label: "Document Access" },
 ];
 
 /**
@@ -76,6 +78,9 @@ const WorkspaceConfigModal = ({
                         )}
                         {selectedTab === "members" && (
                             <MembersTab workspaceId={workspaceId} />
+                        )}
+                        {selectedTab === "document-access" && (
+                            <DocumentAccessTab workspaceId={workspaceId} />
                         )}
                     </div>
                 </div>
