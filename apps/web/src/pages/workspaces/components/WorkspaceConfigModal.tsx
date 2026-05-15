@@ -20,11 +20,9 @@ const TABS: { key: string; label: string }[] = [
 const WorkspaceConfigModal = ({
     workspaceId,
     onClose,
-    onLeave,
 }: {
     workspaceId: number;
     onClose: () => void;
-    onLeave: () => void;
 }) => {
     const [selectedTab, setSelectedTab] = useState("general"); // Currently active tab key.
 
@@ -75,7 +73,7 @@ const WorkspaceConfigModal = ({
                         {selectedTab === "general" && (
                             <GeneralTab
                                 workspaceId={workspaceId}
-                                onLeave={onLeave}
+                                onLeave={onClose}
                             />
                         )}
                         {selectedTab === "members" && (

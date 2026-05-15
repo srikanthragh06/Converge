@@ -122,13 +122,6 @@ const WorkspacesPage = () => {
                             fetchAll();
                         }
                     }}
-                    onLeave={() => {
-                        setConfigModal({
-                            isOpen: false,
-                            workspaceId: null,
-                        });
-                        fetchAll();
-                    }}
                 />
             )}
         </Page>
