@@ -21,7 +21,7 @@ const WorkspaceCard = ({
             hover:opacity-85"
         >
             <MdOutlineWorkspaces className="w-4 h-4 mt-0.5 shrink-0 opacity-40" />
-            <div className="flex flex-col gap-1 min-w-0">
+            <div className="flex flex-col space-y-1 min-w-0">
                 <div className="flex items-center gap-2">
                     <span className="text-white font-medium sm:text-base text-sm truncate">
                         {workspace.name}
@@ -32,27 +32,31 @@ const WorkspaceCard = ({
                         </span>
                     )}
                 </div>
-                <span className="text-xs opacity-40 capitalize">
-                    {workspace.role}
-                </span>
-                <div className="flex items-center gap-3 mt-1">
-                    <button
-                        onClick={() => onManage(workspace.id)}
-                        className="text-xs text-white hover:opacity-80 transition cursor-pointer p-1"
-                    >
-                        Manage Workspace
-                    </button>{" "}
-                    <button
-                        disabled={workspace.isSelected}
-                        onClick={() => onSelect(workspace.id)}
-                        className={`text-xs transition cursor-pointer p-1 text-white ${
-                            workspace.isSelected
-                                ? "bg-green-900 rounded-lg cursor-auto"
-                                : "hover:opacity-80"
-                        }`}
-                    >
-                        {workspace.isSelected ? "Selected" : "Select Workspace"}
-                    </button>
+                <div className="flex flex-col space-y-2">
+                    <span className="text-xs opacity-50 capitalize">
+                        {workspace.role}
+                    </span>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => onManage(workspace.id)}
+                            className="text-xs text-white hover:opacity-80 transition cursor-pointer"
+                        >
+                            Manage Workspace
+                        </button>{" "}
+                        <button
+                            disabled={workspace.isSelected}
+                            onClick={() => onSelect(workspace.id)}
+                            className={`text-xs transition cursor-pointer text-white ${
+                                workspace.isSelected
+                                    ? "bg-green-900 rounded-lg cursor-auto"
+                                    : "hover:opacity-80"
+                            }`}
+                        >
+                            {workspace.isSelected
+                                ? "Selected"
+                                : "Select Workspace"}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

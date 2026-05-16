@@ -36,22 +36,22 @@ const LibraryDocumentCard = ({
             hover:opacity-85 active:opacity-70 transition w-11/12 sm:w-[600px] gap-3"
         >
             <MdOutlineDescription className="w-4 h-4 mt-0.5 shrink-0 opacity-40" />
-            <div className="flex flex-col gap-1 min-w-0">
+            <div className="flex flex-col space-y-1 min-w-0">
                 <span
-                    className={`text-white font-medium sm:text-base text-sm truncate ${!document.title && "opacity-20"}`}
+                    className={`text-white font-medium sm:text-base text-sm truncate leading-tight ${!document.title && "opacity-20"}`}
                 >
                     {document.title || "Untitled"}
                 </span>
-                <span className="text-text-disabled text-xs truncate">
-                    {meta.join(" · ")}
-                </span>
-                <div className="flex items-center gap-3 mt-1">
+                <div className="flex flex-col space-y-2">
+                    <span className="text-white opacity-50 text-xs truncate">
+                        {meta.join(" · ")}
+                    </span>
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
                             onManage(document.id);
                         }}
-                        className="text-xs text-white hover:opacity-80 transition cursor-pointer p-1"
+                        className="text-xs text-white hover:opacity-80 transition cursor-pointer text-left"
                     >
                         Manage Document
                     </button>
