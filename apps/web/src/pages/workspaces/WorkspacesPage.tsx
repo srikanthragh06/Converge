@@ -5,13 +5,15 @@ import useWorkspaces from "../../hooks/useWorkspaces";
 import WorkspaceCard from "./components/WorkspaceCard";
 import WorkspaceConfigModal from "./components/WorkspaceConfigModal";
 import CreateWorkspaceModal from "./components/CreateWorkspaceModal";
+import useDocumentSwitcherShortcut from "../../hooks/useDocumentSwitcherShortcut";
+import DocumentSwitcherOverlay from "../editor/documentSwitcherOverlay/DocumentSwitcherOverlay";
 
 /**
  * Full-screen workspaces page. Lists the authenticated user's workspaces
  * and allows switching between them.
  */
 const WorkspacesPage = () => {
-    const { createWorkspace, isCreating, error } = useCreateWorkspace();
+    const { createWorkspace, isCreating, error } = useCreateWorkspace(); // workspace creation handler, in-flight flag, and last error message
     const {
         searchText,
         setSearchText,
@@ -20,8 +22,9 @@ const WorkspacesPage = () => {
         selectWorkspace,
         fetchAll,
         fetchSearch,
-    } = useWorkspaces();
-    const [showModal, setShowModal] = useState(false);
+    } = useWorkspaces(); // search query, workspace list, loading flag, and fetch/select actions
+    const { isSwitcherOpen, setIsSwitcherOpen } = useDocumentSwitcherShortcut(); // Ctrl+P document switcher overlay state
+    const [showModal, setShowModal] = useState(false); // controls Create Workspace modal visibility
     const [configModal, setConfigModal] = useState<{
         isOpen: boolean;
         workspaceId: number | null;
@@ -37,6 +40,7 @@ const WorkspacesPage = () => {
     };
 
     return (
+        <>
         <Page authRequired haveSidebar>
             <div
                 className="bg-background-base pb-4 pt-4 sm:pt-8 w-full
@@ -125,6 +129,13 @@ const WorkspacesPage = () => {
                 />
             )}
         </Page>
+        {isSwitcherOpen && (
+            <DocumentSwitcherOverlay
+                onClose={() => setIsSwitcherOpen(false)}
+                documentId={undefined}
+            />
+        )}
+        </>
     );
 };
 
