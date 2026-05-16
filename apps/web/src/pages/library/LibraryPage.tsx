@@ -5,6 +5,8 @@ import useLibrary from "../../hooks/useLibrary";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import AnimatedDots from "../../components/AnimatedDots";
 import ManageDocumentModal from "../editor/manageDocumentModal/ManageDocumentModal";
+import useDocumentSwitcherShortcut from "../../hooks/useDocumentSwitcherShortcut";
+import DocumentSwitcherOverlay from "../editor/documentSwitcherOverlay/DocumentSwitcherOverlay";
 
 /**
  * Full-screen library page. Lists the authenticated user's documents
@@ -20,6 +22,7 @@ const LibraryPage = () => {
         isCreating,
         createDocument,
     } = useLibrary(); // search state, paginated document list, infinite scroll sentinel, and document creation state
+    const { isSwitcherOpen, setIsSwitcherOpen } = useDocumentSwitcherShortcut(); // Ctrl+P document switcher overlay state
     const [managingDocumentId, setManagingDocumentId] = useState<number | null>(
         null,
     ); // ID of the document whose manage modal is open; null when closed
@@ -85,6 +88,12 @@ const LibraryPage = () => {
                 <ManageDocumentModal
                     documentId={String(managingDocumentId)}
                     onClose={() => setManagingDocumentId(null)}
+                />
+            )}
+            {isSwitcherOpen && (
+                <DocumentSwitcherOverlay
+                    onClose={() => setIsSwitcherOpen(false)}
+                    documentId={undefined}
                 />
             )}
         </>
