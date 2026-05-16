@@ -71,7 +71,7 @@ const EditorPageHeader = ({
                     {documentStatus === "ready" && (
                         <button
                             onClick={() => setIsManageModalOpen(true)}
-                            className="sm:px-3 sm:py-1 py-1 px-2 sm:text-sm text-xs rounded-md bg-white text-black
+                            className="sm:px-2 sm:py-1 py-1 px-2 sm:text-sm text-xs rounded-md bg-white text-black
                             border-none
                             hover:opacity-90 active:opacity-80 transition cursor-pointer mb-1"
                         >
