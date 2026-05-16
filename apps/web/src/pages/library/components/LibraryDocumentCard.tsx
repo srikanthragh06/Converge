@@ -5,13 +5,16 @@ import { timeAgo, formatAccessLevel } from "../../../utils/utils";
 
 /**
  * Card block representing a single document in the library grid.
- * Displays a document icon, title, and a metadata row with access level,
- * last-visited time, and last-edited time.
+ * Displays a document icon, title, a metadata row with access level and
+ * last-visited/edited times, and a Manage Document button.
  */
 const LibraryDocumentCard = ({
     document,
+    onManage,
 }: {
     document: LibraryDocumentDto;
+    /** Called with the document ID when the user clicks Manage Document. */
+    onManage: (id: number) => void;
 }) => {
     const navigate = useNavigate(); // router navigation for opening the selected document
     // Build the metadata string — lastVisitedAt and lastEditedAt are nullable so omit them when absent.
@@ -42,6 +45,17 @@ const LibraryDocumentCard = ({
                 <span className="text-text-disabled text-xs truncate">
                     {meta.join(" · ")}
                 </span>
+                <div className="flex items-center gap-3 mt-1">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onManage(document.id);
+                        }}
+                        className="text-xs text-white hover:opacity-80 transition cursor-pointer p-1"
+                    >
+                        Manage Document
+                    </button>
+                </div>
             </div>
         </div>
     );
