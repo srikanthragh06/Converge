@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { convergeTheme } from "../../theme/editorTheme";
 import useEditor from "../../hooks/useEditor";
@@ -26,12 +25,12 @@ const EditorPage = () => {
         handleTitleChange,
         isTitlePending,
     } = useEditor(); // editor instance, document ID, fetch status, title state, and resolved access level
-    const [isSwitcherOpen, setIsSwitcherOpen] = useState(false); // controls document switcher overlay visibility
+
     const scrollRef = useEditorScrollGap(editor); // ref for the scroll container — maintains a gap below the last block
     const isEditable =
         documentAccess !== null && hasAccess(documentAccess, "editor"); // editor+ may write; viewers get a read-only instance
 
-    useDocumentSwitcherShortcut(setIsSwitcherOpen);
+    const { isSwitcherOpen, setIsSwitcherOpen } = useDocumentSwitcherShortcut();
 
     return (
         // authRequired redirects unauthenticated users before rendering children
