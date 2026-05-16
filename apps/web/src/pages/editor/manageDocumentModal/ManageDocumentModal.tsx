@@ -1,8 +1,6 @@
 import useManageDocumentModal from "../../../hooks/useManageDocumentModal";
 import OverviewTab from "./overviewTab/OverviewTab";
-import ManageAccessTab from "./manageAccessTab/ManageAccessTab";
-import DefaultAccessTab from "./defaultAccessTab/DefaultAccessTab";
-import OwnerTab from "./ownerTab/OwnerTab";
+import AccessOverridesTab from "./accessOverridesTab/AccessOverridesTab";
 
 /**
  * Modal for document-level settings and actions. Renders as a centred dialog
@@ -60,14 +58,8 @@ const ManageDocumentModal = ({
                                     onClose={onClose}
                                 />
                             )}
-                            {selectedTab === "manage-access" && (
-                                <ManageAccessTab documentId={documentId} />
-                            )}
-                            {selectedTab === "default-access" && (
-                                <DefaultAccessTab documentId={documentId} />
-                            )}
-                            {selectedTab === "owner" && (
-                                <OwnerTab documentId={documentId} />
+                            {selectedTab === "access-overrides" && (
+                                <AccessOverridesTab documentId={documentId} />
                             )}
                         </div>
                     </div>
