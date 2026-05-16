@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { convergeTheme } from "../../theme/editorTheme";
 import useEditor from "../../hooks/useEditor";
@@ -8,6 +8,7 @@ import EditorPageHeader from "./header/EditorPageHeader";
 import AnimatedDots from "../../components/AnimatedDots";
 import { hasAccess } from "../../utils/utils";
 import useEditorScrollGap from "../../hooks/useEditorScrollGap";
+import useDocumentSwitcherShortcut from "../../hooks/useDocumentSwitcherShortcut";
 
 /**
  * Full-screen editor page. Fetches the document by ID from the URL, redirects
@@ -29,17 +30,7 @@ const EditorPage = () => {
     const isEditable =
         documentAccess !== null && hasAccess(documentAccess, "editor"); // editor+ may write; viewers get a read-only instance
 
-    // Opens the document switcher on Ctrl+P, preventing the browser print dialog.
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.ctrlKey && e.key === "p") {
-                e.preventDefault();
-                setIsSwitcherOpen(true);
-            }
-        };
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, []);
+    useDocumentSwitcherShortcut(setIsSwitcherOpen);
 
     return (
         // authRequired redirects unauthenticated users before rendering children
