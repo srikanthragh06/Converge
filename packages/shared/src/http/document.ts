@@ -126,6 +126,7 @@ export const DocumentAccessUserSchema = z.object({
     email: z.email(),
     avatarUrl: z.string().nullable(),
     access: DocumentAccessLevelSchema,
+    fallbackAccess: DocumentAccessLevelSchema,
 });
 
 export type DocumentAccessUserDto = z.infer<typeof DocumentAccessUserSchema>;
@@ -166,6 +167,7 @@ export const FindNewDocumentAccessUserResponseSchema = z.object({
     name: z.string(),
     email: z.email(),
     avatarUrl: z.string().nullable(),
+    fallbackAccess: DocumentAccessLevelSchema,
 });
 
 export type FindNewDocumentAccessUserResponseDto = z.infer<
@@ -291,4 +293,17 @@ export const SetDocumentUserAccessRequestSchema = z.object({
 
 export type SetDocumentUserAccessRequestDto = z.infer<
     typeof SetDocumentUserAccessRequestSchema
+>;
+
+/** Response for PUT /document-access/:id/user/:userId — the target user's profile with their new access level. */
+export const SetDocumentUserAccessResponseSchema = z.object({
+    id: z.number(),
+    name: z.string(),
+    email: z.email(),
+    avatarUrl: z.string().nullable(),
+    access: DocumentAccessLevelSchema,
+});
+
+export type SetDocumentUserAccessResponseDto = z.infer<
+    typeof SetDocumentUserAccessResponseSchema
 >;

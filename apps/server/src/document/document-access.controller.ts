@@ -26,8 +26,8 @@ import {
   type GetDocumentAccessResponseDto,
   type SearchDocumentAccessUsersResponseDto,
   type FindNewDocumentAccessUserResponseDto,
-  type DocumentAccessUserDto,
   type SetDocumentUserAccessRequestDto,
+  type SetDocumentUserAccessResponseDto,
 } from '@converge/shared';
 import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe';
 
@@ -174,7 +174,7 @@ export class DocumentAccessController {
     @Param('userId', ParseIntPipe) targetUserId: number,
     @Body(new ZodHttpValidationPipe(SetDocumentUserAccessRequestSchema))
     body: SetDocumentUserAccessRequestDto,
-  ): Promise<DocumentAccessUserDto> {
+  ): Promise<SetDocumentUserAccessResponseDto> {
     const userId = (req as any).userId as number;
     return httpOK(
       await this.documentAccessService.setUserAccess(
