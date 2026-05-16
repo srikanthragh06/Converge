@@ -13,7 +13,7 @@ import {
   type GetDocumentAccessResponseDto,
   type SearchDocumentAccessUsersResponseDto,
   type FindNewDocumentAccessUserResponseDto,
-  type DocumentAccessUserDto,
+  type SetDocumentUserAccessResponseDto,
   hasAccess,
 } from '@converge/shared';
 import { DatabaseService } from '../db/database.service';
@@ -230,7 +230,26 @@ export class DocumentAccessService {
     let query = db
       .selectFrom('document_access as da')
       .innerJoin('users as u', 'u.id', 'da.user_id')
-      .select(['u.id', 'u.name', 'u.email', 'u.avatar_url', 'da.access'])
+      .innerJoin('documents as d', 'd.id', 'da.document_id')
+      .innerJoin('workspaces as ws', 'ws.id', 'd.workspace_id')
+      .leftJoin('workspace_members as wm', (join) =>
+        join
+          .onRef('wm.workspace_id', '=', 'd.workspace_id')
+          .onRef('wm.user_id', '=', 'u.id'),
+      )
+      .select([
+        'u.id',
+        'u.name',
+        'u.email',
+        'u.avatar_url',
+        'da.access',
+        sql<string>`CASE wm.role
+          WHEN 'owner' THEN 'owner'
+          WHEN 'admin' THEN COALESCE(d.admin_doc_access, ws.admin_doc_access)
+          WHEN 'member' THEN COALESCE(d.member_doc_access, ws.member_doc_access)
+          ELSE COALESCE(d.non_member_doc_access, ws.non_member_doc_access)
+        END`.as('fallback_access'),
+      ])
       .where('da.document_id', '=', documentId)
       .orderBy('da.user_id', 'asc')
       .limit(limit);
@@ -249,6 +268,7 @@ export class DocumentAccessService {
         email: r.email,
         avatarUrl: r.avatar_url,
         access: r.access as DocumentAccessLevel,
+        fallbackAccess: r.fallback_access as DocumentAccessLevel,
       })),
       nextCursor,
     };
@@ -273,9 +293,17 @@ export class DocumentAccessService {
     if (!hasAccess(access, 'viewer'))
       throw new ForbiddenException('You do not have access to this document.');
 
+    // Trigram similarity search over explicit access entries, ordered by score descending.
     const rows = await db
       .selectFrom('document_access as da')
       .innerJoin('users as u', 'u.id', 'da.user_id')
+      .innerJoin('documents as d', 'd.id', 'da.document_id')
+      .innerJoin('workspaces as ws', 'ws.id', 'd.workspace_id')
+      .leftJoin('workspace_members as wm', (join) =>
+        join
+          .onRef('wm.workspace_id', '=', 'd.workspace_id')
+          .onRef('wm.user_id', '=', 'u.id'),
+      )
       .select([
         'u.id',
         'u.name',
@@ -283,6 +311,12 @@ export class DocumentAccessService {
         'u.avatar_url',
         'da.access',
         sql<number>`similarity(u.email, ${email})`.as('score'),
+        sql<string>`CASE wm.role
+          WHEN 'owner' THEN 'owner'
+          WHEN 'admin' THEN COALESCE(d.admin_doc_access, ws.admin_doc_access)
+          WHEN 'member' THEN COALESCE(d.member_doc_access, ws.member_doc_access)
+          ELSE COALESCE(d.non_member_doc_access, ws.non_member_doc_access)
+        END`.as('fallback_access'),
       ])
       .where('da.document_id', '=', documentId)
       .orderBy('score', 'desc')
@@ -296,6 +330,7 @@ export class DocumentAccessService {
         email: r.email,
         avatarUrl: r.avatar_url,
         access: r.access as DocumentAccessLevel,
+        fallbackAccess: r.fallback_access as DocumentAccessLevel,
       })),
     };
   }
@@ -308,7 +343,7 @@ export class DocumentAccessService {
    * @param documentId - the document to check against
    * @param userId - the authenticated user (must have admin+ resolved access)
    * @param email - the exact email address to look up
-   * @returns the matched user's profile
+   * @returns the matched user's profile with their role-based fallback access
    * @throws 404 if the user is not found
    * @throws 409 if the user is the workspace owner or already has an access row
    */
@@ -323,14 +358,6 @@ export class DocumentAccessService {
     if (!hasAccess(access, 'admin'))
       throw new ForbiddenException('You do not have access to this document.');
 
-    // Fetch the document's workspace owner to exclude them.
-    const docRow = await db
-      .selectFrom('documents as d')
-      .innerJoin('workspaces as w', 'w.id', 'd.workspace_id')
-      .select('w.owner_id')
-      .where('d.id', '=', documentId)
-      .executeTakeFirstOrThrow();
-
     // Find the target user by exact email.
     const userRow = await db
       .selectFrom('users')
@@ -339,6 +366,27 @@ export class DocumentAccessService {
       .executeTakeFirst();
 
     if (!userRow) throw new NotFoundException('User not found.');
+
+    // Fetch document/workspace data and the user's fallback access via SQL CASE.
+    const docRow = await db
+      .selectFrom('documents as d')
+      .innerJoin('workspaces as ws', 'ws.id', 'd.workspace_id')
+      .leftJoin('workspace_members as wm', (join) =>
+        join
+          .onRef('wm.workspace_id', '=', 'd.workspace_id')
+          .on('wm.user_id', '=', userRow.id),
+      )
+      .select([
+        'ws.owner_id',
+        sql<string>`CASE wm.role
+          WHEN 'owner' THEN 'owner'
+          WHEN 'admin' THEN COALESCE(d.admin_doc_access, ws.admin_doc_access)
+          WHEN 'member' THEN COALESCE(d.member_doc_access, ws.member_doc_access)
+          ELSE COALESCE(d.non_member_doc_access, ws.non_member_doc_access)
+        END`.as('fallback_access'),
+      ])
+      .where('d.id', '=', documentId)
+      .executeTakeFirstOrThrow();
 
     // Workspace owner already has unconditional owner access — no row needed.
     if (userRow.id === docRow.owner_id)
@@ -359,6 +407,7 @@ export class DocumentAccessService {
       name: userRow.name,
       email: userRow.email,
       avatarUrl: userRow.avatar_url,
+      fallbackAccess: docRow.fallback_access as DocumentAccessLevel,
     };
   }
 
@@ -379,7 +428,7 @@ export class DocumentAccessService {
     userId: number,
     targetUserId: number,
     access: DocumentAccessLevel,
-  ): Promise<DocumentAccessUserDto> {
+  ): Promise<SetDocumentUserAccessResponseDto> {
     const db = this.dbService.kysely;
 
     const callerAccess = await this.resolveAccess(documentId, userId);

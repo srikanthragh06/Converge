@@ -26,6 +26,7 @@ export {
     SearchDocumentAccessUsersRequestSchema,
     FindNewDocumentAccessUserRequestSchema,
     SetDocumentUserAccessRequestSchema,
+    SetDocumentUserAccessResponseSchema,
 } from "./http/document";
 export type {
     CreateDocumentRequestDto,
@@ -53,6 +54,7 @@ export type {
     SearchDocumentAccessUsersRequestDto,
     FindNewDocumentAccessUserRequestDto,
     SetDocumentUserAccessRequestDto,
+    SetDocumentUserAccessResponseDto,
 } from "./http/document";
 export {
     GetWorkspacesResponseSchema,
