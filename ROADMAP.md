@@ -393,16 +393,75 @@
 
 ---
 
+## v0.13 — Workspaces & Access Overrides ✅
+
+> Branch: `workspaces-v0.13`
+
+### Server (NestJS backend)
+
+- `workspaces` table (migration `0016`) — name, owner_id, type (`personal`/`custom`), and per-role document access defaults (`admin_doc_access`, `member_doc_access`, `non_member_doc_access`); personal workspace created automatically on first signup
+- `workspace_members` table (migration `0017`) — tracks users in a workspace with roles (`owner`, `admin`, `member`); composite PK on `(workspace_id, user_id)`; `last_visited_at` added in migration `0023` for recency sorting
+- `workspace_id` added to `documents` (migration `0018`) — every document belongs to exactly one workspace; set at creation time
+- `current_workspace_id` added to `users` (migration `0019`) — tracks the user's currently selected workspace; updated by the select-workspace endpoint
+- `owner_id` and `default_access` dropped from `documents` (migration `0020`) — ownership is now determined via the workspace owner (role = `'owner'` in `workspace_members`); per-document fallback replaced by workspace-level per-role defaults
+- Per-doc role overrides added to `documents` (migration `0021`) — nullable `admin_doc_access`, `member_doc_access`, `non_member_doc_access` columns override workspace defaults for a single document
+- GIN trigram index on `workspaces.name` (migration `0022`) to power the workspace search endpoint
+- `resolveAccess` rewritten to a 4-tier chain: workspace owner → explicit `document_access` row → per-doc role override → workspace-level role default
+- `hasAccess` moved from `DocumentAccessService` to `@converge/shared` — imported directly by the server and re-exported from `web/src/utils/utils.ts`
+- `WorkspaceModule` with `WorkspaceController` and `WorkspaceService`:
+  - `GET /workspaces` — paginated list enriched with owner info, caller's role, and recency sorting by `last_visited_at`
+  - `GET /workspaces/search` — trigram similarity search by workspace name
+  - `POST /workspaces` — create a workspace (first member row inserted with role `owner`)
+  - `GET /workspaces/:id` — overview (name, caller's role, member count)
+  - `PATCH /workspaces/:id` — rename; requires admin+
+  - `PUT /workspaces/:id/select` — select workspace; updates `current_workspace_id` and `last_visited_at` on the membership row
+  - `POST /workspaces/:id/leave` — leave workspace; blocked for the owner and when the workspace is currently selected
+  - `GET /workspaces/:id/role` — returns the caller's role in the workspace
+  - `GET /workspaces/:id/members` — paginated member list with email search
+  - `POST /workspaces/:id/members` — add a member by exact email; requires admin+
+  - `DELETE /workspaces/:id/members/:userId` — remove a member; requires admin+
+  - `GET /workspaces/:id/owner` — owner profile; requires member+
+  - `GET /workspaces/:id/owner/find` — find an ownership transfer candidate by email; requires owner
+  - `PUT /workspaces/:id/owner` — transfer workspace ownership; requires owner
+  - `GET /workspaces/:id/document-access` — returns per-role doc access defaults; requires member+
+  - `PUT /workspaces/:id/document-access` — update per-role defaults; requires admin+
+- `DocumentAccessController` extended:
+  - `GET /document-access/:documentId/role-overrides` — returns per-doc role overrides together with workspace defaults and workspace name; requires viewer+
+  - `PUT /document-access/:documentId/role-overrides` — update per-doc role overrides; requires admin+
+  - Per-user access paths changed from `/:userId` to `/user/:userId` to avoid route collisions
+  - `fallbackAccess` added to all per-user access responses — the level a user would revert to if their explicit row were removed
+- `GET /auth/me` and `GET /auth/google` now return the caller's selected workspace info
+
+### Web (React frontend)
+
+- Collapsible sidebar added to all pages via the `Page` component — workspace dropdown (switches the selected workspace and refreshes), Library and Workspaces nav buttons, recent documents list, user avatar
+- `WorkspacesPage` at `/workspaces` — workspace cards with search, create workspace modal, and a Select button that calls the select endpoint and reloads the page
+- `WorkspaceConfigModal` — triggered from the workspace card; tabs: General (name, rename, leave), Members (add/search/remove), Document Access (per-role defaults), Owner (transfer ownership)
+- `ManageDocumentModal` Access Overrides tab replaces the three old tabs (Manage Access, Default Access, Owner) — role-override dropdowns (Admin / Member / Non-member) reset to workspace defaults via a "Default (…)" sentinel value, plus an email-driven user-override section with infinite scroll
+- `DocumentUserAccessCard` — new card component; shows `fallbackAccess` as a dim subtitle; uses correct `/user/:userId` API paths; permission rules enforced locally (owner may touch anything; admins may not promote to admin or touch admin-level entries)
+- `DocumentSwitcherOverlay` (Ctrl+P) available on Library and Workspaces pages as well as the editor
+- Editor breadcrumb: "workspace name › document title" displayed in the editor header; document title scrolls with content rather than staying fixed
+- `useUndoManagerGuard` hook extracts undo/redo guard logic from `useEditor`; `useEditorScrollGap` extracts the scroll-padding effect; several other inline effects extracted into focused hooks
+- `LibraryDocumentCard` gains a Manage Document button; Library page restructured to pass `workspaceId` to API calls
+- `refreshSidebarAtom` added as a reactive trigger for sidebar re-fetches after workspace state changes
+
+### Shared package
+
+- Workspace DTOs and Zod schemas added to `@converge/shared/http/workspace`
+- `GetDocumentRoleOverridesResponseDto`, `UpdateDocumentRoleOverridesRequestDto`, `UpdateDocumentRoleOverridesResponseDto`, `SetDocumentUserAccessResponseDto` added to `@converge/shared/http/document`
+- `hasAccess` and `ACCESS_RANK` moved to `@converge/shared/types` and exported from the package root
+- Removed DTOs no longer needed after tab consolidation: `GetDocumentOwnerResponseDto`, `FindNewDocumentOwnerResponseDto`, `TransferDocumentOwnerResponseDto`, `GetDocumentDefaultAccessResponseDto`, `SetDocumentDefaultAccessResponseDto`
+- `WorkspaceRole` and `WorkspaceType` enum types added
+
+### Tooling
+
+- Tmux dev environment setup script (`setup-dev.sh`) — launches server, web, and infra panes in a preconfigured session
+- `AGENTS.md` added to configure OpenCode agent permissions
+- `review-and-commit` and `add-comments` skills updated to include untracked files in diffs
+
+---
+
 ## Upcoming
-
-### v0.13 — Workspaces & Organization
-
-- Workspaces tab on library page — browse and manage workspaces
-- Create new workspaces; each workspace has a name, owner, and folder structure
-- Documents can belong to 0 (floating) or 1 workspace
-- Nested folder structure within each workspace
-- Assign documents to workspaces, move between workspaces, unassign to floating
-- Full-page workspace detail view: folder tree (left) + documents in selected folder (right)
 
 ### v0.14 — Awareness
 
