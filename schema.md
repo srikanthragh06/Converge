@@ -12,6 +12,7 @@ Stores accounts authenticated via Google OAuth.
 | `email` | `varchar` | NOT NULL, UNIQUE | May change on Google's side; not used as a lookup key |
 | `name` | `varchar` | NOT NULL | Display name from Google profile |
 | `avatar_url` | `varchar` | nullable | Profile picture URL from Google |
+| `current_workspace_id` | `bigint` | nullable, FK → `workspaces.id` | The workspace the user currently has selected; updated by `PUT /workspaces/:id/select` |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 
 #### Indexes
@@ -20,24 +21,70 @@ Stores accounts authenticated via Google OAuth.
 |---|---|---|---|---|
 | `users_pkey` | `id` | B-tree | Implicit — PK | Fast row lookup by primary key; used by all joins and FK checks from other tables referencing `users.id`. |
 | `users_google_id_key` | `google_id` | B-tree unique | Implicit — UNIQUE | Enforces one account per Google identity. Used as the lookup key on every login (`WHERE google_id = ?`) to find existing users and sync profile changes. |
-| `users_email_key` | `email` | B-tree unique | Implicit — UNIQUE | Enforces one account per email address. Used by exact-email search endpoints (`findNewDocumentAccessUser`, `findNewDocumentOwner`) and prevents duplicate accounts for the same email. |
+| `users_email_key` | `email` | B-tree unique | Implicit — UNIQUE | Enforces one account per email address. Used by exact-email search endpoints (`findNewDocumentAccessUser`, `findNewWorkspaceMember`, `findNewWorkspaceOwner`) and prevents duplicate accounts for the same email. |
+
+---
+
+### `workspaces`
+One row per workspace. Holds the workspace name, owner reference, type, and per-role document access defaults used as the last tier in access resolution.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `serial` | PK | Auto-incrementing internal ID |
+| `name` | `text` | NOT NULL | Display name of the workspace |
+| `owner_id` | `integer` | NOT NULL, FK → `users.id` | The workspace owner; also present as a `workspace_members` row with role `'owner'` |
+| `type` | `text` | NOT NULL, CHECK (`personal` \| `custom`) | `personal` workspaces are created automatically on first signup; `custom` workspaces are user-created |
+| `admin_doc_access` | `document_access_level` | NOT NULL, default `'admin'` | Default doc access for workspace admins when no per-doc override is set |
+| `member_doc_access` | `document_access_level` | NOT NULL, default `'editor'` | Default doc access for workspace members when no per-doc override is set |
+| `non_member_doc_access` | `document_access_level` | NOT NULL, default `'noAccess'` | Default doc access for users not in this workspace when no per-doc override is set |
+| `created_at` | `timestamptz` | NOT NULL, default `now()` | |
+
+#### Indexes
+
+| Index | Columns | Type | Source | Purpose |
+|---|---|---|---|---|
+| `workspaces_pkey` | `id` | B-tree | Implicit — PK | Fast row lookup by primary key; used by all FK checks from `documents`, `workspace_members`, and `users.current_workspace_id`. |
+| `workspaces_name_trgm_idx` | `name` | GIN (trigram) | Explicit — 0022 | Powers the workspace search endpoint (`GET /workspaces/search`). Enables `ILIKE` substring matching without a sequential scan. |
+
+---
+
+### `workspace_members`
+Tracks which users belong to which workspace and with what role. The workspace owner is also stored here (role `'owner'`) alongside `workspaces.owner_id`.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `workspace_id` | `integer` | NOT NULL, FK → `workspaces.id` ON DELETE CASCADE | Scopes this membership row to a specific workspace |
+| `user_id` | `integer` | NOT NULL, FK → `users.id` ON DELETE CASCADE | The user who holds this membership |
+| `role` | `text` | NOT NULL, CHECK (`owner` \| `admin` \| `member`) | Role the user holds within the workspace |
+| `last_visited_at` | `timestamptz` | nullable | Set on every `PUT /workspaces/:id/select`; used to sort workspaces by recency |
+| `created_at` | `timestamptz` | NOT NULL, default `now()` | |
+
+> Composite PK on `(workspace_id, user_id)`.
+
+#### Indexes
+
+| Index | Columns | Type | Source | Purpose |
+|---|---|---|---|---|
+| `workspace_members_pkey` | `(workspace_id, user_id)` | B-tree composite | Implicit — PK | Enforces one membership row per user per workspace. Covers all queries that filter on `workspace_id` (the leading column), including role lookups in `resolveAccess`, member listing, and add/remove operations. |
 
 ---
 
 ### `documents`
-One row per document. Stores the title and tracks compaction counters — does not store content.
+One row per document. Stores the title and per-doc role overrides; tracks compaction counters. Does not store content.
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `bigserial` | PK | |
-| `creator_id` | `bigint` | NOT NULL, FK → `users.id`, indexed | The user who originally created the document; retained for audit but no longer used for ownership or access checks |
-| `owner_id` | `bigint` | NOT NULL, FK → `users.id`, indexed | The current document owner; used for all ownership and access checks. Starts as `creator_id` and can be transferred |
-| `title` | `text` | NOT NULL, default `''` | User-editable document title; trimmed and capped at 32 characters before persisting. Has a GIN trigram index (`pg_trgm`) used by the library search endpoint |
-| `default_access` | `document_access_level` | NOT NULL, default `'noAccess'` | Fallback access level for users with no explicit row in `document_access`; one of `admin`, `editor`, `viewer`, `noAccess` |
+| `creator_id` | `bigint` | NOT NULL, FK → `users.id`, indexed | The user who originally created the document; retained for audit |
+| `workspace_id` | `bigint` | NOT NULL, FK → `workspaces.id`, indexed | The workspace this document belongs to; set at creation time and cannot be changed |
+| `title` | `text` | NOT NULL, default `''` | User-editable document title; trimmed and capped at 32 characters before persisting |
+| `admin_doc_access` | `document_access_level` | nullable | Per-doc override for workspace admins; NULL means inherit workspace default |
+| `member_doc_access` | `document_access_level` | nullable | Per-doc override for workspace members; NULL means inherit workspace default |
+| `non_member_doc_access` | `document_access_level` | nullable | Per-doc override for non-members; NULL means inherit workspace default |
 | `is_deleted` | `boolean` | NOT NULL, default `false` | Soft-delete flag; all read queries filter on `is_deleted = false` |
-| `deleted_at` | `timestamptz` | nullable | Set to `now()` when soft-deleted; null until then. Kept for audit and future trash-expiry logic |
+| `deleted_at` | `timestamptz` | nullable | Set to `now()` when soft-deleted; null until then |
 | `update_count` | `integer` | NOT NULL, default `0` | Incremented atomically on every persisted Yjs update |
-| `last_compact_count` | `integer` | NOT NULL, default `0` | Value of `update_count` at the last compaction; used to detect when the threshold is crossed again |
+| `last_compact_count` | `integer` | NOT NULL, default `0` | Value of `update_count` at the last compaction |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 
 #### Indexes
@@ -45,9 +92,9 @@ One row per document. Stores the title and tracks compaction counters — does n
 | Index | Columns | Type | Source | Purpose |
 |---|---|---|---|---|
 | `documents_pkey` | `id` | B-tree | Implicit — PK | Fast row lookup by primary key; used by all joins and FK checks from `document_updates`, `document_user_metadata`, and `document_access`. |
-| `idx_documents_creator_id` | `creator_id` | B-tree | Explicit — 0005 | Accelerates queries that filter or join on the document creator. Used by audit and ownership-transfer logic that consults `creator_id`. |
-| `idx_documents_owner_id` | `owner_id` | B-tree | Explicit — 0012 | Accelerates all ownership checks — `resolveAccess` compares `owner_id` on every access resolution, and the library query joins on `owner_id` to resolve the "owner" tier. This is one of the most frequently hit indexes in the app. |
-| `documents_title_trgm_idx` | `title` | GIN (trigram) | Explicit — 0010 | Powers the library search endpoint (`GET /document/library/search`). The GIN trigram index on `pg_trgm` enables `similarity()` to rank documents by title proximity without a sequential scan. GIN is preferred over GiST because library searches are read-heavy. |
+| `idx_documents_creator_id` | `creator_id` | B-tree | Explicit — 0005 | Accelerates queries that filter or join on the document creator. |
+| `idx_documents_workspace_id` | `workspace_id` | B-tree | Explicit — 0018 | Accelerates workspace-scoped document queries — used by the library endpoint and `resolveAccess` when fetching the workspace's per-role defaults. |
+| `documents_title_trgm_idx` | `title` | GIN (trigram) | Explicit — 0010 | Powers the library search endpoint (`GET /document/library/search`). Enables `similarity()` ranking without a sequential scan. GIN is preferred over GiST for read-heavy search. |
 
 ---
 
@@ -66,7 +113,7 @@ Append-only log of raw Yjs binary update payloads. The full document state is re
 | Index | Columns | Type | Source | Purpose |
 |---|---|---|---|---|
 | `document_updates_pkey` | `id` | B-tree | Implicit — PK | Fast row lookup; also used as the snapshot cursor during compaction (`WHERE id <= MAX(id)`). |
-| `idx_document_updates_document_id` | `document_id` | B-tree | Explicit — 0004 | Scopes every Yjs update query to a specific document. Hit on every `loadDoc` (which fetches all persisted updates for a document), every `applyDocUpdate` (which appends a row and later queries for compaction), and every repair-sync handshake that reads historical updates. Without this index, every Yjs operation would sequentially scan the `document_updates` table. |
+| `idx_document_updates_document_id` | `document_id` | B-tree | Explicit — 0004 | Scopes every Yjs update query to a specific document. Hit on every `loadDoc`, every `applyDocUpdate`, and every repair-sync handshake that reads historical updates. |
 
 > **Compaction:** When `update_count >= last_compact_count + 5000`, all rows up to `MAX(id)` are merged into a single row and the originals are deleted in one transaction. Only one server runs compaction at a time, gated by a Redis lock.
 
@@ -94,7 +141,7 @@ Tracks per-user activity timestamps for each document. Used by the library page 
 ---
 
 ### `document_access`
-Explicit per-user access grants for a document. Absence of a row means the user falls back to the document's `default_access`.
+Explicit per-user access grants for a document. This is tier 2 in the 4-tier access resolution chain (workspace owner → **document_access row** → per-doc role override → workspace-level default).
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
@@ -103,13 +150,13 @@ Explicit per-user access grants for a document. Absence of a row means the user 
 | `access` | `document_access_level` | NOT NULL | Explicit access level: `admin`, `editor`, `viewer`, or `noAccess` |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 
-> Composite PK on `(document_id, user_id)`. Access is resolved in three tiers: owner row > explicit `document_access` row > `documents.default_access`.
+> Composite PK on `(document_id, user_id)`.
 
 #### Indexes
 
 | Index | Columns | Type | Source | Purpose |
 |---|---|---|---|---|
-| `document_access_pkey` | `(document_id, user_id)` | B-tree composite | Implicit — PK | Enforces one access row per user per document. Covers all queries that filter on `document_id` (the leading column), including `resolveAccess` (checking for an explicit row), `getDocumentAccessUsers` (paginated access list), and `searchDocumentAccessUsers` (trigram email search on access rows). Does **not** cover `user_id`-first queries — if a future feature needs "all docs a user has explicit access to," a separate index on `(user_id)` or `(user_id, document_id)` would be needed. |
+| `document_access_pkey` | `(document_id, user_id)` | B-tree composite | Implicit — PK | Enforces one access row per user per document. Covers all queries that filter on `document_id` (the leading column), including `resolveAccess` (checking for an explicit row), `getDocumentAccessUsers` (paginated access list), and `searchDocumentAccessUsers` (trigram email search on access rows). |
 
 ---
 
