@@ -28,7 +28,6 @@ const OverviewTab = ({
 
     return (
         <>
-            <div className="text-base sm:text-xl mb-4 sm:mb-6">Overview</div>
             {isLoading && (
                 <p className="text-xs sm:text-sm text-text-secondary opacity-50">
                     Loading
