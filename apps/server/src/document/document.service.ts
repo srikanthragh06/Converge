@@ -48,12 +48,13 @@ export class DocumentService {
     if (!hasAccess(access, 'viewer'))
       throw new ForbiddenException('You do not have access to this document.');
 
-    // Fetch the document fields needed for the response.
+    // Fetch the document fields and its workspace name in a single join.
     const row = await db
-      .selectFrom('documents')
-      .select(['id', 'title', 'created_at'])
-      .where('id', '=', documentId)
-      .where('is_deleted', '=', false)
+      .selectFrom('documents as d')
+      .innerJoin('workspaces as w', 'w.id', 'd.workspace_id')
+      .select(['d.id', 'd.title', 'd.created_at', 'w.id as workspaceId', 'w.name as workspaceName'])
+      .where('d.id', '=', documentId)
+      .where('d.is_deleted', '=', false)
       .executeTakeFirst();
 
     if (!row) throw new NotFoundException('Document not found.');
@@ -62,6 +63,7 @@ export class DocumentService {
       id: row.id,
       title: row.title,
       createdAt: row.created_at,
+      workspace: { id: row.workspaceId, name: row.workspaceName },
       resolvedAccess: access,
     };
   }
