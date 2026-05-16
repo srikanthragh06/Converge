@@ -1,27 +1,30 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * Registers a global Ctrl+P keyboard shortcut that opens the document switcher
- * and suppresses the browser's print dialog.
+ * and suppresses the browser's print dialog. Owns the switcher visibility state
+ * so callers do not need to declare it separately.
  *
- * @param setIsOpen - state setter from the document switcher's visibility state
+ * @returns isSwitcherOpen — whether the overlay is visible; setIsSwitcherOpen — setter to close it
  */
-const useDocumentSwitcherShortcut = (
-    setIsOpen: (open: boolean) => void,
-) => {
+const useDocumentSwitcherShortcut = () => {
+    const [isSwitcherOpen, setIsSwitcherOpen] = useState(false); // controls document switcher overlay visibility
+
     // Attaches the global keydown listener on mount and removes it on cleanup.
-    // setIsOpen is a useState setter — React guarantees it is stable — so this
+    // setIsSwitcherOpen is a useState setter — React guarantees it is stable — so this
     // effect runs only once.
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.ctrlKey && e.key === "p") {
                 e.preventDefault();
-                setIsOpen(true);
+                setIsSwitcherOpen(true);
             }
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [setIsOpen]);
+    }, [setIsSwitcherOpen]);
+
+    return { isSwitcherOpen, setIsSwitcherOpen };
 };
 
 export default useDocumentSwitcherShortcut;
