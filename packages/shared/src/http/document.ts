@@ -22,6 +22,7 @@ export const GetDocumentResponseSchema = z.object({
     id: z.number(),
     title: z.string(),
     createdAt: z.coerce.date(),
+    workspace: z.object({ id: z.number(), name: z.string() }),
     resolvedAccess: ResolvedDocumentAccessLevelSchema,
 });
 
