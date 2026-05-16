@@ -66,6 +66,7 @@ Tracks which users belong to which workspace and with what role. The workspace o
 | Index | Columns | Type | Source | Purpose |
 |---|---|---|---|---|
 | `workspace_members_pkey` | `(workspace_id, user_id)` | B-tree composite | Implicit — PK | Enforces one membership row per user per workspace. Covers all queries that filter on `workspace_id` (the leading column), including role lookups in `resolveAccess`, member listing, and add/remove operations. |
+| `idx_workspace_members_user_id` | `user_id` | B-tree | Explicit — 0024 | Covers `getWorkspaces` and `searchWorkspaces`, which filter `WHERE user_id = ?` to list all workspaces a user belongs to. The composite PK cannot cover this direction because `user_id` is not the leading column — without this index both queries do a sequential scan on every page load. |
 
 ---
 
