@@ -150,17 +150,7 @@ export type GetDocumentAccessResponseDto = z.infer<
     typeof GetDocumentAccessResponseSchema
 >;
 
-/** Response for GET /document/:id/owner — the document owner's basic profile. */
-export const GetDocumentOwnerResponseSchema = z.object({
-    id: z.number(),
-    name: z.string(),
-    email: z.email(),
-    avatarUrl: z.string().nullable(),
-});
 
-export type GetDocumentOwnerResponseDto = z.infer<
-    typeof GetDocumentOwnerResponseSchema
->;
 /** Response for GET /document/:id/access/find-new — a user who exists but has no access yet. */
 export const FindNewDocumentAccessUserResponseSchema = z.object({
     id: z.number(),
@@ -173,45 +163,8 @@ export const FindNewDocumentAccessUserResponseSchema = z.object({
 export type FindNewDocumentAccessUserResponseDto = z.infer<
     typeof FindNewDocumentAccessUserResponseSchema
 >;
-/** Response for GET /document/:id/owner/find — the matched user's basic profile. */
-export const FindNewDocumentOwnerResponseSchema = z.object({
-    id: z.number(),
-    name: z.string(),
-    email: z.email(),
-    avatarUrl: z.string().nullable(),
-});
 
-export type FindNewDocumentOwnerResponseDto = z.infer<
-    typeof FindNewDocumentOwnerResponseSchema
->;
-/** Response for PUT /document/:id/owner — the new owner's basic profile. */
-export const TransferDocumentOwnerResponseSchema = z.object({
-    id: z.number(),
-    name: z.string(),
-    email: z.email(),
-    avatarUrl: z.string().nullable(),
-});
 
-export type TransferDocumentOwnerResponseDto = z.infer<
-    typeof TransferDocumentOwnerResponseSchema
->;
-
-/** Response for GET /document/:id/access/default — the document's fallback access level. */
-export const GetDocumentDefaultAccessResponseSchema = z.object({
-    defaultAccess: DocumentAccessLevelSchema,
-});
-
-export type GetDocumentDefaultAccessResponseDto = z.infer<
-    typeof GetDocumentDefaultAccessResponseSchema
->;
-/** Response for PUT /document/:id/access/default — echoes back the updated fallback access level. */
-export const SetDocumentDefaultAccessResponseSchema = z.object({
-    defaultAccess: DocumentAccessLevelSchema,
-});
-
-export type SetDocumentDefaultAccessResponseDto = z.infer<
-    typeof SetDocumentDefaultAccessResponseSchema
->;
 
 /** Response for GET /document-access/:id/role-overrides — per-role doc-level overrides with workspace defaults for context. */
 export const GetDocumentRoleOverridesResponseSchema = z.object({
