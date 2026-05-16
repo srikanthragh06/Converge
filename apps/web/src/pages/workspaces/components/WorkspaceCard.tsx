@@ -32,7 +32,7 @@ const WorkspaceCard = ({
                         </span>
                     )}
                 </div>
-                <div className="flex flex-col space-y-2">
+                <div className="flex flex-col space-y-1">
                     <span className="text-xs opacity-50 capitalize">
                         {workspace.role}
                     </span>
@@ -46,7 +46,7 @@ const WorkspaceCard = ({
                         <button
                             disabled={workspace.isSelected}
                             onClick={() => onSelect(workspace.id)}
-                            className={`text-xs transition cursor-pointer text-white ${
+                            className={`sm:px-2 px-1 py-1 text-xs transition cursor-pointer text-white ${
                                 workspace.isSelected
                                     ? "bg-green-900 rounded-lg cursor-auto"
                                     : "hover:opacity-80"
