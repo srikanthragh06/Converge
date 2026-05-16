@@ -3,19 +3,26 @@ import { useAtomValue } from "jotai";
 import { syncStatusAtom } from "../../../atoms/socket";
 import AnimatedDots from "../../../components/AnimatedDots";
 import ManageDocumentModal from "../manageDocumentModal/ManageDocumentModal";
+import { MdOutlineWorkspaces, MdOutlineDescription } from "react-icons/md";
 
 /**
- * Top navigation bar for the editor page. Shows a sync status indicator on the
- * right alongside the Manage Document button. Only rendered when documentStatus
- * is "ready".
+ * Top navigation bar for the editor page. On the left shows a workspace › document
+ * breadcrumb (desktop only). On the right shows a sync status indicator and the
+ * Manage Document button. Only rendered when documentStatus is "ready".
  */
 const EditorPageHeader = ({
     documentStatus,
     documentId,
+    workspaceName,
+    title,
 }: {
     documentStatus: "loading" | "ready" | "forbidden" | "notFound";
     /** ID of the currently open document, forwarded to ManageDocumentModal. */
     documentId: string | undefined;
+    /** Name of the workspace the document belongs to, shown as a breadcrumb label. */
+    workspaceName: string | null;
+    /** Title of the current document, shown as the second segment of the breadcrumb. */
+    title: string;
 }) => {
     const [isManageModalOpen, setIsManageModalOpen] = useState(false); // controls ManageDocumentModal visibility
     const syncStatus = useAtomValue(syncStatusAtom); // current sync state from useYjsSync
@@ -34,8 +41,23 @@ const EditorPageHeader = ({
 
     return (
         <>
-            <div className="sticky top-0 z-50 bg-background-base flex justify-end sm:px-8 px-2 py-2">
-                <div className="flex items-center sm:space-x-8 sm:py-2 space-x-4">
+            <div className="sticky top-0 z-50 bg-background-base flex justify-between items-center sm:px-8 px-2 py-2">
+                {workspaceName && (
+                    <span className="hidden sm:flex items-center gap-1.5 text-white sm:text-sm opacity-90 truncate min-w-0">
+                        <MdOutlineWorkspaces className="shrink-0 opacity-60" />
+                        <span className="truncate flex items-center gap-1.5">
+                            {workspaceName}
+                            <span className="opacity-60">›</span>
+                            <MdOutlineDescription className="shrink-0 opacity-60" />
+                            <span
+                                className={`${title.length === 0 ? "opacity-50" : ""}`}
+                            >
+                                {title || "Untitled"}
+                            </span>
+                        </span>
+                    </span>
+                )}
+                <div className="flex items-center sm:space-x-8 sm:py-2 space-x-4 ml-auto">
                     {documentStatus === "ready" && statusLabel && (
                         <span
                             className="text-text-secondary sm:text-sm text-xs opacity-40

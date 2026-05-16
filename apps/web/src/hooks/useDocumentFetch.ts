@@ -23,6 +23,10 @@ const useDocumentFetch = (
     >("loading"); // tracks the outcome of the document fetch
     const [documentAccess, setDocumentAccess] =
         useState<ResolvedDocumentAccessLevel | null>(null); // resolved access level for the current user on this document
+    const [docWorkspace, setDocWorkspace] = useState<{
+        id: number;
+        name: string;
+    } | null>(null); // workspace the document belongs to; null while loading or on error
 
     // Fetches the document whenever documentId changes — resets to loading first so stale content is hidden.
     useEffect(() => {
@@ -34,6 +38,7 @@ const useDocumentFetch = (
                 );
                 setTitle(data.title);
                 setDocumentAccess(data.resolvedAccess);
+                setDocWorkspace(data.workspace);
                 setDocumentStatus("ready");
             } catch (err) {
                 if (axios.isAxiosError(err)) {
@@ -55,10 +60,13 @@ const useDocumentFetch = (
 
         fetchDocument();
 
-        return () => setDocumentAccess(null);
+        return () => {
+            setDocumentAccess(null);
+            setDocWorkspace(null);
+        };
     }, [documentId]);
 
-    return { documentStatus, documentAccess };
+    return { documentStatus, documentAccess, docWorkspace };
 };
 
 export default useDocumentFetch;
