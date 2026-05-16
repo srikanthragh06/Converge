@@ -1,8 +1,7 @@
 import { formatDate, hasAccess } from "../../../../utils/utils";
 import DeleteDocumentConfirmationModal from "./DeleteDocumentConfirmationModal";
 import useOverviewTab from "../../../../hooks/useOverviewTab";
-import { useAtomValue } from "jotai";
-import { documentAccessAtom } from "../../../../atoms/document";
+import AnimatedDots from "../../../../components/AnimatedDots";
 
 /**
  * Overview tab content for ManageDocumentModal. Displays document metadata
@@ -19,16 +18,23 @@ const OverviewTab = ({
 }) => {
     const {
         overview,
+        documentAccess,
+        isLoading,
         isDeleteDocumentConfirmOpen,
         setIsDeleteDocumentConfirmOpen,
     } = useOverviewTab({ documentId, onClose });
-    const documentAccess = useAtomValue(documentAccessAtom); // resolved access level for the current document
     const canDelete =
         documentAccess !== null && hasAccess(documentAccess, "admin"); // only admins and above may delete
 
     return (
         <>
             <div className="text-base sm:text-xl mb-4 sm:mb-6">Overview</div>
+            {isLoading && (
+                <p className="text-xs sm:text-sm text-text-secondary opacity-50">
+                    Loading
+                    <AnimatedDots />
+                </p>
+            )}
             <div className="flex flex-col space-y-3 sm:space-y-4">
                 <div className="text-xs sm:text-sm">
                     <span className="opacity-50">Title: </span>
@@ -36,28 +42,6 @@ const OverviewTab = ({
                         className={`text-text-secondary ${!overview?.title && "opacity-50"}`}
                     >
                         {overview?.title || "Untitled"}
-                    </span>
-                </div>
-                <div className="text-xs sm:text-sm">
-                    <span className="opacity-50">Last visited: </span>
-                    <span className="text-text-secondary">
-                        {overview
-                            ? formatDate(
-                                  (overview as any).lastVisitedAt ??
-                                      overview.createdAt,
-                              )
-                            : "—"}
-                    </span>
-                </div>
-                <div className="text-xs sm:text-sm">
-                    <span className="opacity-50">Last edited: </span>
-                    <span className="text-text-secondary">
-                        {overview
-                            ? formatDate(
-                                  (overview as any).lastEditedAt ??
-                                      overview.createdAt,
-                              )
-                            : "—"}
                     </span>
                 </div>
                 <div className="text-xs sm:text-sm">
