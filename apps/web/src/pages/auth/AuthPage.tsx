@@ -1,6 +1,7 @@
 import Page from "../../components/Page";
 import { AUTH_CSRF_STATE } from "../../constants/constants";
 import { FcGoogle } from "react-icons/fc";
+import lockupWhite from "/lockup-white.svg";
 
 /**
  * Landing page that initiates the Google OAuth flow. Renders a sign-in button
@@ -41,11 +42,13 @@ const AuthPage = () => {
 
     return (
         <Page className="space-y-8 items-center justify-center">
-            <h1 className="sm:text-7xl text-6xl font-normal text-text-primary font-montserrat">
-                Converge
-            </h1>
-            <p className="text-lg text-center text-text-secondary max-w-[250px] sm:max-w-[800px]">
-                Sign in to get started with Converge
+            <img
+                src={lockupWhite}
+                alt="Converge"
+                className="w-[360px] sm:w-[720px] ml-[120px] sm:ml-[200px]"
+            />
+            <p className="sm:text-lg text-base text-center text-white max-w-[250px] sm:max-w-[800px]">
+                Sign in to get started
             </p>
             <button
                 className="flex items-center gap-3 px-5 py-3 rounded-lg cursor-pointer
@@ -53,8 +56,10 @@ const AuthPage = () => {
                             hover:shadow-md transition-shadow duration-150"
                 onClick={handleSignInWithGoogle}
             >
-                <FcGoogle className="w-6 h-6 shrink-0" />
-                <span className="text-lg font-medium">Sign in with Google</span>
+                <FcGoogle className="sm:w-6 sm:h-6 w-3 h-3 shrink-0" />
+                <span className=" text-sm sm:text-lg font-medium">
+                    Sign in with Google
+                </span>
             </button>
         </Page>
     );

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Converge">
+  <title>Converge</title>
+  <rect width="100" height="100" rx="20" fill="#0a0a0a"></rect>
+  <path d="M14 18 L48 44 L48 56 L14 82 L14 64 L30 50 L14 36 Z" fill="#ffffff"></path>
+  <path d="M86 18 L52 44 L52 56 L86 82 L86 64 L70 50 L86 36 Z" fill="#ffffff"></path>
+</svg>

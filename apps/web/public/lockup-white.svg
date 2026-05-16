@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 140" role="img" aria-label="Converge">
+  <title>Converge</title>
+  
+  <g transform="translate(0 20) scale(1.0)">
+    <path d="M14 18 L48 44 L48 56 L14 82 L14 64 L30 50 L14 36 Z" fill="#ffffff" transform="scale(1.0)"></path>
+    <path d="M86 18 L52 44 L52 56 L86 82 L86 64 L70 50 L86 36 Z" fill="#ffffff" transform="scale(1.0)"></path>
+  </g>
+  <text x="125" y="100" font-size="92" fill="#ffffff">Converge</text>
+</svg>
