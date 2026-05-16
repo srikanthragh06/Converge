@@ -6,6 +6,7 @@ import useYjsSync from "./useYjsSync";
 import useDocumentTitle from "./useDocumentTitle";
 import useDocumentFetch from "./useDocumentFetch";
 import useUndoManagerGuard from "./useUndoManagerGuard";
+import useEditorFocus from "./useEditorFocus";
 
 /**
  * Composes the sub-hooks for document fetching, Yjs sync, and title sync into
@@ -54,6 +55,7 @@ const useEditor = () => {
     }, [yDoc]);
 
     useUndoManagerGuard(editor, yDoc);
+    useEditorFocus(editor, documentId, documentStatus);
 
     return {
         editor,
