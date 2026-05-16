@@ -21,7 +21,7 @@ const useEditor = () => {
     const { title, setTitle, isTitlePending, handleTitleChange } =
         useDocumentTitle();
 
-    const { documentStatus, documentAccess } = useDocumentFetch(
+    const { documentStatus, documentAccess, docWorkspace } = useDocumentFetch(
         documentId,
         setTitle,
     );
@@ -61,6 +61,7 @@ const useEditor = () => {
         editor,
         documentStatus,
         documentAccess,
+        docWorkspace,
         title,
         handleTitleChange,
         isTitlePending,

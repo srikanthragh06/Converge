@@ -21,6 +21,7 @@ const EditorPage = () => {
         editor,
         documentStatus,
         documentAccess,
+        docWorkspace,
         title,
         handleTitleChange,
         isTitlePending,
@@ -39,6 +40,8 @@ const EditorPage = () => {
                 <EditorPageHeader
                     documentStatus={documentStatus}
                     documentId={documentId}
+                    workspaceName={docWorkspace?.name ?? null}
+                    title={title}
                 />
             )}
             {/* Loading state — shown while the document is being fetched */}
