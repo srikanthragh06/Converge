@@ -19,6 +19,13 @@ export {
     SetDocumentDefaultAccessResponseSchema,
     TransferDocumentOwnerResponseSchema,
     FindNewDocumentOwnerResponseSchema,
+    GetDocumentRoleOverridesResponseSchema,
+    UpdateDocumentRoleOverridesRequestSchema,
+    UpdateDocumentRoleOverridesResponseSchema,
+    GetDocumentAccessUsersRequestSchema,
+    SearchDocumentAccessUsersRequestSchema,
+    FindNewDocumentAccessUserRequestSchema,
+    SetDocumentUserAccessRequestSchema,
 } from "./http/document";
 export type {
     CreateDocumentRequestDto,
@@ -39,6 +46,13 @@ export type {
     SetDocumentDefaultAccessResponseDto,
     TransferDocumentOwnerResponseDto,
     FindNewDocumentOwnerResponseDto,
+    GetDocumentRoleOverridesResponseDto,
+    UpdateDocumentRoleOverridesRequestDto,
+    UpdateDocumentRoleOverridesResponseDto,
+    GetDocumentAccessUsersRequestDto,
+    SearchDocumentAccessUsersRequestDto,
+    FindNewDocumentAccessUserRequestDto,
+    SetDocumentUserAccessRequestDto,
 } from "./http/document";
 export {
     GetWorkspacesResponseSchema,

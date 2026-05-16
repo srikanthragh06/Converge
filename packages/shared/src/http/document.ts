@@ -210,3 +210,85 @@ export const SetDocumentDefaultAccessResponseSchema = z.object({
 export type SetDocumentDefaultAccessResponseDto = z.infer<
     typeof SetDocumentDefaultAccessResponseSchema
 >;
+
+/** Response for GET /document-access/:id/role-overrides — per-role doc-level overrides with workspace defaults for context. */
+export const GetDocumentRoleOverridesResponseSchema = z.object({
+    adminDocAccess: DocumentAccessLevelSchema.nullable(),
+    memberDocAccess: DocumentAccessLevelSchema.nullable(),
+    nonMemberDocAccess: DocumentAccessLevelSchema.nullable(),
+    workspaceAdminDocAccess: DocumentAccessLevelSchema,
+    workspaceMemberDocAccess: DocumentAccessLevelSchema,
+    workspaceNonMemberDocAccess: DocumentAccessLevelSchema,
+    workspaceName: z.string(),
+});
+
+export type GetDocumentRoleOverridesResponseDto = z.infer<
+    typeof GetDocumentRoleOverridesResponseSchema
+>;
+
+/** Request body for PUT /document-access/:id/role-overrides — null resets a role to the workspace default; at least one field required. */
+export const UpdateDocumentRoleOverridesRequestSchema = z
+    .object({
+        adminDocAccess: DocumentAccessLevelSchema.nullable().optional(),
+        memberDocAccess: DocumentAccessLevelSchema.nullable().optional(),
+        nonMemberDocAccess: DocumentAccessLevelSchema.nullable().optional(),
+    })
+    .refine(
+        (d) =>
+            d.adminDocAccess !== undefined ||
+            d.memberDocAccess !== undefined ||
+            d.nonMemberDocAccess !== undefined,
+        { message: "At least one field must be provided." },
+    );
+
+export type UpdateDocumentRoleOverridesRequestDto = z.infer<
+    typeof UpdateDocumentRoleOverridesRequestSchema
+>;
+
+/** Response for PUT /document-access/:id/role-overrides — the three per-role overrides after update. */
+export const UpdateDocumentRoleOverridesResponseSchema = z.object({
+    adminDocAccess: DocumentAccessLevelSchema.nullable(),
+    memberDocAccess: DocumentAccessLevelSchema.nullable(),
+    nonMemberDocAccess: DocumentAccessLevelSchema.nullable(),
+});
+
+export type UpdateDocumentRoleOverridesResponseDto = z.infer<
+    typeof UpdateDocumentRoleOverridesResponseSchema
+>;
+
+/** Query params for GET /document-access/:id — keyset-paginated per-user access list. */
+export const GetDocumentAccessUsersRequestSchema = z.object({
+    limit: z.coerce.number().int().positive().optional(),
+    cursorId: z.coerce.number().int().positive().optional(),
+});
+
+export type GetDocumentAccessUsersRequestDto = z.infer<
+    typeof GetDocumentAccessUsersRequestSchema
+>;
+
+/** Query params for GET /document-access/:id/search — fuzzy email search over existing access entries. */
+export const SearchDocumentAccessUsersRequestSchema = z.object({
+    email: z.string().min(1),
+});
+
+export type SearchDocumentAccessUsersRequestDto = z.infer<
+    typeof SearchDocumentAccessUsersRequestSchema
+>;
+
+/** Query params for GET /document-access/:id/find-new — exact email lookup for a user with no explicit access yet. */
+export const FindNewDocumentAccessUserRequestSchema = z.object({
+    email: z.string().email(),
+});
+
+export type FindNewDocumentAccessUserRequestDto = z.infer<
+    typeof FindNewDocumentAccessUserRequestSchema
+>;
+
+/** Request body for PUT /document-access/:id/user/:userId — grants or updates a per-user access level. */
+export const SetDocumentUserAccessRequestSchema = z.object({
+    access: DocumentAccessLevelSchema,
+});
+
+export type SetDocumentUserAccessRequestDto = z.infer<
+    typeof SetDocumentUserAccessRequestSchema
+>;
