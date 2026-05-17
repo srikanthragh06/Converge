@@ -52,7 +52,7 @@ const deleteBlockExtension = createExtension({
 
             // If the next block has indented sub-blocks (children), a merge would delete
             // them without warning. Play it safe and leave the document unchanged.
-            // if (nextBlock.children.length > 0) return true;
+            if (nextBlock.children.length > 0) return true;
 
             // Block content is either InlineContent[] (text, links — safe to spread) or
             // TableContent (a non-array object used by table blocks). We can only merge
