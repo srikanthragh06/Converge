@@ -218,15 +218,13 @@ const useYjsSync = (documentId: string | undefined) => {
         /**
          * Applies the diff received from the other side, then computes and sends
          * back the diff the other side is missing based on their state vector.
-         * @param diff - encoded Yjs update bytes from the other side
-         * @param serverSV - the server's state vector used to compute the return diff
+         * @param data - raw socket payload containing the server's diff and state vector
          */
-        // Applies the diff sent by the other side, then sends back our diff.
         const handleRepairSyncAckDoc = (data: unknown) => {
-            setIsRestoring(false);
             const res = socketReceive(RepairSyncAckDocClientSchema, data);
             if (!res) return;
             Y.applyUpdate(yDoc, new Uint8Array(res.diffArray), "REMOTE");
+            setIsRestoring(false);
             const diffArray = Array.from(
                 Y.encodeStateAsUpdate(yDoc, new Uint8Array(res.serverSVArray)),
             );
