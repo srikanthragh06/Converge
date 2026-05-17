@@ -63,7 +63,7 @@ const useEditor = () => {
             },
 
             // Uploads a file and returns its public CDN URL; enables the Upload tab
-            // on image/video/audio/file blocks and handles image pastes.
+            // on image/video/audio blocks and handles image pastes.
             uploadFile,
         });
     }, [yDoc, docWorkspace, documentId, uploadFile]);
