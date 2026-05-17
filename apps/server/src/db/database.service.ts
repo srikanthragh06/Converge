@@ -40,7 +40,6 @@ export class DatabaseService {
       });
     } else if (environment === 'PROD') {
       // PROD connects to the production database.
-      // ssl: true is required for Neon (and most managed Postgres providers).
       this.pool = new Pool({
         host: this.configService.getOrThrow<string>('POSTGRES_PROD_HOST'),
         user: this.configService.getOrThrow<string>('POSTGRES_PROD_USERNAME'),
@@ -48,7 +47,10 @@ export class DatabaseService {
           'POSTGRES_PROD_PASSWORD',
         ),
         database: this.configService.getOrThrow<string>('POSTGRES_PROD_DBNAME'),
-        ssl: true,
+        // rejectUnauthorized: false skips CA chain verification — required for Supabase
+        // whose certificate chain is not trusted by Node's default CA bundle.
+        // The connection is still encrypted; only the CA trust check is bypassed.
+        ssl: { rejectUnauthorized: false },
       });
     } else {
       throw new Error(`Unknown ENVIRONMENT "${environment}"`);
