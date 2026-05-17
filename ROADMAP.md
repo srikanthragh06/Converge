@@ -461,15 +461,34 @@
 
 ---
 
+## v0.14 — Multimedia ✅
+
+> Branch: `multimedia-v0.14`
+
+### Server (NestJS backend)
+
+- `GET /document/upload-auth` endpoint — generates a one-time ImageKit upload auth payload (`token`, `expire`, HMAC-SHA1 `signature`) for client-side direct uploads; the private key never leaves the server; requires `AuthGuard`
+- Per-user rate limiting on `/document/upload-auth` — 10 requests per minute keyed on `userId` via `UserThrottlerGuard`; counters backed by Redis via `@nest-lab/throttler-storage-redis` with a dedicated ioredis client so limits are consistent across server instances
+
+### Web (React frontend)
+
+- `useUploadFile` hook — validates MIME type (images, videos, and audio only), enforces per-type size caps (images 25 MB, videos 100 MB, audio 5 MB), fetches a one-time auth token from the server, builds the multipart FormData payload, and uploads directly to ImageKit; images are pre-transformed at ingestion (`w-2000,q-80`); files are assigned UUID v4 filenames; upload folder path scoped to `/converge/workspaces/{workspaceId}/documents/{documentId}`
+- `useUploadFile` wired into `useEditor` via BlockNote's `uploadFile` config; editor creation gated on both `docWorkspace` and `documentId` so the upload folder path is always correct when the editor is first instantiated
+- Forward-delete (Delete key) block merge — `deleteBlockExtension` (`apps/web/src/lib/deleteBlockExtension.ts`) adds the behaviour BlockNote doesn't implement natively: pressing Delete at the end of a block either removes the next block if empty or merges its inline content into the current block; cursor restored to the merge junction via TipTap's `setTextSelection`; blocks with nested children or non-inline content (tables) are skipped to avoid silent data loss
+- SVG lockup adopted as the app logo; favicon updated to match
+- Bug fix: `isRestoring` sync flag now cleared only after the repair-sync diff is successfully applied, preventing a false "ready" state when the server payload fails to parse
+
+### Shared package
+
+- `GetUploadAuthResponseDto` / `GetUploadAuthResponseSchema` added to `@converge/shared/http/document`
+
+---
+
 ## Upcoming
 
-### v0.14 — Awareness
+### v0.15 — Awareness
 
 - Live cursors and selections via Yjs awareness protocol forwarded through the server
-
-### v0.15 — Media Support
-
-- Image and video upload, S3-backed storage wired into the BlockNote editor
 
 ### v0.16 — Document References
 
