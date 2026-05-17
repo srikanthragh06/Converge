@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { type GetUploadAuthResponseDto } from "@converge/shared";
 import apiClient from "../lib/http";
 
@@ -20,56 +21,65 @@ const useUploadFile = (workspaceId: number, documentId: string) => {
      * @param file - the file to upload
      * @returns the public CDN URL of the uploaded file
      */
-    const uploadFile = async (file: File): Promise<string> => {
-        // Fail fast if required env vars are missing — avoids a confusing ImageKit rejection downstream.
-        if (!IMAGEKIT_PUBLIC_KEY)
-            throw new Error("VITE_IMAGEKIT_PUBLIC_KEY is not configured.");
-        if (!IMAGEKIT_UPLOAD_URL)
-            throw new Error("VITE_IMAGEKIT_UPLOAD_URL is not configured.");
+    const uploadFile = useCallback(
+        async (file: File): Promise<string> => {
+            // Fail fast if required env vars are missing — avoids a confusing ImageKit rejection downstream.
+            if (!IMAGEKIT_PUBLIC_KEY)
+                throw new Error("VITE_IMAGEKIT_PUBLIC_KEY is not configured.");
+            if (!IMAGEKIT_UPLOAD_URL)
+                throw new Error("VITE_IMAGEKIT_UPLOAD_URL is not configured.");
 
-        // Enforce size caps before any network request — fails fast with a clear message.
-        // Each check is independent so image/video limits don't fall through to the generic cap.
-        if (file.type.startsWith("image/") && file.size > 25 * 1024 * 1024)
-            throw new Error("Images must be under 25MB.");
-        if (file.type.startsWith("video/") && file.size > 100 * 1024 * 1024)
-            throw new Error("Videos must be under 100MB.");
-        if (
-            !file.type.startsWith("image/") &&
-            !file.type.startsWith("video/") &&
-            file.size > 5 * 1024 * 1024
-        )
-            throw new Error("Files must be under 5MB.");
+            // Enforce size caps before any network request — fails fast with a clear message.
+            // Each check is independent so image/video limits don't fall through to the generic cap.
+            if (file.type.startsWith("image/") && file.size > 25 * 1024 * 1024)
+                throw new Error("Images must be under 25MB.");
+            if (file.type.startsWith("video/") && file.size > 100 * 1024 * 1024)
+                throw new Error("Videos must be under 100MB.");
+            if (
+                !file.type.startsWith("image/") &&
+                !file.type.startsWith("video/") &&
+                file.size > 5 * 1024 * 1024
+            )
+                throw new Error("Files must be under 5MB.");
 
-        // Fetch a one-time signed token from our server — the private key never leaves the server.
-        const { data: auth } = await apiClient.get<GetUploadAuthResponseDto>(
-            "/document/upload-auth",
-        );
+            // Fetch a one-time signed token from our server — the private key never leaves the server.
+            const { data: auth } =
+                await apiClient.get<GetUploadAuthResponseDto>(
+                    "/document/upload-auth",
+                );
 
-        // Build the multipart payload for ImageKit's upload API.
-        const body = new FormData();
-        body.append("file", file);
-        body.append("fileName", crypto.randomUUID());
-        body.append("publicKey", IMAGEKIT_PUBLIC_KEY);
-        body.append("token", auth.token);
-        body.append("expire", String(auth.expire));
-        body.append("signature", auth.signature);
-        body.append("folder", `/converge/${workspaceId}/${documentId}`);
+            // Build the multipart payload for ImageKit's upload API.
+            const body = new FormData();
+            body.append("file", file);
+            body.append("fileName", crypto.randomUUID());
+            body.append("publicKey", IMAGEKIT_PUBLIC_KEY);
+            body.append("token", auth.token);
+            body.append("expire", String(auth.expire));
+            body.append("signature", auth.signature);
+            body.append("folder", `/converge/workspaces/${workspaceId}/documents/${documentId}`);
 
-        // Pre-transform images at ingestion to cap resolution and quality before storage.
-        if (file.type.startsWith("image/"))
-            body.append(
-                "transformation",
-                JSON.stringify({ pre: "w-2000,q-80" }),
-            );
+            // Pre-transform images at ingestion to cap resolution and quality before storage.
+            if (file.type.startsWith("image/"))
+                body.append(
+                    "transformation",
+                    JSON.stringify({ pre: "w-2000,q-80" }),
+                );
 
-        const res = await fetch(IMAGEKIT_UPLOAD_URL, { method: "POST", body });
+            const res = await fetch(IMAGEKIT_UPLOAD_URL, {
+                method: "POST",
+                body,
+            });
 
-        if (!res.ok)
-            throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
+            if (!res.ok)
+                throw new Error(
+                    `Upload failed: ${res.status} ${res.statusText}`,
+                );
 
-        const json = await res.json();
-        return json.url as string;
-    };
+            const json = await res.json();
+            return json.url as string;
+        },
+        [workspaceId, documentId],
+    );
 
     return uploadFile;
 };

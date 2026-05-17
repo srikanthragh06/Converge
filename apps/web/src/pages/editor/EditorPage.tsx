@@ -83,11 +83,13 @@ const EditorPage = () => {
                                 ${isTitlePending ? "opacity-50" : "opacity-100"}`}
                         />
                     </div>
-                    <BlockNoteView
-                        editor={editor}
-                        theme={convergeTheme}
-                        editable={isEditable}
-                    />
+                    {editor && (
+                        <BlockNoteView
+                            editor={editor}
+                            theme={convergeTheme}
+                            editable={isEditable}
+                        />
+                    )}
                 </div>
             )}
             {isSwitcherOpen && (
