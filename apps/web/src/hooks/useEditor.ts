@@ -8,6 +8,7 @@ import useDocumentFetch from "./useDocumentFetch";
 import useUndoManagerGuard from "./useUndoManagerGuard";
 import useEditorFocus from "./useEditorFocus";
 import useUploadFile from "./useUploadFile";
+import deleteBlockExtension from "../lib/deleteBlockExtension";
 
 /**
  * Composes the sub-hooks for document fetching, Yjs sync, and title sync into
@@ -65,6 +66,10 @@ const useEditor = () => {
             // Uploads a file and returns its public CDN URL; enables the Upload tab
             // on image/video/audio blocks and handles image pastes.
             uploadFile,
+
+            // Registers the forward-delete (Delete key) merge behaviour that
+            // BlockNote does not implement natively (Backspace merge works; Delete does not).
+            extensions: [deleteBlockExtension],
         });
     }, [yDoc, docWorkspace, documentId, uploadFile]);
 
