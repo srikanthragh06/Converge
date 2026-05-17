@@ -10,14 +10,13 @@ import { socketEmit } from "../lib/socket-emit.util";
 
 /**
  * Manages the Socket.io connection lifecycle and ping-pong latency checks.
- * Connects when canConnect is true, disconnects when false. Registers
- * connect/disconnect/error listeners and periodically emits pings to
- * measure round-trip latency while connected.
+ * Connects when canConnect is true, disconnects when false. Sets
+ * isSocketConnected only when the server emits DOC_READY, guaranteeing that
+ * handleConnection has fully completed before any sync operations begin.
  *
  * @param canConnect - When false the socket is disconnected; defaults to true.
  * @param documentId - Stamped onto the socket query so the gateway can identify the document.
  */
-// Flow: connect → start ping interval → stop pings on disconnect.
 const useSocket = (canConnect: boolean = true, documentId?: string) => {
     const [isSocketConnected, setIsSocketConnected] = useAtom(
         isSocketConnectedAtom,
@@ -25,8 +24,7 @@ const useSocket = (canConnect: boolean = true, documentId?: string) => {
 
     // Registers event listeners then connects or disconnects based on canConnect. Re-runs when documentId changes to reconnect to the new document's room.
     useEffect(() => {
-        // Connection errors are async events, not thrown exceptions.
-        socket.on(SOCKET_EVENTS.CONNECT, () => {
+        socket.on(SOCKET_EVENTS.DOC_READY, () => {
             setIsSocketConnected(true);
         });
 
@@ -48,7 +46,7 @@ const useSocket = (canConnect: boolean = true, documentId?: string) => {
         } else socket.disconnect();
 
         return () => {
-            socket.off(SOCKET_EVENTS.CONNECT);
+            socket.off(SOCKET_EVENTS.DOC_READY);
             socket.off(SOCKET_EVENTS.CONNECT_ERROR);
             socket.off(SOCKET_EVENTS.DISCONNECT);
             setIsSocketConnected(false);

@@ -70,8 +70,8 @@ export class DocumentGateway implements OnGatewayConnection {
   /**
    * Verifies the auth cookie and documentId, resolves the user's access level,
    * stamps documentId, userId, and access on the socket, joins the document room,
-   * loads the Y.Doc into memory, and sets up the Redis subscription for
-   * cross-server updates on the first connection to this document.
+   * loads the Y.Doc into memory, sets up the Redis subscription for cross-server
+   * updates, and emits DOC_READY when all async setup is complete.
    * Rejects invalid connections using disconnect(true) to force-close the underlying
    * transport — plain disconnect() only removes the socket from namespaces but leaves
    * the WebSocket open, so the client never receives the disconnect event.
@@ -199,6 +199,9 @@ export class DocumentGateway implements OnGatewayConnection {
         // Mark this document as subscribed so subsequent connections reuse the existing handlers.
         this.subscribedDocs.add(documentId);
       }
+
+      // Signals to the client that it can start all server doc operations.
+      client.emit(SOCKET_EVENTS.DOC_READY);
     } catch (err) {
       console.error(err);
       client.disconnect();
