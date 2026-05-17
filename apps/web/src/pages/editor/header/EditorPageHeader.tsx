@@ -32,7 +32,7 @@ const EditorPageHeader = ({
         syncStatus === "offline"
             ? "Offline"
             : syncStatus === "restoring"
-              ? "Restoring"
+              ? "Loading"
               : syncStatus === "typing"
                 ? "Typing"
                 : syncStatus === "syncing"
