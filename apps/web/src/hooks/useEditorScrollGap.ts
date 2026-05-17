@@ -10,7 +10,7 @@ import { useEffect, useRef } from "react";
  * it does not preserve trailing whitespace below the active block.
  */
 const useEditorScrollGap = (
-    editor: BlockNoteEditor | undefined,
+    editor: BlockNoteEditor | undefined | null,
     gap = 128,
 ) => {
     const scrollRef = useRef<HTMLDivElement>(null); // ref to the scrollable container wrapping BlockNoteView
