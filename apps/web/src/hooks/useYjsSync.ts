@@ -1,6 +1,6 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { isSocketConnectedAtom, syncStatusAtom } from "../atoms/socket";
+import { isSocketReadyAtom, syncStatusAtom } from "../atoms/socket";
 import { socketReceive } from "../lib/socket-receive.util";
 import {
     mapsAreEqual,
@@ -25,7 +25,7 @@ import { socket } from "../lib/socket";
  * Returns the Y.Doc for use by the BlockNote editor.
  */
 const useYjsSync = (documentId: string | undefined) => {
-    const isSocketConnected = useAtomValue(isSocketConnectedAtom); // read-only view of the global socket connection state
+    const isSocketReady = useAtomValue(isSocketReadyAtom); // read-only view of the global socket connection state
     const setSyncStatus = useSetAtom(syncStatusAtom); // writes the derived sync status to the global atom
 
     const [isRestoring, setIsRestoring] = useState(false); // true while the initial repair sync after connect is in progress
@@ -41,17 +41,17 @@ const useYjsSync = (documentId: string | undefined) => {
     // Derives and publishes syncStatus to the atom whenever any flag changes.
     // Priority: offline > restoring > typing > syncing.
     useEffect(() => {
-        if (!isSocketConnected) setSyncStatus("offline");
+        if (!isSocketReady) setSyncStatus("offline");
         else if (isRestoring) setSyncStatus("restoring");
         else if (isTyping) setSyncStatus("typing");
         else if (isSyncing) setSyncStatus("syncing");
         else setSyncStatus(null);
-    }, [isSocketConnected, isRestoring, isTyping, isSyncing]);
+    }, [isSocketReady, isRestoring, isTyping, isSyncing]);
 
     // Listens for local Yjs updates and debounces them before emitting to the server.
     // Runs whenever the socket connection state changes.
     useEffect(() => {
-        if (!isSocketConnected) return;
+        if (!isSocketReady) return;
 
         /**
          * Called on every local Yjs update. Skips remote-origin updates to avoid
@@ -115,13 +115,13 @@ const useYjsSync = (documentId: string | undefined) => {
             setIsTyping(false);
             setIsSyncing(false);
         };
-    }, [yDoc, isSocketConnected]);
+    }, [yDoc, isSocketReady]);
 
     // Listens for server-pushed sync-doc events and applies remote Yjs updates.
     // Triggers a repair sync if the state vectors diverge after applying the update.
     // Runs whenever the socket connection state changes.
     useEffect(() => {
-        if (!isSocketConnected) return;
+        if (!isSocketReady) return;
 
         /**
          * Applies a server-pushed Yjs update to the local doc. If the resulting
@@ -166,13 +166,13 @@ const useYjsSync = (documentId: string | undefined) => {
         return () => {
             socket.off(SOCKET_EVENTS.SYNC_DOC_CLIENT, handleSyncDocClient);
         };
-    }, [yDoc, isSocketConnected]);
+    }, [yDoc, isSocketReady]);
 
     // Manages the repair sync protocol: initiates a repair on connect and on a
     // 5-second heartbeat, and handles incoming repair-sync/ack events from the server.
     // Runs whenever the socket connection state changes.
     useEffect(() => {
-        if (!isSocketConnected) return;
+        if (!isSocketReady) return;
 
         /**
          * Sends the client's current state vector to the server to kick off a
@@ -259,7 +259,7 @@ const useYjsSync = (documentId: string | undefined) => {
         socket.on(SOCKET_EVENTS.REPAIR_ACK_DOC_CLIENT, handleRepairAckDoc);
 
         // Initiate repair on connect to pull any server state the client missed.
-        // The interval runs every 15 s — frequent enough to catch divergence quickly,
+        // The interval runs every 15 seconds — frequent enough to catch divergence quickly,
         // infrequent enough to avoid unnecessary server load.
         setIsRestoring(true);
         initiateRepairSync();
@@ -278,7 +278,7 @@ const useYjsSync = (documentId: string | undefined) => {
             clearInterval(heartbeatIntervalId);
             setIsRestoring(false);
         };
-    }, [yDoc, isSocketConnected]);
+    }, [yDoc, isSocketReady]);
 
     return { yDoc };
 };

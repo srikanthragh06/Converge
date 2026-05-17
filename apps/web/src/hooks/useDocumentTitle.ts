@@ -1,6 +1,6 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
-import { isSocketConnectedAtom } from "../atoms/socket";
+import { isSocketReadyAtom } from "../atoms/socket";
 import { socketReceive } from "../lib/socket-receive.util";
 import {
     SOCKET_EVENTS,
@@ -18,7 +18,7 @@ import { refreshSidebarAtom } from "@/atoms/sidebar";
  * clients, tracks pending ack state, and keeps the browser tab title in sync.
  */
 const useDocumentTitle = () => {
-    const isSocketConnected = useAtomValue(isSocketConnectedAtom); // read-only view of the global socket connection state
+    const isSocketReady = useAtomValue(isSocketReadyAtom); // true only after DOC_READY is received — guards title emits and listener registration
 
     const [title, setTitle] = useState<string>(""); // the document title, seeded from the initial fetch and kept in sync via socket
     const [isTitlePending, setIsTitlePending] = useState<boolean>(false); // true while a title change has been emitted but not yet acked by the server
@@ -39,7 +39,7 @@ const useDocumentTitle = () => {
         // Mark the title as pending immediately so the UI dims before the debounce fires.
         setIsTitlePending(true);
 
-        if (!isSocketConnected) return;
+        if (!isSocketReady) return;
 
         // Reset the debounce timer on every keystroke.
         if (titleTimeoutIdRef.current) clearTimeout(titleTimeoutIdRef.current);
@@ -61,7 +61,7 @@ const useDocumentTitle = () => {
     // Listens for title updates broadcast by the server from other clients and
     // updates local title state. Runs whenever the socket connection state changes.
     useEffect(() => {
-        if (!isSocketConnected) return;
+        if (!isSocketReady) return;
 
         /**
          * Applies a title update broadcast by the server from another client.
@@ -101,7 +101,7 @@ const useDocumentTitle = () => {
             );
             socket.off(SOCKET_EVENTS.SYNC_DOC_TITLE_ACK, handleSyncDocTitleAck);
         };
-    }, [isSocketConnected]);
+    }, [isSocketReady]);
 
     // Cleans up any pending title debounce timer on unmount.
     useEffect(() => {

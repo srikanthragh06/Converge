@@ -1,6 +1,6 @@
 import { atom } from "jotai";
 
-export const isSocketConnectedAtom = atom<boolean>(false); // tracks whether the Socket.io connection to the server is currently active
+export const isSocketReadyAtom = atom<boolean>(false); // true only after the server emits DOC_READY, confirming handleConnection has fully completed
 
 export const syncStatusAtom = atom<
     "offline" | "restoring" | "typing" | "syncing" | null
