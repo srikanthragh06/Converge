@@ -1,6 +1,6 @@
 # Production Docker Compose for Converge.
 # Runs 3 NestJS server instances on ports 5001-5003.
-# Postgres and Redis are external (Neon + Upstash) — not defined here.
+# Postgres and Redis are external (Supabase + Upstash) — not defined here.
 #
 # Usage:
 #   docker compose -f docker-compose.prod.yml up -d
