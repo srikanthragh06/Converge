@@ -2,6 +2,7 @@ export { mapsAreEqual } from "./utils/utils";
 export { GoogleAuthRequestSchema, AuthResponseSchema } from "./http/auth";
 export type { GoogleAuthRequestDto, AuthResponseDto } from "./http/auth";
 export {
+    GetUploadAuthResponseSchema,
     CreateDocumentRequestSchema,
     CreateDocumentResponseSchema,
     GetDocumentResponseSchema,
@@ -24,6 +25,7 @@ export {
     SetDocumentUserAccessResponseSchema,
 } from "./http/document";
 export type {
+    GetUploadAuthResponseDto,
     CreateDocumentRequestDto,
     CreateDocumentResponseDto,
     GetDocumentResponseDto,

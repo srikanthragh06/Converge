@@ -12,6 +12,7 @@ import {
   LibraryDocumentDto,
   GetLibraryDocumentsResponseDto,
   SearchLibraryDocumentsResponseDto,
+  type GetUploadAuthResponseDto,
   hasWorkspaceRole,
   type ResolvedDocumentAccessLevel,
   type WorkspaceRole,
@@ -418,7 +419,7 @@ export class DocumentService {
    * request without the private key ever leaving the server.
    * @returns token, expire (Unix seconds), and HMAC-SHA1 signature
    */
-  getImageKitUploadAuth(): { token: string; expire: number; signature: string } {
+  getImageKitUploadAuth(): GetUploadAuthResponseDto {
     const privateKey = this.configService.get<string>('IMAGEKIT_PRIVATE_KEY');
     if (!privateKey)
       throw new InternalServerErrorException('ImageKit private key is not configured.');
