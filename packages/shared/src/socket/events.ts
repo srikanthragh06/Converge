@@ -26,6 +26,9 @@ export const SOCKET_EVENTS = {
     REPAIR_ACK_DOC_SERVER: "repair-ack-doc-server",
     REPAIR_ACK_DOC_CLIENT: "repair-ack-doc-client",
 
+    // ── Doc Ready ─────────────────────────────────────────────────────────────
+    DOC_READY: "doc-ready",
+
     // ── Sync title ──────────────────────────────────────────────────────────────
     SYNC_DOC_TITLE_SERVER: "sync-doc-title-server",
     SYNC_DOC_TITLE_CLIENT: "sync-doc-title-client",
