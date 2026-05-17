@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { DocumentModule } from './document/document.module';
 import { DatabaseModule } from './db/database.module';
 import { RedisModule } from './redis/redis.module';
@@ -18,6 +19,9 @@ import { WorkspaceModule } from './workspace/workspace.module';
       envFilePath: [`.env.${process.env.NODE_ENV ?? 'dev'}`, '.env'],
       isGlobal: true,
     }),
+    // Registered in the root module so ThrottlerModule is available to all guards
+    // without re-importing. No global defaults — each endpoint defines its own limits.
+    ThrottlerModule.forRoot(),
     DocumentModule,
     // DatabaseModule wires up the Kysely/pg connection pool and exports
     // DatabaseService so any feature module can inject it without re-importing.
