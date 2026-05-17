@@ -1,41 +1,39 @@
 import { useEffect } from "react";
 import { socket } from "../lib/socket";
 import { SOCKET_EVENTS } from "@converge/shared";
-import { PING_INTERVAL_MS } from "../constants/constants";
-import { useAtom } from "jotai";
-import { isSocketConnectedAtom } from "../atoms/socket";
-import { PingSchema, PongSchema } from "@converge/shared";
-import { socketReceive } from "../lib/socket-receive.util";
-import { socketEmit } from "../lib/socket-emit.util";
+import { useSetAtom } from "jotai";
+import { isSocketReadyAtom } from "../atoms/socket";
 
 /**
- * Manages the Socket.io connection lifecycle and ping-pong latency checks.
+ * Manages the Socket.io connection lifecycle.
  * Connects when canConnect is true, disconnects when false. Sets
- * isSocketConnected only when the server emits DOC_READY, guaranteeing that
+ * isSocketReady only when the server emits DOC_READY, guaranteeing that
  * handleConnection has fully completed before any sync operations begin.
  *
  * @param canConnect - When false the socket is disconnected; defaults to true.
  * @param documentId - Stamped onto the socket query so the gateway can identify the document.
  */
 const useSocket = (canConnect: boolean = true, documentId?: string) => {
-    const [isSocketConnected, setIsSocketConnected] = useAtom(
-        isSocketConnectedAtom,
-    ); // mirrors the global atom — true while the socket is open
+    const setIsSocketReady = useSetAtom(isSocketReadyAtom); // true only after DOC_READY is received, not merely when the transport connects
 
     // Registers event listeners then connects or disconnects based on canConnect. Re-runs when documentId changes to reconnect to the new document's room.
     useEffect(() => {
-        socket.on(SOCKET_EVENTS.DOC_READY, () => {
-            setIsSocketConnected(true);
-        });
-
         socket.on(SOCKET_EVENTS.DISCONNECT, (reason) => {
             console.log(`Socket disconnected because \n${reason}`);
-            setIsSocketConnected(false);
+            setIsSocketReady(false);
         });
 
         socket.on(SOCKET_EVENTS.CONNECT_ERROR, (err) => {
             console.error("Socket connection error:", err);
-            setIsSocketConnected(false);
+            setIsSocketReady(false);
+        });
+
+        socket.on(SOCKET_EVENTS.DOC_READY, () => {
+            setIsSocketReady(true);
+        });
+
+        socket.on("error", (error: string) => {
+            console.error(error);
         });
 
         if (canConnect) {
@@ -46,63 +44,13 @@ const useSocket = (canConnect: boolean = true, documentId?: string) => {
         } else socket.disconnect();
 
         return () => {
-            socket.off(SOCKET_EVENTS.DOC_READY);
             socket.off(SOCKET_EVENTS.CONNECT_ERROR);
             socket.off(SOCKET_EVENTS.DISCONNECT);
-            setIsSocketConnected(false);
+            socket.off(SOCKET_EVENTS.DOC_READY);
+            socket.off("error");
+            setIsSocketReady(false);
         };
     }, [canConnect, documentId]);
-
-    // Starts pings on connect, stops on disconnect.
-    useEffect(() => {
-        if (!isSocketConnected) return;
-
-        // Maps pingId → timestamp so latency can be calculated when pong arrives.
-        const pingMap = new Map<string, number>();
-
-        /**
-         * Emits a ping event with a unique ID and records the send timestamp
-         * so that round-trip latency can be measured when the pong arrives.
-         */
-        const sendPing = () => {
-            const newPingId = crypto.randomUUID();
-            pingMap.set(newPingId, Date.now());
-            socketEmit(socket, SOCKET_EVENTS.PING, PingSchema, {
-                pingId: newPingId,
-            });
-        };
-
-        socket.on(SOCKET_EVENTS.PONG, (data) => {
-            const res = socketReceive(PongSchema, data);
-            if (!res) return;
-            const { pingId } = res;
-            const pingTime = pingMap.get(pingId);
-            if (pingTime) {
-                pingMap.delete(pingId);
-            }
-        });
-
-        // Send immediately rather than waiting for the first interval tick.
-        const interval = setInterval(sendPing, PING_INTERVAL_MS);
-        sendPing();
-
-        return () => {
-            clearInterval(interval);
-            socket.off(SOCKET_EVENTS.PONG);
-        };
-    }, [isSocketConnected]);
-
-    useEffect(() => {
-        if (!isSocketConnected) return;
-
-        socket.on("error", (error: string) => {
-            console.error(error);
-        });
-
-        return () => {
-            socket.off("error");
-        };
-    }, [isSocketConnected]);
 };
 
 export default useSocket;
