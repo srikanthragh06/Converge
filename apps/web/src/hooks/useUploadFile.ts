@@ -4,6 +4,7 @@ import apiClient from "../lib/http";
 
 const IMAGEKIT_PUBLIC_KEY = import.meta.env.VITE_IMAGEKIT_PUBLIC_KEY as string;
 const IMAGEKIT_UPLOAD_URL = import.meta.env.VITE_IMAGEKIT_UPLOAD_URL as string;
+const ENV = import.meta.env.MODE; // "development" in dev, "production" in prod — baked in by Vite at build time
 
 /**
  * Returns an async uploadFile function suitable for BlockNote's uploadFile config.
@@ -58,7 +59,7 @@ const useUploadFile = (workspaceId: number, documentId: string) => {
             body.append("token", auth.token);
             body.append("expire", String(auth.expire));
             body.append("signature", auth.signature);
-            body.append("folder", `/converge/workspaces/${workspaceId}/documents/${documentId}`);
+            body.append("folder", `/converge/${ENV}/workspaces/${workspaceId}/documents/${documentId}`);
 
             // Pre-transform images at ingestion to cap resolution and quality before storage.
             if (file.type.startsWith("image/"))
