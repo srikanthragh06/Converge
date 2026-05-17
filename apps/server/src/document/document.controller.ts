@@ -10,7 +10,6 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from '../auth/auth.guard';
 import { UserThrottlerGuard } from '../guards/user-throttler.guard';
 import { type Request } from 'express';
@@ -176,7 +175,6 @@ export class DocumentController {
    * @returns token, expire, and HMAC-SHA1 signature for a client-side ImageKit upload
    */
   @UseGuards(UserThrottlerGuard)
-  @Throttle({ default: { ttl: 60000, limit: 10 } })
   @Get('/upload-auth')
   handleGetUploadAuth(): { token: string; expire: number; signature: string } {
     return httpOK(this.documentService.getImageKitUploadAuth());

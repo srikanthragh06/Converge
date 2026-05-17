@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@converge/shared": "workspace:*",
+    "@nest-lab/throttler-storage-redis": "^1.2.0",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.3",
