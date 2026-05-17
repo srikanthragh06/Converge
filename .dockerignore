@@ -1,0 +1,17 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Secret environment file — never bake secrets into the image.
+**/.env
+# Re-include environment-specific config files — these are not secrets.
+!**/.env.dev
+!**/.env.prod
+
+# Build artifacts
+**/dist
+
+# Git and editor files
+.git
+.gitignore
+.dockerignore

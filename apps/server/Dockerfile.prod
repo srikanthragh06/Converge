@@ -1,0 +1,77 @@
+# =============================================================================
+# Production Dockerfile for the Converge NestJS server.
+# Build context is the monorepo root:
+#   docker build -f apps/server/Dockerfile.prod .
+#
+# Two-stage build:
+#   builder — installs all deps and compiles TypeScript to dist/
+#   runner  — installs prod deps only and copies compiled output from builder
+#
+# This keeps the final image small by excluding TypeScript, the NestJS CLI,
+# and all other dev dependencies.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# Stage 1: builder
+# Compiles @converge/shared and the NestJS app.
+# -----------------------------------------------------------------------------
+FROM node:20-alpine AS builder
+
+# corepack manages the pnpm version declared in the root package.json.
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
+
+WORKDIR /app
+
+# Copy workspace manifests before source so this layer is cached and only
+# re-runs when lockfile or package.json files change — not on every source edit.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/shared/package.json ./packages/shared/
+COPY apps/server/package.json ./apps/server/
+
+# Install all dependencies (including dev) needed to compile TypeScript.
+RUN pnpm install --frozen-lockfile
+
+# Copy source after installing deps so source changes don't bust the install cache.
+COPY packages/shared/ ./packages/shared/
+COPY apps/server/ ./apps/server/
+
+# Build shared first — the server imports from it, so it must exist before nest build runs.
+RUN pnpm --filter @converge/shared build
+
+# Compile the NestJS app. Output lands in apps/server/dist/.
+RUN pnpm --filter server build
+
+
+# -----------------------------------------------------------------------------
+# Stage 2: runner
+# Lean production image — no TypeScript compiler, no dev dependencies.
+# -----------------------------------------------------------------------------
+FROM node:20-alpine AS runner
+
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
+
+WORKDIR /app
+
+# Copy workspace manifests for production dependency install.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/shared/package.json ./packages/shared/
+COPY apps/server/package.json ./apps/server/
+
+# Install production dependencies only — strips all dev deps from the image.
+RUN pnpm install --frozen-lockfile --prod
+
+# Copy compiled output from the builder stage.
+# Only dist/ is needed at runtime — source files are not copied.
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+COPY --from=builder /app/apps/server/dist ./apps/server/dist
+
+# Copy .env.prod — non-secret prod config baked into the image.
+COPY apps/server/.env.prod ./apps/server/.env.prod
+
+# Set working directory to the server package so dotenv resolves .env files
+# relative to the server directory, matching dev behaviour.
+WORKDIR /app/apps/server
+
+# Start the compiled server. NODE_ENV=prod tells loadEnv() to load .env.prod.
+CMD ["node", "dist/main"]
