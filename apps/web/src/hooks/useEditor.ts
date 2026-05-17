@@ -51,6 +51,29 @@ const useEditor = () => {
 
                 return defaultPasteHandler();
             },
+
+            // Uploads a file and returns its public URL; enables the Upload tab
+            // on image/video/audio/file blocks and handles image pastes.
+            uploadFile: async (file: File) => {
+                const body = new FormData();
+                body.append("file", file);
+
+                const res = await fetch("https://tmpfiles.org/api/v1/upload", {
+                    method: "POST",
+                    body,
+                });
+
+                // Throw on non-2xx so BlockNote surfaces an error state in the block.
+                if (!res.ok)
+                    throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
+
+                const json = await res.json();
+                // tmpfiles.org serves files at /dl/<id> but the API returns /id — rewrite to the direct-download path.
+                return json.data.url.replace(
+                    "tmpfiles.org/",
+                    "tmpfiles.org/dl/",
+                );
+            },
         });
     }, [yDoc]);
 
