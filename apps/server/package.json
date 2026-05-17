@@ -22,6 +22,7 @@
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/platform-socket.io": "^11.1.17",
+    "@nestjs/throttler": "^6.5.0",
     "@nestjs/websockets": "^11.1.17",
     "axios": "^1.14.0",
     "cookie": "^1.1.1",

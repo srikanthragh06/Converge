@@ -10,7 +10,9 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from '../auth/auth.guard';
+import { UserThrottlerGuard } from '../guards/user-throttler.guard';
 import { type Request } from 'express';
 import { DocumentService } from './document.service';
 import { httpOK } from '../utils/http-response.util';
@@ -169,8 +171,12 @@ export class DocumentController {
 
   /**
    * Returns a one-time ImageKit upload auth token for the authenticated user.
+   * Rate-limited to 10 requests per minute per user — each token mints a valid
+   * ImageKit upload credential, so uncapped calls could fill storage with junk.
    * @returns token, expire, and HMAC-SHA1 signature for a client-side ImageKit upload
    */
+  @UseGuards(UserThrottlerGuard)
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   @Get('/upload-auth')
   handleGetUploadAuth(): { token: string; expire: number; signature: string } {
     return httpOK(this.documentService.getImageKitUploadAuth());
