@@ -26,14 +26,16 @@ const OverviewTab = ({
     const canDelete =
         documentAccess !== null && hasAccess(documentAccess, "admin"); // only admins and above may delete
 
+    if (isLoading)
+        return (
+            <p className="text-xs sm:text-sm text-text-secondary opacity-50">
+                Loading
+                <AnimatedDots />
+            </p>
+        );
+
     return (
         <>
-            {isLoading && (
-                <p className="text-xs sm:text-sm text-text-secondary opacity-50">
-                    Loading
-                    <AnimatedDots />
-                </p>
-            )}
             <div className="flex flex-col space-y-3 sm:space-y-4">
                 <div className="text-xs sm:text-sm">
                     <span className="opacity-50">Title: </span>
