@@ -1,0 +1,49 @@
+# Production Docker Compose for Converge.
+# Runs 3 NestJS server instances on ports 5001-5003.
+# Postgres and Redis are external (Neon + Upstash) — not defined here.
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml up -d
+#   docker compose -f docker-compose.prod.yml down
+#   docker compose -f docker-compose.prod.yml logs -f
+
+services:
+    # Three identical server instances running on different ports.
+    # nginx distributes requests across them using ip_hash (sticky sessions).
+    # Redis pub/sub keeps Yjs state in sync across all three instances.
+
+    server-1:
+        build:
+            context: .
+            dockerfile: apps/server/Dockerfile.prod
+        ports:
+            - "5001:5000" # host:container — nginx routes to host port 5001
+        env_file:
+            - apps/server/.env # secrets injected at runtime, never baked into image
+        environment:
+            NODE_ENV: prod # tells loadEnv() to load .env.prod
+        restart: unless-stopped
+
+    server-2:
+        build:
+            context: .
+            dockerfile: apps/server/Dockerfile.prod
+        ports:
+            - "5002:5000"
+        env_file:
+            - apps/server/.env
+        environment:
+            NODE_ENV: prod
+        restart: unless-stopped
+
+    server-3:
+        build:
+            context: .
+            dockerfile: apps/server/Dockerfile.prod
+        ports:
+            - "5003:5000"
+        env_file:
+            - apps/server/.env
+        environment:
+            NODE_ENV: prod
+        restart: unless-stopped
