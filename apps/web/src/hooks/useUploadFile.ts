@@ -29,18 +29,20 @@ const useUploadFile = (workspaceId: number, documentId: string) => {
             if (!IMAGEKIT_UPLOAD_URL)
                 throw new Error("VITE_IMAGEKIT_UPLOAD_URL is not configured.");
 
+            // Reject unsupported file types before any network request.
+            const isImage = file.type.startsWith("image/");
+            const isVideo = file.type.startsWith("video/");
+            const isAudio = file.type.startsWith("audio/");
+            if (!isImage && !isVideo && !isAudio)
+                throw new Error("Only images, videos, and audio files can be uploaded.");
+
             // Enforce size caps before any network request — fails fast with a clear message.
-            // Each check is independent so image/video limits don't fall through to the generic cap.
-            if (file.type.startsWith("image/") && file.size > 25 * 1024 * 1024)
+            if (isImage && file.size > 25 * 1024 * 1024)
                 throw new Error("Images must be under 25MB.");
-            if (file.type.startsWith("video/") && file.size > 100 * 1024 * 1024)
+            if (isVideo && file.size > 100 * 1024 * 1024)
                 throw new Error("Videos must be under 100MB.");
-            if (
-                !file.type.startsWith("image/") &&
-                !file.type.startsWith("video/") &&
-                file.size > 5 * 1024 * 1024
-            )
-                throw new Error("Files must be under 5MB.");
+            if (isAudio && file.size > 5 * 1024 * 1024)
+                throw new Error("Audio files must be under 5MB.");
 
             // Fetch a one-time signed token from our server — the private key never leaves the server.
             const { data: auth } =
