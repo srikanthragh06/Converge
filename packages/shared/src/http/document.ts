@@ -1,6 +1,15 @@
 import { z } from "zod";
 import { DocumentAccessLevelSchema, ResolvedDocumentAccessLevelSchema } from "../types/types";
 
+/** Response for GET /document/upload-auth — one-time ImageKit upload credentials generated server-side. */
+export const GetUploadAuthResponseSchema = z.object({
+    token: z.string(),
+    expire: z.number().int().positive(),
+    signature: z.string(),
+});
+
+export type GetUploadAuthResponseDto = z.infer<typeof GetUploadAuthResponseSchema>;
+
 /** Request body for POST /document — the workspace the document belongs to. */
 export const CreateDocumentRequestSchema = z.object({
     workspaceId: z.number(),

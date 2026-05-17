@@ -23,6 +23,7 @@ import {
   type GetDocumentOverviewResponseDto,
   type GetLibraryDocumentsResponseDto,
   type SearchLibraryDocumentsResponseDto,
+  type GetUploadAuthResponseDto,
   GetLibraryDocumentsRequestSchema,
   SearchLibraryDocumentsRequestSchema,
 } from '@converge/shared';
@@ -176,7 +177,7 @@ export class DocumentController {
    */
   @UseGuards(UserThrottlerGuard)
   @Get('/upload-auth')
-  handleGetUploadAuth(): { token: string; expire: number; signature: string } {
+  handleGetUploadAuth(): GetUploadAuthResponseDto {
     return httpOK(this.documentService.getImageKitUploadAuth());
   }
 }
