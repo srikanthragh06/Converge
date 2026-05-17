@@ -1,9 +1,11 @@
+import { createHmac, randomUUID } from 'crypto';
 import {
   ForbiddenException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   GetDocumentResponseDto,
   GetDocumentOverviewResponseDto,
@@ -24,6 +26,7 @@ export class DocumentService {
   constructor(
     private readonly dbService: DatabaseService,
     private readonly documentAccessService: DocumentAccessService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -407,5 +410,30 @@ export class DocumentService {
     }));
 
     return { documents };
+  }
+
+  /**
+   * Generates a one-time ImageKit upload auth payload for client-side uploads.
+   * The private key signs the token+expire pair so ImageKit can verify the
+   * request without the private key ever leaving the server.
+   * @returns token, expire (Unix seconds), and HMAC-SHA1 signature
+   */
+  getImageKitUploadAuth(): { token: string; expire: number; signature: string } {
+    const privateKey = this.configService.get<string>('IMAGEKIT_PRIVATE_KEY');
+    if (!privateKey)
+      throw new InternalServerErrorException('ImageKit private key is not configured.');
+
+    // A unique token per request prevents replay attacks — ImageKit rejects reused tokens.
+    const token = randomUUID();
+
+    // Expire 5 minutes from now; must be within 1 hour per ImageKit's requirement.
+    const expire = Math.floor(Date.now() / 1000) + 300;
+
+    // HMAC-SHA1 of token+expire proves this payload was issued by our server.
+    const signature = createHmac('sha1', privateKey)
+      .update(token + expire)
+      .digest('hex');
+
+    return { token, expire, signature };
   }
 }

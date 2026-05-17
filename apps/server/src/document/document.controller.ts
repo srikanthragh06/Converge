@@ -73,7 +73,7 @@ export class DocumentController {
 
   /**
    * Soft-deletes the document with the given ID. Throws 404 if it does not
-   * exist or is already deleted, and 403 if the user is not the owner.
+   * exist or is already deleted, and 403 if the user does not have admin access.
    * @param req - the Express request, with userId stamped by AuthGuard
    * @param documentId - the document ID parsed from the URL path
    */
@@ -165,5 +165,14 @@ export class DocumentController {
         cursor,
       ),
     );
+  }
+
+  /**
+   * Returns a one-time ImageKit upload auth token for the authenticated user.
+   * @returns token, expire, and HMAC-SHA1 signature for a client-side ImageKit upload
+   */
+  @Get('/upload-auth')
+  handleGetUploadAuth(): { token: string; expire: number; signature: string } {
+    return httpOK(this.documentService.getImageKitUploadAuth());
   }
 }
