@@ -28,6 +28,7 @@ This is a pnpm workspace monorepo.
 - Tailwind's preflight is disabled (`corePlugins.preflight: false`) to avoid conflicts with Mantine/BlockNote styles. Add manual resets in `index.css` when needed.
 - Global client-side state lives in Jotai atoms under `web/src/atoms/`, split by domain (e.g. `atoms/auth.ts`, `atoms/socket.ts`). Prefer atoms over prop-drilling for state shared across hooks and components.
 - Auth state is a single `authAtom` with shape `{ status: "loading" | "authenticated" | "unauthenticated", user: AuthResponseDto | null }`. Hydrate it on app mount via `useAuth`, which calls `GET /auth/me`.
+- Socket readiness is tracked via `isSocketReadyAtom` (`atoms/socket.ts`). It is set to `true` only when the server emits `DOC_READY` — not on raw socket connect. All hooks that emit events or register socket listeners must gate on this atom.
 - Route-level auth gating is done via the `authRequired` prop on the `Page` component (`src/components/Page.tsx`). Do not duplicate redirect logic in individual pages.
 - Numeric route params (e.g. `documentId`) use `ParseIntPipe` in NestJS controllers. Service methods that enforce access throw 404 if the resource does not exist and 403 if the requesting user lacks the required access level.
 - All functions, methods, and class attributes must have inline documentation following the standard in the `add-comments` skill.
