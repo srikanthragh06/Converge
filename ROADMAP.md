@@ -520,14 +520,14 @@
 
 ## Upcoming
 
-### v0.16 — Awareness
+### v1.01 — Awareness
 
 - Live cursors and selections via Yjs awareness protocol forwarded through the server
 
-### v0.17 — Document References
+### v1.02 — Document References
 
 - Inline `@document` mentions and backlinks
 
-### v0.18 — Offline Support
+### v1.03 — Offline Support
 
 - IndexedDB caching via `y-indexeddb`; offline-aware sync gate so stale state vectors are never sent to the server before the local snapshot is loaded
