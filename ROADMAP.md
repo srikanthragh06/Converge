@@ -484,7 +484,7 @@
 
 ---
 
-## v0.15 — Production Deployment ✅
+## v1 — Production Deployment ✅
 
 > Branch: `deployment-v1`
 
