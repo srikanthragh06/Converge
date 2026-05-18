@@ -484,16 +484,50 @@
 
 ---
 
+## v0.15 — Production Deployment ✅
+
+> Branch: `deployment-v1`
+
+### Infrastructure
+
+- `nginx/converge.conf` — host nginx site config for both `converge.1k5.in` (frontend) and `api.converge.1k5.in` (backend)
+  - `ip_hash` upstream across three NestJS instances (ports 5001–5003) for sticky-session load balancing — required so Socket.io WebSocket connections stay on one instance
+  - WebSocket upgrade headers (`Upgrade`, `Connection`), extended proxy timeouts (1 h), and enlarged proxy buffers for Yjs update payloads
+  - TLS via Certbot, HTTP/2 enabled, HTTP → HTTPS redirect
+- `docker-compose.prod.yml` — orchestrates three identical NestJS server instances on host ports 5001–5003; Postgres (Supabase) and Redis (Upstash) are external — not defined in compose
+- `apps/server/Dockerfile.prod` — multi-stage production image: installs only production deps, compiles TypeScript, runs as non-root user
+- `docker-compose.dev.yml` updated to inject `.env.dev` into all services
+- `.dockerignore` added
+
+### Server (NestJS backend)
+
+- `DOC_READY` socket event emitted at the end of `handleConnection` after the Y.Doc is loaded and the Redis subscription is set up — signals to the client that all async setup has completed
+- TLS connection fix for Supabase: `ssl: { rejectUnauthorized: false }` — Supabase's certificate chain is not in Node's default CA bundle; the connection remains encrypted, only the CA verification is skipped
+
+### Web (React frontend)
+
+- `isSocketConnectedAtom` renamed to `isSocketReadyAtom` — set to `true` only when the server emits `DOC_READY`, not on raw socket connect; prevents sync operations from running before `handleConnection` has fully completed
+- Ping/pong mechanism removed from `useSocket` — no longer needed now that socket readiness is gated on `DOC_READY`
+- All sync hooks (`useYjsSync`, `useDocumentTitle`) now gate operations and listener registration behind `isSocketReadyAtom`
+- `OverviewTab`: metadata render gated behind loading state to prevent rendering stale data on connect
+- `.env.development` and `.env.production` added for the web app
+
+### Shared package
+
+- `DOC_READY` added to `SOCKET_EVENTS`
+
+---
+
 ## Upcoming
 
-### v0.15 — Awareness
+### v0.16 — Awareness
 
 - Live cursors and selections via Yjs awareness protocol forwarded through the server
 
-### v0.16 — Document References
+### v0.17 — Document References
 
 - Inline `@document` mentions and backlinks
 
-### v0.17 — Offline Support
+### v0.18 — Offline Support
 
 - IndexedDB caching via `y-indexeddb`; offline-aware sync gate so stale state vectors are never sent to the server before the local snapshot is loaded
