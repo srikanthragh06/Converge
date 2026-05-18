@@ -1,3 +1,5 @@
+name: converge-blue
+
 # Blue slot of the blue-green deployment — host ports 5001–5003.
 # Managed by deploy/deploy.py. Do not start or stop manually.
 # Postgres and Redis are external (Supabase + Upstash) — not defined here.
