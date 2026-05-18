@@ -1,3 +1,5 @@
+name: converge-green
+
 # Green slot of the blue-green deployment — host ports 5004–5006.
 # Managed by deploy/deploy.py. Do not start or stop manually.
 # Postgres and Redis are external (Supabase + Upstash) — not defined here.
