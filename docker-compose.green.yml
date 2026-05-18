@@ -1,0 +1,73 @@
+# Green slot of the blue-green deployment — host ports 5004–5006.
+# Managed by deploy/deploy.py. Do not start or stop manually.
+# Postgres and Redis are external (Supabase + Upstash) — not defined here.
+#
+# Healthchecks are required so `docker compose up --wait` blocks until all
+# containers are serving traffic before nginx switches over to this slot.
+
+services:
+    server-1:
+        build:
+            context: .
+            dockerfile: apps/server/Dockerfile.prod
+        ports:
+            - "5004:5000" # host:container — nginx routes to host port 5004
+        env_file:
+            - apps/server/.env # secrets injected at runtime, never baked into image
+        environment:
+            NODE_ENV: prod # tells loadEnv() to load .env.prod
+        restart: unless-stopped
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'node -e "require(''http'').get(''http://localhost:5000/health'', r => process.exit(r.statusCode === 200 ? 0 : 1)).on(''error'', () => process.exit(1))"',
+                ]
+            interval: 5s
+            timeout: 5s
+            retries: 12 # 12 retries × 5s = 60s window after start_period
+            start_period: 30s # grace period for migrations to complete before retries begin
+
+    server-2:
+        build:
+            context: .
+            dockerfile: apps/server/Dockerfile.prod
+        ports:
+            - "5005:5000"
+        env_file:
+            - apps/server/.env
+        environment:
+            NODE_ENV: prod
+        restart: unless-stopped
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'node -e "require(''http'').get(''http://localhost:5000/health'', r => process.exit(r.statusCode === 200 ? 0 : 1)).on(''error'', () => process.exit(1))"',
+                ]
+            interval: 5s
+            timeout: 5s
+            retries: 12
+            start_period: 30s
+
+    server-3:
+        build:
+            context: .
+            dockerfile: apps/server/Dockerfile.prod
+        ports:
+            - "5006:5000"
+        env_file:
+            - apps/server/.env
+        environment:
+            NODE_ENV: prod
+        restart: unless-stopped
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'node -e "require(''http'').get(''http://localhost:5000/health'', r => process.exit(r.statusCode === 200 ? 0 : 1)).on(''error'', () => process.exit(1))"',
+                ]
+            interval: 5s
+            timeout: 5s
+            retries: 12
+            start_period: 30s

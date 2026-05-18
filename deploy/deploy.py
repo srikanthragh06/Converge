@@ -1,9 +1,10 @@
 """
-Deployment script for Converge.
+Deployment script for Converge — blue-green deployment.
 
-SSHes into the production server to pull the latest code and rebuild the
-backend Docker containers (migrations run automatically on startup), then
-builds the frontend locally and rsyncs the dist to the server.
+On each run, determines which slot (blue: ports 5001–5003, green: ports
+5004–5006) is currently live, builds and starts the inactive slot, waits
+until all its containers are healthy, switches nginx over, then tears down
+the old slot. The app stays up throughout with no downtime.
 
 Usage:
     python deploy/deploy.py
@@ -12,6 +13,7 @@ Requirements:
     - SSH key auth configured for SERVER (no password prompt)
     - rsync installed locally
     - pnpm available locally
+    - deploy/.env populated (see deploy/.env.example)
 """
 
 import os
@@ -31,6 +33,14 @@ GITHUB_PAT = os.environ["DEPLOY_GITHUB_PAT"]
 GITHUB_REPO = os.environ["DEPLOY_GITHUB_REPO"]
 
 PROJECT_ROOT = Path(__file__).parent.parent
+
+# Tracks which slot is currently live across deploys.
+SLOT_FILE = f"{REMOTE_PROJECT}/.active-slot"
+# Nginx include file containing the single active proxy_pass directive.
+# Written by this script on every deploy to switch the active upstream.
+NGINX_SLOT_CONF = "/etc/nginx/converge_slot.conf"
+# Nginx site config — synced from the repo on every deploy.
+NGINX_SITE_CONF = "/etc/nginx/sites-available/converge.conf"
 
 
 def step(msg: str) -> None:
@@ -79,13 +89,52 @@ def ssh(cmd: str, display: str | None = None) -> None:
     run(full_cmd, display=full_display)
 
 
-def main() -> None:
-    """Run the full deploy sequence.
+def ssh_read(cmd: str) -> str:
+    """Run a command on the server and return its stdout without aborting on failure.
 
-    Order: update server code → rebuild backend containers (migrations run on
-    container startup) → build frontend locally → rsync dist to server.
-    Any step failure aborts the deploy immediately.
+    Used for reading state from the server (e.g. the active slot file) where
+    a missing file or non-zero exit is expected and handled by the caller.
+
+    @param cmd - Shell command to execute on the remote server.
+    @returns The stdout of the command, stripped of leading/trailing whitespace.
     """
+    result = subprocess.run(
+        f'ssh -i "{PRIVATE_KEY_PATH}" {SERVER} "{cmd}"',
+        shell=True, capture_output=True, text=True,
+    )
+    return result.stdout.strip()
+
+
+def get_active_slot() -> str:
+    """Read the currently live slot from the server, defaulting to blue on first deploy.
+
+    @returns Either "blue" or "green".
+    """
+    # If the slot file doesn't exist yet (first deploy), default to blue so
+    # the first deploy targets green.
+    slot = ssh_read(f"cat {SLOT_FILE} 2>/dev/null || echo blue")
+    return slot if slot in ("blue", "green") else "blue"
+
+
+def inactive_slot(active: str) -> str:
+    """Return the slot that is not currently live.
+
+    @param active - The currently live slot ("blue" or "green").
+    @returns The inactive slot.
+    """
+    return "green" if active == "blue" else "blue"
+
+
+def main() -> None:
+    """Run the full blue-green deploy sequence.
+
+    Order: update server code → ensure nginx slot file exists → sync nginx
+    config → start inactive slot and wait for healthy → switch nginx →
+    stop old slot → build frontend → rsync dist.
+    Any step failure aborts immediately, leaving the active slot untouched.
+    """
+    ssh_transport = f"ssh -i '{PRIVATE_KEY_PATH}'"
+
     # Update the server's working copy to the latest main.
     step("Checking out main branch on server...")
     ssh(f"cd {REMOTE_PROJECT} && git checkout main")
@@ -101,13 +150,42 @@ def main() -> None:
     step("Merging into main...")
     ssh(f"cd {REMOTE_PROJECT} && git merge")
 
-    # Rebuild images from the updated source and start containers detached.
-    # Migrations run automatically inside each container on startup — if they
-    # fail the container exits and docker compose returns a non-zero code.
-    step("Rebuilding and restarting backend (migrations run on startup)...")
-    ssh(f"cd {REMOTE_PROJECT} && docker compose -f docker-compose.prod.yml up --build -d")
+    # Determine which slot to deploy to.
+    active = get_active_slot()
+    inactive = inactive_slot(active)
+    step(f"Active slot: {active} → deploying to: {inactive}")
 
-    step("Backend containers started.")
+    # Create the slot file if it doesn't exist yet so nginx can always load
+    # the config without failing on a missing include file.
+    step("Ensuring nginx slot file exists...")
+    ssh(f"test -f {NGINX_SLOT_CONF} || echo 'proxy_pass http://converge_blue;' > {NGINX_SLOT_CONF}")
+
+    # Sync the nginx config from the repo so it stays in version control.
+    # Done before reloading nginx so the config and slot file are always in sync.
+    step("Syncing nginx config...")
+    run(f"rsync -avz -e '{ssh_transport}' {PROJECT_ROOT}/nginx/converge.conf {SERVER}:{NGINX_SITE_CONF}")
+
+    # Build the inactive slot and block until all containers pass their
+    # healthchecks. Migrations run on startup inside each container — if they
+    # fail the container exits unhealthy and --wait returns non-zero, aborting
+    # the deploy before nginx ever switches over.
+    step(f"Building and starting {inactive} slot (waiting for healthy)...")
+    ssh(f"cd {REMOTE_PROJECT} && docker compose -f docker-compose.{inactive}.yml up --build --wait")
+
+    # Write the proxy_pass directive for the inactive slot, then reload nginx.
+    # The reload is graceful — in-flight requests on the old upstream finish
+    # before workers pick up the new config.
+    step(f"Switching nginx to {inactive} slot...")
+    ssh(f"echo 'proxy_pass http://converge_{inactive};' > {NGINX_SLOT_CONF} && nginx -s reload")
+
+    # Old slot is no longer receiving traffic — safe to stop.
+    step(f"Stopping {active} slot...")
+    ssh(f"cd {REMOTE_PROJECT} && docker compose -f docker-compose.{active}.yml down")
+
+    # Persist the new active slot so the next deploy knows what to replace.
+    ssh(f"echo {inactive} > {SLOT_FILE}")
+
+    step(f"Backend live on {inactive} slot.")
 
     # Build the Vite production bundle locally to avoid taxing the prod server.
     step("Building frontend...")
@@ -115,10 +193,7 @@ def main() -> None:
 
     # --delete removes stale chunks from old builds so they don't accumulate.
     step("Syncing dist to server...")
-    ssh_transport = f"ssh -i '{PRIVATE_KEY_PATH}'"
-    run(
-        f"rsync -avz --delete -e '{ssh_transport}' {PROJECT_ROOT}/apps/web/dist/ {SERVER}:{REMOTE_DIST}"
-    )
+    run(f"rsync -avz --delete -e '{ssh_transport}' {PROJECT_ROOT}/apps/web/dist/ {SERVER}:{REMOTE_DIST}")
 
     print("\n[DONE] Deploy complete.")
 
