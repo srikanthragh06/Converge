@@ -9,6 +9,7 @@ import useEditorScrollGap from "../../hooks/useEditorScrollGap";
 import useDocumentSwitcherShortcut from "../../hooks/useDocumentSwitcherShortcut";
 import { Skeleton } from "primereact/skeleton";
 import { useAtomValue } from "jotai";
+import DelayedRender from "../../components/DelayedRender";
 import { syncStatusAtom } from "@/atoms/socket";
 
 /**
@@ -62,12 +63,14 @@ const EditorPage = () => {
                     {/* Title: skeleton while loading, real input when ready */}
                     <div className="w-full flex justify-start sm:pl-8 pl-4 pr-2 py-2 sm:mt-4 mt-2">
                         {documentStatus === "loading" ? (
-                            <div className="mx-2 w-full max-w-2xl flex flex-col gap-4">
-                                <Skeleton height="2.5rem" width="45%" />
-                                <Skeleton height="6rem" width="100%" />
-                                <Skeleton height="4rem" width="100%" />
-                                <Skeleton height="5rem" width="100%" />
-                            </div>
+                            <DelayedRender>
+                                <div className="mx-2 w-full max-w-2xl flex flex-col gap-4">
+                                    <Skeleton height="2.5rem" width="45%" />
+                                    <Skeleton height="6rem" width="100%" />
+                                    <Skeleton height="4rem" width="100%" />
+                                    <Skeleton height="5rem" width="100%" />
+                                </div>
+                            </DelayedRender>
                         ) : (
                             <input
                                 type="text"
@@ -92,11 +95,13 @@ const EditorPage = () => {
                     {/* Editor: a few large skeletons while restoring, real editor when synced */}
                     {documentStatus === "ready" &&
                         syncStatus === "restoring" && (
-                            <div className="sm:pl-14 pl-6 pr-4 max-w-2xl mt-2 flex flex-col gap-4">
-                                <Skeleton height="6rem" width="100%" />
-                                <Skeleton height="4rem" width="100%" />
-                                <Skeleton height="5rem" width="100%" />
-                            </div>
+                            <DelayedRender>
+                                <div className="sm:pl-14 pl-6 pr-4 max-w-2xl mt-2 flex flex-col gap-4">
+                                    <Skeleton height="6rem" width="100%" />
+                                    <Skeleton height="4rem" width="100%" />
+                                    <Skeleton height="5rem" width="100%" />
+                                </div>
+                            </DelayedRender>
                         )}
                     {editor &&
                         documentStatus === "ready" &&

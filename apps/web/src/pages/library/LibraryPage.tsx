@@ -4,6 +4,7 @@ import LibraryDocumentCard from "./components/LibraryDocumentCard";
 import useLibrary from "../../hooks/useLibrary";
 import AnimatedDots from "../../components/AnimatedDots";
 import { Skeleton } from "primereact/skeleton";
+import DelayedRender from "../../components/DelayedRender";
 import ManageDocumentModal from "../editor/manageDocumentModal/ManageDocumentModal";
 import useDocumentSwitcherShortcut from "../../hooks/useDocumentSwitcherShortcut";
 import DocumentSwitcherOverlay from "../editor/documentSwitcherOverlay/DocumentSwitcherOverlay";
@@ -72,13 +73,15 @@ const LibraryPage = () => {
                 {/* Document list — scrolls independently within the remaining page height */}
                 <div className="flex-1 overflow-y-auto flex flex-col items-center gap-1 pb-6">
                     {documents.length === 0 && isLoadingMore && (
-                        <div className="w-full sm:max-w-[600px] flex flex-col gap-1 px-4 sm:px-0 mt-1">
-                            <Skeleton height="3.5rem" width="100%" />
-                            <Skeleton height="3.5rem" width="100%" />
-                            <Skeleton height="3.5rem" width="100%" />
-                            <Skeleton height="3.5rem" width="100%" />
-                            <Skeleton height="3.5rem" width="100%" />
-                        </div>
+                        <DelayedRender>
+                            <div className="w-full sm:max-w-[600px] flex flex-col gap-1 px-4 sm:px-0 mt-1">
+                                <Skeleton height="3.5rem" width="100%" />
+                                <Skeleton height="3.5rem" width="100%" />
+                                <Skeleton height="3.5rem" width="100%" />
+                                <Skeleton height="3.5rem" width="100%" />
+                                <Skeleton height="3.5rem" width="100%" />
+                            </div>
+                        </DelayedRender>
                     )}
                     {documents.map((doc) => (
                         <LibraryDocumentCard
@@ -88,10 +91,12 @@ const LibraryPage = () => {
                         />
                     ))}
                     {documents.length > 0 && isLoadingMore && (
-                        <div className="w-full sm:max-w-[600px] flex flex-col gap-1 px-4 sm:px-0 mt-1">
-                            <Skeleton height="3.5rem" width="100%" />
-                            <Skeleton height="3.5rem" width="100%" />
-                        </div>
+                        <DelayedRender>
+                            <div className="w-full sm:max-w-[600px] flex flex-col gap-1 px-4 sm:px-0 mt-1">
+                                <Skeleton height="3.5rem" width="100%" />
+                                <Skeleton height="3.5rem" width="100%" />
+                            </div>
+                        </DelayedRender>
                     )}
                     <div ref={sentinelRef} />
                 </div>
