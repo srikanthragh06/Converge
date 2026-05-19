@@ -13,6 +13,7 @@ export const SyncDocServerSchema = z.object({
 export type SyncDocServerPayload = z.infer<typeof SyncDocServerSchema>;
 
 export const SyncDocClientSchema = z.object({
+    documentId: z.number().int().positive(),
     updateArray: WireBytes,
     serverSVArray: WireBytes,
 });
@@ -26,13 +27,17 @@ export const SyncDocTitleServerSchema = z.object({
     changeId: z.string(),
 });
 
-export type SyncDocTitleServerPayload = z.infer<typeof SyncDocTitleServerSchema>;
+export type SyncDocTitleServerPayload = z.infer<
+    typeof SyncDocTitleServerSchema
+>;
 
 export const SyncDocTitleClientSchema = z.object({
     title: z.string(),
 });
 
-export type SyncDocTitleClientPayload = z.infer<typeof SyncDocTitleClientSchema>;
+export type SyncDocTitleClientPayload = z.infer<
+    typeof SyncDocTitleClientSchema
+>;
 
 export const SyncDocTitleAckSchema = z.object({
     changeId: z.string(),
@@ -51,6 +56,7 @@ export type RepairSyncDocServerPayload = z.infer<
 >;
 
 export const RepairSyncDocClientSchema = z.object({
+    documentId: z.number().int().positive(),
     serverSVArray: WireBytes,
 });
 
@@ -70,6 +76,7 @@ export type RepairSyncAckDocServerPayload = z.infer<
 >;
 
 export const RepairSyncAckDocClientSchema = z.object({
+    documentId: z.number().int().positive(),
     serverSVArray: WireBytes,
     diffArray: WireBytes,
 });
@@ -90,6 +97,7 @@ export type RepairAckDocServerPayload = z.infer<
 >;
 
 export const RepairAckDocClientSchema = z.object({
+    documentId: z.number().int().positive(),
     diffArray: WireBytes,
 });
 
