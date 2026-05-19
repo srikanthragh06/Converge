@@ -6,7 +6,7 @@ import useYjsSync from "./useYjsSync";
 import useDocumentTitle from "./useDocumentTitle";
 import useDocumentFetch from "./useDocumentFetch";
 import useUndoManagerGuard from "./useUndoManagerGuard";
-import useEditorFocus from "./useEditorFocus";
+import useAwareness from "./useAwareness";
 import useUploadFile from "./useUploadFile";
 import deleteBlockExtension from "../lib/deleteBlockExtension";
 import editorSchema from "../lib/editorSchema";
@@ -45,6 +45,7 @@ const useEditor = () => {
         if (!docWorkspace || !documentId) return null;
 
         return BlockNoteEditor.create({
+            autofocus: true,
             schema: editorSchema,
             // Stub collaboration config to wire up the Y.Doc fragment. Provider
             // and user identity will be replaced once the WebSocket sync provider
@@ -81,7 +82,7 @@ const useEditor = () => {
     }, [yDoc, docWorkspace, documentId, uploadFile]);
 
     useUndoManagerGuard(editor, yDoc);
-    useEditorFocus(editor, documentId, documentStatus);
+    useAwareness(editor);
 
     return {
         editor,
