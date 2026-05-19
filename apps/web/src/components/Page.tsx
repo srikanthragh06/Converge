@@ -23,7 +23,9 @@ const Page = ({
 }) => {
     const auth = useAtomValue(authAtom); // Current auth state — drives the loading and redirect logic.
     const navigate = useNavigate();
-    const [sidebarOpen, setSidebarOpen] = useState(true); // Whether the sidebar is expanded (open) or collapsed (closed).
+    const [sidebarOpen, setSidebarOpen] = useState(
+        () => window.innerWidth >= 640,
+    ); // Starts open on desktop (≥640px), closed on mobile — matches the sm breakpoint used in sidebar layout.
 
     // Redirects to /auth whenever auth resolves as unauthenticated on a protected page.
     useEffect(() => {
