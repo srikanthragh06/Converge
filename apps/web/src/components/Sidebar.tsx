@@ -27,10 +27,16 @@ import { refreshSidebarAtom } from "@/atoms/sidebar";
 const Sidebar = ({
     isOpen,
     onToggle,
+    closeSidebar,
 }: {
     isOpen: boolean;
     onToggle: () => void;
+    closeSidebar: () => void; // closes the sidebar — called on nav button clicks on mobile to reclaim screen space
 }) => {
+    /** Closes the sidebar when called on a viewport narrower than 640px (Tailwind sm breakpoint). */
+    const closeOnMobile = () => {
+        if (window.innerWidth < 640) closeSidebar();
+    };
     const navigate = useNavigate();
     const logout = useLogout(); // logs the user out and redirects to /
     const auth = useAtomValue(authAtom); // Current auth state — drives avatar rendering and user info display.
@@ -150,7 +156,7 @@ const Sidebar = ({
                 </div>
                 <div className="mt-3 flex flex-col space-y-0">
                     <button
-                        onClick={createDocument}
+                        onClick={() => { createDocument(); closeOnMobile(); }}
                         disabled={isCreating}
                         className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary disabled:opacity-50 disabled:cursor-not-allowed"
                         aria-label="New Document"
@@ -161,7 +167,7 @@ const Sidebar = ({
                         </span>
                     </button>
                     <button
-                        onClick={() => navigate("/library")}
+                        onClick={() => { navigate("/library"); closeOnMobile(); }}
                         className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
                         aria-label="Library"
                     >
@@ -169,7 +175,7 @@ const Sidebar = ({
                         <span className="text-sm sm:text-base">Library</span>
                     </button>
                     <button
-                        onClick={() => navigate("/workspaces")}
+                        onClick={() => { navigate("/workspaces"); closeOnMobile(); }}
                         className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
                         aria-label="Workspaces"
                     >
@@ -177,7 +183,7 @@ const Sidebar = ({
                         <span className="text-sm sm:text-base">Workspaces</span>
                     </button>
                     <button
-                        onClick={logout}
+                        onClick={() => { logout(); closeOnMobile(); }}
                         className="flex justify-start items-center gap-2 text-left py-1 px-2 mt-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
                         aria-label="Log out"
                     >
@@ -196,7 +202,7 @@ const Sidebar = ({
                         {recentDocuments.map((doc) => (
                             <button
                                 key={doc.id}
-                                onClick={() => navigate(`/document/${doc.id}`)}
+                                onClick={() => { navigate(`/document/${doc.id}`); closeOnMobile(); }}
                                 className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover
                             rounded-md transition cursor-pointer text-text-primary"
                                 aria-label={doc.title}
