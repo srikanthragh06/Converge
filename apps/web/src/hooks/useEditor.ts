@@ -1,9 +1,4 @@
-import {
-    BlockNoteEditor,
-    BlockNoteSchema,
-    createCodeBlockSpec,
-} from "@blocknote/core";
-import { codeBlockOptions } from "@blocknote/code-block";
+import { BlockNoteEditor } from "@blocknote/core";
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 import useSocket from "./useSocket";
@@ -14,13 +9,7 @@ import useUndoManagerGuard from "./useUndoManagerGuard";
 import useEditorFocus from "./useEditorFocus";
 import useUploadFile from "./useUploadFile";
 import deleteBlockExtension from "../lib/deleteBlockExtension";
-
-const schema = BlockNoteSchema.create({
-    blockSpecs: {
-        ...BlockNoteSchema.create().blockSpecs,
-        codeBlock: createCodeBlockSpec(codeBlockOptions),
-    },
-});
+import editorSchema from "../lib/editorSchema";
 
 /**
  * Composes the sub-hooks for document fetching, Yjs sync, and title sync into
@@ -56,7 +45,7 @@ const useEditor = () => {
         if (!docWorkspace || !documentId) return null;
 
         return BlockNoteEditor.create({
-            schema,
+            schema: editorSchema,
             // Stub collaboration config to wire up the Y.Doc fragment. Provider
             // and user identity will be replaced once the WebSocket sync provider
             // is connected.
