@@ -518,16 +518,32 @@
 
 ---
 
+## v1.01 — Deploy Scripts ✅
+
+> Branch: `deploy-scripts-v1.01`
+
+### Infrastructure
+
+- `deploy/deploy.py` — Python deploy script; SSH into production, pull latest repo with PAT injected into the remote URL at deploy time (server never needs GitHub credentials configured), rebuild Docker images, and rsync the locally-built frontend dist; PAT masked in all terminal output via a `display` parameter to prevent token leakage in deploy logs
+- `deploy/.env.example` — documents all required environment variables (`DEPLOY_SERVER`, `DEPLOY_REMOTE_DIST`, `DEPLOY_REMOTE_PROJECT`, `DEPLOY_PRIVATE_KEY_PATH`, `DEPLOY_GITHUB_PAT`, `DEPLOY_GITHUB_REPO`)
+- Blue-green deployment strategy to eliminate downtime:
+  - `docker-compose.blue.yml` (server instances on ports 5001–5003) and `docker-compose.green.yml` (ports 5004–5006) replace the single `docker-compose.prod.yml`; each file has an explicit `name:` field so Docker assigns independent projects even though both files live in the same directory
+  - Node.js healthchecks (alpine has no `curl`/`wget`) with a 30 s start period to let migrations complete before retries begin
+  - `nginx/converge.conf` updated: two named upstream blocks (`converge_blue`, `converge_green`) plus an include directive for `/etc/nginx/converge_slot.conf`, which the deploy script writes on every deploy to point at the active upstream
+  - `deploy/deploy.py` extended with slot tracking (`ssh_read`, `get_active_slot`, `inactive_slot`), nginx config sync from the repo, slot-file bootstrap on first deploy, and the full blue-green sequence: build inactive slot → wait for all containers to pass healthchecks → write new slot conf → reload nginx → tear down old slot
+
+---
+
 ## Upcoming
 
-### v1.01 — Awareness
+### v1.02 — Awareness
 
 - Live cursors and selections via Yjs awareness protocol forwarded through the server
 
-### v1.02 — Document References
+### v1.03 — Document References
 
 - Inline `@document` mentions and backlinks
 
-### v1.03 — Offline Support
+### v1.04 — Offline Support
 
 - IndexedDB caching via `y-indexeddb`; offline-aware sync gate so stale state vectors are never sent to the server before the local snapshot is loaded
