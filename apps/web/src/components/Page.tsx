@@ -4,6 +4,7 @@ import { useAtomValue } from "jotai";
 import { authAtom } from "../atoms/auth";
 import AnimatedDots from "./AnimatedDots";
 import Sidebar from "./Sidebar";
+import DelayedRender from "./DelayedRender";
 
 /**
  * Full-viewport page shell shared across all top-level routes. When authRequired
@@ -23,7 +24,9 @@ const Page = ({
 }) => {
     const auth = useAtomValue(authAtom); // Current auth state — drives the loading and redirect logic.
     const navigate = useNavigate();
-    const [sidebarOpen, setSidebarOpen] = useState(true); // Whether the sidebar is expanded (open) or collapsed (closed).
+    const [sidebarOpen, setSidebarOpen] = useState(
+        () => window.innerWidth >= 640,
+    ); // Starts open on desktop (≥640px), closed on mobile — matches the sm breakpoint used in sidebar layout.
 
     // Redirects to /auth whenever auth resolves as unauthenticated on a protected page.
     useEffect(() => {
@@ -34,14 +37,16 @@ const Page = ({
     // Show a status message while waiting for /auth/me to resolve.
     if (authRequired && auth.status === "loading")
         return (
-            <div className="w-screen h-screen flex flex-col items-center justify-center">
-                <div className="text-text-secondary">
-                    <span>
-                        Authenticating
-                        <AnimatedDots />
-                    </span>
+            <DelayedRender>
+                <div className="w-screen h-screen flex flex-col items-center justify-center">
+                    <div className="text-text-secondary">
+                        <span>
+                            Authenticating
+                            <AnimatedDots />
+                        </span>
+                    </div>
                 </div>
-            </div>
+            </DelayedRender>
         );
 
     return (
@@ -50,6 +55,7 @@ const Page = ({
                 <Sidebar
                     isOpen={sidebarOpen}
                     onToggle={() => setSidebarOpen(!sidebarOpen)}
+                    closeSidebar={() => setSidebarOpen(false)}
                 />
             )}
             <div

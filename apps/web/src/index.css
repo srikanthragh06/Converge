@@ -81,3 +81,10 @@ input:invalid {
 .ProseMirror:focus {
     outline: none;
 }
+
+/* Override the Shiki-injected inline background on code blocks — the default is too dark
+   against the editor background, so we lift it to a slightly lighter surface. */
+[data-content-type="codeBlock"] pre {
+    background-color: #1c1c21 !important;
+    border-radius: 6px;
+}

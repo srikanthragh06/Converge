@@ -10,6 +10,7 @@
         "preview": "vite preview"
     },
     "dependencies": {
+        "@blocknote/code-block": "^0.45.0",
         "@blocknote/core": "^0.45.0",
         "@blocknote/mantine": "^0.45.0",
         "@converge/shared": "workspace:*",

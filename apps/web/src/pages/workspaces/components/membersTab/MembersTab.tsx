@@ -1,6 +1,7 @@
-import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import useMembersTab from "../../../../hooks/useMembersTab";
 import WorkspaceMemberCard from "./WorkspaceMemberCard";
+import { Skeleton } from "primereact/skeleton";
+import DelayedRender from "../../../../components/DelayedRender";
 
 /**
  * Members tab content for WorkspaceConfigModal. Displays and manages
@@ -27,9 +28,17 @@ const MembersTab = ({ workspaceId }: { workspaceId: number }) => {
 
     if (isRoleLoading || currentUserRole === null) {
         return (
-            <div className="h-full flex items-center justify-center">
-                <AiOutlineLoading3Quarters className="animate-spin" />
-            </div>
+            <DelayedRender>
+                <div className="flex flex-col gap-3">
+                    <Skeleton height="2.5rem" width="100%" />
+                    <div className="mt-3 sm:mt-4 flex flex-col gap-2">
+                        <Skeleton height="0.75rem" width="30%" className="mb-1" />
+                        <Skeleton height="3rem" width="100%" />
+                        <Skeleton height="3rem" width="100%" />
+                        <Skeleton height="3rem" width="100%" />
+                    </div>
+                </div>
+            </DelayedRender>
         );
     }
 
@@ -47,7 +56,9 @@ const MembersTab = ({ workspaceId }: { workspaceId: number }) => {
             />
 
             {canManage && isFindNewUserLoading && (
-                <AiOutlineLoading3Quarters className="animate-spin mt-3 sm:mt-4" />
+                <DelayedRender>
+                    <Skeleton height="3rem" width="100%" className="mt-3 sm:mt-4" />
+                </DelayedRender>
             )}
             {canManage &&
                 !isFindNewUserLoading &&
@@ -108,7 +119,13 @@ const MembersTab = ({ workspaceId }: { workspaceId: number }) => {
                     Existing Members
                 </p>
                 {isMembersLoading ? (
-                    <AiOutlineLoading3Quarters className="animate-spin mt-2" />
+                    <DelayedRender>
+                        <div className="flex flex-col gap-2 mt-2">
+                            <Skeleton height="3rem" width="100%" />
+                            <Skeleton height="3rem" width="100%" />
+                            <Skeleton height="3rem" width="100%" />
+                        </div>
+                    </DelayedRender>
                 ) : (
                     <div
                         className="flex flex-col flex-1 min-h-0 overflow-y-auto"
@@ -149,7 +166,12 @@ const MembersTab = ({ workspaceId }: { workspaceId: number }) => {
                             className="border-2 border-solid border-transparent"
                         />
                         {isFetchingMore && (
-                            <AiOutlineLoading3Quarters className="animate-spin mx-auto mt-2 mb-1" />
+                            <DelayedRender>
+                                <div className="flex flex-col gap-2 mt-2">
+                                    <Skeleton height="3rem" width="100%" />
+                                    <Skeleton height="3rem" width="100%" />
+                                </div>
+                            </DelayedRender>
                         )}
                     </div>
                 )}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAtomValue, useSetAtom } from "jotai";
 import { authAtom } from "../atoms/auth";
@@ -27,10 +27,16 @@ import { refreshSidebarAtom } from "@/atoms/sidebar";
 const Sidebar = ({
     isOpen,
     onToggle,
+    closeSidebar,
 }: {
     isOpen: boolean;
     onToggle: () => void;
+    closeSidebar: () => void; // closes the sidebar — called on nav button clicks on mobile to reclaim screen space
 }) => {
+    /** Closes the sidebar when called on a viewport narrower than 640px (Tailwind sm breakpoint). */
+    const closeOnMobile = () => {
+        if (window.innerWidth < 640) closeSidebar();
+    };
     const navigate = useNavigate();
     const logout = useLogout(); // logs the user out and redirects to /
     const auth = useAtomValue(authAtom); // Current auth state — drives avatar rendering and user info display.
@@ -45,7 +51,14 @@ const Sidebar = ({
         refetchWorkspaces,
     } = useSidebar(); // Workspace list, recent docs, selected workspace state, create/handle workspace actions.
     const [isConfigOpen, setIsConfigOpen] = useState(false); // Controls workspace config modal visibility.
+    const [isLogoutConfirming, setIsLogoutConfirming] = useState(false); // When true, replaces the log out button with an inline confirm/cancel row.
     const refreshSidebar = useSetAtom(refreshSidebarAtom); // Incremented on modal close to trigger workspace/document refetch in useSidebar.
+
+    // Resets the logout confirmation row whenever the sidebar is collapsed, so it never
+    // lingers and reappears unexpectedly when the sidebar is reopened.
+    useEffect(() => {
+        if (!isOpen) setIsLogoutConfirming(false);
+    }, [isOpen]);
 
     if (isOpen) {
         return (
@@ -150,7 +163,7 @@ const Sidebar = ({
                 </div>
                 <div className="mt-3 flex flex-col space-y-0">
                     <button
-                        onClick={createDocument}
+                        onClick={() => { createDocument(); closeOnMobile(); }}
                         disabled={isCreating}
                         className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary disabled:opacity-50 disabled:cursor-not-allowed"
                         aria-label="New Document"
@@ -161,7 +174,7 @@ const Sidebar = ({
                         </span>
                     </button>
                     <button
-                        onClick={() => navigate("/library")}
+                        onClick={() => { navigate("/library"); closeOnMobile(); }}
                         className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
                         aria-label="Library"
                     >
@@ -169,21 +182,43 @@ const Sidebar = ({
                         <span className="text-sm sm:text-base">Library</span>
                     </button>
                     <button
-                        onClick={() => navigate("/workspaces")}
+                        onClick={() => { navigate("/workspaces"); closeOnMobile(); }}
                         className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
                         aria-label="Workspaces"
                     >
                         <MdWorkspaces className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                         <span className="text-sm sm:text-base">Workspaces</span>
                     </button>
-                    <button
-                        onClick={logout}
-                        className="flex justify-start items-center gap-2 text-left py-1 px-2 mt-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
-                        aria-label="Log out"
-                    >
-                        <MdLogout className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                        <span className="text-sm sm:text-base">Log out</span>
-                    </button>
+                    {isLogoutConfirming ? (
+                        <div className="flex items-center gap-2 py-1 px-2 mt-2">
+                            <span className="text-sm sm:text-base text-text-primary">
+                                Log out?
+                            </span>
+                            <button
+                                onClick={() => setIsLogoutConfirming(false)}
+                                aria-label="Cancel log out"
+                                className="text-xs sm:text-sm px-2 py-0.5 rounded-md hover:bg-background-hover transition cursor-pointer text-text-secondary"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => { logout(); closeOnMobile(); }}
+                                aria-label="Confirm log out"
+                                className="text-xs sm:text-sm px-2 py-0.5 rounded-md bg-red-500/20 hover:bg-red-500/30 transition cursor-pointer text-red-400"
+                            >
+                                Confirm
+                            </button>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={() => setIsLogoutConfirming(true)}
+                            className="flex justify-start items-center gap-2 text-left py-1 px-2 mt-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
+                            aria-label="Log out"
+                        >
+                            <MdLogout className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                            <span className="text-sm sm:text-base">Log out</span>
+                        </button>
+                    )}
                 </div>
                 <div className="mt-4 flex flex-col space-y-1">
                     <p className="opacity-50 text-xs">Documents</p>
@@ -196,7 +231,7 @@ const Sidebar = ({
                         {recentDocuments.map((doc) => (
                             <button
                                 key={doc.id}
-                                onClick={() => navigate(`/document/${doc.id}`)}
+                                onClick={() => { navigate(`/document/${doc.id}`); closeOnMobile(); }}
                                 className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover
                             rounded-md transition cursor-pointer text-text-primary"
                                 aria-label={doc.title}
