@@ -1,4 +1,9 @@
-import { BlockNoteEditor } from "@blocknote/core";
+import {
+    BlockNoteEditor,
+    BlockNoteSchema,
+    createCodeBlockSpec,
+} from "@blocknote/core";
+import { codeBlockOptions } from "@blocknote/code-block";
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 import useSocket from "./useSocket";
@@ -9,6 +14,13 @@ import useUndoManagerGuard from "./useUndoManagerGuard";
 import useEditorFocus from "./useEditorFocus";
 import useUploadFile from "./useUploadFile";
 import deleteBlockExtension from "../lib/deleteBlockExtension";
+
+const schema = BlockNoteSchema.create({
+    blockSpecs: {
+        ...BlockNoteSchema.create().blockSpecs,
+        codeBlock: createCodeBlockSpec(codeBlockOptions),
+    },
+});
 
 /**
  * Composes the sub-hooks for document fetching, Yjs sync, and title sync into
@@ -44,6 +56,7 @@ const useEditor = () => {
         if (!docWorkspace || !documentId) return null;
 
         return BlockNoteEditor.create({
+            schema,
             // Stub collaboration config to wire up the Y.Doc fragment. Provider
             // and user identity will be replaced once the WebSocket sync provider
             // is connected.
@@ -56,6 +69,11 @@ const useEditor = () => {
             // interpreted as Markdown rather than inserted as a literal string.
             pasteHandler: ({ event, editor: e, defaultPasteHandler }) => {
                 if (event.clipboardData?.types.includes("text/plain")) {
+                    // inside a code block, paste as plain text so markdown syntax isn't interpreted
+                    const { block } = e.getTextCursorPosition();
+                    if (block.type === "codeBlock")
+                        return defaultPasteHandler();
+
                     e.pasteMarkdown(event.clipboardData.getData("text/plain"));
                     return true;
                 }
