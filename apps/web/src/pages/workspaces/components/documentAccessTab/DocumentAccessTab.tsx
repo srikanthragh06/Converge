@@ -1,7 +1,7 @@
-import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import { hasWorkspaceRole } from "@converge/shared";
 import useDocumentAccessTab from "../../../../hooks/useDocumentAccessTab";
 import DefaultDocAccessRow from "./DefaultDocAccessRow";
+import { Skeleton } from "primereact/skeleton";
 
 /** Tab for configuring the document access level for the workspace. */
 const DocumentAccessTab = ({ workspaceId }: { workspaceId: number }) => {
@@ -20,8 +20,10 @@ const DocumentAccessTab = ({ workspaceId }: { workspaceId: number }) => {
             </p>
 
             {isLoading || !defaults ? (
-                <div className="flex items-center justify-center mt-8">
-                    <AiOutlineLoading3Quarters className="animate-spin" />
+                <div className="flex flex-col gap-2 mt-4">
+                    <Skeleton height="2rem" width="100%" />
+                    <Skeleton height="2rem" width="100%" />
+                    <Skeleton height="2rem" width="100%" />
                 </div>
             ) : (
                 <div className="mt-4">

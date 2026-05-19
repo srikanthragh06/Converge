@@ -22,7 +22,7 @@ const useLibrary = () => {
     const currentWorkspace = useAtomValue(currentWorkspaceAtom); // active workspace — its ID is required by all library API calls
     const [searchText, setSearchText] = useState(""); // current search query string
     const [documents, setDocuments] = useState<LibraryDocumentDto[]>([]); // accumulated list of fetched documents
-    const [isLoadingMore, setIsLoadingMore] = useState(false); // true when a library fetch is in flight
+    const [isLoadingMore, setIsLoadingMore] = useState(true); // true when a library fetch is in flight; starts true so the skeleton shows immediately on mount
 
     const nextCursor = useRef<{ lastVisitedAt: Date; id: number } | null>(null); // compound keyset cursor for the next page
     const hasMoreRef = useRef(true); // whether another page exists — ref so loadMore always reads the latest value without needing to be in its deps
@@ -37,7 +37,10 @@ const useLibrary = () => {
 
     /** Fetches the first page of the user's library and resets pagination state. */
     const fetchFirstPage = async () => {
-        if (!currentWorkspace) return;
+        if (!currentWorkspace) {
+            setIsLoadingMore(false);
+            return;
+        }
         try {
             setIsLoadingMore(true);
             const { data } =
@@ -72,7 +75,10 @@ const useLibrary = () => {
      * Replaces the current document list and disables infinite scroll.
      */
     const fetchSearchedDocs = async (query: string) => {
-        if (!currentWorkspace) return;
+        if (!currentWorkspace) {
+            setIsLoadingMore(false);
+            return;
+        }
         try {
             setIsLoadingMore(true);
             const { data } =

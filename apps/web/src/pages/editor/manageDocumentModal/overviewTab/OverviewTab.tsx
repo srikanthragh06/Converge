@@ -1,7 +1,7 @@
 import { formatDate, hasAccess } from "../../../../utils/utils";
 import DeleteDocumentConfirmationModal from "./DeleteDocumentConfirmationModal";
 import useOverviewTab from "../../../../hooks/useOverviewTab";
-import AnimatedDots from "../../../../components/AnimatedDots";
+import { Skeleton } from "primereact/skeleton";
 
 /**
  * Overview tab content for ManageDocumentModal. Displays document metadata
@@ -28,10 +28,12 @@ const OverviewTab = ({
 
     if (isLoading)
         return (
-            <p className="text-xs sm:text-sm text-text-secondary opacity-50">
-                Loading
-                <AnimatedDots />
-            </p>
+            <div className="flex flex-col gap-3">
+                <Skeleton height="1rem" width="55%" />
+                <Skeleton height="1rem" width="70%" />
+                <Skeleton height="1rem" width="65%" />
+                <Skeleton height="1rem" width="50%" />
+            </div>
         );
 
     return (
