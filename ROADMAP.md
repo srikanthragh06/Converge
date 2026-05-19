@@ -534,16 +534,35 @@
 
 ---
 
+## v1.02 — UI Polish & Bug Fixes ✅
+
+> Branch: `ui-and-bug-fixes-v1.02`
+
+### Web (React frontend)
+
+- Code block support in the editor — `codeBlockExtension` with smart paste handling that converts pasted content inside a code block to plain text; background lightened to improve contrast against the editor surface
+- BlockNote schema definition extracted into its own module (`apps/web/src/lib/editorSchema.ts`) for cleaner separation from editor initialisation logic
+- Sidebar defaults to closed on mobile viewports; auto-closes when a nav button is pressed on mobile; inline logout confirmation replaces the immediate-logout behaviour
+- All loading spinners (`AiOutlineLoading3Quarters` and text-based "Loading…" indicators) replaced with PrimeReact `Skeleton` placeholders across the editor, Library, Workspaces, and all modal tabs (Overview, Access Overrides, General, Members, Document Access, Owner)
+- `DelayedRender` component (`apps/web/src/components/DelayedRender.tsx`) — renders children only after a 200 ms delay; wraps all skeleton blocks to suppress the flicker that occurs when loading completes before the delay elapses
+- `useLibrary` initialises `isLoadingMore` as `true` so the skeleton renders immediately on mount before `fetchFirstPage` runs
+
+### Bug fixes
+
+- Socket events now guarded by `documentId` on the client — prevents an incoming update for one document from being applied to a different document's Y.Doc when navigating quickly between documents
+
+---
+
 ## Upcoming
 
-### v1.02 — Awareness
+### v1.03 — Awareness
 
 - Live cursors and selections via Yjs awareness protocol forwarded through the server
 
-### v1.03 — Document References
+### v1.04 — Document References
 
 - Inline `@document` mentions and backlinks
 
-### v1.04 — Offline Support
+### v1.05 — Offline Support
 
 - IndexedDB caching via `y-indexeddb`; offline-aware sync gate so stale state vectors are never sent to the server before the local snapshot is loaded
