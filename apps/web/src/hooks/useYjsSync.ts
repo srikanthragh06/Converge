@@ -21,7 +21,7 @@ import { socket } from "../lib/socket";
 /**
  * Creates and owns the shared Y.Doc (re-created on each document switch), wires up local-update debouncing,
  * handles incoming server sync events, and manages the full repair sync
- * protocol (client-initiated on connect + 5 s heartbeat).
+ * protocol (client-initiated on connect + 15 s heartbeat).
  * Returns the Y.Doc for use by the BlockNote editor.
  */
 const useYjsSync = (documentId: string | undefined) => {
@@ -126,12 +126,13 @@ const useYjsSync = (documentId: string | undefined) => {
         /**
          * Applies a server-pushed Yjs update to the local doc. If the resulting
          * state vectors diverge, initiates a repair sync to reconcile the difference.
-         * @param update - encoded Yjs update bytes from the server
-         * @param serverSV - the server's state vector after applying the update
+         * @param data - raw socket payload containing the update and server state vector
          */
         const handleSyncDocClient = (data: unknown) => {
             const res = socketReceive(SyncDocClientSchema, data);
             if (!res) return;
+            // reject stale events that arrived after switching to a different document
+            if (res.documentId !== Number(documentId)) return;
             const { updateArray, serverSVArray } = res;
 
             const update = new Uint8Array(updateArray);
@@ -195,12 +196,13 @@ const useYjsSync = (documentId: string | undefined) => {
         /**
          * Responds to a server-initiated repair sync by computing the local diff
          * relative to the server's state vector and emitting it back with the client SV.
-         * @param serverSV - the server's encoded state vector as a number array
+         * @param data - raw socket payload containing the server's state vector
          */
-        // Handles repair initiated by the server — respond with our diff and SV.
         const handleRepairSyncDoc = (data: unknown) => {
             const res = socketReceive(RepairSyncDocClientSchema, data);
             if (!res) return;
+            // reject stale events that arrived after switching to a different document
+            if (res.documentId !== Number(documentId)) return;
             const serverSV = new Uint8Array(res.serverSVArray);
             const diffArray = Array.from(Y.encodeStateAsUpdate(yDoc, serverSV));
             const clientSVArray = Array.from(Y.encodeStateVector(yDoc));
@@ -223,6 +225,8 @@ const useYjsSync = (documentId: string | undefined) => {
         const handleRepairSyncAckDoc = (data: unknown) => {
             const res = socketReceive(RepairSyncAckDocClientSchema, data);
             if (!res) return;
+            // reject stale events that arrived after switching to a different document
+            if (res.documentId !== Number(documentId)) return;
             Y.applyUpdate(yDoc, new Uint8Array(res.diffArray), "REMOTE");
             setIsRestoring(false);
             const diffArray = Array.from(
@@ -242,12 +246,13 @@ const useYjsSync = (documentId: string | undefined) => {
 
         /**
          * Applies the final diff sent by the server, completing the repair sync round.
-         * @param diff - encoded Yjs update bytes representing the server's remaining delta
+         * @param data - raw socket payload containing the server's remaining delta
          */
-        // Final step — applies any remaining diff the other side computed for us.
         const handleRepairAckDoc = (data: unknown) => {
             const res = socketReceive(RepairAckDocClientSchema, data);
             if (!res) return;
+            // reject stale events that arrived after switching to a different document
+            if (res.documentId !== Number(documentId)) return;
             Y.applyUpdate(yDoc, new Uint8Array(res.diffArray), "REMOTE");
         };
 
