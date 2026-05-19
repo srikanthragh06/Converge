@@ -4,6 +4,7 @@ import { useAtomValue } from "jotai";
 import { authAtom } from "../atoms/auth";
 import AnimatedDots from "./AnimatedDots";
 import Sidebar from "./Sidebar";
+import DelayedRender from "./DelayedRender";
 
 /**
  * Full-viewport page shell shared across all top-level routes. When authRequired
@@ -36,14 +37,16 @@ const Page = ({
     // Show a status message while waiting for /auth/me to resolve.
     if (authRequired && auth.status === "loading")
         return (
-            <div className="w-screen h-screen flex flex-col items-center justify-center">
-                <div className="text-text-secondary">
-                    <span>
-                        Authenticating
-                        <AnimatedDots />
-                    </span>
+            <DelayedRender>
+                <div className="w-screen h-screen flex flex-col items-center justify-center">
+                    <div className="text-text-secondary">
+                        <span>
+                            Authenticating
+                            <AnimatedDots />
+                        </span>
+                    </div>
                 </div>
-            </div>
+            </DelayedRender>
         );
 
     return (

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Page from "../../components/Page";
 import { Skeleton } from "primereact/skeleton";
+import DelayedRender from "../../components/DelayedRender";
 import useCreateWorkspace from "../../hooks/useCreateWorkspace";
 import useWorkspaces from "../../hooks/useWorkspaces";
 import WorkspaceCard from "./components/WorkspaceCard";
@@ -83,12 +84,14 @@ const WorkspacesPage = () => {
 
             <div className="flex-1 overflow-y-auto flex flex-col items-center gap-2 pb-6">
                 {isLoading && workspaces.length === 0 && (
-                    <div className="w-full sm:max-w-[720px] flex flex-col gap-2 px-4 sm:px-0 mt-2">
-                        <Skeleton height="4.5rem" width="100%" />
-                        <Skeleton height="4.5rem" width="100%" />
-                        <Skeleton height="4.5rem" width="100%" />
-                        <Skeleton height="4.5rem" width="100%" />
-                    </div>
+                    <DelayedRender>
+                        <div className="w-full sm:max-w-[720px] flex flex-col gap-2 px-4 sm:px-0 mt-2">
+                            <Skeleton height="4.5rem" width="100%" />
+                            <Skeleton height="4.5rem" width="100%" />
+                            <Skeleton height="4.5rem" width="100%" />
+                            <Skeleton height="4.5rem" width="100%" />
+                        </div>
+                    </DelayedRender>
                 )}
 
                 {!isLoading && workspaces.length === 0 && (
