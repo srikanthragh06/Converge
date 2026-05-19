@@ -52,6 +52,7 @@ const Page = ({
                 <Sidebar
                     isOpen={sidebarOpen}
                     onToggle={() => setSidebarOpen(!sidebarOpen)}
+                    closeSidebar={() => setSidebarOpen(false)}
                 />
             )}
             <div
