@@ -1,5 +1,6 @@
 import useWorkspaceOverview from "../../../../hooks/useWorkspaceOverview";
 import LeaveWorkspaceConfirmationModal from "./LeaveWorkspaceConfirmationModal";
+import { Skeleton } from "primereact/skeleton";
 
 /**
  * General workspace settings tab. Displays workspace name, type, member
@@ -30,8 +31,17 @@ const GeneralTab = ({
 
     if (isInitialLoading) {
         return (
-            <div className="h-full flex items-center justify-center">
-                <span className="text-sm opacity-40">Loading...</span>
+            <div className="flex flex-col gap-3">
+                <Skeleton height="1.25rem" width="8rem" className="mb-1" />
+                <div className="flex items-center gap-2 mb-2">
+                    <Skeleton height="2rem" width="16rem" />
+                    <Skeleton height="2rem" width="4rem" />
+                </div>
+                <Skeleton height="1rem" width="40%" />
+                <Skeleton height="1rem" width="35%" />
+                <Skeleton height="1rem" width="55%" />
+                <Skeleton height="1rem" width="60%" />
+                <Skeleton height="1rem" width="45%" />
             </div>
         );
     }

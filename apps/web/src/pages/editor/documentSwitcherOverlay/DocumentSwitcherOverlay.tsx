@@ -1,5 +1,5 @@
-import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import useDocumentSwitcher from "../../../hooks/useDocumentSwitcher";
+import { Skeleton } from "primereact/skeleton";
 import { timeAgo, formatAccessLevel } from "../../../utils/utils";
 
 /**
@@ -58,8 +58,11 @@ const DocumentSwitcherOverlay = ({
                     className="overflow-y-auto max-h-96 flex flex-col"
                 >
                     {isLoading ? (
-                        <div className="flex justify-center py-4">
-                            <AiOutlineLoading3Quarters className="animate-spin text-text-disabled" />
+                        <div className="flex flex-col gap-1 p-2">
+                            <Skeleton height="3.5rem" width="100%" />
+                            <Skeleton height="3.5rem" width="100%" />
+                            <Skeleton height="3.5rem" width="100%" />
+                            <Skeleton height="3.5rem" width="100%" />
                         </div>
                     ) : documents.length === 0 ? (
                         <p className="text-text-disabled text-sm text-center py-4">

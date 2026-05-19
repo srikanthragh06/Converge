@@ -1,7 +1,7 @@
-import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import useAccessOverridesTab from "../../../../hooks/useAccessOverridesTab";
 import RoleOverrideRow from "./RoleOverrideRow";
 import DocumentUserAccessCard from "../../../../components/DocumentUserAccessCard";
+import { Skeleton } from "primereact/skeleton";
 
 /**
  * Access Overrides tab content for ManageDocumentModal. Two sections:
@@ -41,7 +41,11 @@ const AccessOverridesTab = ({
         <div className="h-full flex flex-col">
             {/* ── Section 1: Role Overrides ─────────────────────────── */}
             {isRoleOverridesLoading || isAccessLoading ? (
-                <AiOutlineLoading3Quarters className="animate-spin mb-4 shrink-0" />
+                <div className="flex flex-col gap-2 mb-4 shrink-0">
+                    <Skeleton height="2rem" width="100%" />
+                    <Skeleton height="2rem" width="100%" />
+                    <Skeleton height="2rem" width="100%" />
+                </div>
             ) : roleOverrides ? (
                 <div className="shrink-0">
                     <p className="text-xs opacity-50 mb-1">
@@ -98,7 +102,7 @@ const AccessOverridesTab = ({
             />
 
             {canManage && isFindNewUserLoading && (
-                <AiOutlineLoading3Quarters className="animate-spin mt-3 sm:mt-4 shrink-0" />
+                <Skeleton height="3rem" width="100%" className="mt-3 sm:mt-4" />
             )}
             {canManage &&
                 !isFindNewUserLoading &&
@@ -146,7 +150,11 @@ const AccessOverridesTab = ({
                     Existing Overrides
                 </p>
                 {isExistingUsersLoading ? (
-                    <AiOutlineLoading3Quarters className="animate-spin mt-2" />
+                    <div className="flex flex-col gap-2 mt-2">
+                        <Skeleton height="3rem" width="100%" />
+                        <Skeleton height="3rem" width="100%" />
+                        <Skeleton height="3rem" width="100%" />
+                    </div>
                 ) : (
                     <div
                         className="flex flex-col flex-1 min-h-0 overflow-y-auto"
@@ -186,7 +194,10 @@ const AccessOverridesTab = ({
                             className="border-2 border-solid border-transparent"
                         />
                         {isFetchingMore && (
-                            <AiOutlineLoading3Quarters className="animate-spin mx-auto mt-2 mb-1" />
+                            <div className="flex flex-col gap-2 mt-2">
+                                <Skeleton height="3rem" width="100%" />
+                                <Skeleton height="3rem" width="100%" />
+                            </div>
                         )}
                     </div>
                 )}
