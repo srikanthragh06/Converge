@@ -1,7 +1,8 @@
-import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import { RxAvatar } from "react-icons/rx";
 import useWorkspaceOwnerTab from "../../../../hooks/useWorkspaceOwnerTab";
 import TransferOwnerConfirmationModal from "./TransferOwnerConfirmationModal";
+import { Skeleton } from "primereact/skeleton";
+import DelayedRender from "../../../../components/DelayedRender";
 
 /**
  * Owner tab content for WorkspaceConfigModal. Displays the current workspace
@@ -31,7 +32,15 @@ const OwnerTab = ({ workspaceId }: { workspaceId: number }) => {
         <>
             {/* Current owner card */}
             {isOwnerLoading ? (
-                <AiOutlineLoading3Quarters className="animate-spin" />
+                <DelayedRender>
+                    <div className="flex items-center gap-2 sm:gap-3 py-1.5 sm:py-2">
+                        <Skeleton shape="circle" size="2rem" />
+                        <div className="flex flex-col gap-1.5 flex-1">
+                            <Skeleton height="0.875rem" width="45%" />
+                            <Skeleton height="0.75rem" width="60%" />
+                        </div>
+                    </div>
+                </DelayedRender>
             ) : (
                 owner && (
                     <div className="flex items-center gap-2 sm:gap-3 py-1.5 sm:py-2">
@@ -80,7 +89,9 @@ const OwnerTab = ({ workspaceId }: { workspaceId: number }) => {
                     />
 
                     {isFindLoading && (
-                        <AiOutlineLoading3Quarters className="animate-spin mt-3 sm:mt-4" />
+                        <DelayedRender>
+                            <Skeleton height="3rem" width="100%" className="mt-3 sm:mt-4" />
+                        </DelayedRender>
                     )}
 
                     {!isFindLoading &&

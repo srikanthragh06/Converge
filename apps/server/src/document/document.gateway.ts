@@ -167,6 +167,7 @@ export class DocumentGateway implements OnGatewayConnection {
                 SOCKET_EVENTS.SYNC_DOC_CLIENT,
                 SyncDocClientSchema,
                 {
+                  documentId,
                   updateArray: Array.from(update),
                   serverSVArray: Array.from(serverSV),
                 },
@@ -259,6 +260,7 @@ export class DocumentGateway implements OnGatewayConnection {
       SOCKET_EVENTS.SYNC_DOC_CLIENT,
       SyncDocClientSchema,
       {
+        documentId,
         updateArray,
         serverSVArray,
       },
@@ -278,6 +280,7 @@ export class DocumentGateway implements OnGatewayConnection {
         SOCKET_EVENTS.REPAIR_SYNC_DOC_CLIENT,
         RepairSyncDocClientSchema,
         {
+          documentId,
           serverSVArray: Array.from(serverSV),
         },
       );
@@ -313,6 +316,7 @@ export class DocumentGateway implements OnGatewayConnection {
       SOCKET_EVENTS.REPAIR_SYNC_ACK_DOC_CLIENT,
       RepairSyncAckDocClientSchema,
       {
+        documentId,
         serverSVArray: Array.from(serverSV),
         diffArray: Array.from(diff),
       },
@@ -352,6 +356,7 @@ export class DocumentGateway implements OnGatewayConnection {
         SOCKET_EVENTS.SYNC_DOC_CLIENT,
         SyncDocClientSchema,
         {
+          documentId,
           serverSVArray: Array.from(serverSV),
           updateArray: Array.from(diff),
         },
@@ -371,6 +376,7 @@ export class DocumentGateway implements OnGatewayConnection {
       SOCKET_EVENTS.REPAIR_ACK_DOC_CLIENT,
       RepairAckDocClientSchema,
       {
+        documentId,
         diffArray: Array.from(diffForClient),
       },
     );
