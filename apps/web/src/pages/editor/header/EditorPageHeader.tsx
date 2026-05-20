@@ -1,9 +1,17 @@
 import { useState } from "react";
 import { useAtomValue } from "jotai";
-import { syncStatusAtom } from "../../../atoms/socket";
+import { syncStatusAtom, awarenessAtom } from "../../../atoms/socket";
+import { authAtom } from "../../../atoms/auth";
 import AnimatedDots from "../../../components/AnimatedDots";
 import ManageDocumentModal from "../manageDocumentModal/ManageDocumentModal";
 import { MdOutlineWorkspaces, MdOutlineDescription } from "react-icons/md";
+import { Avatar } from "primereact/avatar";
+import { AvatarGroup } from "primereact/avatargroup";
+import { Tooltip } from "primereact/tooltip";
+import "primereact/resources/themes/lara-dark-blue/theme.css";
+
+/** Maximum number of avatars shown before collapsing the rest into a +N label. */
+const MAX_VISIBLE_AVATARS = 4;
 
 /**
  * Top navigation bar for the editor page. On the left shows a workspace › document
@@ -26,6 +34,15 @@ const EditorPageHeader = ({
 }) => {
     const [isManageModalOpen, setIsManageModalOpen] = useState(false); // controls ManageDocumentModal visibility
     const syncStatus = useAtomValue(syncStatusAtom); // current sync state from useYjsSync
+    const awareness = useAtomValue(awarenessAtom); // presence list for the current document
+    const auth = useAtomValue(authAtom); // current user — used to exclude self from the avatar stack
+
+    // Filter out the current user so they don't see their own avatar in the stack.
+    const otherUsers = awareness.filter(
+        (u) => u.userId !== Number(auth.user?.id),
+    );
+    const visibleUsers = otherUsers.slice(0, MAX_VISIBLE_AVATARS); // avatars rendered explicitly
+    const overflowCount = otherUsers.length - visibleUsers.length; // users collapsed into +N label
 
     // Resolve the sync status label shown in the header; null means no label.
     const statusLabel =
@@ -57,7 +74,79 @@ const EditorPageHeader = ({
                         </span>
                     </span>
                 )}
-                <div className="flex items-center sm:space-x-8 sm:py-2 space-x-4 ml-auto">
+                <div className="flex items-center sm:space-x-8 py-1 space-x-4 ml-auto">
+                    {documentStatus === "ready" && otherUsers.length > 0 && (
+                        <>
+                            {visibleUsers.map((user) => (
+                                <Tooltip
+                                    key={user.userId}
+                                    target={`#awareness-avatar-${user.userId}`}
+                                    position="bottom"
+                                    pt={{
+                                        text: {
+                                            style: {
+                                                backgroundColor: "#171717",
+                                                color: "white",
+                                                border: "1px solid #333",
+                                            },
+                                        },
+                                        arrow: {
+                                            style: {
+                                                borderBottomColor: "#171717",
+                                            },
+                                        },
+                                    }}
+                                >
+                                    <p className="font-medium text-sm">
+                                        {user.name}
+                                    </p>
+                                    <p className="text-xs opacity-60">
+                                        {user.email}
+                                    </p>
+                                </Tooltip>
+                            ))}
+                            <AvatarGroup>
+                                {visibleUsers.map((user) => (
+                                    <Avatar
+                                        key={user.userId}
+                                        id={`awareness-avatar-${user.userId}`}
+                                        className="w-8 h-8"
+                                        shape="circle"
+                                        style={{
+                                            borderColor: user.color,
+                                            borderWidth: "2px",
+                                            borderStyle: "solid",
+                                        }}
+                                        template={
+                                            user.avatarUrl ? (
+                                                <img
+                                                    src={user.avatarUrl}
+                                                    referrerPolicy="no-referrer"
+                                                    alt={user.name}
+                                                    className="w-full h-full object-cover rounded-full"
+                                                />
+                                            ) : (
+                                                <span className="text-sm">
+                                                    {user.name[0]?.toUpperCase() ??
+                                                        "?"}
+                                                </span>
+                                            )
+                                        }
+                                    />
+                                ))}
+                                {overflowCount > 0 && (
+                                    <Avatar
+                                        label={`+${overflowCount}`}
+                                        shape="circle"
+                                        style={{
+                                            backgroundColor: "#303030",
+                                            borderColor: "white",
+                                        }}
+                                    />
+                                )}
+                            </AvatarGroup>
+                        </>
+                    )}
                     {documentStatus === "ready" && statusLabel && (
                         <span
                             className="text-text-secondary sm:text-sm text-xs opacity-40

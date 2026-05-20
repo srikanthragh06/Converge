@@ -71,17 +71,17 @@ export class DocumentAwarenessService {
 
   /**
    * Registers a user as present in the given document.
-   * Fetches the user's name and avatar from the database, then writes an awareness
+   * Fetches the user's name, email, and avatar from the database, then writes an awareness
    * entry only if one does not already exist — preserving the existing color and
    * focusedBlockId from a previously opened tab. Refreshes TTL on both hashes.
    * @param documentId - the document the user is joining
    * @param userId - the authenticated user's database ID
    */
   async addUser(documentId: number, userId: number): Promise<void> {
-    // Fetch name and avatarUrl from DB — not available on the socket or in the auth token.
+    // Fetch name, email, and avatarUrl from DB — not available on the socket or in the auth token.
     const user = await this.dbService.kysely
       .selectFrom('users')
-      .select(['name', 'avatar_url'])
+      .select(['name', 'email', 'avatar_url'])
       .where('id', '=', userId)
       .executeTakeFirst();
 
@@ -97,6 +97,7 @@ export class DocumentAwarenessService {
       const entry: AwarenessUser = {
         userId,
         name: user.name,
+        email: user.email,
         avatarUrl: user.avatar_url,
         color,
         focusedBlockId: null,
