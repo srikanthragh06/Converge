@@ -2,6 +2,7 @@ import {
   ConnectedSocket,
   MessageBody,
   OnGatewayConnection,
+  OnGatewayDisconnect,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -10,6 +11,7 @@ import { UseFilters } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { DocumentService } from './document.service';
 import { DocumentYjsService } from './document-yjs.service';
+import { DocumentAwarenessService } from './document-awareness.service';
 import { ZodSocketValidationPipe } from '../pipes/zod-socket-validation.pipe';
 import {
   PingSchema,
@@ -54,7 +56,9 @@ import { parse as parseCookie } from 'cookie';
     credentials: true,
   },
 })
-export class DocumentGateway implements OnGatewayConnection {
+export class DocumentGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   socketServer!: Server; // the Socket.io server instance, injected by the NestJS WebSocket adapter
 
@@ -65,6 +69,7 @@ export class DocumentGateway implements OnGatewayConnection {
     private readonly documentYjsService: DocumentYjsService,
     private readonly redisService: RedisService,
     private readonly authService: AuthService,
+    private readonly documentAwarenessService: DocumentAwarenessService,
   ) {}
 
   /**
@@ -142,6 +147,13 @@ export class DocumentGateway implements OnGatewayConnection {
       // join the document room — broadcasts are scoped to this room
       client.join(String(documentId));
 
+      // register this socket in the awareness ref-count set for multi-tab tracking
+      await this.documentAwarenessService.addSocket(
+        documentId,
+        userId,
+        client.id,
+      );
+
       // load the Y.Doc into memory if not already loaded
       await this.documentYjsService.loadDoc(documentId);
 
@@ -206,6 +218,33 @@ export class DocumentGateway implements OnGatewayConnection {
     } catch (err) {
       console.error(err);
       client.disconnect();
+    }
+  }
+
+  /**
+   * Removes the disconnecting socket from the awareness ref-count set.
+   * Skips silently if the socket never completed the connection handshake
+   * (e.g. rejected due to bad auth or missing documentId).
+   * @param client - the socket that disconnected
+   */
+  async handleDisconnect(client: Socket): Promise<void> {
+    const documentId = client.data.documentId as number | undefined;
+    const userId = client.data.userId as number | undefined;
+
+    // Socket was rejected before data was stamped — nothing to clean up.
+    if (documentId === undefined || userId === undefined) return;
+
+    try {
+      await this.documentAwarenessService.removeSocket(
+        documentId,
+        userId,
+        client.id,
+      );
+    } catch (err) {
+      console.error(
+        `Failed to remove socket ${client.id} from awareness ref-count:`,
+        err,
+      );
     }
   }
 

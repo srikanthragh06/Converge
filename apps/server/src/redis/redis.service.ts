@@ -94,13 +94,6 @@ export class RedisService {
   }
 
   /**
-   * Subscribes to a Redis channel and invokes the handler for each incoming
-   * message. Messages published by this server instance are automatically
-   * skipped to prevent echo loops.
-   * @param channel - the Redis pub/sub channel to subscribe to
-   * @param handler - called with the parsed message payload for each foreign message
-   */
-  /**
    * Attempts to acquire a distributed lock by setting a Redis key with NX and
    * a TTL. Returns true if the lock was acquired, false if another server
    * already holds it. The TTL is a safety net — the lock should always be
@@ -123,6 +116,51 @@ export class RedisService {
     await this.pub.del(key);
   }
 
+  /**
+   * Adds one or more members to a Redis Set, creating it if it does not exist.
+   * @param key - the Redis key for the Set
+   * @param members - the values to add
+   * @returns the number of members actually added (excludes already-present members)
+   */
+  async sadd(key: string, ...members: string[]): Promise<number> {
+    return this.pub.sadd(key, ...members);
+  }
+
+  /**
+   * Removes one or more members from a Redis Set.
+   * @param key - the Redis key for the Set
+   * @param members - the values to remove
+   * @returns the number of members actually removed
+   */
+  async srem(key: string, ...members: string[]): Promise<number> {
+    return this.pub.srem(key, ...members);
+  }
+
+  /**
+   * Returns the number of members in a Redis Set.
+   * Returns 0 if the key does not exist.
+   * @param key - the Redis key for the Set
+   */
+  async scard(key: string): Promise<number> {
+    return this.pub.scard(key);
+  }
+
+  /**
+   * Sets a TTL (in seconds) on a Redis key.
+   * @param key - the Redis key to expire
+   * @param ttlSeconds - seconds until the key is deleted automatically
+   */
+  async expire(key: string, ttlSeconds: number): Promise<void> {
+    await this.pub.expire(key, ttlSeconds);
+  }
+
+  /**
+   * Subscribes to a Redis channel and invokes the handler for each incoming
+   * message. Messages published by this server instance are automatically
+   * skipped to prevent echo loops.
+   * @param channel - the Redis pub/sub channel to subscribe to
+   * @param handler - called with the parsed message payload for each foreign message
+   */
   async subscribe(
     channel: string,
     handler: (message: Record<string, unknown>) => void,
