@@ -49,6 +49,7 @@ const useSocket = (canConnect: boolean = true, documentId?: string) => {
             socket.off(SOCKET_EVENTS.DOC_READY);
             socket.off("error");
             setIsSocketReady(false);
+            socket.disconnect();
         };
     }, [canConnect, documentId]);
 };

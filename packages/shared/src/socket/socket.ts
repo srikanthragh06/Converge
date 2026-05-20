@@ -128,6 +128,9 @@ export const AwarenessUserSchema = z.object({
 
 export type AwarenessUser = z.infer<typeof AwarenessUserSchema>;
 
+// Client → Server: requests the current awareness state. No payload — acts as a pull trigger.
+export const GetAwarenessUpdateSchema = z.object({});
+
 // Client → Server: reports which block the user's cursor is currently in.
 // focusedBlockId is null when the editor loses focus.
 export const AwarenessUpdateServerSchema = z.object({
