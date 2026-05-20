@@ -152,6 +152,7 @@ export {
     AwarenessUserSchema,
     AwarenessUpdateServerSchema,
     AwarenessUpdateClientSchema,
+    GetAwarenessUpdateSchema,
 } from "./socket/socket";
 export type {
     AwarenessUser,

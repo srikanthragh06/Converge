@@ -260,6 +260,20 @@ export class DocumentGateway
   }
 
   /**
+   * Responds to a client request for the current awareness state by broadcasting
+   * the full user list to the entire document room and publishing to other server
+   * instances via Redis pub/sub.
+   * @param client - the socket requesting the current state
+   */
+  @SubscribeMessage(SOCKET_EVENTS.GET_AWARENESS_UPDATE)
+  async handleGetAwarenessUpdate(
+    @ConnectedSocket() client: Socket,
+  ): Promise<void> {
+    const documentId = client.data.documentId as number;
+    await this.broadcastAwarenessState(documentId);
+  }
+
+  /**
    * Receives a cursor position update from the client, overwrites the user's
    * focusedBlockId in the awareness hash, and broadcasts the updated full user
    * list to the room and other server instances via Redis pub/sub.
