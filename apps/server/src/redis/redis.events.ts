@@ -5,6 +5,8 @@ export const REDIS_EVENTS = {
   /** Published whenever a document title is updated, so other servers can broadcast it. */
   documentTitleUpdate: (documentId: number) =>
     `document-title-update:${documentId}`,
+  /** Published whenever awareness state changes, carrying the full user list so other servers can forward it without an extra Redis read. */
+  awarenessUpdate: (documentId: number) => `awareness-updates:${documentId}`,
 };
 
 /** Redis key name constants for distributed locks. */
@@ -15,6 +17,8 @@ export const REDIS_LOCKS = {
 
 /** Redis key name constants for awareness state. */
 export const REDIS_KEYS = {
+  /** Hash of userId → JSON AwarenessUser for all present users in a document. */
+  awareness: (documentId: number) => `awareness:${documentId}`,
   /** Set of active socketIds for a user in a document — used for multi-tab ref counting. */
   awarenessSockets: (documentId: number, userId: number) =>
     `awareness-sockets:${documentId}:${userId}`,

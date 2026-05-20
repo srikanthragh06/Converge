@@ -114,3 +114,36 @@ export type PingPayload = z.infer<typeof PingSchema>;
 export const PongSchema = z.object({ pingId: z.string() });
 
 export type PongPayload = z.infer<typeof PongSchema>;
+
+// ── Awareness ─────────────────────────────────────────────────────────────────
+
+// One entry in the awareness user list — all fields the server sends per present user.
+export const AwarenessUserSchema = z.object({
+    userId: z.number().int().positive(),
+    name: z.string(),
+    avatarUrl: z.string().nullable(),
+    color: z.string(),
+    focusedBlockId: z.string().nullable(),
+});
+
+export type AwarenessUser = z.infer<typeof AwarenessUserSchema>;
+
+// Client → Server: reports which block the user's cursor is currently in.
+// focusedBlockId is null when the editor loses focus.
+export const AwarenessUpdateServerSchema = z.object({
+    focusedBlockId: z.string().nullable(),
+});
+
+export type AwarenessUpdateServerPayload = z.infer<
+    typeof AwarenessUpdateServerSchema
+>;
+
+// Server → Client: full snapshot of all users currently present in the document.
+// Clients replace their local awareness state entirely on each receive.
+export const AwarenessUpdateClientSchema = z.object({
+    users: z.array(AwarenessUserSchema),
+});
+
+export type AwarenessUpdateClientPayload = z.infer<
+    typeof AwarenessUpdateClientSchema
+>;

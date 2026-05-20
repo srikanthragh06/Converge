@@ -149,4 +149,12 @@ export {
     PingSchema,
     PongPayload,
     PongSchema,
+    AwarenessUserSchema,
+    AwarenessUpdateServerSchema,
+    AwarenessUpdateClientSchema,
+} from "./socket/socket";
+export type {
+    AwarenessUser,
+    AwarenessUpdateServerPayload,
+    AwarenessUpdateClientPayload,
 } from "./socket/socket";
