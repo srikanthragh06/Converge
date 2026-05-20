@@ -29,8 +29,12 @@ export const SOCKET_EVENTS = {
     // ── Doc Ready ─────────────────────────────────────────────────────────────
     DOC_READY: "doc-ready",
 
-    // ── Sync title ──────────────────────────────────────────────────────────────
+    // ── Sync title ────────────────────────────────────────────────────────────
     SYNC_DOC_TITLE_SERVER: "sync-doc-title-server",
     SYNC_DOC_TITLE_CLIENT: "sync-doc-title-client",
     SYNC_DOC_TITLE_ACK: "sync-doc-title-ack",
+
+    // ── Awareness ─────────────────────────────────────────────────────────────
+    AWARENESS_UPDATE_SERVER: "awareness-update-server",
+    AWARENESS_UPDATE_CLIENT: "awareness-update-client",
 } as const;

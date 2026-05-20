@@ -36,6 +36,9 @@ import {
   SyncDocTitleAckSchema,
   type ResolvedDocumentAccessLevel,
   hasAccess,
+  AwarenessUpdateServerSchema,
+  type AwarenessUpdateServerPayload,
+  AwarenessUpdateClientSchema,
 } from '@converge/shared';
 import { GlobalExceptionFilter } from '../utils/global-exception.filter';
 import { socketEmit, socketEmitRoom } from '../utils/ws-emit.util';
@@ -75,8 +78,9 @@ export class DocumentGateway
   /**
    * Verifies the auth cookie and documentId, resolves the user's access level,
    * stamps documentId, userId, and access on the socket, joins the document room,
-   * loads the Y.Doc into memory, sets up the Redis subscription for cross-server
-   * updates, and emits DOC_READY when all async setup is complete.
+   * registers the user in the awareness hash, loads the Y.Doc into memory, sets up
+   * the Redis subscriptions for cross-server updates, emits DOC_READY, then broadcasts
+   * the updated awareness state so the joining client's listener is already registered.
    * Rejects invalid connections using disconnect(true) to force-close the underlying
    * transport — plain disconnect() only removes the socket from namespaces but leaves
    * the WebSocket open, so the client never receives the disconnect event.
@@ -154,11 +158,22 @@ export class DocumentGateway
         client.id,
       );
 
+      // write the user's awareness entry before any broadcast so it is visible immediately
+      await this.documentAwarenessService.addUser(documentId, userId);
+
       // load the Y.Doc into memory if not already loaded
       await this.documentYjsService.loadDoc(documentId);
 
       // Record that this user visited the document.
       await this.documentYjsService.recordLastVisited(documentId, userId);
+
+      // Signals to the client that it can start all server doc operations.
+      client.emit(SOCKET_EVENTS.DOC_READY);
+
+      // Broadcast after DOC_READY so the joining client's awareness listener is
+      // already registered when the update arrives. Existing room members receive
+      // it too, so everyone sees the new user without a separate notification.
+      await this.broadcastAwarenessState(documentId);
 
       // subscribe once per document — the Set prevents duplicate handlers across client connections
       if (!this.subscribedDocs.has(documentId)) {
@@ -209,12 +224,35 @@ export class DocumentGateway
           },
         );
 
+        // Forward awareness state from other server instances to local clients.
+        await this.redisService.subscribe(
+          REDIS_EVENTS.awarenessUpdate(documentId),
+          (message) => {
+            try {
+              const result = AwarenessUpdateClientSchema.safeParse(message);
+              if (!result.success) {
+                console.error(
+                  'Malformed awareness update from Redis:',
+                  message,
+                );
+                return;
+              }
+              socketEmitRoom(
+                this.socketServer,
+                String(documentId),
+                SOCKET_EVENTS.AWARENESS_UPDATE_CLIENT,
+                AwarenessUpdateClientSchema,
+                { users: result.data.users },
+              );
+            } catch (err) {
+              console.error('Failed to process Redis awareness update:', err);
+            }
+          },
+        );
+
         // Mark this document as subscribed so subsequent connections reuse the existing handlers.
         this.subscribedDocs.add(documentId);
       }
-
-      // Signals to the client that it can start all server doc operations.
-      client.emit(SOCKET_EVENTS.DOC_READY);
     } catch (err) {
       console.error(err);
       client.disconnect();
@@ -222,9 +260,35 @@ export class DocumentGateway
   }
 
   /**
-   * Removes the disconnecting socket from the awareness ref-count set.
-   * Skips silently if the socket never completed the connection handshake
-   * (e.g. rejected due to bad auth or missing documentId).
+   * Receives a cursor position update from the client, overwrites the user's
+   * focusedBlockId in the awareness hash, and broadcasts the updated full user
+   * list to the room and other server instances via Redis pub/sub.
+   * @param client - the socket that sent the update
+   * @param data - contains the focused block ID, or null if focus was lost
+   */
+  @SubscribeMessage(SOCKET_EVENTS.AWARENESS_UPDATE_SERVER)
+  async handleAwarenessUpdateServer(
+    @ConnectedSocket() client: Socket,
+    @MessageBody(new ZodSocketValidationPipe(AwarenessUpdateServerSchema))
+    { focusedBlockId }: AwarenessUpdateServerPayload,
+  ): Promise<void> {
+    const documentId = client.data.documentId as number;
+    const userId = client.data.userId as number;
+
+    await this.documentAwarenessService.updateUser(
+      documentId,
+      userId,
+      focusedBlockId,
+    );
+    await this.broadcastAwarenessState(documentId);
+  }
+
+  /**
+   * Removes the disconnecting socket from the awareness ref-count set. If this
+   * was the user's last socket for the document, also removes their awareness
+   * entry and broadcasts the updated presence list to the room. Skips silently
+   * if the socket never completed the connection handshake (e.g. rejected due
+   * to bad auth or missing documentId).
    * @param client - the socket that disconnected
    */
   async handleDisconnect(client: Socket): Promise<void> {
@@ -235,14 +299,21 @@ export class DocumentGateway
     if (documentId === undefined || userId === undefined) return;
 
     try {
-      await this.documentAwarenessService.removeSocket(
+      const isLast = await this.documentAwarenessService.removeSocket(
         documentId,
         userId,
         client.id,
       );
+
+      // Only remove the awareness entry and broadcast when the last tab closes.
+      // Non-last disconnects leave the entry intact — user is still present.
+      if (isLast) {
+        await this.documentAwarenessService.removeUser(documentId, userId);
+        await this.broadcastAwarenessState(documentId);
+      }
     } catch (err) {
       console.error(
-        `Failed to remove socket ${client.id} from awareness ref-count:`,
+        `Failed to clean up awareness for socket ${client.id}:`,
         err,
       );
     }
@@ -486,6 +557,25 @@ export class DocumentGateway
       SOCKET_EVENTS.SYNC_DOC_TITLE_CLIENT,
       SyncDocTitleClientSchema,
       { title },
+    );
+  }
+
+  /**
+   * Reads the current awareness state from Redis, publishes it to other server
+   * instances via pub/sub, and emits AWARENESS_UPDATE_CLIENT to all clients in
+   * the document room. Called after any state change so all instances stay in sync
+   * without separate local and remote broadcast paths.
+   * @param documentId - the document whose awareness state should be broadcast
+   */
+  private async broadcastAwarenessState(documentId: number): Promise<void> {
+    const users =
+      await this.documentAwarenessService.getAndPublishState(documentId);
+    socketEmitRoom(
+      this.socketServer,
+      String(documentId),
+      SOCKET_EVENTS.AWARENESS_UPDATE_CLIENT,
+      AwarenessUpdateClientSchema,
+      { users },
     );
   }
 }

@@ -155,6 +155,47 @@ export class RedisService {
   }
 
   /**
+   * Sets a single field in a Redis Hash, creating the hash if it does not exist.
+   * @param key - the Redis key for the Hash
+   * @param field - the field name to set
+   * @param value - the string value to store
+   */
+  async hset(key: string, field: string, value: string): Promise<void> {
+    await this.pub.hset(key, field, value);
+  }
+
+  /**
+   * Gets the value of a single field from a Redis Hash.
+   * Returns null if the key or field does not exist.
+   * @param key - the Redis key for the Hash
+   * @param field - the field name to read
+   */
+  async hget(key: string, field: string): Promise<string | null> {
+    return this.pub.hget(key, field);
+  }
+
+  /**
+   * Deletes one or more fields from a Redis Hash.
+   * @param key - the Redis key for the Hash
+   * @param fields - one or more field names to delete
+   * @returns the number of fields actually removed
+   */
+  async hdel(key: string, ...fields: string[]): Promise<number> {
+    return this.pub.hdel(key, ...fields);
+  }
+
+  /**
+   * Returns all field-value pairs in a Redis Hash as a plain object.
+   * Returns an empty object if the key does not exist.
+   * @param key - the Redis key for the Hash
+   */
+  async hgetall(key: string): Promise<Record<string, string>> {
+    const result = await this.pub.hgetall(key);
+    // hgetall returns null for non-existent keys in some ioredis versions.
+    return result ?? {};
+  }
+
+  /**
    * Subscribes to a Redis channel and invokes the handler for each incoming
    * message. Messages published by this server instance are automatically
    * skipped to prevent echo loops.
