@@ -121,6 +121,7 @@ export type PongPayload = z.infer<typeof PongSchema>;
 export const AwarenessUserSchema = z.object({
     userId: z.number().int().positive(),
     name: z.string(),
+    email: z.string(),
     avatarUrl: z.string().nullable(),
     color: z.string(),
     focusedBlockId: z.string().nullable(),
