@@ -113,88 +113,29 @@ In Docker dev, `build:watch` runs inside the container. It runs `tsc --watch` wh
 
 ---
 
-### Dev environment
+### `packages/shared` — package.json & tsconfig
 
-**Option 1 — tmux script (recommended)**
+**`package.json`**
 
-```bash
-bash tmux/setup.sh
-```
+- `name: "@converge/shared"` — the `@converge/` scope groups it under the project namespace and makes clear it is internal. This is what `workspace:*` matches against and what you use with `--filter`
+- `private: true` — prevents accidentally publishing to npm
+- `main: "dist/index.js"` — fallback for older Node versions that don't understand the `exports` field. When Node resolves `import from '@converge/shared'` it reads this to find the JavaScript
+- `types: "dist/index.d.ts"` — fallback for older TypeScript versions that don't understand `exports`. When TypeScript resolves the import it reads this to find the type declarations
+- `exports` — the modern way to define entry points, takes precedence over `main` in Node 12+. Has both `require` and `default` pointing to the same file for CJS/ESM compatibility. Also has `types` so modern TypeScript finds declarations through `exports` instead of the top level `types` field
 
-Starts all Docker containers via `docker-compose.dev.yml`, then opens a tmux session with two windows:
+**`tsconfig.json`**
 
-- `infra` — shell pane + `psql` pane connected to the local Postgres container
-- `logs` — `docker logs -f` for `server-1` and `web-1`
-
-**Option 2 — direct pnpm commands (no Docker)**
-
-```bash
-pnpm --filter server start:dev   # NestJS with --watch (ts-node hot reload)
-pnpm --filter web dev            # Vite dev server
-```
-
-Requires Postgres and Redis running separately.
-
-**What `docker-compose.dev.yml` runs**
-
-Two server instances + two web instances — intentional, for testing multi-server real-time sync locally without a staging environment:
-
-| Service    | Host port | Notes                                     |
-| ---------- | --------- | ----------------------------------------- |
-| `postgres` | 5432      | Postgres 16, named volume for persistence |
-| `redis`    | 6379      | Redis 7 Alpine                            |
-| `server-1` | 5000      | `CLIENT_URL=http://localhost:5173`        |
-| `server-2` | 5001      | `CLIENT_URL=http://localhost:5174`        |
-| `web-1`    | 5173      | `VITE_SERVER_URL=http://localhost:5000`   |
-| `web-2`    | 5174      | `VITE_SERVER_URL=http://localhost:5001`   |
-
-Source dirs (`apps/server/src`, `apps/web/src`, `packages/shared/src`) are bind-mounted so hot reload works without rebuilding images.
-
-**Vite-specific dev config** (`apps/web/vite.config.ts`)
-
-- `server.host: true` — binds to `0.0.0.0`, reachable from outside the container
-- `server.port` — reads `PORT` env var, falls back to `5173`; allows multiple web instances from the same image
-- `hmr.clientPort` — mirrors `PORT` so the browser connects HMR to the correct host port when inside Docker
-- `optimizeDeps.include: ["@converge/shared"]` — forces Vite to pre-bundle the local workspace package; without this Vite skips CJS→ESM conversion for workspace packages and imports break
-
----
-
-### Prod environment
-
-Frontend is a static build (`tsc + vite build`) served directly by nginx — no Vite in prod. Only the server runs in Docker.
-
-Three server instances per slot (blue or green). Each compose file has an explicit `name:` field (`converge-blue` / `converge-green`) so Docker treats them as independent projects even though they share the same directory.
-
-Postgres and Redis are external — Supabase and Upstash respectively. Not defined in the compose files; connection URLs are injected via `apps/server/.env` at runtime.
-
-**Env config** (`apps/server/src/utils/env.loader.ts`)
-
-Called at the very top of `main.ts` before `NestFactory.create`:
-
-```
-.env.<NODE_ENV>  →  loaded first, takes precedence
-.env             →  loaded second, shared fallback (dotenv never overwrites existing keys)
-```
-
-`NODE_ENV` defaults to `'dev'`. Prod containers set `NODE_ENV: prod` in the compose file, so `.env.prod` loads. `ConfigModule` in `AppModule` mirrors this exact pattern for NestJS's DI system.
-
----
-
-### Server startup sequence (`main.ts`)
-
-Order matters — each step must complete before the next:
-
-1. `loadEnv()` — populates `process.env` before any module constructor runs
-2. `registerProcessHandlers()` — attaches process-level error handlers:
-    - `unhandledRejection` → log and continue
-    - `uncaughtException` → log and `process.exit(1)`, let the process manager restart
-3. `NestFactory.create(AppModule)` — builds the DI container
-4. Wire CORS (`CLIENT_URL`, `credentials: true`), Socket.io adapter, `GlobalExceptionFilter`, `cookie-parser`
-5. `verifyDBConnection()` → `migrate()` — blocks until Postgres is reachable, runs all pending migrations
-6. `verifyRedisConnection()` — blocks until Redis is reachable
-7. `app.listen(PORT)`
-
-Steps 5–6 ensure the server never accepts traffic with a broken infra connection or a stale schema.
+- `strict: true` — full strict mode, catches more bugs at compile time
+- `target: "ES2020"` — tells TypeScript what JavaScript version to output. ES2020 is supported by Node 14+ natively without needing polyfills. If your code uses newer syntax, TypeScript rewrites it to an ES2020 equivalent
+- `lib: ["ES2020"]` — tells TypeScript what built-in APIs you are allowed to use. `ES2020` includes things like `Promise`, `Map`, `Set` — language features available in both Node and browsers. No `DOM` here because shared should never depend on browser-only APIs like `document` or `window`
+- `module: "Node16"` — tells TypeScript what module system to output. `Node16` means output code that works with Node's hybrid system which supports both CommonJS and ESM
+- `moduleResolution: "node16"` — the algorithm TypeScript uses to find files when it sees an import. `node16` means it respects the `exports` field in `package.json`. Without this TypeScript uses an older algorithm that ignores `exports` and only reads `main`
+- `rootDir: "src"` — only files inside `src/` get compiled, prevents config files or anything at the root being accidentally included
+- `outDir: "dist"` — compiled output goes to `dist/`
+- `declaration: true` — generates `.d.ts` files alongside the `.js` files. Without this, consumers get no type information when importing from shared
+- `declarationMap: true` — generates `.d.ts.map` files. Without this, cmd+click on a shared type takes you to the unreadable compiled `.d.ts`. With it, your editor jumps to the original `.ts` source
+- no `noEmit` — if this were set, `dist/` would never be created and imports would fail
+- `skipLibCheck: true` — skips type checking `.d.ts` files in `node_modules`, avoids errors from third-party packages with incorrect types
 
 ---
 
