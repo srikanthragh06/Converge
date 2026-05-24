@@ -8,22 +8,23 @@ A technical reference for the Converge codebase. Covers module responsibilities,
 
 1. [Tech Stack](#1-tech-stack)
 2. [Monorepo & Project Structure](#2-monorepo--project-structure)
-3. [Database Schema & Migrations](#3-database-schema--migrations)
-4. [Authentication](#4-authentication)
-5. [Workspace System](#5-workspace-system)
-6. [Document CRUD & Lifecycle](#6-document-crud--lifecycle)
-7. [Document Access Control](#7-document-access-control)
-8. [Yjs Real-time Sync](#8-yjs-real-time-sync)
-9. [Presence & Awareness](#9-presence--awareness)
-10. [Redis](#10-redis)
-11. [API Conventions](#11-api-conventions)
-12. [Frontend State — Jotai Atoms](#12-frontend-state--jotai-atoms)
-13. [Frontend Routing & Pages](#13-frontend-routing--pages)
-14. [Frontend Hooks Inventory](#14-frontend-hooks-inventory)
-15. [Socket Client](#15-socket-client)
-16. [Editor (BlockNote)](#16-editor-blocknote)
-17. [`@converge/shared`](#17-converge-shared)
-18. [Deployment](#18-deployment)
+3. [NestJS Server](#3-nestjs-server)
+4. [Database Schema & Migrations](#4-database-schema--migrations)
+5. [Authentication](#5-authentication)
+6. [Workspace System](#6-workspace-system)
+7. [Document CRUD & Lifecycle](#7-document-crud--lifecycle)
+8. [Document Access Control](#8-document-access-control)
+9. [Yjs Real-time Sync](#9-yjs-real-time-sync)
+10. [Presence & Awareness](#10-presence--awareness)
+11. [Redis](#11-redis)
+12. [API Conventions](#12-api-conventions)
+13. [Frontend State — Jotai Atoms](#13-frontend-state--jotai-atoms)
+14. [Frontend Routing & Pages](#14-frontend-routing--pages)
+15. [Frontend Hooks Inventory](#15-frontend-hooks-inventory)
+16. [Socket Client](#16-socket-client)
+17. [Editor (BlockNote)](#17-editor-blocknote)
+18. [`@converge/shared`](#18-converge-shared)
+19. [Deployment](#19-deployment)
 
 ---
 
@@ -300,66 +301,165 @@ CMD ["sh", "-c", "pnpm --filter @converge/shared build:watch & pnpm --filter ser
 
 ---
 
-## 3. Database Schema & Migrations
+## 3. NestJS Server
+
+### Entry point — `main.ts`
+
+`bootstrap()` wires up the app in this order:
+
+1. `loadEnv()` — reads `.env.<NODE_ENV>` and `.env` into `process.env` before any module constructor runs
+2. `registerProcessHandlers()` — attaches `unhandledRejection` and `uncaughtException` handlers
+3. `NestFactory.create(AppModule)` — builds the DI container from the root module
+4. `app.enableCors(...)` — restricts origins to `CLIENT_URL`, `credentials: true` so the browser accepts `Set-Cookie` on cross-origin responses
+5. `app.useWebSocketAdapter(new IoAdapter(app))` — attaches Socket.io to the same HTTP server so REST and WebSocket share one port
+6. `app.useGlobalFilters(new GlobalExceptionFilter())` — catches all unhandled exceptions in the NestJS pipeline
+7. `app.use(cookieParser())` — parses `Cookie` headers into `req.cookies`
+8. `dbService.verifyDBConnection()` then `dbService.migrate()` — confirms Postgres is reachable and runs pending migrations before accepting traffic
+9. `redisService.verifyRedisConnection()` — confirms Redis is reachable
+10. `app.listen(PORT)`
+
+### Module system
+
+A NestJS module is a class decorated with `@Module({})`. It is the unit of organisation — it declares what a feature provides and what it needs.
+
+```
+@Module({
+  imports: [DatabaseModule, RedisModule, AuthModule],  // modules this module depends on
+  providers: [DocumentService, DocumentYjsService],    // services registered in the DI container
+  controllers: [DocumentController],                   // HTTP route handlers
+  exports: [],                                         // what this module exposes to other modules
+})
+export class DocumentModule {}
+```
+
+`AppModule` is the root — all feature modules are imported there. Feature modules: `DocumentModule`, `WorkspaceModule`, `AuthModule`, `DatabaseModule`, `RedisModule`.
+
+`imports` — to use `DatabaseService` inside `DocumentModule`, you import `DatabaseModule` (which exports `DatabaseService`). NestJS resolves the dependency — you never call `new DatabaseService()`. If `DatabaseModule` is not in `imports`, injecting `DatabaseService` throws at startup.
+
+`exports` — a provider is only injectable in modules that import the module that exports it. `DatabaseModule` exports `DatabaseService`; any module that imports `DatabaseModule` can inject it.
+
+### Layered architecture
+
+```
+HTTP request → Controller → Service → (DatabaseService / RedisService)
+WebSocket event → Gateway → Service → (DatabaseService / RedisService)
+```
+
+Controllers and gateways handle routing and input parsing. Services hold all business logic. There is no separate repository layer — database calls live in services directly.
+
+### Request pipeline
+
+Every incoming HTTP request passes through this chain in order:
+
+```
+Guard → Pipe → Handler → Exception Filter
+```
+
+- **Guards** — run before the handler. Return `true` to allow, `false` to block. `AuthGuard` reads the JWT cookie and stamps `userId` on the request. `UserThrottlerGuard` keys rate limits on `userId` (not IP) using Redis-backed counters.
+- **Pipes** — transform or validate input. `ParseIntPipe` coerces string route params to numbers. `ZodHttpValidationPipe` validates `@Body()` against a Zod schema and throws a 400 if it fails.
+- **Exception filter** — `GlobalExceptionFilter` is registered globally. Catches any exception that escapes the handler and returns a structured error response for HTTP or emits on the `"error"` channel for WebSocket.
+
+### Dependency injection
+
+`@Injectable()` marks a class as a DI-managed provider. NestJS reads the constructor signature and resolves each parameter from the container automatically.
+
+```typescript
+@Injectable()
+export class DocumentService {
+  constructor(
+    private readonly db: DatabaseService,     // NestJS injects this
+    private readonly redis: RedisService,     // and this
+  ) {}
+}
+```
+
+You never instantiate services yourself. If a dependency is missing from the module graph, NestJS throws at startup — not at runtime.
+
+### Socket.io setup
+
+**`IoAdapter`** — registered in `main.ts`. Attaches the Socket.io server to the same underlying HTTP server that NestJS uses for REST. Both share one port.
+
+**`@WebSocketGateway`** — decorator that registers a class as a Socket.io handler. CORS is passed as a function so `CLIENT_URL` is read at connection time rather than at startup:
+
+```typescript
+@WebSocketGateway({
+  cors: {
+    origin: (_req, cb) => cb(null, process.env.CLIENT_URL),
+    credentials: true,
+  },
+})
+```
+
+**`@WebSocketServer()`** — field decorator that injects the live Socket.io `Server` instance into the gateway class, used for broadcasting to rooms.
+
+**`@SubscribeMessage(SOCKET_EVENTS.X)`** — registers a method as the handler for a specific socket event. The WebSocket equivalent of `@Get` / `@Post`.
+
+**`OnGatewayConnection` / `OnGatewayDisconnect`** — interfaces the gateway implements. `handleConnection(client)` fires on every new socket. `handleDisconnect(client)` fires when a socket drops. All per-socket setup and teardown lives here.
+
+**`@UseFilters(GlobalExceptionFilter)`** on the gateway class — overrides NestJS's default WebSocket exception handler so errors are emitted on the `"error"` channel instead of the default `"exception"` channel.
 
 ---
 
-## 4. Authentication
+## 4. Database Schema & Migrations
 
 ---
 
-## 5. Workspace System
+## 5. Authentication
 
 ---
 
-## 6. Document CRUD & Lifecycle
+## 6. Workspace System
 
 ---
 
-## 7. Document Access Control
+## 7. Document CRUD & Lifecycle
 
 ---
 
-## 8. Yjs Real-time Sync
+## 8. Document Access Control
 
 ---
 
-## 9. Presence & Awareness
+## 9. Yjs Real-time Sync
 
 ---
 
-## 10. Redis
+## 10. Presence & Awareness
 
 ---
 
-## 11. API Conventions
+## 11. Redis
 
 ---
 
-## 12. Frontend State — Jotai Atoms
+## 12. API Conventions
 
 ---
 
-## 13. Frontend Routing & Pages
+## 13. Frontend State — Jotai Atoms
 
 ---
 
-## 14. Frontend Hooks Inventory
+## 14. Frontend Routing & Pages
 
 ---
 
-## 15. Socket Client
+## 15. Frontend Hooks Inventory
 
 ---
 
-## 16. Editor (BlockNote)
+## 16. Socket Client
 
 ---
 
-## 17. `@converge/shared`
+## 17. Editor (BlockNote)
 
 ---
 
-## 18. Deployment
+## 18. `@converge/shared`
+
+---
+
+## 19. Deployment
 
 ---
