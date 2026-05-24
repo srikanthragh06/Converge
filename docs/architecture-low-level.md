@@ -6,8 +6,8 @@ A technical reference for the Converge codebase. Covers module responsibilities,
 
 ## Table of Contents
 
-1. [Monorepo & Project Structure](#1-monorepo--project-structure)
-2. [Tech Stack](#2-tech-stack)
+1. [Tech Stack](#1-tech-stack)
+2. [Monorepo & Project Structure](#2-monorepo--project-structure)
 3. [Database Schema & Migrations](#3-database-schema--migrations)
 4. [Authentication](#4-authentication)
 5. [Workspace System](#5-workspace-system)
@@ -27,7 +27,59 @@ A technical reference for the Converge codebase. Covers module responsibilities,
 
 ---
 
-## 1. Monorepo & Project Structure
+## 1. Tech Stack
+
+### Frontend (`apps/web`)
+
+| Package | Version | Role |
+|---|---|---|
+| React | 19 | UI framework |
+| Vite | 8 | Dev server and build tool — handles TypeScript compilation (not `tsc`), HMR, and bundling |
+| TypeScript | 5.9 | Type safety — `noEmit: true` so Vite compiles, `tsc` only type-checks |
+| Tailwind CSS | v3 | Utility-first styling. v3 not v4 — BlockNote ships CSS that breaks under v4's engine |
+| Mantine | 8 | Component library. Used directly for some UI and pulled in transitively by BlockNote |
+| BlockNote | 0.45 | Block-style rich text editor built on ProseMirror + Tiptap. Custom extensions live in `apps/web/src/lib/` |
+| Jotai | 2 | Global client state via atoms. Preferred over React context for cross-hook state |
+| React Router | v7 | Client-side routing |
+| Socket.io-client | 4 | WebSocket connection to the server |
+| Yjs + y-prosemirror | — | Client-side CRDT. `yjs` holds the shared document state, `y-prosemirror` binds it to BlockNote's ProseMirror editor |
+| Axios | 1 | HTTP client for REST calls |
+| Zod | 4 | Schema validation — shared types come from `@converge/shared`, Zod validates them on both sides |
+| Lucide React / React Icons / PrimeIcons | — | Icon sets used across UI components |
+
+### Backend (`apps/server`)
+
+| Package | Version | Role |
+|---|---|---|
+| NestJS | 11 | Framework — modules, dependency injection, decorators, controllers, guards, filters |
+| Socket.io | 4 | WebSocket server. NestJS wraps it via `@nestjs/platform-socket.io` and `@nestjs/websockets` |
+| Kysely | 0.28 | SQL query builder. Typed but not an ORM — you write SQL-shaped code, no magic. Table types defined in `db/database.schema.ts` |
+| PostgreSQL (via `pg`) | 16 | Primary database |
+| Redis (via ioredis) | 7 | Two roles: pub/sub for cross-server Yjs sync, and throttler storage so rate limit counters are shared across server instances |
+| Yjs | 13 | Server-side CRDT state. Each active document has a `Y.Doc` in memory; Yjs applies and merges client updates |
+| jsonwebtoken | 9 | Signs and verifies JWTs for auth |
+| Zod | 4 | Server-side request validation via `ZodHttpValidationPipe` |
+| `@nestjs/throttler` + `@nest-lab/throttler-storage-redis` | — | Per-user rate limiting. Throttler state stored in Redis so limits are enforced across all server instances |
+| `@nestjs/config` | 4 | Environment config — reads `.env.<NODE_ENV>` with `.env` as fallback |
+
+### Shared (`packages/shared`)
+
+| Package | Role |
+|---|---|
+| Zod | Defines socket event payload schemas and HTTP request/response schemas consumed by both `web` and `server` |
+
+### Infrastructure
+
+| Tool | Role |
+|---|---|
+| Docker + docker-compose | Dev: 6-container setup (postgres, redis, 2× server, 2× web). Prod: blue/green deployment slots |
+| PostgreSQL 16 | Primary database |
+| Redis 7 | Pub/sub + throttler storage |
+| nginx | Prod reverse proxy — routes traffic to the active blue or green slot |
+
+---
+
+## 2. Monorepo & Project Structure
 
 ### What is pnpm
 
@@ -245,10 +297,6 @@ Compiles shared once during image build so `dist/` exists when the container sta
 CMD ["sh", "-c", "pnpm --filter @converge/shared build:watch & pnpm --filter server start:dev"]
 ```
 `sh -c` lets you run a full shell string so multiple processes can be started together. `build:watch` runs in the background (`&`) keeping shared compiled on every save. `start:dev` runs in the foreground with NestJS hot reload. Together they give hot reload on both app code and shared changes.
-
----
-
-## 2. Tech Stack
 
 ---
 
