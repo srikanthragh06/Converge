@@ -300,9 +300,11 @@ export class DocumentGateway
   /**
    * Removes the disconnecting socket from the awareness ref-count set. If this
    * was the user's last socket for the document, also removes their awareness
-   * entry and broadcasts the updated presence list to the room. Skips silently
-   * if the socket never completed the connection handshake (e.g. rejected due
-   * to bad auth or missing documentId).
+   * entry and broadcasts the updated presence list to the room. Once awareness
+   * cleanup is complete, evicts the in-memory Y.Doc if no sockets remain in the
+   * document room on this server instance. Skips silently if the socket never
+   * completed the connection handshake (e.g. rejected due to bad auth or missing
+   * documentId).
    * @param client - the socket that disconnected
    */
   async handleDisconnect(client: Socket): Promise<void> {
@@ -324,6 +326,22 @@ export class DocumentGateway
       if (isLast) {
         await this.documentAwarenessService.removeUser(documentId, userId);
         await this.broadcastAwarenessState(documentId);
+      }
+
+      // Socket.io removes the socket from all rooms before firing disconnect, so
+      // the room size here already excludes the disconnecting socket. Evict the
+      // Y.Doc when no sockets remain for this document on this server instance.
+      const roomSize =
+        this.socketServer.sockets.adapter.rooms.get(String(documentId))?.size ??
+        0;
+      console.log(
+        `handleDisconnect: document ${documentId} room size after disconnect = ${roomSize}`,
+      );
+      if (roomSize === 0) {
+        console.log(
+          `handleDisconnect: evicting Y.Doc for document ${documentId} — no sockets remain`,
+        );
+        this.documentYjsService.evictDoc(documentId);
       }
     } catch (err) {
       console.error(
