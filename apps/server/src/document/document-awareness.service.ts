@@ -3,6 +3,7 @@ import { RedisService } from '../redis/redis.service';
 import { REDIS_EVENTS, REDIS_KEYS } from '../redis/redis.events';
 import { DatabaseService } from '../db/database.service';
 import { AwarenessUser, AwarenessUserSchema } from '@converge/shared';
+import { DocumentAccessService } from './document-access.service';
 
 /** Distinct colors assigned to users on join; cycles from the start if all are taken. */
 const AWARENESS_COLORS = [
@@ -28,6 +29,7 @@ export class DocumentAwarenessService {
   constructor(
     private readonly redisService: RedisService,
     private readonly dbService: DatabaseService,
+    private readonly documentAccessService: DocumentAccessService,
   ) {}
 
   /**
@@ -71,9 +73,10 @@ export class DocumentAwarenessService {
 
   /**
    * Registers a user as present in the given document.
-   * Fetches the user's name, email, and avatar from the database, then writes an awareness
-   * entry only if one does not already exist — preserving the existing color and
-   * focusedBlockId from a previously opened tab. Refreshes TTL on both hashes.
+   * Fetches the user's name, email, and avatar from the database and resolves their
+   * access level, then writes an awareness entry only if one does not already exist —
+   * preserving the existing color and focusedBlockId from a previously opened tab.
+   * Refreshes TTL on both hashes.
    * @param documentId - the document the user is joining
    * @param userId - the authenticated user's database ID
    */
@@ -93,6 +96,11 @@ export class DocumentAwarenessService {
     const existing = await this.redisService.hget(awarenessKey, String(userId));
     if (!existing) {
       const users = await this.getUsers(documentId);
+      // Resolve access level at join time; stored in Redis for the duration of the session.
+      const accessLevel = await this.documentAccessService.resolveAccess(
+        documentId,
+        userId,
+      );
       const color = this.pickColor(users);
       const entry: AwarenessUser = {
         userId,
@@ -101,6 +109,7 @@ export class DocumentAwarenessService {
         avatarUrl: user.avatar_url,
         color,
         focusedBlockId: null,
+        accessLevel,
       };
       await this.redisService.hset(
         awarenessKey,

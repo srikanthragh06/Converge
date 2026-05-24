@@ -74,7 +74,7 @@ const EditorPageHeader = ({
                         </span>
                     </span>
                 )}
-                <div className="flex items-center sm:space-x-8 py-1 space-x-4 ml-auto">
+                <div className="flex items-center sm:space-x-8 space-x-4 ml-auto">
                     {documentStatus === "ready" && otherUsers.length > 0 && (
                         <>
                             {visibleUsers.map((user) => (
@@ -103,6 +103,9 @@ const EditorPageHeader = ({
                                     <p className="text-xs opacity-60">
                                         {user.email}
                                     </p>
+                                    <p className="text-xs opacity-40 capitalize mt-0.5">
+                                        {user.accessLevel}
+                                    </p>
                                 </Tooltip>
                             ))}
                             <AvatarGroup>
@@ -110,7 +113,7 @@ const EditorPageHeader = ({
                                     <Avatar
                                         key={user.userId}
                                         id={`awareness-avatar-${user.userId}`}
-                                        className="w-8 h-8"
+                                        className="sm:w-8 sm:h-8 w-6 h-6"
                                         shape="circle"
                                         style={{
                                             borderColor: user.color,
