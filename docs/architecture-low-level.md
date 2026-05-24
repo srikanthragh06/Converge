@@ -165,6 +165,18 @@ In Docker dev, `build:watch` runs inside the container. It runs `tsc --watch` wh
 
 ---
 
+### `apps/web` — notable tsconfig points
+
+- `noEmit: true` — TypeScript only type-checks, Vite does the actual compilation. Unlike server and shared which compile themselves
+- `moduleResolution: "bundler"` — tells TypeScript that Vite handles module resolution, not Node
+- `lib: ["ES2023", "DOM", "DOM.Iterable"]` — includes DOM because React code runs in the browser. Server and shared do not have this
+- Two separate tsconfig files — `tsconfig.app.json` for React source code, `tsconfig.node.json` for `vite.config.ts`. Kept separate because `vite.config.ts` runs in Node so it should not have DOM types
+- `paths: { "@/*": ["./src/*"] }` — `@/` alias so you can do `import x from '@/components/...'` instead of relative paths
+
+> **Note:** When you make changes to `packages/shared`, the web dev container must be restarted to pick them up. Vite pre-bundles `@converge/shared` into its cache at startup via `optimizeDeps.include` and reads from that cache at runtime — not from the live files. Restarting forces Vite to re-bundle from scratch.
+
+---
+
 ## 2. Tech Stack
 
 ---
