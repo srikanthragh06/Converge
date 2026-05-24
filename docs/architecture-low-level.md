@@ -139,6 +139,32 @@ In Docker dev, `build:watch` runs inside the container. It runs `tsc --watch` wh
 
 ---
 
+### `apps/server` — tsconfig.json & nest-cli.json
+
+**`tsconfig.json`**
+
+- `strict: true` — full strict mode, catches more bugs at compile time
+- `target: "ES2023"` — outputs modern JavaScript, Node 18+ supports it natively
+- `module: "nodenext"`, `moduleResolution: "nodenext"` — same as shared's `node16` but the latest version. Tells TypeScript to output code compatible with Node's module system and resolve imports the way Node does
+- `resolvePackageJsonExports: true` — when TypeScript resolves an import like `@converge/shared`, it reads the `exports` field in that package's `package.json` to find the correct entry point file rather than guessing or falling back to older fields
+- `esModuleInterop: true` — allows importing CommonJS packages with `import x from 'x'` instead of `import * as x from 'x'`. Many older npm packages are CommonJS so this makes imports cleaner
+- `emitDecoratorMetadata: true`, `experimentalDecorators: true` — required for NestJS. Decorators like `@Module`, `@Injectable`, `@Controller` do not work without these
+- `rootDir: "./src"`, `outDir: "./dist"` — source lives in `src/`, compiled output goes to `dist/`
+- `declaration: true` — generates `.d.ts` files alongside compiled output
+- `removeComments: true` — strips comments from compiled output to reduce file size
+- `sourceMap: true` — generates `.js.map` files so stack traces in production point to the original TypeScript line instead of compiled JavaScript
+- `incremental: false` — disables incremental compilation. NestJS CLI handles its own build caching so this is not needed
+- `types: ["node"]` — only Node.js types available, no DOM APIs
+- `isolatedModules: true` — each file must be independently compilable without needing information from other files
+- `forceConsistentCasingInFileNames: true` — prevents import casing mismatches between operating systems. Mac is case-insensitive, Linux is not — this catches those bugs at compile time
+- `skipLibCheck: true` — skips type checking `.d.ts` files in `node_modules`
+
+**`nest-cli.json`**
+
+- `deleteOutDir: true` — wipes `dist/` on every build so no stale compiled files accumulate
+
+---
+
 ## 2. Tech Stack
 
 ---
