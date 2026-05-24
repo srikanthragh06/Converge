@@ -542,6 +542,26 @@ res.cookie('authToken', token, {
 - `secure` — only sent over HTTPS. Disabled in dev since the local environment runs on HTTP
 - `maxAge` matches the JWT's own expiry so the cookie and token expire together
 
+#### `AuthGuard`
+
+`AuthGuard` implements NestJS's `CanActivate` interface. NestJS calls `canActivate()` before the route handler — if it returns `true` the request proceeds, if it throws the request is rejected.
+
+```typescript
+async canActivate(context: ExecutionContext): Promise<boolean> {
+  const request = context.switchToHttp().getRequest();
+  await this.authService.verifyReqAuthAndAttachUserToReq(request);
+  return true;
+}
+```
+
+It throws `UnauthorizedException` on any failure rather than returning `false`. Returning `false` produces a 403 Forbidden — throwing `UnauthorizedException` produces the correct 401 Unauthorized.
+
+Applied per-route with `@UseGuards(AuthGuard)`, not globally — the auth and logout endpoints must remain publicly accessible.
+
+After `AuthGuard` passes, `userId` is stamped on `req` as `req.userId`. The route handler reads it from there — it never re-verifies the token.
+
+**WebSocket equivalent** — there is no `AuthGuard` for sockets. NestJS guards do not run on `handleConnection`. Auth is done manually at the top of `handleConnection` by parsing the `authToken` cookie from `client.handshake.headers.cookie`, calling `authService.verifyAuthToken`, and calling `client.disconnect(true)` on any failure. `disconnect(true)` force-closes the underlying transport — plain `disconnect()` only removes the socket from namespaces but leaves the WebSocket open.
+
 #### Session persistence — `useAuth` and `authAtom`
 
 `authAtom` is the single source of truth for client-side auth state:
