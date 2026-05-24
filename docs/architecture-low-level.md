@@ -461,6 +461,99 @@ Migrations use `Kysely<unknown>` — not `Kysely<DatabaseSchema>` — because th
 
 ## 5. Authentication
 
+### Google OAuth — how it works
+
+Converge uses Google OAuth with the **authorization code flow**. Here is the high-level sequence:
+
+1. The frontend redirects the user to Google's login page, including the app's **client ID** in the URL
+2. The user logs in and consents
+3. Google redirects back to the app with a short-lived one-time `code` in the URL
+4. The **server** POSTs that `code` to Google's token endpoint along with the **client secret** — this exchange happens server-to-server so the secret never touches the browser
+5. Google verifies the secret and returns an ID token — a signed JWT containing the user's profile (`sub`, `email`, `name`, `picture`)
+6. The server decodes the ID token, upserts the user in the DB, and issues its own session token (another JWT) as a cookie
+
+**Client ID** — a public identifier for the app. Included in the frontend redirect URL so Google knows which app is requesting login. Safe to expose.
+
+**Client Secret** — proves to Google that the code exchange is coming from the legitimate server, not someone who intercepted the `code` from the redirect URL. Never sent to the browser. Lives in `.env`.
+
+Both are registered on Google Cloud Console when setting up the OAuth app. Allowed redirect URIs are also registered there — Google only sends the user back to pre-approved URLs.
+
+**CSRF state token** — a random value the frontend generates before the redirect and stores in `localStorage`. Google echoes it back in the callback URL. The frontend validates it matches before exchanging the code. Prevents an attacker from tricking you into completing *their* OAuth flow — without it, they could craft a callback URL and get you logged into their account. For a login-only app like Converge this is low-stakes, but it matters in flows where completing the OAuth grants the attacker something (e.g. linking your payment method to their account).
+
+### Implementation
+
+#### Frontend flow
+
+`AuthPage` handles the initial redirect. When the user clicks "Sign in with Google":
+1. Generates a random CSRF state token using `crypto.getRandomValues` — cryptographically random, not `Math.random()`
+2. Stores it in `localStorage` under `AUTH_CSRF_STATE`
+3. Builds the Google OAuth URL with `client_id` (from `VITE_GOOGLE_CLIENT_ID`), `redirect_uri` (`/auth/callback`), `response_type: code`, `scope: openid email profile`, and `state`
+4. Redirects the browser via `window.location.assign`
+
+When Google redirects back to `/auth/callback`, `AuthCallbackPage` mounts and `useGoogleAuthCallback` runs:
+1. Reads `code` and `state` from the URL query params
+2. Reads the original state from `localStorage` and compares — throws if they don't match
+3. Removes the state from `localStorage` immediately — it is single-use
+4. POSTs `{ code }` to `POST /auth/google`
+5. On success: sets `authAtom` to `authenticated` with the returned user profile, then navigates to `/` after a 1.2s delay so the success message is briefly visible
+6. On failure: sets `authAtom` to `unauthenticated`
+
+#### Backend flow — `POST /auth/google`
+
+The server POSTs to `https://oauth2.googleapis.com/token` with `code`, `client_id`, `client_secret`, `redirect_uri`, and `grant_type: authorization_code`. Google returns an `id_token`.
+
+The server decodes the ID token with `jwt.decode` — not `jwt.verify`. There is no signature verification because we are trusting Google's HTTPS endpoint for authenticity. If we got a response from that endpoint, Google issued the token. `jwt.decode` just reads the payload: `sub` (stable Google user ID), `email`, `name`, `picture`.
+
+The user is then upserted into the DB keyed on `google_id` (`sub`), not `email`. Emails can change on Google's side — keying on `email` would create a duplicate row every time someone changes their Google email. `google_id` is stable for the lifetime of the account. On conflict, the upsert updates `email`, `name`, and `avatar_url` to stay in sync with Google.
+
+On first signup, a personal workspace is created for the user. Subsequent logins are a no-op for the workspace.
+
+#### The JWT we issue
+
+After upsert, the server signs its own JWT with `jsonwebtoken`:
+
+```typescript
+jwt.sign({ userId: userId.toString(), userEmail }, secret, { expiresIn: 60 * 60 * 24 * 7 });
+```
+
+`userId` is serialised as a string in the payload for consistent type handling across all consumers — numeric JWT claims can behave inconsistently across libraries. The JWT expires in 7 days.
+
+`verifyAuthToken` (used by both `AuthGuard` and the WebSocket gateway) does two things:
+1. `jwt.verify(authToken, secret)` — checks the signature and expiry. Throws if tampered or expired.
+2. DB lookup — confirms the user still exists. Catches the case where a valid JWT belongs to a deleted account.
+
+Only after both pass is the `userId` returned and stamped onto the request.
+
+#### Cookie config
+
+The JWT is sent to the client as an `httpOnly` cookie:
+
+```typescript
+res.cookie('authToken', token, {
+  httpOnly: true,
+  sameSite: 'strict',
+  secure: environment === 'PROD',
+  maxAge: 60 * 60 * 24 * 7 * 1000,
+});
+```
+
+- `httpOnly` — the cookie is invisible to JavaScript (`document.cookie`). Prevents XSS attacks from stealing the token — even if an attacker injects a script, they cannot read the cookie
+- `SameSite: strict` — the browser will not send the cookie on any cross-site request, including navigations from other sites. Prevents CSRF on the API
+- `secure` — only sent over HTTPS. Disabled in dev since the local environment runs on HTTP
+- `maxAge` matches the JWT's own expiry so the cookie and token expire together
+
+#### Session persistence — `useAuth` and `authAtom`
+
+`authAtom` is the single source of truth for client-side auth state:
+
+```typescript
+{ status: "loading" | "authenticated" | "unauthenticated", user: AuthResponseDto | null }
+```
+
+It starts as `loading`. `useAuth` runs once on app mount and calls `GET /auth/me`. If the `authToken` cookie is still valid, the server returns the user profile and `authAtom` moves to `authenticated`. If the cookie is missing or expired, the server returns 401 and `authAtom` moves to `unauthenticated`.
+
+It is a Jotai atom rather than local component state because auth status is needed across many hooks and components simultaneously — the socket connection, route guards, the sidebar, the editor header. Prop-drilling that far would be impractical. All consumers read from the same atom and react when it changes.
+
 ---
 
 ## 6. Workspace System
