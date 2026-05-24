@@ -1,8 +1,9 @@
-import { useLayoutEffect, useState } from "react";
+import { Fragment, useLayoutEffect, useState } from "react";
 import { useAtomValue } from "jotai";
 import { awarenessAtom } from "../../../atoms/socket";
 import { authAtom } from "../../../atoms/auth";
 import { type AwarenessUser } from "@converge/shared";
+import { Tooltip } from "primereact/tooltip";
 
 /** Position of a block in the editor and the users focused on it. */
 type BlockPosition = {
@@ -100,28 +101,57 @@ const BlockAwarenessOverlay = ({
                     style={{ top: top + height / 2 - 12 }}
                 >
                     {users.map((user) => (
-                        <div
-                            key={user.userId}
-                            className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center text-xs font-medium"
-                            style={{
-                                border: `2px solid ${user.color}`,
-                                backgroundColor: "#303030",
-                            }}
-                            title={user.name}
-                        >
-                            {user.avatarUrl ? (
-                                <img
-                                    src={user.avatarUrl}
-                                    referrerPolicy="no-referrer"
-                                    alt={user.name}
-                                    className="w-full h-full object-cover"
-                                />
-                            ) : (
-                                <span>
-                                    {user.name[0]?.toUpperCase() ?? "?"}
-                                </span>
-                            )}
-                        </div>
+                        <Fragment key={user.userId}>
+                            <Tooltip
+                                target={`#block-awareness-avatar-${user.userId}`}
+                                position="left"
+                                pt={{
+                                    text: {
+                                        style: {
+                                            backgroundColor: "#171717",
+                                            color: "white",
+                                            border: "1px solid #333",
+                                        },
+                                    },
+                                    arrow: {
+                                        style: {
+                                            borderLeftColor: "#171717",
+                                        },
+                                    },
+                                }}
+                            >
+                                <p className="font-medium text-sm">
+                                    {user.name}
+                                </p>
+                                <p className="text-xs opacity-60">
+                                    {user.email}
+                                </p>
+                                <p className="text-xs opacity-40 capitalize mt-0.5">
+                                    {user.accessLevel}
+                                </p>
+                            </Tooltip>
+                            <div
+                                id={`block-awareness-avatar-${user.userId}`}
+                                className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center text-xs font-medium pointer-events-auto"
+                                style={{
+                                    border: `2px solid ${user.color}`,
+                                    backgroundColor: "#303030",
+                                }}
+                            >
+                                {user.avatarUrl ? (
+                                    <img
+                                        src={user.avatarUrl}
+                                        referrerPolicy="no-referrer"
+                                        alt={user.name}
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <span>
+                                        {user.name[0]?.toUpperCase() ?? "?"}
+                                    </span>
+                                )}
+                            </div>
+                        </Fragment>
                     ))}
                 </div>
             ))}
