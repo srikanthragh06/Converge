@@ -177,6 +177,43 @@ In Docker dev, `build:watch` runs inside the container. It runs `tsc --watch` wh
 
 ---
 
+### Dev setup
+
+**`docker-compose.dev.yml`**
+
+Defines 6 containers that run together:
+
+| Service | Port | Notes |
+|---|---|---|
+| `postgres` | 5432 | Postgres 16, named volume for data persistence |
+| `redis` | 6379 | Redis 7 Alpine |
+| `server-1` | 5000 | Points at `web-1` via `CLIENT_URL` |
+| `server-2` | 5001 | Points at `web-2` via `CLIENT_URL` |
+| `web-1` | 5173 | `VITE_SERVER_URL=http://localhost:5000` |
+| `web-2` | 5174 | `VITE_SERVER_URL=http://localhost:5001` |
+
+Two server instances and two web instances are intentional — lets you test multi-server real-time sync locally without a staging environment.
+
+Postgres and Redis use official Docker Hub images. Server and web are built from their own Dockerfiles. `context: .` gives the build access to the entire repo root since the Dockerfiles copy files from `packages/shared/` as well.
+
+Inside Docker, containers talk to each other by service name not `localhost`. So the server connects to Postgres at hostname `postgres` and Redis at hostname `redis`. `depends_on` ensures Postgres and Redis start before the servers, and servers start before the web instances.
+
+**Bind mounts**
+
+```yaml
+- ./apps/server/src:/app/apps/server/src
+- ./packages/shared/src:/app/packages/shared/src
+- ./packages/shared/dist:/app/packages/shared/dist
+```
+
+When Docker builds the image it bakes a copy of the source into it. Without bind mounts, every code change would require a full image rebuild. Bind mounts replace the baked copy with your actual local folder — so edits on your machine appear inside the container instantly and NestJS `--watch` or Vite picks them up automatically.
+
+`node_modules` is deliberately not mounted — it stays as the copy built inside the image. Mounting it would break pnpm's symlinks since the paths inside the container differ from your machine. This also means if you install a new package, you need to rebuild the image with `docker compose up --build` so `pnpm install` runs again inside the container.
+
+`packages/shared/dist` is mounted so that when `build:watch` recompiles shared inside the container, the output also appears on your machine. This keeps your local VS Code types in sync without any manual steps.
+
+---
+
 ## 2. Tech Stack
 
 ---
