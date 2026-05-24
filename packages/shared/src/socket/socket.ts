@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ResolvedDocumentAccessLevelSchema } from "../types/types";
 
 // Validates Yjs binary data sent over the wire as a number[] of byte values.
 const WireBytes = z.array(z.number().int().min(0).max(255));
@@ -125,6 +126,7 @@ export const AwarenessUserSchema = z.object({
     avatarUrl: z.string().nullable(),
     color: z.string(),
     focusedBlockId: z.string().nullable(),
+    accessLevel: ResolvedDocumentAccessLevelSchema,
 });
 
 export type AwarenessUser = z.infer<typeof AwarenessUserSchema>;
