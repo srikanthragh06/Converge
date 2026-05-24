@@ -400,7 +400,62 @@ You never instantiate services yourself. If a dependency is missing from the mod
 
 ---
 
-## 4. Database Schema & Migrations
+## 4. Kysely
+
+Kysely is a type-safe SQL query builder — not an ORM. There are no models, no magic, no lazy loading. You write SQL-shaped TypeScript and Kysely compiles it to a query. Wrong column names and wrong value types are compile errors.
+
+### Connection pooling
+
+`DatabaseService` creates a `pg.Pool` and hands it to Kysely via `PostgresDialect`. The pool maintains persistent Postgres connections and reuses them across queries — no new TCP connection per request.
+
+Pool config differs by environment:
+
+- **DEV** — connects to the `postgres` container from `docker-compose.dev.yml` using host/port/user/password from `.env.dev`
+- **PROD** — connects to Supabase with `ssl: { rejectUnauthorized: false }`. Supabase's certificate chain is not trusted by Node's default CA bundle so CA verification is skipped. The connection is still TLS-encrypted.
+
+### BIGINT parsing
+
+By default `pg` returns `BIGINT` columns (OID 20) as JavaScript strings. `DatabaseService` overrides this once at construction time:
+
+```typescript
+types.setTypeParser(20, (val: string) => Number(val));
+```
+
+Without this, `bigserial` ID columns come back as `"123"` instead of `123` and break comparisons and JSON serialisation.
+
+### Type integration
+
+`database.schema.ts` defines a TypeScript interface per table. `Generated<T>` marks columns Postgres fills in automatically (PKs, `created_at`, columns with defaults) — Kysely's insert types exclude them so you never have to provide them manually. Enum columns like `DocumentAccessLevel` and `WorkspaceRole` use the shared types imported from `@converge/shared`.
+
+All interfaces are collected into `DatabaseSchema`, which is passed as a generic to the Kysely instance:
+
+```typescript
+this.kysely = new Kysely<DatabaseSchema>({
+  dialect: new PostgresDialect({ pool: this.pool }),
+});
+```
+
+`DatabaseService` exposes `kysely` as a public field. Services inject `DatabaseService` and pull the instance out locally:
+
+```typescript
+const db = this.dbService.kysely;
+await db.selectFrom('documents').where('id', '=', documentId).selectAll().executeTakeFirst();
+```
+
+`DatabaseModule` provides and exports `DatabaseService`. Any feature module that needs database access imports `DatabaseModule`.
+
+### Migrations
+
+Migration files live in `apps/server/src/migrations/`, named `<number>_<purpose>.ts`. Each exports `up` and `down`:
+
+```typescript
+export async function up(db: Kysely<unknown>): Promise<void> { ... }
+export async function down(db: Kysely<unknown>): Promise<void> { ... }
+```
+
+Migrations use `Kysely<unknown>` — not `Kysely<DatabaseSchema>` — because the schema type at the time each migration runs may not match the final shape.
+
+`DatabaseService.migrate()` is called in `main.ts` on every startup before the server accepts traffic. Kysely tracks applied migrations in a `kysely_migration` table it manages internally. `migrateToLatest()` runs only the files not yet applied. If any migration fails the server throws and refuses to start.
 
 ---
 
