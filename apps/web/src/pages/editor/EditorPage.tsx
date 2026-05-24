@@ -1,9 +1,11 @@
+import { useRef } from "react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { convergeTheme } from "../../theme/editorTheme";
 import useEditor from "../../hooks/useEditor";
 import Page from "../../components/Page";
 import DocumentSwitcherOverlay from "./documentSwitcherOverlay/DocumentSwitcherOverlay";
 import EditorPageHeader from "./header/EditorPageHeader";
+import BlockAwarenessOverlay from "./blockAwarenessOverlay/BlockAwarenessOverlay";
 import { hasAccess } from "../../utils/utils";
 import useEditorScrollGap from "../../hooks/useEditorScrollGap";
 import useDocumentSwitcherShortcut from "../../hooks/useDocumentSwitcherShortcut";
@@ -30,6 +32,7 @@ const EditorPage = () => {
     } = useEditor(); // editor instance, document ID, fetch status, title state, and resolved access level
 
     const scrollRef = useEditorScrollGap(editor); // ref for the scroll container — maintains a gap below the last block
+    const editorWrapperRef = useRef<HTMLDivElement>(null); // ref for the position:relative wrapper used by BlockAwarenessOverlay
     const isEditable =
         documentAccess !== null && hasAccess(documentAccess, "editor"); // editor+ may write; viewers get a read-only instance
 
@@ -106,11 +109,16 @@ const EditorPage = () => {
                     {editor &&
                         documentStatus === "ready" &&
                         syncStatus !== "restoring" && (
-                            <BlockNoteView
-                                editor={editor}
-                                theme={convergeTheme}
-                                editable={isEditable}
-                            />
+                            <div ref={editorWrapperRef} className="relative">
+                                <BlockNoteView
+                                    editor={editor}
+                                    theme={convergeTheme}
+                                    editable={isEditable}
+                                />
+                                <BlockAwarenessOverlay
+                                    editorWrapperRef={editorWrapperRef}
+                                />
+                            </div>
                         )}
                 </div>
             )}
