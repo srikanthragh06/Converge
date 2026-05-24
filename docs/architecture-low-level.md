@@ -212,6 +212,40 @@ When Docker builds the image it bakes a copy of the source into it. Without bind
 
 `packages/shared/dist` is mounted so that when `build:watch` recompiles shared inside the container, the output also appears on your machine. This keeps your local VS Code types in sync without any manual steps.
 
+### Dockerfiles (dev)
+
+Both `apps/server/Dockerfile` and `apps/web/Dockerfile` are identical in structure — the only difference is the final command (`start:dev` vs `dev`).
+
+**`FROM node:20-alpine AS dev`**
+Starts from the official Node 20 Alpine image. Alpine is a lightweight Linux distro — much smaller than the default Ubuntu-based Node image.
+
+**`corepack enable && corepack prepare pnpm@10.33.0 --activate`**
+Corepack ships with Node and manages package manager versions. This ensures the container uses exactly `pnpm@10.33.0` — the same version declared in the root `package.json` — rather than whatever version happens to be installed on the base image.
+
+**Layer caching strategy**
+```dockerfile
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/shared/package.json ./packages/shared/
+COPY apps/server/package.json ./apps/server/
+
+RUN pnpm install --frozen-lockfile
+
+COPY packages/shared/ ./packages/shared/
+COPY apps/server/ ./apps/server/
+```
+Manifests are copied first, then `pnpm install`, then source. Docker caches each step as a layer. Since dependencies rarely change, the install layer gets cached and only reruns when a `package.json` or lockfile changes. If source was copied first, any code change would bust the install cache and reinstall everything every time.
+
+`--frozen-lockfile` tells pnpm to install exactly what is in `pnpm-lock.yaml` and fail if there is any mismatch — prevents the container from silently installing different versions than what is in the lockfile.
+
+**`RUN pnpm --filter @converge/shared build`**
+Compiles shared once during image build so `dist/` exists when the container starts. Without this the server or Vite would fail to import from `@converge/shared` on first boot.
+
+**`CMD`**
+```dockerfile
+CMD ["sh", "-c", "pnpm --filter @converge/shared build:watch & pnpm --filter server start:dev"]
+```
+`sh -c` lets you run a full shell string so multiple processes can be started together. `build:watch` runs in the background (`&`) keeping shared compiled on every save. `start:dev` runs in the foreground with NestJS hot reload. Together they give hot reload on both app code and shared changes.
+
 ---
 
 ## 2. Tech Stack
