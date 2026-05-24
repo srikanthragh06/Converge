@@ -1,6 +1,6 @@
 # Converge — Low-Level Architecture
 
-A technical reference for the Converge codebase. Covers module responsibilities, data flows, key decisions, and implementation details. Written for returning-to-the-project context and interview prep.
+A technical reference for the Converge codebase. Covers module responsibilities, data flows, key decisions, and implementation details. Written for returning-to-the-project context.
 
 ---
 
@@ -92,13 +92,15 @@ pnpm --filter @converge/shared build
 
 ### Build order
 
-`@converge/shared` must compile before either app — both import from it and need the compiled `dist/` output. Root `build` script enforces the order:
+`@converge/shared` must be built before `web` and `server`. When either app imports from `@converge/shared`, Node follows the symlink to `packages/shared` and reads the `main` field in its `package.json` which points to `dist/index.js`. So if `dist/` does not exist yet, the import fails even though the symlink is there.
+
+The root `build` script enforces the order:
 
 ```bash
 pnpm --filter @converge/shared build && pnpm --filter web build && pnpm --filter server build
 ```
 
-In Docker, `build:watch` runs inside the container to keep compiled output in sync with source changes during development.
+In Docker dev, `build:watch` runs inside the container. It runs `tsc --watch` which sits in the background and recompiles `packages/shared/src` into `dist/` every time you save a file. So any change to shared is immediately compiled and available to `web` and `server` without manually running the build.
 
 ### Engine constraints
 
