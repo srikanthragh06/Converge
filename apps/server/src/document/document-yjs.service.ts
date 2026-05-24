@@ -94,8 +94,10 @@ export class DocumentYjsService {
         .execute();
 
       if (updatedRows.length > 0) {
-        const { update_count: updateCount, last_compact_count: lastCompactCount } =
-          updatedRows[0];
+        const {
+          update_count: updateCount,
+          last_compact_count: lastCompactCount,
+        } = updatedRows[0];
         if (updateCount >= lastCompactCount + this.COMPACTION_THRESHOLD) {
           compactionRequired = true;
         }
@@ -214,7 +216,10 @@ export class DocumentYjsService {
           return;
         }
 
-        const { update_count: updateCount, last_compact_count: lastCompactCount } = row;
+        const {
+          update_count: updateCount,
+          last_compact_count: lastCompactCount,
+        } = row;
 
         if (updateCount < lastCompactCount + this.COMPACTION_THRESHOLD) return;
 
@@ -224,7 +229,10 @@ export class DocumentYjsService {
           .select(sql<string | null>`max(id)`.as('maxUpdateId'))
           .executeTakeFirst();
 
-        if (maxUpdateIdRow === undefined || maxUpdateIdRow.maxUpdateId === null) {
+        if (
+          maxUpdateIdRow === undefined ||
+          maxUpdateIdRow.maxUpdateId === null
+        ) {
           console.log(
             'compactUpdatesIfRequired: no updates found, skipping compaction',
           );
@@ -297,6 +305,20 @@ export class DocumentYjsService {
     this.redisService.publish(REDIS_EVENTS.documentTitleUpdate(documentId), {
       title,
     });
+  }
+
+  /**
+   * Removes the Y.Doc for the given document from the in-memory registry,
+   * freeing its memory. The next access will reload it from the database.
+   * Called when this server instance has no more sockets connected to the document.
+   * @param documentId - the document to evict
+   */
+  evictDoc(documentId: number): void {
+    const had = this.yDocsMap.has(documentId);
+    this.yDocsMap.delete(documentId);
+    console.log(
+      `evictDoc: document ${documentId} ${had ? 'evicted' : 'was not in cache (no-op)'}`,
+    );
   }
 
   /**
