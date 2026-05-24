@@ -169,6 +169,7 @@ Explicit per-user access grants for a document. This is tier 2 in the 4-tier acc
 |---|---|---|---|---|
 | `document-update:<documentId>` | `REDIS_EVENTS.documentUpdate(documentId)` | Any server that applies a Yjs update | All other server instances | `{ updateBase64: string }` |
 | `document-title-update:<documentId>` | `REDIS_EVENTS.documentTitleUpdate(documentId)` | Any server that persists a title change | All other server instances | `{ title: string }` |
+| `awareness-updates:<documentId>` | `REDIS_EVENTS.awarenessUpdate(documentId)` | Any server whose awareness state changes | All other server instances | `{ users: AwarenessUser[] }` — full user list, so receivers can forward without an extra Redis read |
 
 > Yjs update payloads are base64-encoded because `Uint8Array` does not survive `JSON.stringify`. Channels are per-document so servers only receive events for documents they have active subscribers for.
 
@@ -179,3 +180,12 @@ Explicit per-user access grants for a document. This is tier 2 in the 4-tier acc
 | Key | Constant | TTL | Purpose |
 |---|---|---|---|
 | `lock-compaction:<documentId>` | `REDIS_LOCKS.compaction(documentId)` | 1 hour | Ensures only one server instance runs document update compaction at a time per document. Acquired with `SET NX PX`; released explicitly after compaction completes. TTL is a safety net in case the holder crashes before releasing. |
+
+---
+
+### Awareness Keys
+
+| Key pattern | Constant | Type | TTL | Purpose |
+|---|---|---|---|---|
+| `awareness:<documentId>` | `REDIS_KEYS.awareness(documentId)` | Hash | 1 hour | Maps `userId` (string) → JSON-serialised `AwarenessUser` for every user currently present in a document. Written on connect, updated on cursor move, deleted on last-tab disconnect. TTL is refreshed on every write as a safety net against stale entries. |
+| `awareness-sockets:<documentId>:<userId>` | `REDIS_KEYS.awarenessSockets(documentId, userId)` | Set | 1 hour | Tracks the set of active `socketId`s for a user in a document — one entry per open browser tab. Used for multi-tab ref counting: the user's awareness entry is only removed when this Set becomes empty. TTL is refreshed on every write. |

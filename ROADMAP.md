@@ -553,11 +553,34 @@
 
 ---
 
+## v1.03 — Awareness ✅
+
+> Branch: `awareness-v1.03`
+
+### Web (React frontend)
+
+- `useAwareness` hook (`apps/web/src/hooks/useAwareness.ts`) — tracks the user's focused block using a ProseMirror plugin; debounces emits to avoid flooding the server with cursor updates on fast navigation
+- `useEditorFocus` removed — replaced by `autofocus: true` on the BlockNote editor instance
+- Avatar stack rendered in `EditorPageHeader` showing all currently online collaborators, with name tooltip on hover
+- Per-block avatar indicators in the editor body — avatar chips float beside the block each user is focused on, with a hover tooltip showing the user's name
+
+### Server (NestJS backend)
+
+- `DocumentAwarenessService` — new service in `DocumentModule` that manages presence state in a Redis hash (`awareness:<documentId>`); assigns each user a stable colour from a palette; writes and removes entries on connect/disconnect
+- Per-user socket ref counting in a Redis Set (`awareness-sockets:<documentId>:<userId>`) — tracks all open tabs for a user so presence is only removed when the last tab closes; TTL of 1 hour on all awareness keys as a safety net against stale entries
+- `DocumentGateway` extended with `AWARENESS_UPDATE` handler — updates the user's `focusedBlockId` in the awareness hash and publishes the full state to the `awareness-updates:<documentId>` Redis pub/sub channel so all server instances forward it to their local sockets
+- Resolved access level included in presence data so clients can display role context alongside avatars
+- Y.Doc eviction from `yDocsMap` when the document room empties — prevents unbounded memory growth; next connection transparently reloads from the database
+
+### Shared (`@converge/shared`)
+
+- `AWARENESS_UPDATE` and `AWARENESS_STATE` socket event constants
+- `AwarenessUpdateServerPayload` / `AwarenessUpdateClientPayload` types and Zod schemas for the awareness socket event
+- `AwarenessUser` type carrying `userId`, `email`, `name`, `avatarUrl`, `color`, `focusedBlockId`, and `resolvedAccess`
+
+---
+
 ## Upcoming
-
-### v1.03 — Awareness
-
-- Live cursors and selections via Yjs awareness protocol forwarded through the server
 
 ### v1.04 — Document References
 
