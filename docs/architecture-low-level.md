@@ -578,6 +578,62 @@ It is a Jotai atom rather than local component state because auth status is need
 
 ## 6. Workspace System
 
+### Purpose
+
+A workspace is the top-level organizational unit in Converge. All documents belong to exactly one workspace. Users are members of workspaces with one of three roles — `owner`, `admin`, or `member` — and a workspace defines per-role document access defaults that serve as the last tier in access resolution (see [Section 8](#8-document-access-control)).
+
+There are two workspace types:
+
+- **Personal** — automatically created when a user signs up for the first time. Single-user; cannot be transferred to another owner.
+- **Custom** — user-created. Can have multiple members with different roles.
+
+### Roles
+
+Roles are ordered by privilege: `owner > admin > member`. This ordering is encoded in `WORKSPACE_ROLE_RANK` from `@converge/shared` and tested via `hasWorkspaceRole(role, required)`, which returns `true` if `role` is at least as privileged as `required`.
+
+| Role | Permissions |
+|---|---|
+| `owner` | Full control — rename workspace, manage all members including admins, transfer ownership, change all doc access defaults |
+| `admin` | Add/remove members with role `member`, update member and non-member doc access defaults |
+| `member` | Read workspace metadata and member list; subject to workspace doc access defaults |
+
+The workspace owner also has a `workspace_members` row with `role = 'owner'`. `workspaces.owner_id` is a denormalized reference to the same user — both are kept in sync on ownership transfer.
+
+### Module Structure
+
+`WorkspaceModule` contains:
+- `WorkspaceController` — all routes under `/workspaces`, all guarded by `AuthGuard`
+- `WorkspaceService` — all business logic and DB access via `DatabaseService`
+
+### Personal Workspace Bootstrap
+
+On first Google login, `AuthService.authorizeGoogleUserAndGenerateJWT` calls `WorkspaceService.upsertUserPersonalWorkspace`. This runs in a transaction that:
+1. Checks if a personal workspace already exists for the user (idempotent — safe to call on every login)
+2. Inserts a `workspaces` row with `type = 'personal'`
+3. Inserts an `owner` membership row in `workspace_members`
+4. Sets `users.current_workspace_id` to the new workspace
+
+### Current Workspace Selection
+
+`users.current_workspace_id` tracks which workspace the user currently has selected — this drives the sidebar document library. It is updated via `PUT /workspaces/:id/select`, which only verifies the workspace exists and does not enforce membership. The same call also bumps `workspace_members.last_visited_at` (a no-op if the user is not a member), which orders workspaces by recency in the workspace list.
+
+### Member Management
+
+- **Add / update role**: admin+ may add new members or change a member's role. Only the owner can assign the `admin` role or modify an existing admin's role.
+- **Remove**: admin+ may remove members. Only the owner can remove an admin.
+- **Leave**: any non-owner member may leave. Two constraints are enforced: owners cannot leave (they must transfer ownership first); a user cannot leave their currently selected workspace (they must switch to another workspace first).
+- **Transfer ownership**: owner-only, custom workspaces only. Runs in a transaction that upserts the incoming owner's membership row to `role = 'owner'`, demotes the previous owner's membership row to `role = 'admin'`, and updates `workspaces.owner_id`.
+
+### Document Access Defaults
+
+Each workspace stores three per-role document access defaults on the workspace row: `admin_doc_access`, `member_doc_access`, and `non_member_doc_access`. These set the default document access level for each workspace role. Any member may read them; admins may update the member and non-member defaults; only the owner may change the admin default.
+
+### Search & Pagination
+
+- **Workspace search** (`GET /workspaces/search`): uses PostgreSQL trigram `similarity(w.name, ?)`, ordered by score descending, limited to 5 results.
+- **Member search** (`GET /:id/members/search`): same approach against `users.email`.
+- **Member list** (`GET /:id/members`): keyset pagination on `user_id ASC`. The caller passes the last `user_id` from the previous page as `cursorId`; the query applies `WHERE user_id > cursorId` to fetch the next page.
+
 ---
 
 ## 7. Document CRUD & Lifecycle
