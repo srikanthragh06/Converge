@@ -12,7 +12,7 @@ import useDocumentSwitcherShortcut from "../../hooks/useDocumentSwitcherShortcut
 import { Skeleton } from "primereact/skeleton";
 import { useAtomValue } from "jotai";
 import DelayedRender from "../../components/DelayedRender";
-import { syncStatusAtom } from "@/atoms/socket";
+import { isSocketReadyAtom, syncStatusAtom } from "@/atoms/socket";
 
 /**
  * Full-screen editor page. Fetches the document by ID from the URL, redirects
@@ -31,6 +31,7 @@ const EditorPage = () => {
         isTitlePending,
     } = useEditor(); // editor instance, document ID, fetch status, title state, and resolved access level
 
+    const isSocketReady = useAtomValue(isSocketReadyAtom); // true only after DOC_READY — gates editor render so it never mounts before the socket handshake completes
     const scrollRef = useEditorScrollGap(editor); // ref for the scroll container — maintains a gap below the last block
     const editorWrapperRef = useRef<HTMLDivElement>(null); // ref for the position:relative wrapper used by BlockAwarenessOverlay
     const isEditable =
@@ -96,30 +97,27 @@ const EditorPage = () => {
                     </div>
 
                     {/* Editor: a few large skeletons while restoring, real editor when synced */}
-                    {documentStatus === "ready" &&
-                        syncStatus === "restoring" && (
-                            <DelayedRender>
-                                <div className="sm:pl-14 pl-6 pr-4 max-w-2xl mt-2 flex flex-col gap-4">
-                                    <Skeleton height="6rem" width="100%" />
-                                    <Skeleton height="4rem" width="100%" />
-                                    <Skeleton height="5rem" width="100%" />
-                                </div>
-                            </DelayedRender>
-                        )}
-                    {editor &&
-                        documentStatus === "ready" &&
-                        syncStatus !== "restoring" && (
-                            <div ref={editorWrapperRef} className="relative">
-                                <BlockNoteView
-                                    editor={editor}
-                                    theme={convergeTheme}
-                                    editable={isEditable}
-                                />
-                                <BlockAwarenessOverlay
-                                    editorWrapperRef={editorWrapperRef}
-                                />
+                    {(syncStatus === "restoring" || !isSocketReady) && (
+                        <DelayedRender>
+                            <div className="sm:pl-14 pl-6 pr-4 max-w-2xl mt-2 flex flex-col gap-4">
+                                <Skeleton height="6rem" width="100%" />
+                                <Skeleton height="4rem" width="100%" />
+                                <Skeleton height="5rem" width="100%" />
                             </div>
-                        )}
+                        </DelayedRender>
+                    )}
+                    {editor && syncStatus !== "restoring" && isSocketReady && (
+                        <div ref={editorWrapperRef} className="relative">
+                            <BlockNoteView
+                                editor={editor}
+                                theme={convergeTheme}
+                                editable={isEditable}
+                            />
+                            <BlockAwarenessOverlay
+                                editorWrapperRef={editorWrapperRef}
+                            />
+                        </div>
+                    )}
                 </div>
             )}
             {isSwitcherOpen && (
