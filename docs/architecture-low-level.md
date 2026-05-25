@@ -628,11 +628,54 @@ On first Google login, `AuthService.authorizeGoogleUserAndGenerateJWT` calls `Wo
 
 Each workspace stores three per-role document access defaults on the workspace row: `admin_doc_access`, `member_doc_access`, and `non_member_doc_access`. These set the default document access level for each workspace role. Any member may read them; admins may update the member and non-member defaults; only the owner may change the admin default.
 
-### Search & Pagination
+### API Routes
 
-- **Workspace search** (`GET /workspaces/search`): uses PostgreSQL trigram `similarity(w.name, ?)`, ordered by score descending, limited to 5 results.
-- **Member search** (`GET /:id/members/search`): same approach against `users.email`.
-- **Member list** (`GET /:id/members`): keyset pagination on `user_id ASC`. The caller passes the last `user_id` from the previous page as `cursorId`; the query applies `WHERE user_id > cursorId` to fetch the next page.
+All routes are under `/workspaces` and require `AuthGuard`.
+
+| Method | Path | Min. access | Description |
+|---|---|---|---|
+| `POST` | `/` | authenticated | Create a custom workspace; caller becomes owner |
+| `GET` | `/` | authenticated | List all workspaces the user is a member of |
+| `GET` | `/search` | authenticated | Search user's workspaces by name (trigram) |
+| `GET` | `/:id/overview` | member | Workspace metadata: member count, doc count, owner info |
+| `GET` | `/:id/my-role` | member | Caller's role in the workspace |
+| `PATCH` | `/:id` | admin | Rename the workspace |
+| `POST` | `/:id/leave-workspace` | member (non-owner) | Remove the caller from the workspace |
+| `PUT` | `/:id/select` | authenticated | Set `current_workspace_id` for the caller |
+| `GET` | `/:id/members` | member | Paginated member list |
+| `GET` | `/:id/members/search` | member | Search members by email (trigram) |
+| `GET` | `/:id/findNewUser` | admin | Find a non-member user by exact email to invite |
+| `POST` | `/:id/members` | admin | Add a member or update an existing member's role |
+| `DELETE` | `/:id/members/:targetUserId` | admin | Remove a member |
+| `GET` | `/:id/owner` | member | Get owner profile |
+| `GET` | `/:id/owner/find` | owner | Find an ownership transfer candidate by exact email |
+| `POST` | `/:id/transfer-owner` | owner | Transfer workspace ownership |
+| `GET` | `/:id/doc-access-defaults` | member | Get per-role document access defaults |
+| `PATCH` | `/:id/doc-access-defaults` | admin | Update per-role document access defaults |
+
+#### GET / — workspace list
+
+Joins `workspace_members`, `workspaces`, and `users` (for the owner's name). Results are ordered by `wm.last_visited_at DESC NULLS LAST` so the most recently visited workspace appears first. Each row also includes `isSelected: id === current_workspace_id` so the client knows which workspace is active without a separate request.
+
+#### GET /search — workspace search
+
+Uses PostgreSQL trigram `similarity(w.name, query)` ordered by score descending, limited to 5 results. Scoped to the caller's workspaces via the `workspace_members` join.
+
+#### GET /:id/members — member list
+
+Keyset pagination on `user_id ASC`. The client passes the last `user_id` from the previous page as `cursorId`; the query applies `WHERE user_id > cursorId`. `nextCursor` is `null` on the last page. Default page size is 20.
+
+#### GET /:id/members/search — member search
+
+Uses `similarity(u.email, query)` ordered by score descending, limited to 5. Scoped to the workspace via the `workspace_members` join.
+
+#### POST /:id/members — add / update member
+
+Upserts the membership row — if the user is already a member their role is updated; if not, a new row is inserted. Role hierarchy is enforced before the upsert: only the owner can assign `admin`, and only the owner can modify an existing admin's role.
+
+#### POST /:id/transfer-owner — ownership transfer
+
+Runs in a transaction: upserts the incoming owner's `workspace_members` row to `role = 'owner'`, updates the outgoing owner's row to `role = 'admin'`, and sets `workspaces.owner_id` to the new owner.
 
 ---
 
