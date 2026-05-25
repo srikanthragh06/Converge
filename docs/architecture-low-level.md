@@ -681,6 +681,76 @@ Runs in a transaction: upserts the incoming owner's `workspace_members` row to `
 
 ## 7. Document CRUD & Lifecycle
 
+### Document Model
+
+A document belongs to exactly one workspace and has a title stored in the `documents` table. Content is not stored there — it lives as an append-only log of raw Yjs binary updates in `document_updates`, reconstructed at runtime by merging all rows via `Y.mergeUpdates()`. The `documents` table also tracks soft-delete state (`is_deleted`, `deleted_at`) and compaction counters (`update_count`, `last_compact_count`).
+
+Per-user activity is tracked in a separate `document_user_metadata` table: one row per `(document_id, user_id)` pair, storing `last_visited_at` (upserted on every WebSocket connect) and `last_edited_at` (updated on every Yjs content update and title change). These timestamps drive the library page ordering and display.
+
+### API Routes
+
+All routes are under `/document` and require `AuthGuard`.
+
+| Method | Path | Min. access | Description |
+|---|---|---|---|
+| `POST` | `/` | workspace member | Create a new document in the given workspace |
+| `GET` | `/id/:documentId` | viewer | Fetch document id, title, workspace, and resolved access |
+| `DELETE` | `/:id` | admin | Soft-delete the document |
+| `GET` | `/:id/overview` | viewer | Overview metadata: creator, workspace owner, created date |
+| `GET` | `/library` | viewer (per doc) | Paginated document library for a workspace |
+| `GET` | `/library/search` | viewer (per doc) | Trigram title search within a workspace library |
+| `GET` | `/upload-auth` | authenticated | Generate a one-time ImageKit upload auth token |
+
+### Creating a Document
+
+`POST /document/` requires the caller to be a workspace member. Runs in a transaction that inserts the `documents` row and immediately inserts a `document_user_metadata` row for the creator, seeding their timestamps so the document appears in their library straight away.
+
+### Soft Delete
+
+`DELETE /document/:id` requires admin access. Sets `is_deleted = true` and `deleted_at = now()` on the documents row — no rows are ever hard-deleted. All read queries filter on `is_deleted = false`.
+
+### Library Query
+
+`GET /document/library` is the most complex query in the service. It resolves each document's access level for the requesting user inline in a SQL `CASE` subquery, then filters and paginates in an outer query:
+
+**Inner subquery** — joins `documents`, `workspaces`, `document_user_metadata`, `workspace_members`, and `document_access` for the requesting user. The `CASE` expression mirrors the four-tier access resolution:
+
+```sql
+CASE
+  WHEN wm.role = 'owner'            THEN 'owner'
+  WHEN da.access IS NOT NULL        THEN da.access
+  WHEN wm.role = 'admin'            THEN COALESCE(d.admin_doc_access, w.admin_doc_access)
+  WHEN wm.role = 'member'           THEN COALESCE(d.member_doc_access, w.member_doc_access)
+  ELSE                                   COALESCE(d.non_member_doc_access, w.non_member_doc_access)
+END
+```
+
+**Outer query** — filters `WHERE access != 'noAccess'`, orders by `lastVisitedAt DESC NULLS LAST` with `id DESC` as a tiebreaker, and applies keyset pagination.
+
+**Compound cursor** — because the sort column (`lastVisitedAt`) can be `NULL` (documents the user has never visited), a single-column cursor breaks. The cursor carries both `lastVisitedAt` and `id`. When paginating from a non-NULL cursor row, the WHERE clause is:
+
+```
+lastVisitedAt < cursor.lastVisitedAt
+OR (lastVisitedAt = cursor.lastVisitedAt AND id < cursor.id)
+OR lastVisitedAt IS NULL
+```
+
+When the cursor itself is in the NULL section, it simplifies to `WHERE id < cursor.id`.
+
+Library search (`GET /document/library/search`) uses the same inner subquery access resolution but replaces ordering and pagination with `similarity(d.title, query)` ordered by score descending.
+
+### ImageKit Upload Auth
+
+ImageKit is a CDN and image hosting service. Uploads go directly from the browser to ImageKit — the server is not in the upload path. However, ImageKit requires a server-signed auth payload with every upload request so that clients cannot upload without the server's approval. This keeps the ImageKit private key on the server only.
+
+`GET /document/upload-auth` generates that payload. The server produces three fields:
+
+- **`token`** — a UUID generated fresh for each request, used as a nonce.
+- **`expire`** — a Unix timestamp 5 minutes from now, bounding how long the payload is valid.
+- **`signature`** — `HMAC-SHA1(privateKey, token + expire)`. ImageKit recomputes this using the same private key. If a client tampers with `token` or `expire`, the recomputed signature won't match and the upload is rejected — the private key is the trust anchor and never leaves the server.
+
+The endpoint is rate-limited to 10 requests per minute per user via `UserThrottlerGuard`, since each token is a valid upload credential and uncapped calls could be used to flood storage.
+
 ---
 
 ## 8. Document Access Control
