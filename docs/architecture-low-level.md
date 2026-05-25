@@ -845,6 +845,147 @@ All routes are under the `/document-access` prefix and require `AuthGuard`.
 
 ## 9. Yjs Real-time Sync
 
+Converge uses [Yjs](https://github.com/yjs/yjs) for real-time collaborative document editing. Yjs is a CRDT (Conflict-free Replicated Data Type) library — document content is represented as a `Y.Doc`, and changes are encoded as binary update blobs that can be applied in any order and always converge to the same result. The server manages one `Y.Doc` per open document in memory and uses `document_updates` in Postgres as the persistent update log.
+
+### 9.1 Yjs Primitives Used
+
+| Primitive | What it does |
+|---|---|
+| `Y.Doc` | The shared document instance |
+| `Y.applyUpdate(doc, update)` | Applies a binary update blob to a doc |
+| `Y.mergeUpdates(updates[])` | Merges multiple update blobs into one — more efficient than applying in a loop |
+| `Y.encodeStateVector(doc)` | Returns a compact vector summarizing what the doc has seen from each peer |
+| `Y.encodeStateAsUpdate(doc, sv)` | Returns only the updates the holder of `sv` has not yet seen — the "diff" |
+| `Y.decodeStateVector(sv)` | Decodes a state vector into a `Map<number, number>` for comparison |
+
+State vectors are the key primitive for sync: given two peers' state vectors, either can compute exactly what the other is missing.
+
+### 9.2 Server-side Y.Doc Lifecycle
+
+`DocumentYjsService` owns a `yDocsMap: Map<number, Y.Doc>` — an in-memory registry of live `Y.Doc` instances keyed by document ID.
+
+**Load (`loadDoc`).** Called on the first client connection to a document. Fetches all rows from `document_updates` ordered by `created_at`, merges them into a single update via `Y.mergeUpdates`, applies the merged update to a fresh `Y.Doc`, and stores it in `yDocsMap`. Subsequent calls for the same document ID return the cached instance immediately without hitting the database.
+
+**Evict (`evictDoc`).** Called by `handleDisconnect` when the Socket.io room for a document reaches size 0 on this server instance — meaning no sockets are currently viewing the document here. The `Y.Doc` is removed from `yDocsMap`, freeing its memory. The next connection to this document will cold-load from the database again.
+
+### 9.3 Normal Sync — `SYNC_DOC` Flow
+
+Every editor keystroke that produces a Yjs update follows this path:
+
+1. **Client → Server (`SYNC_DOC_SERVER`).** The client sends `{ updateArray, clientSVArray }` — the encoded update bytes and its current state vector.
+
+2. **Server: persist first, then apply.** `applyDocUpdate` inserts the raw update bytes into `document_updates` and atomically increments `update_count` on the `documents` row in a transaction — before calling `Y.applyUpdate` on the in-memory doc. This order is intentional: if the insert fails, the in-memory doc simply misses this update and the repair sync protocol will reconcile the divergence on the next write. The reverse order (apply to memory, then fail to persist) would be worse — the update would exist in memory but be permanently lost on server restart.
+
+3. **Server → Room (`SYNC_DOC_CLIENT`).** After applying, the server broadcasts `{ documentId, updateArray, serverSVArray }` to all other sockets in the document room, so they can apply the same update locally.
+
+4. **Cross-server fanout via Redis.** The originating server also publishes `{ updateBase64 }` to the `document-update:<documentId>` Redis channel. Other server instances subscribed to this channel call `applyDocUpdateOnlyToLocalMemory` (no persist, no re-publish) to keep their in-memory `Y.Doc` current, then broadcast `SYNC_DOC_CLIENT` to their own room sockets.
+
+5. **Divergence check.** After broadcasting, the server compares the client's `clientSV` to the current server state vector. If they differ, the server emits `REPAIR_SYNC_DOC_CLIENT` to that client to start a repair sync.
+
+### 9.4 Repair Sync Protocol
+
+The repair sync bidirectionally reconciles state when the client's view diverges from the server's. It handles missed Redis events, network interruptions, or a client that fell behind during compaction or a server restart.
+
+There are two entry points — the protocol converges onto the same event sequence from both:
+
+**Path A — Server-initiated** (triggered when `SYNC_DOC_SERVER` reveals the client's SV is behind):
+
+```
+Server                                    Client
+  |── REPAIR_SYNC_DOC_CLIENT ────────────>|  "you're behind; here's my SV"
+  |<── REPAIR_SYNC_ACK_DOC_SERVER ────────|  "here's what you might be missing (Y.encodeStateAsUpdate(yDoc, serverSV))"
+  |   server applies diff (if editor)      |
+  |── REPAIR_ACK_DOC_CLIENT ─────────────>|  "here's any remaining diff for you"
+  |                                        |  client applies
+```
+
+**Path B — Client-initiated** (on connect and every 15 s heartbeat from `useYjsSync`):
+
+```
+Server                                    Client
+  |<── REPAIR_SYNC_DOC_SERVER ────────────|  "here's my SV — sync me" (setIsRestoring(true))
+  |── REPAIR_SYNC_ACK_DOC_CLIENT ────────>|  "here's what you're missing"
+  |                                        |  client applies, setIsRestoring(false)
+  |<── REPAIR_ACK_DOC_SERVER ─────────────|  "here's what you might be missing"
+  |   server applies diff (if editor)      |
+  |── REPAIR_ACK_DOC_CLIENT ─────────────>|  "here's any remaining diff for you"
+  |                                        |  client applies
+```
+
+The two paths share the same tail: server receives a client diff, applies it (editor+ only), computes any remaining diff the client still needs via `Y.encodeStateAsUpdate(doc, clientSV)`, and sends it back. Viewers participate fully to receive missing content — the `hasAccess` check only gates the apply step, not the handshake.
+
+`isRestoring` (which drives the skeleton UI) is set to `true` at connect and cleared only when the client receives `REPAIR_SYNC_ACK_DOC_CLIENT` (Path B's second message). Server-initiated repairs do not touch `isRestoring`.
+
+### 9.5 Cross-Server Coordination
+
+A `subscribedDocs: Set<number>` on the gateway ensures Redis subscriptions are registered once per document per server instance, regardless of how many sockets are connected to that document. The first connection to a document registers three subscriptions — `document-update`, `document-title-update`, and `awareness-updates` — and adds the document ID to the set. Subsequent connections reuse the existing handlers.
+
+### 9.6 Compaction
+
+The `document_updates` table is append-only — every content change adds a row. Without compaction, `loadDoc` would eventually merge thousands of small updates on cold load.
+
+Compaction is triggered inside `applyDocUpdate`: after incrementing `update_count`, if `update_count >= last_compact_count + 5000`, the service calls `compactUpdatesIfRequired` in a fire-and-forget manner (not awaited) so it does not block the write path.
+
+Inside `compactUpdatesIfRequired`:
+
+1. **Distributed lock.** The service attempts to acquire `lock-compaction:<documentId>` in Redis using `SET NX PX`. If another server instance holds the lock, this call returns early — only one server compacts a document at a time. The lock has a 1-hour TTL as a safety net if the holder crashes before releasing.
+
+2. **Snapshot cursor.** The service reads `MAX(id)` from `document_updates` at the start of the transaction. All rows with `id <= maxId` are the target — any rows written concurrently during compaction have `id > maxId` and are unaffected.
+
+3. **Merge and replace (atomic).** All rows up to `maxId` are fetched, merged via `Y.mergeUpdates`, and the merged blob is inserted as a new row. Only then are the original rows deleted. If the insert fails, the originals are intact and no data is lost.
+
+4. **Update `last_compact_count`.** Set to `update_count` at the time compaction ran, so the threshold for the next compaction is `update_count + 5000` from that point, not from the original 0.
+
+### 9.7 Socket Infrastructure (Client)
+
+**Singleton socket** (`lib/socket.ts`). A single `io(...)` instance is created once with `autoConnect: false` and `withCredentials: true`. `autoConnect: false` means no connection is established at import time — `useSocket` calls `socket.connect()` explicitly once the document is known. `withCredentials` makes the browser include the `authToken` cookie on the WebSocket handshake so the gateway can authenticate without a separate login message.
+
+**`useSocket`**. Manages the Socket.io connection lifecycle. Sets `documentId` on `socket.io.opts.query` before calling `socket.connect()` so the gateway can read it from the handshake. Listens for `DOC_READY` and sets `isSocketReadyAtom` to `true` — this is the gate for all sync hooks. `DISCONNECT` and `CONNECT_ERROR` reset the atom to `false`. The effect re-runs when `documentId` changes, reconnecting to the new document.
+
+**`socketEmit` / `socketReceive`** (`lib/socket-emit.util.ts`, `lib/socket-receive.util.ts`). Thin wrappers that Zod-validate every payload before emitting or after receiving. `socketEmit` throws immediately if the payload fails schema validation, catching programming errors at the emit site rather than silently sending malformed data. `socketReceive` uses `safeParse` and returns `null` on failure so handlers can bail out gracefully.
+
+### 9.8 Client-Side Yjs Sync (`useYjsSync`)
+
+`useYjsSync` creates the `Y.Doc`, handles outgoing local updates, applies incoming server updates, and manages the repair sync lifecycle.
+
+**Y.Doc creation.** The doc is created via `useMemo(() => new Y.Doc(), [documentId])` — a new instance is created whenever the document changes, giving each document a clean slate.
+
+**Outgoing updates — debounce and merge.** The hook registers a `yDoc.on("update", handler)` listener. On every local Yjs update (skipping those with `origin === "REMOTE"` to avoid echo loops), it pushes the bytes into `pendingUpdatesRef` and resets a 300 ms debounce timer. When the timer fires, all pending updates are merged via `Y.mergeUpdates` and emitted as a single `SYNC_DOC_SERVER` message alongside the client's current state vector. This reduces network round trips during fast typing.
+
+**Incoming updates.** `SYNC_DOC_CLIENT` handler applies the server update with `Y.applyUpdate(yDoc, update, "REMOTE")` — the `"REMOTE"` origin tag prevents the `update` listener from re-emitting it. After applying, the handler compares state vectors; if they differ, it immediately initiates a client-side repair sync (Path B) to pull the missing updates.
+
+**Repair sync on connect + heartbeat.** When `isSocketReady` becomes true, the hook calls `initiateRepairSync()` immediately (setting `isRestoring = true`) and then every 15 seconds via `setInterval`. This catches any state the client missed while the socket was down and keeps long-lived sessions eventually consistent even if a Redis event is lost.
+
+**`syncStatus` derivation.** A dedicated `useEffect` derives the global `syncStatusAtom` from four flags with fixed priority: `offline > restoring > typing > syncing > null`. The UI reads this atom to decide whether to show the skeleton, a typing indicator, or a sync spinner.
+
+### 9.9 Title Sync (`useDocumentTitle`)
+
+Document titles are synced over the socket separately from Yjs content because they are stored in the `documents` table, not as Yjs state.
+
+**Outgoing.** `handleTitleChange` updates local state immediately and resets a 300 ms debounce timer. When the timer fires, it generates a `changeId` (UUID), stores it in `lastTitleChangeIdRef`, and emits `SYNC_DOC_TITLE_SERVER { title, changeId }`.
+
+**`isTitlePending`.** Set to `true` immediately on change (before the debounce fires) so the UI dims the title input while a change is in flight. Cleared only when `SYNC_DOC_TITLE_ACK` arrives with a `changeId` matching `lastTitleChangeIdRef`. Stale acks from earlier debounce flushes are ignored by the `changeId` comparison — if the user keeps typing, only the last emit's ack clears the pending state.
+
+**Incoming.** `SYNC_DOC_TITLE_CLIENT` (broadcast from other clients) simply overwrites local title state. The browser tab title is kept in sync via a separate effect on `title`.
+
+### 9.11 Socket Events Reference
+
+| Event | Direction | Access required | Description |
+|---|---|---|---|
+| `DOC_READY` | S→C | — | Emitted after full connection setup; gates all client operations |
+| `SYNC_DOC_SERVER` | C→S | editor+ | Client pushes a Yjs update |
+| `SYNC_DOC_CLIENT` | S→C | — | Server broadcasts a Yjs update to room members |
+| `REPAIR_SYNC_DOC_CLIENT` | S→C | — | Server signals client is behind; starts repair sync |
+| `REPAIR_SYNC_DOC_SERVER` | C→S | — | Client sends its SV to start repair |
+| `REPAIR_SYNC_ACK_DOC_CLIENT` | S→C | — | Server sends diff + serverSV to client |
+| `REPAIR_SYNC_ACK_DOC_SERVER` | C→S | — | Client sends its diff to server |
+| `REPAIR_ACK_DOC_CLIENT` | S→C | — | Server sends remaining diff to client |
+| `REPAIR_ACK_DOC_SERVER` | C→S | — | Client sends final diff to server |
+| `SYNC_DOC_TITLE_SERVER` | C→S | editor+ | Client pushes a title change |
+| `SYNC_DOC_TITLE_ACK` | S→C | — | Server acknowledges title persistence (echoes `changeId`) |
+| `SYNC_DOC_TITLE_CLIENT` | S→C | — | Server broadcasts updated title to other room clients |
+| `PING` / `PONG` | C→S / S→C | — | Round-trip latency measurement |
+
 ---
 
 ## 10. Presence & Awareness
