@@ -4,7 +4,8 @@ A full-stack collaborative document editor. Real-time multi-user editing, worksp
 
 **Live:** [converge.1k5.in](https://converge.1k5.in)
 
-<!-- ![Converge editor](./docs/screenshot.png) -->
+[Screencast from 2026-05-25 23-44-44.webm](https://github.com/user-attachments/assets/e74a9a3b-8cf7-4625-925d-6fce35e5bfdd)
+
 
 ## Stack
 
