@@ -755,6 +755,92 @@ The endpoint is rate-limited to 10 requests per minute per user via `UserThrottl
 
 ## 8. Document Access Control
 
+Document access in Converge is not a single permission flag — it is resolved dynamically at request time through a four-tier chain. Every gateway handler and HTTP endpoint calls `resolveAccess()` before acting, and gates on the result using `hasAccess()`. The chain is evaluated in order and short-circuits at the first match.
+
+### 8.1 Access Levels
+
+There are five named levels, ordered by privilege:
+
+| Level | Numeric rank | What it allows |
+|---|---|---|
+| `noAccess` | 0 | Cannot open the document at all |
+| `viewer` | 1 | Read-only; can see content and access list |
+| `editor` | 2 | Can write content via the WebSocket |
+| `admin` | 3 | Can change access settings and role overrides |
+| `owner` | 4 | Everything; granted unconditionally to the workspace owner |
+
+`ACCESS_RANK` and `hasAccess(resolved, required)` are exported from `@converge/shared` and used on both server and client. `hasAccess` is a simple rank comparison: `ACCESS_RANK[resolved] >= ACCESS_RANK[required]`.
+
+### 8.2 Four-Tier Resolution Chain
+
+`resolveAccess(documentId, userId)` in `DocumentAccessService` executes the following steps in order and returns at the first match:
+
+**Tier 1 — Workspace owner.** The service fetches the `workspace_members` row for the document's workspace. If the user's role is `owner`, it immediately returns `'owner'` without checking anything else. The workspace owner always has full access to every document in the workspace.
+
+**Tier 2 — Explicit `document_access` row.** The service checks for a row in the `document_access` table keyed on `(document_id, user_id)`. If found, that row's `access` value is returned directly — this is the mechanism for granting a specific user a specific level regardless of their workspace role.
+
+**Tier 3 — Per-document role override.** If no explicit row exists, the service looks at nullable columns on the `documents` row itself (`admin_doc_access`, `member_doc_access`, `non_member_doc_access`). If the user's workspace role has a non-null override on the document, that value is returned. A `null` column means "not overridden — proceed to tier 4."
+
+**Tier 4 — Workspace-level role default.** If no tier above matched, the service fetches the workspace row and returns the matching role default (`admin_doc_access`, `member_doc_access`, or `non_member_doc_access` from `workspaces`). These columns are non-nullable with sensible defaults (admins → `admin`, members → `editor`, non-members → `noAccess`) and always produce a result, so the chain never falls through.
+
+```
+resolveAccess(documentId, userId)
+  → workspace owner?          → 'owner'
+  → document_access row?      → that row's access
+  → per-doc role override?    → that override (non-null only)
+  → workspace role default    → always resolves
+```
+
+### 8.3 Role Overrides
+
+There are two layers of role-based defaults that the resolution chain consults:
+
+- **Workspace-level defaults** — `admin_doc_access`, `member_doc_access`, `non_member_doc_access` on the `workspaces` row. These apply to every document in the workspace unless a per-document override exists. Updated via `PUT /workspaces/:id/doc-access-defaults`.
+
+- **Per-document overrides** — the same three nullable columns on `documents`. These let a single document diverge from the workspace default. `null` means "inherit from the workspace." Setting a column back to `null` via `PUT /document-access/:id/role-overrides` resets that role to the workspace default. The update is a partial patch — only fields present in the body are changed.
+
+### 8.4 Per-User Access Grants
+
+The `document_access` table stores explicit per-user grants. A row here bypasses the role-based tiers entirely (tier 2 wins before tier 3 and 4).
+
+**Granting access — `setUserAccess`.** The service upserts a `document_access` row using `ON CONFLICT (document_id, user_id) DO UPDATE SET access = ...`, so it works for both new grants and changing an existing level. Two constraints apply:
+
+- Only a caller with resolved `owner` access may grant or revoke `admin`. An `admin` caller cannot promote another user to `admin` or remove an existing admin — this prevents privilege escalation chains.
+- The workspace owner cannot receive an explicit row (they are unconditionally at tier 1 and an explicit row would be meaningless).
+
+**Finding a new user — `findNewAccessUser`.** Before the caller picks an access level, the UI calls `GET /document-access/:id/find-new?email=...` with an exact email. The service rejects the request with 409 if the target is the workspace owner (already tier 1) or already has an explicit row, so the add-user flow can only proceed for users who genuinely need a new grant.
+
+**Revoking access — `removeUserAccess`.** Hard-deletes the `document_access` row. After deletion the user's effective access falls through to tier 3/4. The same admin-protection rule applies: only `owner` may remove an `admin` row.
+
+### 8.5 Fallback Access Column
+
+Both `getAccessUsers` and `searchAccessUsers` return a `fallback_access` field alongside each user's explicit `access`. This is what the user would resolve to if their explicit row were deleted — computed inline in the SQL query without a second round-trip:
+
+```sql
+CASE wm.role
+  WHEN 'owner'  THEN 'owner'
+  WHEN 'admin'  THEN COALESCE(d.admin_doc_access,      ws.admin_doc_access)
+  WHEN 'member' THEN COALESCE(d.member_doc_access,     ws.member_doc_access)
+  ELSE               COALESCE(d.non_member_doc_access,  ws.non_member_doc_access)
+END AS fallback_access
+```
+
+The UI uses this to display "would revert to X" next to each user's current explicit level.
+
+### 8.6 API Routes
+
+All routes are under the `/document-access` prefix and require `AuthGuard`.
+
+| Method | Route | Auth required | Description |
+|---|---|---|---|
+| `GET` | `/:id/role-overrides` | viewer+ | Returns per-doc role overrides and workspace defaults |
+| `PUT` | `/:id/role-overrides` | admin+ | Updates per-doc role overrides (partial patch; null resets) |
+| `GET` | `/:id` | viewer+ | Paginated list of explicit per-user access entries (keyset on `user_id ASC`) |
+| `GET` | `/:id/search` | viewer+ | Trigram email search across explicit access entries |
+| `GET` | `/:id/find-new` | admin+ | Exact email lookup for a user with no existing access row |
+| `PUT` | `/:id/user/:userId` | admin+ | Grant or update a per-user access level (upsert) |
+| `DELETE` | `/:id/user/:userId` | admin+ | Remove a per-user access row |
+
 ---
 
 ## 9. Yjs Real-time Sync
