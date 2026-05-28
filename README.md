@@ -76,7 +76,13 @@ graph TD
 
 ## Stack
 
-React · NestJS · Yjs · BlockNote · PostgreSQL · Redis · Socket.io
+| Layer | Tech |
+|---|---|
+| Frontend | React 19, Vite, TypeScript, Tailwind CSS v3, Jotai |
+| Editor | BlockNote (ProseMirror + Tiptap), Yjs, y-prosemirror |
+| Backend | NestJS 11, Socket.io, Kysely, PostgreSQL 16 |
+| Infrastructure | Redis 7, Docker, nginx, Supabase (DB), Upstash (Redis) |
+| Shared | Zod schemas and TypeScript types via `@converge/shared` |
 
 ## Docs
 
