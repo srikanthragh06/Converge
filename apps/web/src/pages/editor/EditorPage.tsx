@@ -106,8 +106,14 @@ const EditorPage = () => {
                             </div>
                         </DelayedRender>
                     )}
-                    {editor && syncStatus !== "restoring" && isSocketReady && (
-                        <div ref={editorWrapperRef} className="relative">
+                    {/* BlockNoteView stays mounted once editor exists — unmounting it recreates the
+                        UndoManager inside yUndoPlugin, which escapes the useUndoManagerGuard patch
+                        and breaks undo/redo. CSS visibility hides it during the restore skeleton. */}
+                    {editor && (
+                        <div
+                            ref={editorWrapperRef}
+                            className={`relative ${syncStatus === "restoring" || !isSocketReady ? "hidden" : ""}`}
+                        >
                             <BlockNoteView
                                 editor={editor}
                                 theme={convergeTheme}
