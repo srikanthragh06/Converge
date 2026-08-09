@@ -594,6 +594,16 @@
 
 ---
 
+## v1.042 — Deploy Script Fix ✅
+
+> Branch: `fix-deploy-shared-build-v1.042`
+
+### Tooling
+
+- `deploy/deploy.py` now rebuilds `packages/shared` locally before building the frontend — previously the frontend bundled whatever was last compiled into `packages/shared/dist`, silently shipping stale shared-package logic (e.g. old Zod validation limits) even after source changes landed
+
+---
+
 ## Upcoming
 
 ### v1.04 — Document References
