@@ -24,7 +24,7 @@ export type SyncDocClientPayload = z.infer<typeof SyncDocClientSchema>;
 // ── Sync Doc Title ──────────────────────────────────────────────────────────────────
 
 export const SyncDocTitleServerSchema = z.object({
-    title: z.string().trim().max(32),
+    title: z.string().trim().max(256),
     changeId: z.string(),
 });
 

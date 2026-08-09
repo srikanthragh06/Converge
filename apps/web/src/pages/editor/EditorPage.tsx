@@ -79,7 +79,7 @@ const EditorPage = () => {
                             <input
                                 type="text"
                                 placeholder="Untitled"
-                                maxLength={32}
+                                maxLength={256}
                                 size={1}
                                 value={title}
                                 onChange={(e) =>
