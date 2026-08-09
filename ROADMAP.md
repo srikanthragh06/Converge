@@ -580,6 +580,20 @@
 
 ---
 
+## v1.041 — Document Title Length Increase ✅
+
+> Branch: `increase-title-max-length-v1.041`
+
+### Shared package
+
+- `SyncDocTitleServerSchema` max length raised from 32 to 256 characters — the stored title was never DB-constrained, only application/Zod-enforced, so this is purely a validation-layer change
+
+### Web (React frontend)
+
+- Title input `maxLength` raised from 32 to 256 to match the shared schema
+
+---
+
 ## Upcoming
 
 ### v1.04 — Document References

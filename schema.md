@@ -78,7 +78,7 @@ One row per document. Stores the title and per-doc role overrides; tracks compac
 | `id` | `bigserial` | PK | |
 | `creator_id` | `bigint` | NOT NULL, FK → `users.id`, indexed | The user who originally created the document; retained for audit |
 | `workspace_id` | `bigint` | NOT NULL, FK → `workspaces.id`, indexed | The workspace this document belongs to; set at creation time and cannot be changed |
-| `title` | `text` | NOT NULL, default `''` | User-editable document title; trimmed and capped at 32 characters before persisting |
+| `title` | `text` | NOT NULL, default `''` | User-editable document title; trimmed and capped at 256 characters before persisting |
 | `admin_doc_access` | `document_access_level` | nullable | Per-doc override for workspace admins; NULL means inherit workspace default |
 | `member_doc_access` | `document_access_level` | nullable | Per-doc override for workspace members; NULL means inherit workspace default |
 | `non_member_doc_access` | `document_access_level` | nullable | Per-doc override for non-members; NULL means inherit workspace default |
