@@ -187,6 +187,12 @@ def main() -> None:
 
     step(f"Backend live on {inactive} slot.")
 
+    # Rebuild the shared package locally first — the web build bundles
+    # packages/shared/dist directly, and nothing else on this machine keeps
+    # it fresh, so a stale dist/ silently ships old logic.
+    step("Building shared package...")
+    run("pnpm --filter @converge/shared build", cwd=PROJECT_ROOT)
+
     # Build the Vite production bundle locally to avoid taxing the prod server.
     step("Building frontend...")
     run("pnpm --filter web build", cwd=PROJECT_ROOT)
