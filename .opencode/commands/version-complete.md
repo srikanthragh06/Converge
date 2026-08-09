@@ -27,10 +27,10 @@ A version of Converge has just been completed. Update the four documentation fil
    - Add any new conventions or patterns established in this version
    - Keep it concise — this file is loaded into every Claude session
 
-3. **README.md** — Keep it brief:
-   - One or two sentences describing the project
-   - Links to AGENTS.md and ROADMAP.md
-   - Nothing else
+3. **README.md** — This is a portfolio-style showcase for recruiters (Features, Architecture, Technical Highlights, Stack, Docs sections), not a brief stub. Do not reduce it to a sentence or two:
+   - Only touch it if this version changes something the README actually claims — the feature list, the architecture diagram/description, the tech stack table, or a technical highlight worth calling out
+   - Preserve existing sections and recruiter-facing tone unless explicitly asked for a rewrite
+   - If nothing in this version is README-worthy, leave it untouched
 
 4. **schema.md** — Update to reflect the current database and Redis state:
    - Add, remove, or update table columns to match the current migrations
