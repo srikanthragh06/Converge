@@ -9,12 +9,6 @@ export const REDIS_EVENTS = {
   awarenessUpdate: (documentId: number) => `awareness-updates:${documentId}`,
 };
 
-/** Redis key name constants for distributed locks. */
-export const REDIS_LOCKS = {
-  /** Ensures only one server runs document update compaction at a time. */
-  compaction: (documentId: number) => `lock-compaction:${documentId}`,
-};
-
 /** Redis key name constants for awareness state. */
 export const REDIS_KEYS = {
   /** Hash of userId → JSON AwarenessUser for all present users in a document. */

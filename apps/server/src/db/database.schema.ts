@@ -31,10 +31,6 @@ export interface DocumentsTable {
   is_deleted: Generated<boolean>;
   /** Timestamp set alongside is_deleted for audit and future trash-expiry logic. Null until deleted. */
   deleted_at: Date | null;
-  /** Monotonically incrementing counter, increased on every persisted Yjs update. */
-  update_count: Generated<number>;
-  /** Value of update_count at the time of the last compaction. */
-  last_compact_count: Generated<number>;
   /** FK to workspaces.id — the workspace this document belongs to. */
   workspace_id: number;
   /** Overrides workspace.admin_doc_access for this document; NULL means inherit. */
