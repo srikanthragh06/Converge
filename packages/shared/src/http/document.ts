@@ -1,6 +1,21 @@
 import { z } from "zod";
 import { DocumentAccessLevelSchema, ResolvedDocumentAccessLevelSchema } from "../types/types";
 
+/**
+ * Response for POST /document/:id/checkpoint. checkpointId is null when
+ * created is false — nothing had changed since the last checkpoint, so no
+ * new one was taken. message explains the outcome either way.
+ */
+export const CreateCheckpointResponseSchema = z.object({
+    created: z.boolean(),
+    checkpointId: z.number().nullable(),
+    message: z.string(),
+});
+
+export type CreateCheckpointResponseDto = z.infer<
+    typeof CreateCheckpointResponseSchema
+>;
+
 /** Response for GET /document/upload-auth — one-time ImageKit upload credentials generated server-side. */
 export const GetUploadAuthResponseSchema = z.object({
     token: z.string(),

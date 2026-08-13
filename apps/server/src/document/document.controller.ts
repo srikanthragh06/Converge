@@ -14,11 +14,13 @@ import { AuthGuard } from '../auth/auth.guard';
 import { UserThrottlerGuard } from '../guards/user-throttler.guard';
 import { type Request } from 'express';
 import { DocumentService } from './document.service';
+import { DocumentCheckpointService } from './document-checkpoint.service';
 import { httpOK } from '../utils/http-response.util';
 import {
   CreateDocumentRequestSchema,
   type CreateDocumentRequestDto,
   type CreateDocumentResponseDto,
+  type CreateCheckpointResponseDto,
   type GetDocumentResponseDto,
   type GetDocumentOverviewResponseDto,
   type GetLibraryDocumentsResponseDto,
@@ -32,7 +34,10 @@ import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe';
 @Controller('/document')
 @UseGuards(AuthGuard)
 export class DocumentController {
-  constructor(private readonly documentService: DocumentService) {} // Handles document CRUD and library — all routes require authentication via AuthGuard.
+  constructor(
+    private readonly documentService: DocumentService,
+    private readonly documentCheckpointService: DocumentCheckpointService,
+  ) {} // Handles document CRUD, library, and version-history checkpoints — all routes require authentication via AuthGuard.
 
   /**
    * Returns the document with the given ID if it belongs to the authenticated user.
@@ -166,6 +171,25 @@ export class DocumentController {
         limit,
         cursor,
       ),
+    );
+  }
+
+  /**
+   * Takes a manual version-history checkpoint for the given document.
+   * Throws 403 if the user does not have editor+ access.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param documentId - the document ID parsed from the URL path
+   * @returns whether a checkpoint was created, its id if so, and a message
+   * explaining the outcome either way
+   */
+  @Post('/:id/checkpoint')
+  async handleCreateCheckpoint(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) documentId: number,
+  ): Promise<CreateCheckpointResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.documentCheckpointService.createCheckpoint(documentId, userId),
     );
   }
 
