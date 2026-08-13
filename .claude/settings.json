@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/sr1k5/myStuff/converge2/.claude/hooks/block-env.sh"
+            "command": "/home/sr1k5/myStuff/converge/.claude/hooks/block-env.sh"
           }
         ]
       },
