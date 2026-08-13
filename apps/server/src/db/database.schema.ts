@@ -15,6 +15,8 @@ export interface DocumentUpdatesTable {
   document_id: number;
   /** Raw Yjs update binary, stored as BYTEA and deserialised to Buffer by pg. */
   update: Buffer;
+  /** True if this row is a merged version-history checkpoint rather than a single unfolded edit. */
+  is_checkpoint: Generated<boolean>;
   created_at: Generated<Date>;
 }
 
@@ -97,6 +99,14 @@ export interface WorkspacesTable {
   created_at: Generated<Date>;
 }
 
+/** Row shape for the document_checkpoint_contributors table. */
+export interface DocumentCheckpointContributorsTable {
+  /** FK to document_updates.id — scopes this row to a specific checkpoint row. */
+  update_id: number;
+  /** FK to users.id — a user who edited the document leading up to this checkpoint. */
+  user_id: number;
+}
+
 /** Row shape for the workspace_members table. */
 export interface WorkspaceMembersTable {
   /** FK to workspaces.id — scopes this membership to a specific workspace. */
@@ -114,6 +124,7 @@ export interface WorkspaceMembersTable {
 // Table names must exactly match the Postgres table names.
 export interface DatabaseSchema {
   document_access: DocumentAccessTable;
+  document_checkpoint_contributors: DocumentCheckpointContributorsTable;
   document_updates: DocumentUpdatesTable;
   document_user_metadata: DocumentUserMetadataTable;
   documents: DocumentsTable;
