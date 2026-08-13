@@ -58,7 +58,7 @@ const EditorPageHeader = ({
 
     return (
         <>
-            <div className="sticky top-0 z-50 bg-background-base flex justify-between items-center sm:px-8 px-2 py-2">
+            <div className="sticky top-0 z-50 bg-background-base flex justify-between items-center gap-4 sm:px-8 px-2 py-2">
                 {/* Workspace › document breadcrumb — flex-1 min-w-0 so this segment shrinks
                     before the avatar/status/button group on the right. Workspace name and
                     title are each their own truncate min-w-0 span (not flex containers) so
