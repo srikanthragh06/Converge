@@ -44,7 +44,7 @@ import { GlobalExceptionFilter } from '../utils/global-exception.filter';
 import { socketEmit, socketEmitRoom } from '../utils/ws-emit.util';
 import { RedisService } from '../redis/redis.service';
 import { REDIS_EVENTS } from '../redis/redis.events';
-import { base64ToUint8Array } from '../utils/utils';
+import { base64ToUint8Array, isEmptyYjsUpdate } from '../utils/utils';
 import { AuthService } from '../auth/auth.service';
 import { parse as parseCookie } from 'cookie';
 
@@ -466,9 +466,10 @@ export class DocumentGateway
   }
 
   /**
-   * Receives the client's diff during a repair sync. For editors, applies the
-   * diff and broadcasts it to other clients. For all access levels, computes and
-   * sends back the remaining updates the client is still missing so the repair
+   * Receives the client's diff during a repair sync. For editors, applies a
+   * non-empty diff, broadcasts it to other clients, and records the user as
+   * having edited the document. For all access levels, computes and sends
+   * back the remaining updates the client is still missing so the repair
    * sync can complete regardless of the requester's access level.
    * @param client - the socket that sent the diff
    * @param data - contains the diff bytes and the client's state vector
@@ -480,13 +481,19 @@ export class DocumentGateway
     { diffArray, clientSVArray }: RepairSyncAckDocServerPayload,
   ) {
     const documentId = client.data.documentId as number;
+    const userId = client.data.userId as number;
 
     const diff = new Uint8Array(diffArray);
     const clientSV = new Uint8Array(clientSVArray);
 
-    // Apply and broadcast the diff only for editors — viewers cannot push content.
+    // Apply and broadcast the diff only for editors with a non-empty diff —
+    // viewers cannot push content, and an empty diff means the client had
+    // nothing new to contribute (the repair-sync round trip still completes
+    // even when there's no divergence to resolve), so there is nothing to
+    // persist, broadcast, or attribute.
     if (
-      hasAccess(client.data.access as ResolvedDocumentAccessLevel, 'editor')
+      hasAccess(client.data.access as ResolvedDocumentAccessLevel, 'editor') &&
+      !isEmptyYjsUpdate(diff)
     ) {
       const { serverSV } = await this.documentYjsService.applyDocUpdate(
         documentId,
@@ -503,6 +510,9 @@ export class DocumentGateway
           updateArray: Array.from(diff),
         },
       );
+
+      // record that this user edited the document
+      await this.documentYjsService.recordLastEdited(documentId, userId);
     }
 
     // Calculate the remaining diff the client is still missing and send it back,
@@ -526,8 +536,9 @@ export class DocumentGateway
 
   /**
    * Receives the final diff from the client, completing the repair sync round.
-   * For editors, applies the diff to bring the server doc fully up to date.
-   * Viewers are silently ignored since they cannot push content.
+   * For editors, applies a non-empty diff to bring the server doc fully up to
+   * date and records the user as having edited the document. Viewers are
+   * silently ignored since they cannot push content.
    * @param client - the socket that sent the diff
    * @param data - contains the diff bytes to apply to the shared doc
    */
@@ -538,12 +549,22 @@ export class DocumentGateway
     { diffArray }: RepairAckDocServerPayload,
   ) {
     const documentId = client.data.documentId as number;
+    const userId = client.data.userId as number;
 
     const diff = new Uint8Array(diffArray);
 
-    // Apply the final diff only for editors — viewers cannot push content.
-    if (hasAccess(client.data.access as ResolvedDocumentAccessLevel, 'editor'))
+    // Apply the final diff only for editors with a non-empty diff — viewers
+    // cannot push content, and an empty diff means there is nothing left to
+    // apply or attribute (see handleRepairSyncAckDoc for why this can happen).
+    if (
+      hasAccess(client.data.access as ResolvedDocumentAccessLevel, 'editor') &&
+      !isEmptyYjsUpdate(diff)
+    ) {
       await this.documentYjsService.applyDocUpdate(documentId, diff);
+
+      // record that this user edited the document
+      await this.documentYjsService.recordLastEdited(documentId, userId);
+    }
   }
 
   /**
