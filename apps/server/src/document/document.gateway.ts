@@ -334,9 +334,7 @@ export class DocumentGateway
       const roomSize =
         this.socketServer.sockets.adapter.rooms.get(String(documentId))?.size ??
         0;
-      console.log(
-        `handleDisconnect: document ${documentId} room size after disconnect = ${roomSize}`,
-      );
+
       if (roomSize === 0) {
         console.log(
           `handleDisconnect: evicting Y.Doc for document ${documentId} — no sockets remain`,

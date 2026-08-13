@@ -314,11 +314,7 @@ export class DocumentYjsService {
    * @param documentId - the document to evict
    */
   evictDoc(documentId: number): void {
-    const had = this.yDocsMap.has(documentId);
     this.yDocsMap.delete(documentId);
-    console.log(
-      `evictDoc: document ${documentId} ${had ? 'evicted' : 'was not in cache (no-op)'}`,
-    );
   }
 
   /**
