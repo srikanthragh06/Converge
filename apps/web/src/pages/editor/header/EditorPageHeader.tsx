@@ -59,22 +59,32 @@ const EditorPageHeader = ({
     return (
         <>
             <div className="sticky top-0 z-50 bg-background-base flex justify-between items-center sm:px-8 px-2 py-2">
+                {/* Workspace › document breadcrumb — flex-1 min-w-0 so this segment shrinks
+                    before the avatar/status/button group on the right. Workspace name and
+                    title are each their own truncate min-w-0 span (not flex containers) so
+                    they ellipsis independently instead of overflowing the header. */}
                 {workspaceName && (
-                    <span className="hidden sm:flex items-center gap-1.5 text-white sm:text-sm opacity-90 truncate min-w-0">
+                    <span className="hidden sm:flex items-center gap-1.5 text-white sm:text-sm opacity-90 min-w-0 flex-1">
                         <MdOutlineWorkspaces className="shrink-0 opacity-60" />
-                        <span className="truncate flex items-center gap-1.5">
+                        <span className="truncate min-w-0">
                             {workspaceName}
-                            <span className="opacity-60">›</span>
-                            <MdOutlineDescription className="shrink-0 opacity-60" />
-                            <span
-                                className={`${title.length === 0 ? "opacity-50" : ""}`}
-                            >
-                                {title || "Untitled"}
-                            </span>
+                        </span>
+                        <span className="shrink-0 opacity-60">›</span>
+                        <MdOutlineDescription className="shrink-0 opacity-60" />
+                        <span
+                            className={`truncate min-w-0 ${title.length === 0 ? "opacity-50" : ""}`}
+                        >
+                            {title || "Untitled"}
                         </span>
                     </span>
                 )}
+                {/* Right-hand controls: presence avatars, sync status, and the Manage
+                    Document button. No shrink/truncate classes here — this group always
+                    renders at full size, and the breadcrumb on the left gives way instead. */}
                 <div className="flex items-center sm:space-x-8 space-x-4 ml-auto">
+                    {/* Presence avatars — one tooltip + avatar per online collaborator
+                        (self excluded), collapsing anything past MAX_VISIBLE_AVATARS into
+                        a +N badge. */}
                     {documentStatus === "ready" && otherUsers.length > 0 && (
                         <>
                             {visibleUsers.map((user) => (
@@ -173,6 +183,7 @@ const EditorPageHeader = ({
                 </div>
             </div>
 
+            {/* Manage Document modal — mounted only while open. */}
             {documentStatus === "ready" && isManageModalOpen && (
                 <ManageDocumentModal
                     onClose={() => setIsManageModalOpen(false)}
