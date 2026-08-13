@@ -9,11 +9,12 @@ import { DocumentYjsService } from './document-yjs.service';
 import { DocumentAccessService } from './document-access.service';
 import { DocumentAwarenessService } from './document-awareness.service';
 import { DocumentCheckpointService } from './document-checkpoint.service';
+import { DocumentCheckpointSchedulerService } from './document-checkpoint-scheduler.service';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [DatabaseModule, RedisModule, AuthModule],
-  exports: [],
+  exports: [DocumentCheckpointSchedulerService],
   controllers: [DocumentController, DocumentAccessController],
   providers: [
     DocumentGateway,
@@ -22,6 +23,7 @@ import { AuthModule } from '../auth/auth.module';
     DocumentAccessService,
     DocumentAwarenessService,
     DocumentCheckpointService,
+    DocumentCheckpointSchedulerService,
   ],
 })
 export class DocumentModule {}

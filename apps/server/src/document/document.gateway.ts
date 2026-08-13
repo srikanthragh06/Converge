@@ -12,6 +12,7 @@ import { Server, Socket } from 'socket.io';
 import { DocumentService } from './document.service';
 import { DocumentYjsService } from './document-yjs.service';
 import { DocumentAwarenessService } from './document-awareness.service';
+import { DocumentCheckpointSchedulerService } from './document-checkpoint-scheduler.service';
 import { ZodSocketValidationPipe } from '../pipes/zod-socket-validation.pipe';
 import {
   PingSchema,
@@ -73,6 +74,7 @@ export class DocumentGateway
     private readonly redisService: RedisService,
     private readonly authService: AuthService,
     private readonly documentAwarenessService: DocumentAwarenessService,
+    private readonly documentCheckpointSchedulerService: DocumentCheckpointSchedulerService,
   ) {}
 
   /**
@@ -409,6 +411,9 @@ export class DocumentGateway
     // record that this user edited the document
     await this.documentYjsService.recordLastEdited(documentId, userId);
 
+    // reset the idle checkpoint timer and ensure the interval one is running
+    await this.documentCheckpointSchedulerService.onDocumentEdited(documentId);
+
     // if the client is behind, prompt it to start a repair sync
     const isSynced = await this.documentYjsService.isClientAndServerDocSynced(
       documentId,
@@ -511,6 +516,11 @@ export class DocumentGateway
 
       // record that this user edited the document
       await this.documentYjsService.recordLastEdited(documentId, userId);
+
+      // reset the idle checkpoint timer and ensure the interval one is running
+      await this.documentCheckpointSchedulerService.onDocumentEdited(
+        documentId,
+      );
     }
 
     // Calculate the remaining diff the client is still missing and send it back,
@@ -562,6 +572,11 @@ export class DocumentGateway
 
       // record that this user edited the document
       await this.documentYjsService.recordLastEdited(documentId, userId);
+
+      // reset the idle checkpoint timer and ensure the interval one is running
+      await this.documentCheckpointSchedulerService.onDocumentEdited(
+        documentId,
+      );
     }
   }
 

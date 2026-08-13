@@ -13,12 +13,11 @@ export class DocumentCheckpointService {
   ) {}
 
   /**
-   * Takes a version-history checkpoint for the given document: merges every
-   * document_updates row since the previous checkpoint (or since the
-   * beginning, if none exists) into one new row flagged is_checkpoint = true,
-   * deletes the rows just folded into it, and records which users
-   * contributed since the previous checkpoint. Requires resolved document
-   * editor+ access.
+   * Takes a manual version-history checkpoint for the given document on
+   * behalf of an authenticated user. Requires resolved document editor+
+   * access — this is the user-initiated path (e.g. a "save version" button).
+   * Automatic checkpoints triggered by the scheduler have no requesting user
+   * and call createCheckpointInternal directly instead, skipping this check.
    * @param documentId - the document to checkpoint
    * @param userId - the authenticated user requesting the checkpoint (must have editor+ resolved access)
    * @returns whether a checkpoint was created, its id if so, and a message
@@ -41,6 +40,26 @@ export class DocumentCheckpointService {
     if (!hasAccess(access, 'editor'))
       throw new ForbiddenException('You do not have access to this document.');
 
+    return this.createCheckpointInternal(documentId);
+  }
+
+  /**
+   * Core checkpoint-creation logic, with no access check — callable both by
+   * createCheckpoint (after it has verified the requesting user) and by the
+   * scheduler's automatic triggers (which have no requesting user at all).
+   * Merges every document_updates row since the previous checkpoint (or
+   * since the beginning, if none exists) into one new row flagged
+   * is_checkpoint = true, deletes the rows just folded into it, and records
+   * which users contributed since the previous checkpoint.
+   * @param documentId - the document to checkpoint
+   * @returns whether a checkpoint was created, its id if so, and a message
+   * explaining the outcome either way
+   */
+  async createCheckpointInternal(documentId: number): Promise<{
+    created: boolean;
+    checkpointId: number | null;
+    message: string;
+  }> {
     const db = this.dbService.kysely;
 
     return db.transaction().execute(async (tx) => {

@@ -6,6 +6,7 @@ import { loadEnv } from './utils/env.loader';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { DatabaseService } from './db/database.service';
 import { RedisService } from './redis/redis.service';
+import { DocumentCheckpointSchedulerService } from './document/document-checkpoint-scheduler.service';
 import cookieParser from 'cookie-parser';
 
 // Load .env files before the NestJS app is created so process.env is fully
@@ -56,6 +57,14 @@ async function bootstrap() {
   // throws after MAX_RETRIES if the broker never responds.
   const redisService = app.get(RedisService);
   await redisService.verifyRedisConnection();
+
+  // Start the version-history checkpoint scheduler now that Postgres is
+  // confirmed reachable and migrated — it needs the document_updates schema
+  // to already be in place.
+  const checkpointSchedulerService = app.get(
+    DocumentCheckpointSchedulerService,
+  );
+  await checkpointSchedulerService.start();
 
   await app.listen(PORT);
 }
