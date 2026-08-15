@@ -5,10 +5,12 @@ import { authAtom } from "../../../atoms/auth";
 import AnimatedDots from "../../../components/AnimatedDots";
 import ManageDocumentModal from "../manageDocumentModal/ManageDocumentModal";
 import { MdOutlineWorkspaces, MdOutlineDescription } from "react-icons/md";
+import { FaHistory } from "react-icons/fa";
 import { Avatar } from "primereact/avatar";
 import { AvatarGroup } from "primereact/avatargroup";
 import { Tooltip } from "primereact/tooltip";
 import "primereact/resources/themes/lara-dark-blue/theme.css";
+import { colors } from "../../../theme/colors";
 
 /** Maximum number of avatars shown before collapsing the rest into a +N label. */
 const MAX_VISIBLE_AVATARS = 4;
@@ -169,6 +171,40 @@ const EditorPageHeader = ({
                             {statusLabel !== null &&
                                 statusLabel !== "Offline" && <AnimatedDots />}
                         </span>
+                    )}
+                    {/* Checkpoint History button — opens the version-history panel. Not yet wired up. */}
+                    {documentStatus === "ready" && (
+                        <>
+                            <Tooltip
+                                target="#checkpoint-history-button"
+                                position="bottom"
+                                pt={{
+                                    text: {
+                                        style: {
+                                            backgroundColor:
+                                                colors.tooltip.background,
+                                            color: colors.text.secondary,
+                                            fontSize: "0.75rem",
+                                            padding: "0.25rem 0.5rem",
+                                        },
+                                    },
+                                    arrow: {
+                                        style: {
+                                            borderBottomColor:
+                                                colors.tooltip.background,
+                                        },
+                                    },
+                                }}
+                            >
+                                Checkpoint History
+                            </Tooltip>
+                            <button
+                                id="checkpoint-history-button"
+                                className="text-white hover:opacity-70 transition cursor-pointer"
+                            >
+                                <FaHistory className="sm:w-5 sm:h-5 w-4 h-4" />
+                            </button>
+                        </>
                     )}
                     {documentStatus === "ready" && (
                         <button
