@@ -62,12 +62,14 @@ export type GetDocumentCheckpointsResponseDto = z.infer<
 >;
 
 /**
- * Response for GET /document/:id/checkpoints/:checkpointId — the
- * checkpoint's full reconstructed content as a base64-encoded Yjs update.
+ * Response for GET /document/:id/checkpoints/:checkpointId — the same
+ * metadata as a DocumentCheckpointSchema entry, plus the checkpoint's full
+ * reconstructed content as a base64-encoded Yjs update.
  */
-export const GetDocumentCheckpointContentResponseSchema = z.object({
-    updateBase64: z.string(),
-});
+export const GetDocumentCheckpointContentResponseSchema =
+    DocumentCheckpointSchema.extend({
+        updateBase64: z.string(),
+    });
 
 export type GetDocumentCheckpointContentResponseDto = z.infer<
     typeof GetDocumentCheckpointContentResponseSchema

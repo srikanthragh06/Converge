@@ -225,13 +225,14 @@ export class DocumentController {
   }
 
   /**
-   * Returns a checkpoint's full reconstructed content as a base64-encoded
-   * Yjs update. Throws 403 if the user does not have viewer+ access, 404 if
+   * Returns a checkpoint's metadata (id, createdAt, contributors, source)
+   * plus its full reconstructed content as a base64-encoded Yjs update.
+   * Throws 403 if the user does not have viewer+ access, 404 if
    * checkpointId is not a checkpoint on this document.
    * @param req - the Express request, with userId stamped by AuthGuard
    * @param documentId - the document ID parsed from the URL path
    * @param checkpointId - the checkpoint ID parsed from the URL path
-   * @returns the checkpoint's content as a base64-encoded Yjs update
+   * @returns the checkpoint's metadata and content as a base64-encoded Yjs update
    */
   @Get('/:id/checkpoints/:checkpointId')
   async handleGetDocumentCheckpointContent(

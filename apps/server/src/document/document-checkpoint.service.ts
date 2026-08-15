@@ -274,14 +274,16 @@ export class DocumentCheckpointService {
   }
 
   /**
-   * Reconstructs a checkpoint's full content by merging every is_checkpoint
-   * row for the document up to and including the given one — there is no
-   * baseline, so this always walks the full chain from the beginning.
-   * Requires resolved document viewer+ access.
+   * Returns a checkpoint's metadata (id, createdAt, contributors, source —
+   * the same shape as a listCheckpoints entry) plus its full reconstructed
+   * content, merged from every is_checkpoint row for the document up to and
+   * including the given one — there is no baseline, so this always walks
+   * the full chain from the beginning. Requires resolved document viewer+
+   * access.
    * @param documentId - the document the checkpoint belongs to
    * @param userId - the authenticated user (must have viewer+ resolved access)
    * @param checkpointId - the checkpoint to reconstruct
-   * @returns the checkpoint's full content as a base64-encoded Yjs update
+   * @returns the checkpoint's metadata and content as a base64-encoded Yjs update
    * @throws 403 if the user does not have viewer+ access to the document
    * @throws 404 if checkpointId is not a checkpoint row on this document
    */
@@ -299,16 +301,25 @@ export class DocumentCheckpointService {
 
     const db = this.dbService.kysely;
 
-    // Verify checkpointId actually refers to a checkpoint row on this document.
+    // Verify checkpointId actually refers to a checkpoint row on this
+    // document, fetching its metadata in the same query.
     const checkpointRow = await db
       .selectFrom('document_updates')
-      .select('id')
+      .select(['id', 'created_at', 'checkpoint_source'])
       .where('id', '=', checkpointId)
       .where('document_id', '=', documentId)
       .where('is_checkpoint', '=', true)
       .executeTakeFirst();
 
     if (!checkpointRow) throw new NotFoundException('Checkpoint not found.');
+
+    // Fetch this checkpoint's contributors.
+    const contributorRows = await db
+      .selectFrom('document_checkpoint_contributors as dcc')
+      .innerJoin('users as u', 'u.id', 'dcc.user_id')
+      .select(['u.id', 'u.name', 'u.email', 'u.avatar_url'])
+      .where('dcc.update_id', '=', checkpointId)
+      .execute();
 
     // Merge every checkpoint row up to and including this one, in order. The
     // is_checkpoint filter matters here beyond just "only checkpoints are
@@ -328,6 +339,20 @@ export class DocumentCheckpointService {
 
     const merged = Y.mergeUpdates(rows.map((r) => new Uint8Array(r.update)));
 
-    return { updateBase64: uint8ArrayToBase64(merged) };
+    return {
+      id: checkpointRow.id,
+      createdAt: checkpointRow.created_at,
+      // checkpoint_source is nullable at the DB level (meaningless for
+      // non-checkpoint rows), but every is_checkpoint row always has one set
+      // by createCheckpointInternal — safe to cast away the null here.
+      source: checkpointRow.checkpoint_source as CheckpointSource,
+      contributors: contributorRows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        avatarUrl: r.avatar_url,
+      })),
+      updateBase64: uint8ArrayToBase64(merged),
+    };
   }
 }
