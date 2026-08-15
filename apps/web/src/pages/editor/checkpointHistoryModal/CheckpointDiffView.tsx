@@ -3,6 +3,7 @@ import type { DocumentCheckpointDto } from "@converge/shared";
 import useCheckpointDiff from "../../../hooks/useCheckpointDiff";
 import type { EditorInstance } from "../../../utils/checkpointDiffUtils";
 import DiffBlockNoteView from "./DiffBlockNoteView";
+import { colors } from "../../../theme/colors";
 
 /** Which two document states to diff against each other. */
 type DiffType = "selectedVsCurrent" | "previousVsSelected";
@@ -39,17 +40,18 @@ const CheckpointDiffView = ({
         editor,
     );
 
-    const changeCount = entries.filter((e) => e.status !== "unchanged").length; // number of added/removed blocks, shown next to the toggle
+    const addedCount = entries.filter((e) => e.status === "added").length; // number of added blocks, shown in green in the change-count line
+    const removedCount = entries.filter((e) => e.status === "removed").length; // number of removed blocks, shown in red in the change-count line
 
     return (
         <div className="flex flex-col h-full min-h-0">
             {/* Comparison-mode toggle and the current change count */}
             <div className="flex flex-col gap-1.5 px-3 py-2.5 shrink-0 border-b border-background-elevated">
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-1">
                     <button
                         onClick={() => setDiffType("previousVsSelected")}
                         disabled={!previousCheckpoint}
-                        className={`px-2 py-1 text-xs rounded-md border-none cursor-pointer transition disabled:cursor-default disabled:opacity-40
+                        className={`w-full sm:w-auto px-2 py-1.5 sm:py-1 text-xs rounded-md border-none cursor-pointer transition disabled:cursor-default disabled:opacity-40
                             ${
                                 diffType === "previousVsSelected"
                                     ? "bg-background-elevated text-text-primary"
@@ -60,7 +62,7 @@ const CheckpointDiffView = ({
                     </button>
                     <button
                         onClick={() => setDiffType("selectedVsCurrent")}
-                        className={`px-2 py-1 text-xs rounded-md border-none cursor-pointer transition
+                        className={`w-full sm:w-auto px-2 py-1.5 sm:py-1 text-xs rounded-md border-none cursor-pointer transition
                             ${
                                 diffType === "selectedVsCurrent"
                                     ? "bg-background-elevated text-text-primary"
@@ -71,8 +73,13 @@ const CheckpointDiffView = ({
                     </button>
                 </div>
                 {!isLoading && (
-                    <span className="text-xs text-text-secondary opacity-60 self-end">
-                        {changeCount} change{changeCount === 1 ? "" : "s"}
+                    <span className="text-xs self-start sm:self-end shrink-0 whitespace-nowrap">
+                        <span style={{ color: colors.highlights.green.text }}>
+                            +{addedCount}
+                        </span>{" "}
+                        <span style={{ color: colors.highlights.red.text }}>
+                            -{removedCount}
+                        </span>
                     </span>
                 )}
             </div>
