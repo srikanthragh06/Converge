@@ -18,6 +18,8 @@ const useCheckpointHistory = (documentId: string | undefined) => {
     const [checkpoints, setCheckpoints] = useState<DocumentCheckpointDto[]>([]); // accumulated checkpoint list, newest first; replaced on documentId change, appended on loadMore
     const [isLoading, setIsLoading] = useState(false); // true while the first page fetch is in flight
     const [isFetchingMore, setIsFetchingMore] = useState(false); // true while a subsequent page fetch is in flight
+    const [selectedCheckpoint, setSelectedCheckpoint] =
+        useState<DocumentCheckpointDto | null>(null); // checkpoint currently selected for viewing/diffing; auto-set to the newest checkpoint once the first page loads
 
     const nextCursorRef = useRef<number | null>(null); // keyset cursor for the next page; null when no more pages exist
     const hasMoreRef = useRef(true); // whether another page exists — ref so loadMore reads the latest value without being in its own deps
@@ -75,6 +77,7 @@ const useCheckpointHistory = (documentId: string | undefined) => {
                         { params: { limit: CHECKPOINTS_LIST_LIMIT } },
                     );
                 setCheckpoints(data.checkpoints);
+                setSelectedCheckpoint(data.checkpoints[0] ?? null);
                 nextCursorRef.current = data.nextCursor;
                 hasMoreRef.current = data.nextCursor !== null;
             } catch (err) {
@@ -106,7 +109,14 @@ const useCheckpointHistory = (documentId: string | undefined) => {
         return () => observer.disconnect();
     }, [sentinelEl, loadMore]);
 
-    return { checkpoints, isLoading, isFetchingMore, sentinelRef };
+    return {
+        checkpoints,
+        isLoading,
+        isFetchingMore,
+        sentinelRef,
+        selectedCheckpoint,
+        setSelectedCheckpoint,
+    };
 };
 
 export default useCheckpointHistory;

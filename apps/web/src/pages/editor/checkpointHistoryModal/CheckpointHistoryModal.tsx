@@ -5,12 +5,15 @@ import { IoIosMenu } from "react-icons/io";
 import useCheckpointHistory from "../../../hooks/useCheckpointHistory";
 import CheckpointListItem from "./CheckpointListItem";
 import DelayedRender from "../../../components/DelayedRender";
+import CheckpointDiffView from "./CheckpointDiffView";
 
 /**
  * Modal for browsing a document's version-history checkpoints. Renders as a
  * centred dialog on all screen sizes. Closes on backdrop click. Left side
- * lists checkpoints with infinite-scroll pagination; right side is reserved
- * for the diff view, not yet built. On mobile the list acts like Sidebar's
+ * lists checkpoints with infinite-scroll pagination and a single-select
+ * highlight, defaulting to the newest checkpoint; right side renders
+ * CheckpointDiffView for whichever checkpoint is selected, though its
+ * contents are still a placeholder. On mobile the list acts like Sidebar's
  * own collapsible pattern — full width by default, minimizable via the
  * arrow button down to a slim strip with a menu button that reopens it,
  * revealing the right side while collapsed. On sm+ screens both sides are
@@ -26,8 +29,14 @@ const CheckpointHistoryModal = ({
     /** Called when the user dismisses the modal. */
     onClose: () => void;
 }) => {
-    const { checkpoints, isLoading, isFetchingMore, sentinelRef } =
-        useCheckpointHistory(documentId);
+    const {
+        checkpoints,
+        isLoading,
+        isFetchingMore,
+        sentinelRef,
+        selectedCheckpoint,
+        setSelectedCheckpoint,
+    } = useCheckpointHistory(documentId);
     const [isListCollapsed, setIsListCollapsed] = useState(false); // mobile-only: true hides the checkpoint list and reveals the right side
 
     return (
@@ -80,9 +89,18 @@ const CheckpointHistoryModal = ({
                             {isLoading ? (
                                 <DelayedRender>
                                     <div className="flex flex-col gap-2 p-3">
-                                        <Skeleton height="2.5rem" width="100%" />
-                                        <Skeleton height="2.5rem" width="100%" />
-                                        <Skeleton height="2.5rem" width="100%" />
+                                        <Skeleton
+                                            height="2.5rem"
+                                            width="100%"
+                                        />
+                                        <Skeleton
+                                            height="2.5rem"
+                                            width="100%"
+                                        />
+                                        <Skeleton
+                                            height="2.5rem"
+                                            width="100%"
+                                        />
                                     </div>
                                 </DelayedRender>
                             ) : checkpoints.length === 0 ? (
@@ -98,6 +116,15 @@ const CheckpointHistoryModal = ({
                                         <CheckpointListItem
                                             key={checkpoint.id}
                                             checkpoint={checkpoint}
+                                            isSelected={
+                                                checkpoint.id ===
+                                                selectedCheckpoint?.id
+                                            }
+                                            onSelect={() =>
+                                                setSelectedCheckpoint(
+                                                    checkpoint,
+                                                )
+                                            }
                                         />
                                     ))}
                                     {/* Sentinel observed by IntersectionObserver to trigger the next page load */}
@@ -128,7 +155,7 @@ const CheckpointHistoryModal = ({
                         <div
                             className={`${isListCollapsed ? "flex" : "hidden"} sm:flex flex-1 items-center justify-center text-text-secondary text-sm`}
                         >
-                            Select a checkpoint to view its diff.
+                            <CheckpointDiffView />
                         </div>
                     </div>
                 </div>

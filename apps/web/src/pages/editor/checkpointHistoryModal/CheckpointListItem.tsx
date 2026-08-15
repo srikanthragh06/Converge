@@ -36,11 +36,18 @@ const formatContributorNames = (names: string[]): string => {
  * summary — up to MAX_VISIBLE_CONTRIBUTOR_AVATARS avatars, and inline names
  * capped separately at MAX_NAMED_CONTRIBUTORS. Hovering the avatar stack
  * shows every contributor's name, including ones collapsed out of both caps.
+ * Clicking the row selects it; isSelected controls the highlighted style.
  */
 const CheckpointListItem = ({
     checkpoint,
+    isSelected,
+    onSelect,
 }: {
     checkpoint: DocumentCheckpointDto;
+    /** Whether this checkpoint is the one currently selected in the list. */
+    isSelected: boolean;
+    /** Called when the user clicks this row. */
+    onSelect: () => void;
 }) => {
     const visibleContributors = checkpoint.contributors.slice(
         0,
@@ -49,7 +56,15 @@ const CheckpointListItem = ({
     const names = checkpoint.contributors.map((c) => c.name); // full contributor name list, used for both the inline summary and the tooltip
 
     return (
-        <div className="px-3 py-2.5 border-b border-background-elevated">
+        <div
+            onClick={onSelect}
+            className={`px-3 py-2.5 border-b border-background-elevated
+        cursor-pointer transition ${
+            isSelected
+                ? "bg-background-elevated"
+                : "hover:opacity-80 active:opacity-60"
+        }`}
+        >
             {/* Row 1: last-edited time (left) and Manual/Auto source label (right) */}
             <div className="flex items-center justify-between text-xs">
                 <span className="text-text-secondary">
@@ -68,8 +83,7 @@ const CheckpointListItem = ({
                         pt={{
                             text: {
                                 style: {
-                                    backgroundColor:
-                                        colors.tooltip.background,
+                                    backgroundColor: colors.tooltip.background,
                                     color: colors.text.secondary,
                                     fontSize: "0.75rem",
                                     padding: "0.375rem 0.5rem",
