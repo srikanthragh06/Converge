@@ -5,6 +5,7 @@ import { authAtom } from "../../../atoms/auth";
 import AnimatedDots from "../../../components/AnimatedDots";
 import ManageDocumentModal from "../manageDocumentModal/ManageDocumentModal";
 import CheckpointHistoryModal from "../checkpointHistoryModal/CheckpointHistoryModal";
+import type { EditorInstance } from "../../../utils/checkpointDiffUtils";
 import {
     MdOutlineWorkspaces,
     MdOutlineDescription,
@@ -33,6 +34,7 @@ const EditorPageHeader = ({
     documentId,
     workspaceName,
     title,
+    editor,
 }: {
     documentStatus: "loading" | "ready" | "forbidden" | "notFound";
     /** ID of the currently open document, forwarded to ManageDocumentModal. */
@@ -41,6 +43,8 @@ const EditorPageHeader = ({
     workspaceName: string | null;
     /** Title of the current document, shown as the second segment of the breadcrumb. */
     title: string;
+    /** Live editor instance, forwarded to CheckpointHistoryModal for its live-document diff comparison. */
+    editor: EditorInstance | null;
 }) => {
     const [isManageModalOpen, setIsManageModalOpen] = useState(false); // controls ManageDocumentModal visibility
     const [isCheckpointHistoryModalOpen, setIsCheckpointHistoryModalOpen] =
@@ -232,7 +236,7 @@ const EditorPageHeader = ({
                         </>
                     )}
 
-                    {/* Checkpoint History button — opens CheckpointHistoryModal, whose contents are still a placeholder. */}
+                    {/* Checkpoint History button — opens CheckpointHistoryModal. */}
                     {documentStatus === "ready" && (
                         <>
                             <Tooltip
@@ -294,6 +298,7 @@ const EditorPageHeader = ({
             {documentStatus === "ready" && isCheckpointHistoryModalOpen && (
                 <CheckpointHistoryModal
                     documentId={documentId}
+                    editor={editor}
                     onClose={() => setIsCheckpointHistoryModalOpen(false)}
                 />
             )}

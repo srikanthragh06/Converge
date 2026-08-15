@@ -6,26 +6,30 @@ import useCheckpointHistory from "../../../hooks/useCheckpointHistory";
 import CheckpointListItem from "./CheckpointListItem";
 import DelayedRender from "../../../components/DelayedRender";
 import CheckpointDiffView from "./CheckpointDiffView";
+import type { EditorInstance } from "../../../utils/checkpointDiffUtils";
 
 /**
  * Modal for browsing a document's version-history checkpoints. Renders as a
  * centred dialog on all screen sizes. Closes on backdrop click. Left side
  * lists checkpoints with infinite-scroll pagination and a single-select
  * highlight, defaulting to the newest checkpoint; right side renders
- * CheckpointDiffView for whichever checkpoint is selected, though its
- * contents are still a placeholder. On mobile the list acts like Sidebar's
- * own collapsible pattern — full width by default, minimizable via the
- * arrow button down to a slim strip with a menu button that reopens it,
- * revealing the right side while collapsed. On sm+ screens both sides are
- * always shown side by side at a fixed list width, so isListCollapsed has no
- * visual effect there.
+ * CheckpointDiffView, diffing whichever checkpoint is selected against
+ * either the one before it or the live editor content. On mobile the list
+ * acts like Sidebar's own collapsible pattern — full width by default,
+ * minimizable via the arrow button down to a slim strip with a menu button
+ * that reopens it, revealing the right side while collapsed. On sm+ screens
+ * both sides are always shown side by side at a fixed list width, so
+ * isListCollapsed has no visual effect there.
  */
 const CheckpointHistoryModal = ({
     documentId,
+    editor,
     onClose,
 }: {
     /** ID of the document whose checkpoints to list. */
     documentId: string | undefined;
+    /** Live editor instance, forwarded to CheckpointDiffView for its live-document comparison. */
+    editor: EditorInstance | null;
     /** Called when the user dismisses the modal. */
     onClose: () => void;
 }) => {
@@ -38,6 +42,14 @@ const CheckpointHistoryModal = ({
         setSelectedCheckpoint,
     } = useCheckpointHistory(documentId);
     const [isListCollapsed, setIsListCollapsed] = useState(false); // mobile-only: true hides the checkpoint list and reveals the right side
+
+    // The list is newest-first, so the checkpoint immediately before the selected one —
+    // needed for the diff view's "Prev. Checkpoint" comparison — sits right after it in the array.
+    const selectedIndex = checkpoints.findIndex(
+        (c) => c.id === selectedCheckpoint?.id,
+    );
+    const previousCheckpoint =
+        selectedIndex === -1 ? null : (checkpoints[selectedIndex + 1] ?? null);
 
     return (
         <>
@@ -149,13 +161,26 @@ const CheckpointHistoryModal = ({
                                 </div>
                             )}
                         </div>
-                        {/* Right: diff view — placeholder until built. Hidden on mobile
-                            unless the list is minimized, since the two sides share the
-                            full-width mobile layout instead of sitting side by side. */}
+                        {/* Right: diff view for the selected checkpoint, or a prompt when
+                            none is picked yet. Hidden on mobile unless the list is
+                            minimized, since the two sides share the full-width mobile
+                            layout instead of sitting side by side. */}
                         <div
-                            className={`${isListCollapsed ? "flex" : "hidden"} sm:flex flex-1 items-center justify-center text-text-secondary text-sm`}
+                            className={`${isListCollapsed ? "flex" : "hidden"} sm:flex flex-1 min-h-0 flex-col`}
                         >
-                            <CheckpointDiffView />
+                            {selectedCheckpoint === null ? (
+                                <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">
+                                    Select a checkpoint to view its diff.
+                                </div>
+                            ) : (
+                                <CheckpointDiffView
+                                    key={selectedCheckpoint.id}
+                                    documentId={documentId}
+                                    selectedCheckpoint={selectedCheckpoint}
+                                    previousCheckpoint={previousCheckpoint}
+                                    editor={editor}
+                                />
+                            )}
                         </div>
                     </div>
                 </div>

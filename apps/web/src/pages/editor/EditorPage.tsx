@@ -50,6 +50,7 @@ const EditorPage = () => {
                     documentId={documentId}
                     workspaceName={docWorkspace?.name ?? null}
                     title={title}
+                    editor={editor}
                 />
             )}
             {/* Forbidden state — shown when the user lacks access to this document */}
