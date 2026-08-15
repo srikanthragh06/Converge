@@ -16,6 +16,62 @@ export type CreateCheckpointResponseDto = z.infer<
     typeof CreateCheckpointResponseSchema
 >;
 
+/** A single contributor to a checkpoint — who edited the document leading up to it. */
+export const CheckpointContributorSchema = z.object({
+    id: z.number(),
+    name: z.string(),
+    email: z.email(),
+    avatarUrl: z.string().nullable(),
+});
+
+export type CheckpointContributorDto = z.infer<
+    typeof CheckpointContributorSchema
+>;
+
+/** A single checkpoint entry returned by the version-history listing. */
+export const DocumentCheckpointSchema = z.object({
+    id: z.number(),
+    createdAt: z.coerce.date(),
+    contributors: z.array(CheckpointContributorSchema),
+});
+
+export type DocumentCheckpointDto = z.infer<typeof DocumentCheckpointSchema>;
+
+/**
+ * Query params for GET /document/:id/checkpoints — keyset-paginated
+ * version-history listing, newest first. limit defaults to 20 if omitted.
+ */
+export const GetDocumentCheckpointsRequestSchema = z.object({
+    limit: z.coerce.number().int().positive().optional(),
+    cursorId: z.coerce.number().int().positive().optional(),
+});
+
+export type GetDocumentCheckpointsRequestDto = z.infer<
+    typeof GetDocumentCheckpointsRequestSchema
+>;
+
+/** Response for GET /document/:id/checkpoints. nextCursor is null when there are no more pages. */
+export const GetDocumentCheckpointsResponseSchema = z.object({
+    checkpoints: z.array(DocumentCheckpointSchema),
+    nextCursor: z.number().nullable(),
+});
+
+export type GetDocumentCheckpointsResponseDto = z.infer<
+    typeof GetDocumentCheckpointsResponseSchema
+>;
+
+/**
+ * Response for GET /document/:id/checkpoints/:checkpointId — the
+ * checkpoint's full reconstructed content as a base64-encoded Yjs update.
+ */
+export const GetDocumentCheckpointContentResponseSchema = z.object({
+    updateBase64: z.string(),
+});
+
+export type GetDocumentCheckpointContentResponseDto = z.infer<
+    typeof GetDocumentCheckpointContentResponseSchema
+>;
+
 /** Response for GET /document/upload-auth — one-time ImageKit upload credentials generated server-side. */
 export const GetUploadAuthResponseSchema = z.object({
     token: z.string(),

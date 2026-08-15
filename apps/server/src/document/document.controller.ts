@@ -21,11 +21,14 @@ import {
   type CreateDocumentRequestDto,
   type CreateDocumentResponseDto,
   type CreateCheckpointResponseDto,
+  type GetDocumentCheckpointsResponseDto,
+  type GetDocumentCheckpointContentResponseDto,
   type GetDocumentResponseDto,
   type GetDocumentOverviewResponseDto,
   type GetLibraryDocumentsResponseDto,
   type SearchLibraryDocumentsResponseDto,
   type GetUploadAuthResponseDto,
+  GetDocumentCheckpointsRequestSchema,
   GetLibraryDocumentsRequestSchema,
   SearchLibraryDocumentsRequestSchema,
 } from '@converge/shared';
@@ -190,6 +193,59 @@ export class DocumentController {
     const userId = (req as any).userId as number;
     return httpOK(
       await this.documentCheckpointService.createCheckpoint(documentId, userId),
+    );
+  }
+
+  /**
+   * Returns a keyset-paginated list of version-history checkpoints for the
+   * document, newest first, each with its contributors. Throws 403 if the
+   * user does not have viewer+ access.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param documentId - the document ID parsed from the URL path
+   * @param query - optional limit (default 20) and cursorId for pagination
+   * @returns checkpoints for this page and nextCursor (null on the last page)
+   */
+  @Get('/:id/checkpoints')
+  async handleGetDocumentCheckpoints(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) documentId: number,
+    @Query(new ZodHttpValidationPipe(GetDocumentCheckpointsRequestSchema))
+    query: { limit?: number; cursorId?: number },
+  ): Promise<GetDocumentCheckpointsResponseDto> {
+    const userId = (req as any).userId as number;
+    const limit = query.limit ?? 20;
+    return httpOK(
+      await this.documentCheckpointService.listCheckpoints(
+        documentId,
+        userId,
+        limit,
+        query.cursorId,
+      ),
+    );
+  }
+
+  /**
+   * Returns a checkpoint's full reconstructed content as a base64-encoded
+   * Yjs update. Throws 403 if the user does not have viewer+ access, 404 if
+   * checkpointId is not a checkpoint on this document.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param documentId - the document ID parsed from the URL path
+   * @param checkpointId - the checkpoint ID parsed from the URL path
+   * @returns the checkpoint's content as a base64-encoded Yjs update
+   */
+  @Get('/:id/checkpoints/:checkpointId')
+  async handleGetDocumentCheckpointContent(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) documentId: number,
+    @Param('checkpointId', ParseIntPipe) checkpointId: number,
+  ): Promise<GetDocumentCheckpointContentResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.documentCheckpointService.getCheckpointContent(
+        documentId,
+        userId,
+        checkpointId,
+      ),
     );
   }
 

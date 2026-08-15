@@ -1,8 +1,17 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import * as Y from 'yjs';
-import { hasAccess } from '@converge/shared';
+import {
+  hasAccess,
+  type GetDocumentCheckpointsResponseDto,
+  type GetDocumentCheckpointContentResponseDto,
+} from '@converge/shared';
 import { DatabaseService } from '../db/database.service';
 import { DocumentAccessService } from './document-access.service';
+import { uint8ArrayToBase64 } from '../utils/utils';
 import { sql } from 'kysely';
 
 @Injectable()
@@ -172,5 +181,143 @@ export class DocumentCheckpointService {
         message: 'Checkpoint created.',
       };
     });
+  }
+
+  /**
+   * Returns a keyset-paginated list of version-history checkpoints for the
+   * document, newest first, each with its contributors. Requires resolved
+   * document viewer+ access.
+   * @param documentId - the document to list checkpoints for
+   * @param userId - the authenticated user (must have viewer+ resolved access)
+   * @param limit - maximum entries per page
+   * @param cursorId - id of the oldest checkpoint from the previous page; omit for the first page
+   * @returns checkpoints for this page and nextCursor (null on the last page)
+   * @throws 403 if the user does not have viewer+ access to the document
+   */
+  async listCheckpoints(
+    documentId: number,
+    userId: number,
+    limit: number,
+    cursorId?: number,
+  ): Promise<GetDocumentCheckpointsResponseDto> {
+    const access = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+    );
+    if (!hasAccess(access, 'viewer'))
+      throw new ForbiddenException('You do not have access to this document.');
+
+    const db = this.dbService.kysely;
+
+    // Keyset-paginated query ordered by id DESC — newest checkpoint first.
+    let query = db
+      .selectFrom('document_updates')
+      .select(['id', 'created_at'])
+      .where('document_id', '=', documentId)
+      .where('is_checkpoint', '=', true)
+      .orderBy('id', 'desc')
+      .limit(limit);
+
+    if (cursorId !== undefined) query = query.where('id', '<', cursorId);
+
+    const checkpointRows = await query.execute();
+    const nextCursor =
+      checkpointRows.length === limit
+        ? checkpointRows[checkpointRows.length - 1].id
+        : null;
+
+    if (checkpointRows.length === 0) return { checkpoints: [], nextCursor };
+
+    // Fetch every contributor for every checkpoint on this page in one query,
+    // then group them in memory — cheaper than one query per checkpoint.
+    const checkpointIds = checkpointRows.map((r) => r.id);
+    const contributorRows = await db
+      .selectFrom('document_checkpoint_contributors as dcc')
+      .innerJoin('users as u', 'u.id', 'dcc.user_id')
+      .select(['dcc.update_id', 'u.id', 'u.name', 'u.email', 'u.avatar_url'])
+      .where('dcc.update_id', 'in', checkpointIds)
+      .execute();
+
+    const contributorsByCheckpointId = new Map<
+      number,
+      { id: number; name: string; email: string; avatarUrl: string | null }[]
+    >();
+    for (const row of contributorRows) {
+      const contributors = contributorsByCheckpointId.get(row.update_id) ?? [];
+      contributors.push({
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        avatarUrl: row.avatar_url,
+      });
+      contributorsByCheckpointId.set(row.update_id, contributors);
+    }
+
+    return {
+      checkpoints: checkpointRows.map((r) => ({
+        id: r.id,
+        createdAt: r.created_at,
+        contributors: contributorsByCheckpointId.get(r.id) ?? [],
+      })),
+      nextCursor,
+    };
+  }
+
+  /**
+   * Reconstructs a checkpoint's full content by merging every is_checkpoint
+   * row for the document up to and including the given one — there is no
+   * baseline, so this always walks the full chain from the beginning.
+   * Requires resolved document viewer+ access.
+   * @param documentId - the document the checkpoint belongs to
+   * @param userId - the authenticated user (must have viewer+ resolved access)
+   * @param checkpointId - the checkpoint to reconstruct
+   * @returns the checkpoint's full content as a base64-encoded Yjs update
+   * @throws 403 if the user does not have viewer+ access to the document
+   * @throws 404 if checkpointId is not a checkpoint row on this document
+   */
+  async getCheckpointContent(
+    documentId: number,
+    userId: number,
+    checkpointId: number,
+  ): Promise<GetDocumentCheckpointContentResponseDto> {
+    const access = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+    );
+    if (!hasAccess(access, 'viewer'))
+      throw new ForbiddenException('You do not have access to this document.');
+
+    const db = this.dbService.kysely;
+
+    // Verify checkpointId actually refers to a checkpoint row on this document.
+    const checkpointRow = await db
+      .selectFrom('document_updates')
+      .select('id')
+      .where('id', '=', checkpointId)
+      .where('document_id', '=', documentId)
+      .where('is_checkpoint', '=', true)
+      .executeTakeFirst();
+
+    if (!checkpointRow) throw new NotFoundException('Checkpoint not found.');
+
+    // Merge every checkpoint row up to and including this one, in order. The
+    // is_checkpoint filter matters here beyond just "only checkpoints are
+    // relevant": Postgres assigns bigserial ids at statement-execution time,
+    // not commit time, so a concurrent applyDocUpdate insert can land with a
+    // lower id than a checkpoint whose creation started earlier but committed
+    // later. Filtering on id alone could pull that stray, not-yet-checkpointed
+    // row into the merge even though it was never part of this checkpoint.
+    const rows = await db
+      .selectFrom('document_updates')
+      .select('update')
+      .where('document_id', '=', documentId)
+      .where('is_checkpoint', '=', true)
+      .where('id', '<=', checkpointId)
+      .orderBy('id', 'asc')
+      .execute();
+
+    const merged = Y.mergeUpdates(rows.map((r) => new Uint8Array(r.update)));
+
+    return { updateBase64: uint8ArrayToBase64(merged) };
   }
 }

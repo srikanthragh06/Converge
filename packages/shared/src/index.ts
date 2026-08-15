@@ -3,6 +3,11 @@ export { GoogleAuthRequestSchema, AuthResponseSchema } from "./http/auth";
 export type { GoogleAuthRequestDto, AuthResponseDto } from "./http/auth";
 export {
     CreateCheckpointResponseSchema,
+    CheckpointContributorSchema,
+    DocumentCheckpointSchema,
+    GetDocumentCheckpointsRequestSchema,
+    GetDocumentCheckpointsResponseSchema,
+    GetDocumentCheckpointContentResponseSchema,
     GetUploadAuthResponseSchema,
     CreateDocumentRequestSchema,
     CreateDocumentResponseSchema,
@@ -27,6 +32,11 @@ export {
 } from "./http/document";
 export type {
     CreateCheckpointResponseDto,
+    CheckpointContributorDto,
+    DocumentCheckpointDto,
+    GetDocumentCheckpointsRequestDto,
+    GetDocumentCheckpointsResponseDto,
+    GetDocumentCheckpointContentResponseDto,
     GetUploadAuthResponseDto,
     CreateDocumentRequestDto,
     CreateDocumentResponseDto,
