@@ -293,6 +293,7 @@ const EditorPageHeader = ({
             {/* Checkpoint History modal — mounted only while open. */}
             {documentStatus === "ready" && isCheckpointHistoryModalOpen && (
                 <CheckpointHistoryModal
+                    documentId={documentId}
                     onClose={() => setIsCheckpointHistoryModalOpen(false)}
                 />
             )}
