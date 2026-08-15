@@ -1,4 +1,5 @@
 import {
+  CheckpointSource,
   DocumentAccessLevel,
   WorkspaceRole,
   WorkspaceType,
@@ -17,6 +18,8 @@ export interface DocumentUpdatesTable {
   update: Buffer;
   /** True if this row is a merged version-history checkpoint rather than a single unfolded edit. */
   is_checkpoint: Generated<boolean>;
+  /** What triggered this checkpoint row; NULL for non-checkpoint rows. */
+  checkpoint_source: CheckpointSource | null;
   created_at: Generated<Date>;
 }
 

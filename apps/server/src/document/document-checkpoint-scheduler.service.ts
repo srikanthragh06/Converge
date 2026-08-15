@@ -98,6 +98,7 @@ export class DocumentCheckpointSchedulerService {
       async ([job]) => {
         await this.documentCheckpointService.createCheckpointInternal(
           job.data.documentId,
+          'idle',
         );
       },
     );
@@ -113,6 +114,7 @@ export class DocumentCheckpointSchedulerService {
         const result =
           await this.documentCheckpointService.createCheckpointInternal(
             documentId,
+            'interval',
           );
         if (result.created) {
           await this.boss.send(

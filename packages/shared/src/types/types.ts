@@ -23,6 +23,10 @@ export type ResolvedDocumentAccessLevel = z.infer<
     typeof ResolvedDocumentAccessLevelSchema
 >;
 
+/** What triggered a version-history checkpoint: a manual save, or one of the two automatic scheduler timers. */
+export const CheckpointSourceSchema = z.enum(["manual", "idle", "interval"]);
+export type CheckpointSource = z.infer<typeof CheckpointSourceSchema>;
+
 /** Valid workspace types. Personal workspaces are 1:1 per user; custom workspaces are user-created for teams. */
 export const WorkspaceTypeSchema = z.enum(["personal", "custom"]);
 export type WorkspaceType = z.infer<typeof WorkspaceTypeSchema>;

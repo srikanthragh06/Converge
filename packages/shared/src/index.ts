@@ -127,11 +127,13 @@ export {
     ResolvedDocumentAccessLevelSchema,
     WorkspaceTypeSchema,
     WorkspaceRoleSchema,
+    CheckpointSourceSchema,
 } from "./types/types";
 export type {
     ResolvedDocumentAccessLevel,
     WorkspaceType,
     WorkspaceRole,
+    CheckpointSource,
 } from "./types/types";
 export { SOCKET_EVENTS } from "./socket/events";
 export {

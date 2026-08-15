@@ -6,6 +6,7 @@ import {
 import * as Y from 'yjs';
 import {
   hasAccess,
+  type CheckpointSource,
   type GetDocumentCheckpointsResponseDto,
   type GetDocumentCheckpointContentResponseDto,
 } from '@converge/shared';
@@ -49,7 +50,7 @@ export class DocumentCheckpointService {
     if (!hasAccess(access, 'editor'))
       throw new ForbiddenException('You do not have access to this document.');
 
-    return this.createCheckpointInternal(documentId);
+    return this.createCheckpointInternal(documentId, 'manual');
   }
 
   /**
@@ -61,10 +62,14 @@ export class DocumentCheckpointService {
    * is_checkpoint = true, deletes the rows just folded into it, and records
    * which users contributed since the previous checkpoint.
    * @param documentId - the document to checkpoint
+   * @param source - what triggered this checkpoint, recorded on the new row
    * @returns whether a checkpoint was created, its id if so, and a message
    * explaining the outcome either way
    */
-  async createCheckpointInternal(documentId: number): Promise<{
+  async createCheckpointInternal(
+    documentId: number,
+    source: CheckpointSource,
+  ): Promise<{
     created: boolean;
     checkpointId: number | null;
     message: string;
@@ -142,6 +147,7 @@ export class DocumentCheckpointService {
           document_id: documentId,
           update: Buffer.from(merged),
           is_checkpoint: true,
+          checkpoint_source: source,
         })
         .returning('id')
         .executeTakeFirstOrThrow();
@@ -212,7 +218,7 @@ export class DocumentCheckpointService {
     // Keyset-paginated query ordered by id DESC — newest checkpoint first.
     let query = db
       .selectFrom('document_updates')
-      .select(['id', 'created_at'])
+      .select(['id', 'created_at', 'checkpoint_source'])
       .where('document_id', '=', documentId)
       .where('is_checkpoint', '=', true)
       .orderBy('id', 'desc')
@@ -254,10 +260,14 @@ export class DocumentCheckpointService {
     }
 
     return {
+      // checkpoint_source is nullable at the DB level (meaningless for
+      // non-checkpoint rows), but every is_checkpoint row always has one set
+      // by createCheckpointInternal — safe to cast away the null here.
       checkpoints: checkpointRows.map((r) => ({
         id: r.id,
         createdAt: r.created_at,
         contributors: contributorsByCheckpointId.get(r.id) ?? [],
+        source: r.checkpoint_source as CheckpointSource,
       })),
       nextCursor,
     };

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DocumentAccessLevelSchema, ResolvedDocumentAccessLevelSchema } from "../types/types";
+import { DocumentAccessLevelSchema, ResolvedDocumentAccessLevelSchema, CheckpointSourceSchema } from "../types/types";
 
 /**
  * Response for POST /document/:id/checkpoint. checkpointId is null when
@@ -33,6 +33,7 @@ export const DocumentCheckpointSchema = z.object({
     id: z.number(),
     createdAt: z.coerce.date(),
     contributors: z.array(CheckpointContributorSchema),
+    source: CheckpointSourceSchema,
 });
 
 export type DocumentCheckpointDto = z.infer<typeof DocumentCheckpointSchema>;
