@@ -28,10 +28,17 @@ export type CheckpointContributorDto = z.infer<
     typeof CheckpointContributorSchema
 >;
 
-/** A single checkpoint entry returned by the version-history listing. */
+/**
+ * A single checkpoint entry returned by the version-history listing.
+ * createdAt is when the checkpoint row itself was inserted; lastEditedAt is
+ * the timestamp of the most recent edit actually folded into it — the two
+ * can diverge for automatic checkpoints, which fire some delay after the
+ * last edit rather than immediately. UI display should prefer lastEditedAt.
+ */
 export const DocumentCheckpointSchema = z.object({
     id: z.number(),
     createdAt: z.coerce.date(),
+    lastEditedAt: z.coerce.date(),
     contributors: z.array(CheckpointContributorSchema),
     source: CheckpointSourceSchema,
 });

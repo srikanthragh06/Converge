@@ -129,7 +129,7 @@ export class DocumentCheckpointService {
       // Fetch every row strictly after the last checkpoint, up to maxId, in order.
       const rows = await tx
         .selectFrom('document_updates')
-        .select('update')
+        .select(['update', 'created_at'])
         .where('document_id', '=', documentId)
         .where('id', '>', sinceUpdateId)
         .where('id', '<=', maxId)
@@ -140,6 +140,16 @@ export class DocumentCheckpointService {
       // already persisted for normal sync.
       const merged = Y.mergeUpdates(rows.map((r) => new Uint8Array(r.update)));
 
+      // The latest created_at among the folded rows — when the actual last
+      // edit in this checkpoint happened, as opposed to created_at below
+      // (when this checkpoint row itself gets inserted, which can lag behind
+      // for automatic checkpoints). rows is never empty here: the maxId <=
+      // sinceUpdateId guard above already ruled that out.
+      const contentLastEditedAt = rows.reduce(
+        (latest, r) => (r.created_at > latest ? r.created_at : latest),
+        rows[0].created_at,
+      );
+
       // Insert the merged blob as the new checkpoint row.
       const inserted = await tx
         .insertInto('document_updates')
@@ -148,6 +158,7 @@ export class DocumentCheckpointService {
           update: Buffer.from(merged),
           is_checkpoint: true,
           checkpoint_source: source,
+          content_last_edited_at: contentLastEditedAt,
         })
         .returning('id')
         .executeTakeFirstOrThrow();
@@ -218,7 +229,12 @@ export class DocumentCheckpointService {
     // Keyset-paginated query ordered by id DESC — newest checkpoint first.
     let query = db
       .selectFrom('document_updates')
-      .select(['id', 'created_at', 'checkpoint_source'])
+      .select([
+        'id',
+        'created_at',
+        'content_last_edited_at',
+        'checkpoint_source',
+      ])
       .where('document_id', '=', documentId)
       .where('is_checkpoint', '=', true)
       .orderBy('id', 'desc')
@@ -260,12 +276,14 @@ export class DocumentCheckpointService {
     }
 
     return {
-      // checkpoint_source is nullable at the DB level (meaningless for
-      // non-checkpoint rows), but every is_checkpoint row always has one set
-      // by createCheckpointInternal — safe to cast away the null here.
+      // checkpoint_source and content_last_edited_at are nullable at the DB
+      // level (meaningless for non-checkpoint rows), but every is_checkpoint
+      // row always has both set by createCheckpointInternal — safe to cast
+      // away the null here.
       checkpoints: checkpointRows.map((r) => ({
         id: r.id,
         createdAt: r.created_at,
+        lastEditedAt: r.content_last_edited_at as Date,
         contributors: contributorsByCheckpointId.get(r.id) ?? [],
         source: r.checkpoint_source as CheckpointSource,
       })),
@@ -305,7 +323,12 @@ export class DocumentCheckpointService {
     // document, fetching its metadata in the same query.
     const checkpointRow = await db
       .selectFrom('document_updates')
-      .select(['id', 'created_at', 'checkpoint_source'])
+      .select([
+        'id',
+        'created_at',
+        'content_last_edited_at',
+        'checkpoint_source',
+      ])
       .where('id', '=', checkpointId)
       .where('document_id', '=', documentId)
       .where('is_checkpoint', '=', true)
@@ -342,9 +365,11 @@ export class DocumentCheckpointService {
     return {
       id: checkpointRow.id,
       createdAt: checkpointRow.created_at,
-      // checkpoint_source is nullable at the DB level (meaningless for
-      // non-checkpoint rows), but every is_checkpoint row always has one set
-      // by createCheckpointInternal — safe to cast away the null here.
+      // checkpoint_source and content_last_edited_at are nullable at the DB
+      // level (meaningless for non-checkpoint rows), but every is_checkpoint
+      // row always has both set by createCheckpointInternal — safe to cast
+      // away the null here.
+      lastEditedAt: checkpointRow.content_last_edited_at as Date,
       source: checkpointRow.checkpoint_source as CheckpointSource,
       contributors: contributorRows.map((r) => ({
         id: r.id,

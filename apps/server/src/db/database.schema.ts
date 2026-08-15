@@ -20,6 +20,8 @@ export interface DocumentUpdatesTable {
   is_checkpoint: Generated<boolean>;
   /** What triggered this checkpoint row; NULL for non-checkpoint rows. */
   checkpoint_source: CheckpointSource | null;
+  /** Timestamp of the most recent edit folded into this checkpoint; NULL for non-checkpoint rows. */
+  content_last_edited_at: Date | null;
   created_at: Generated<Date>;
 }
 

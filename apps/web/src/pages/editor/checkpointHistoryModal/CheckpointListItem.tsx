@@ -28,12 +28,14 @@ const formatContributorNames = (names: string[]): string => {
 };
 
 /**
- * One row in the checkpoint history list. First line shows the creation
- * time and a Manual/Auto label derived from the checkpoint's source. Second
- * line shows a stacked-avatar contributor summary — up to
- * MAX_VISIBLE_CONTRIBUTOR_AVATARS avatars, and inline names capped
- * separately at MAX_NAMED_CONTRIBUTORS. Hovering the avatar stack shows
- * every contributor's name, including ones collapsed out of both caps.
+ * One row in the checkpoint history list. First line shows lastEditedAt —
+ * the timestamp of the actual last edit folded into this checkpoint, not
+ * createdAt (when the checkpoint row itself was inserted, which can lag
+ * behind for automatic checkpoints) — and a Manual/Auto label derived from
+ * the checkpoint's source. Second line shows a stacked-avatar contributor
+ * summary — up to MAX_VISIBLE_CONTRIBUTOR_AVATARS avatars, and inline names
+ * capped separately at MAX_NAMED_CONTRIBUTORS. Hovering the avatar stack
+ * shows every contributor's name, including ones collapsed out of both caps.
  */
 const CheckpointListItem = ({
     checkpoint,
@@ -48,10 +50,10 @@ const CheckpointListItem = ({
 
     return (
         <div className="px-3 py-2.5 border-b border-background-elevated">
-            {/* Row 1: creation time (left) and Manual/Auto source label (right) */}
+            {/* Row 1: last-edited time (left) and Manual/Auto source label (right) */}
             <div className="flex items-center justify-between text-xs">
                 <span className="text-text-secondary">
-                    {formatDate(checkpoint.createdAt)}
+                    {formatDate(checkpoint.lastEditedAt)}
                 </span>
                 <span className="text-text-secondary opacity-60">
                     {checkpoint.source === "manual" ? "Manual" : "Auto"}
