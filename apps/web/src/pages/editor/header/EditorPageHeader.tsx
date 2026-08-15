@@ -4,6 +4,7 @@ import { syncStatusAtom, awarenessAtom } from "../../../atoms/socket";
 import { authAtom } from "../../../atoms/auth";
 import AnimatedDots from "../../../components/AnimatedDots";
 import ManageDocumentModal from "../manageDocumentModal/ManageDocumentModal";
+import CheckpointHistoryModal from "../checkpointHistoryModal/CheckpointHistoryModal";
 import { MdOutlineWorkspaces, MdOutlineDescription } from "react-icons/md";
 import { FaHistory } from "react-icons/fa";
 import { Avatar } from "primereact/avatar";
@@ -35,6 +36,8 @@ const EditorPageHeader = ({
     title: string;
 }) => {
     const [isManageModalOpen, setIsManageModalOpen] = useState(false); // controls ManageDocumentModal visibility
+    const [isCheckpointHistoryModalOpen, setIsCheckpointHistoryModalOpen] =
+        useState(false); // controls CheckpointHistoryModal visibility
     const syncStatus = useAtomValue(syncStatusAtom); // current sync state from useYjsSync
     const awareness = useAtomValue(awarenessAtom); // presence list for the current document
     const auth = useAtomValue(authAtom); // current user — used to exclude self from the avatar stack
@@ -172,7 +175,7 @@ const EditorPageHeader = ({
                                 statusLabel !== "Offline" && <AnimatedDots />}
                         </span>
                     )}
-                    {/* Checkpoint History button — opens the version-history panel. Not yet wired up. */}
+                    {/* Checkpoint History button — opens CheckpointHistoryModal, whose contents are still a placeholder. */}
                     {documentStatus === "ready" && (
                         <>
                             <Tooltip
@@ -200,9 +203,12 @@ const EditorPageHeader = ({
                             </Tooltip>
                             <button
                                 id="checkpoint-history-button"
-                                className="text-white hover:opacity-70 transition cursor-pointer"
+                                onClick={() =>
+                                    setIsCheckpointHistoryModalOpen(true)
+                                }
+                                className="text-white hover:opacity-70 transition cursor-pointer border-none bg-transparent"
                             >
-                                <FaHistory className="sm:w-5 sm:h-5 w-4 h-4" />
+                                <FaHistory className="sm:w-4 sm:h-4 w-4 h-4" />
                             </button>
                         </>
                     )}
@@ -224,6 +230,13 @@ const EditorPageHeader = ({
                 <ManageDocumentModal
                     onClose={() => setIsManageModalOpen(false)}
                     documentId={documentId}
+                />
+            )}
+
+            {/* Checkpoint History modal — mounted only while open. */}
+            {documentStatus === "ready" && isCheckpointHistoryModalOpen && (
+                <CheckpointHistoryModal
+                    onClose={() => setIsCheckpointHistoryModalOpen(false)}
                 />
             )}
         </>
