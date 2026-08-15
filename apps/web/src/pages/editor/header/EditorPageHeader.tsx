@@ -5,13 +5,20 @@ import { authAtom } from "../../../atoms/auth";
 import AnimatedDots from "../../../components/AnimatedDots";
 import ManageDocumentModal from "../manageDocumentModal/ManageDocumentModal";
 import CheckpointHistoryModal from "../checkpointHistoryModal/CheckpointHistoryModal";
-import { MdOutlineWorkspaces, MdOutlineDescription } from "react-icons/md";
-import { FaHistory } from "react-icons/fa";
+import {
+    MdOutlineWorkspaces,
+    MdOutlineDescription,
+    MdOutlineError,
+    MdOutlineCheckCircle,
+} from "react-icons/md";
+import { FaHistory, FaRegSave } from "react-icons/fa";
+import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import { Avatar } from "primereact/avatar";
 import { AvatarGroup } from "primereact/avatargroup";
 import { Tooltip } from "primereact/tooltip";
 import "primereact/resources/themes/lara-dark-blue/theme.css";
 import { colors } from "../../../theme/colors";
+import useCreateCheckpoint from "../../../hooks/useCreateCheckpoint";
 
 /** Maximum number of avatars shown before collapsing the rest into a +N label. */
 const MAX_VISIBLE_AVATARS = 4;
@@ -38,6 +45,8 @@ const EditorPageHeader = ({
     const [isManageModalOpen, setIsManageModalOpen] = useState(false); // controls ManageDocumentModal visibility
     const [isCheckpointHistoryModalOpen, setIsCheckpointHistoryModalOpen] =
         useState(false); // controls CheckpointHistoryModal visibility
+    const { createCheckpoint, status: createCheckpointStatus } =
+        useCreateCheckpoint(documentId); // manual "save checkpoint" request + its idle/loading/success/error status
     const syncStatus = useAtomValue(syncStatusAtom); // current sync state from useYjsSync
     const awareness = useAtomValue(awarenessAtom); // presence list for the current document
     const auth = useAtomValue(authAtom); // current user — used to exclude self from the avatar stack
@@ -175,6 +184,54 @@ const EditorPageHeader = ({
                                 statusLabel !== "Offline" && <AnimatedDots />}
                         </span>
                     )}
+                    {/* Create Checkpoint button — takes a manual version-history checkpoint.
+                        Icon reflects the request's status: save icon while idle, a spinner
+                        while in flight, then a checkmark or error icon for 2s depending on
+                        the outcome before reverting to idle. */}
+                    {documentStatus === "ready" && (
+                        <>
+                            <Tooltip
+                                target="#create-checkpoint-button"
+                                position="bottom"
+                                pt={{
+                                    text: {
+                                        style: {
+                                            backgroundColor:
+                                                colors.tooltip.background,
+                                            color: colors.text.secondary,
+                                            fontSize: "0.75rem",
+                                            padding: "0.25rem 0.5rem",
+                                        },
+                                    },
+                                    arrow: {
+                                        style: {
+                                            borderBottomColor:
+                                                colors.tooltip.background,
+                                        },
+                                    },
+                                }}
+                            >
+                                Save Checkpoint
+                            </Tooltip>
+                            <button
+                                id="create-checkpoint-button"
+                                onClick={createCheckpoint}
+                                disabled={createCheckpointStatus !== "idle"}
+                                className="text-white hover:opacity-70 transition cursor-pointer border-none bg-transparent disabled:cursor-default disabled:hover:opacity-100"
+                            >
+                                {createCheckpointStatus === "loading" ? (
+                                    <AiOutlineLoading3Quarters className="sm:w-4 sm:h-4 w-4 h-4 animate-spin" />
+                                ) : createCheckpointStatus === "success" ? (
+                                    <MdOutlineCheckCircle className="sm:w-4 sm:h-4 w-4 h-4" />
+                                ) : createCheckpointStatus === "error" ? (
+                                    <MdOutlineError className="sm:w-4 sm:h-4 w-4 h-4" />
+                                ) : (
+                                    <FaRegSave className="sm:w-4 sm:h-4 w-4 h-4" />
+                                )}
+                            </button>
+                        </>
+                    )}
+
                     {/* Checkpoint History button — opens CheckpointHistoryModal, whose contents are still a placeholder. */}
                     {documentStatus === "ready" && (
                         <>
