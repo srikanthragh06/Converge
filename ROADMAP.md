@@ -602,14 +602,3 @@
 
 - `deploy/deploy.py` now rebuilds `packages/shared` locally before building the frontend — previously the frontend bundled whatever was last compiled into `packages/shared/dist`, silently shipping stale shared-package logic (e.g. old Zod validation limits) even after source changes landed
 
----
-
-## Upcoming
-
-### v1.04 — Document References
-
-- Inline `@document` mentions and backlinks
-
-### v1.05 — Offline Support
-
-- IndexedDB caching via `y-indexeddb`; offline-aware sync gate so stale state vectors are never sent to the server before the local snapshot is loaded

@@ -1,6 +1,6 @@
 ---
 name: version-complete
-description: Use when the user asks to run version-complete, mark a version as complete, or follow the workflow defined in `.opencode/commands/version-complete.md`.
+description: Use when the user asks to run version-complete, mark a release as complete, or follow the workflow defined in `.opencode/commands/version-complete.md`.
 ---
 
 # Version Complete
