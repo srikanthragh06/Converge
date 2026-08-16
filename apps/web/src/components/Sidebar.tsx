@@ -21,8 +21,8 @@ import { refreshSidebarAtom } from "@/atoms/sidebar";
 
 /**
  * Collapsible sidebar rendered alongside page content. Shows an expanded
- * panel when open (500px desktop / 200px mobile) and a slim column with
- * just the toggle button when closed.
+ * panel when open (300px desktop / full-width mobile) and a slim column
+ * with just the toggle button when closed.
  */
 const Sidebar = ({
     isOpen,
@@ -63,9 +63,10 @@ const Sidebar = ({
     if (isOpen) {
         return (
             <div
-                className="sm:w-[500px] w-screen shrink-0 h-full border-r border-border md:p-2 p-1
+                className="sm:w-[300px] w-screen shrink-0 h-full border-r border-border md:p-2 p-1
             flex flex-col"
             >
+                {/* Collapse button — hides the panel down to the slim closed-state column */}
                 <div className="flex items-center justify-end">
                     <button
                         onClick={onToggle}
@@ -75,6 +76,7 @@ const Sidebar = ({
                         <MdKeyboardDoubleArrowLeft className="md:w-[20px] md:h-[20px] w-[20px] h-[20px]" />
                     </button>
                 </div>
+                {/* Current user's avatar, name, and email */}
                 <div className="flex items-center justify-start pl-1">
                     {user?.avatarUrl && (
                         <img
@@ -95,6 +97,7 @@ const Sidebar = ({
                         </div>
                     )}
                 </div>
+                {/* Workspace selector — current-workspace label, settings icon, and the switch dropdown */}
                 <div className="mt-4 flex flex-col sm:space-y-2 space-y-1">
                     <div className="flex items-center space-x-2">
                         <p className="opacity-50 sm:text-sm text-xs">
@@ -161,9 +164,14 @@ const Sidebar = ({
                         }}
                     />
                 </div>
+                {/* Primary navigation actions — create/browse documents, switch workspaces,
+                    and log out (behind an inline confirm step) */}
                 <div className="mt-3 flex flex-col space-y-0">
                     <button
-                        onClick={() => { createDocument(); closeOnMobile(); }}
+                        onClick={() => {
+                            createDocument();
+                            closeOnMobile();
+                        }}
                         disabled={isCreating}
                         className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary disabled:opacity-50 disabled:cursor-not-allowed"
                         aria-label="New Document"
@@ -174,7 +182,10 @@ const Sidebar = ({
                         </span>
                     </button>
                     <button
-                        onClick={() => { navigate("/library"); closeOnMobile(); }}
+                        onClick={() => {
+                            navigate("/library");
+                            closeOnMobile();
+                        }}
                         className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
                         aria-label="Library"
                     >
@@ -182,7 +193,10 @@ const Sidebar = ({
                         <span className="text-sm sm:text-base">Library</span>
                     </button>
                     <button
-                        onClick={() => { navigate("/workspaces"); closeOnMobile(); }}
+                        onClick={() => {
+                            navigate("/workspaces");
+                            closeOnMobile();
+                        }}
                         className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
                         aria-label="Workspaces"
                     >
@@ -202,7 +216,10 @@ const Sidebar = ({
                                 Cancel
                             </button>
                             <button
-                                onClick={() => { logout(); closeOnMobile(); }}
+                                onClick={() => {
+                                    logout();
+                                    closeOnMobile();
+                                }}
                                 aria-label="Confirm log out"
                                 className="text-xs sm:text-sm px-2 py-0.5 rounded-md bg-red-500/20 hover:bg-red-500/30 transition cursor-pointer text-red-400"
                             >
@@ -216,10 +233,13 @@ const Sidebar = ({
                             aria-label="Log out"
                         >
                             <MdLogout className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                            <span className="text-sm sm:text-base">Log out</span>
+                            <span className="text-sm sm:text-base">
+                                Log out
+                            </span>
                         </button>
                     )}
                 </div>
+                {/* Recently visited documents, or an empty-state message when there are none */}
                 <div className="mt-4 flex flex-col space-y-1">
                     <p className="opacity-50 text-xs">Documents</p>
                     <div className="flex flex-col">
@@ -231,7 +251,10 @@ const Sidebar = ({
                         {recentDocuments.map((doc) => (
                             <button
                                 key={doc.id}
-                                onClick={() => { navigate(`/document/${doc.id}`); closeOnMobile(); }}
+                                onClick={() => {
+                                    navigate(`/document/${doc.id}`);
+                                    closeOnMobile();
+                                }}
                                 className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover
                             rounded-md transition cursor-pointer text-text-primary"
                                 aria-label={doc.title}
@@ -249,6 +272,7 @@ const Sidebar = ({
                     </div>
                 </div>
 
+                {/* Workspace settings modal, opened via the CiSettings icon above */}
                 {isConfigOpen && currentWorkspace && (
                     <WorkspaceConfigModal
                         workspaceId={currentWorkspace.id}
