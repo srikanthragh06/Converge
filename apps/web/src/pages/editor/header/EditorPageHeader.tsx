@@ -197,10 +197,12 @@ const EditorPageHeader = ({
                         this whole group from the avatars/status label on its left. */}
                     <div className="flex items-center space-x-3 sm:space-x-6">
                         {/* Create Checkpoint button — takes a manual version-history checkpoint.
+                            Editor+ only, since the endpoint requires the same access level;
+                            hidden for viewers rather than left to fail with a 403 on click.
                             Icon reflects the request's status: save icon while idle, a spinner
                             while in flight, then a checkmark or error icon for 2s depending on
                             the outcome before reverting to idle. */}
-                        {documentStatus === "ready" && (
+                        {documentStatus === "ready" && isEditable && (
                             <>
                                 <Tooltip
                                     target="#create-checkpoint-button"
