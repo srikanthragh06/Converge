@@ -14,7 +14,9 @@ import type { EditorInstance } from "../../../utils/checkpointDiffUtils";
  * lists checkpoints with infinite-scroll pagination and a single-select
  * highlight, defaulting to the newest checkpoint; right side renders
  * CheckpointDiffView, diffing whichever checkpoint is selected against
- * either the one before it or the live editor content. On mobile the list
+ * either the one before it or the live editor content, and offering a
+ * restore action that overwrites the live document and closes this modal
+ * on success. On mobile the list
  * acts like Sidebar's own collapsible pattern — full width by default,
  * minimizable via the arrow button down to a slim strip with a menu button
  * that reopens it, revealing the right side while collapsed. On sm+ screens
@@ -179,6 +181,7 @@ const CheckpointHistoryModal = ({
                                     selectedCheckpoint={selectedCheckpoint}
                                     previousCheckpoint={previousCheckpoint}
                                     editor={editor}
+                                    onClose={onClose}
                                 />
                             )}
                         </div>

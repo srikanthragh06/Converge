@@ -5,19 +5,12 @@ import apiClient from "../lib/http";
 import editorSchema from "../lib/editorSchema";
 import type { GetDocumentCheckpointContentResponseDto } from "@converge/shared";
 import {
+    base64ToUint8Array,
     buildUnifiedDiff,
     type DocBlock,
     type EditorInstance,
     type UnifiedBlockEntry,
 } from "../utils/checkpointDiffUtils";
-
-/** Decodes a base64 string (as sent by the checkpoint-content endpoint) back into raw bytes. */
-const base64ToUint8Array = (base64: string): Uint8Array => {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return bytes;
-};
 
 /**
  * Fetches a checkpoint's reconstructed content and decodes it into BlockNote
