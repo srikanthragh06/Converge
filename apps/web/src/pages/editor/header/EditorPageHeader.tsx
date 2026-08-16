@@ -36,6 +36,7 @@ const EditorPageHeader = ({
     workspaceName,
     title,
     editor,
+    isEditable,
 }: {
     documentStatus: "loading" | "ready" | "forbidden" | "notFound";
     /** ID of the currently open document, forwarded to ManageDocumentModal. */
@@ -46,6 +47,8 @@ const EditorPageHeader = ({
     title: string;
     /** Live editor instance, forwarded to CheckpointHistoryModal for its live-document diff comparison. */
     editor: EditorInstance | null;
+    /** Whether the requesting user has editor+ resolved access, forwarded to CheckpointHistoryModal to gate the restore action. */
+    isEditable: boolean;
 }) => {
     const [isManageModalOpen, setIsManageModalOpen] = useState(false); // controls ManageDocumentModal visibility
     const [isCheckpointHistoryModalOpen, setIsCheckpointHistoryModalOpen] =
@@ -330,6 +333,7 @@ const EditorPageHeader = ({
                 <CheckpointHistoryModal
                     documentId={documentId}
                     editor={editor}
+                    isEditable={isEditable}
                     onClose={() => setIsCheckpointHistoryModalOpen(false)}
                 />
             )}

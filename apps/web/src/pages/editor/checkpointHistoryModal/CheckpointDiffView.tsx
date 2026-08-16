@@ -30,6 +30,7 @@ const CheckpointDiffView = ({
     selectedCheckpoint,
     previousCheckpoint,
     editor,
+    isEditable,
     onClose,
 }: {
     /** ID of the document the checkpoints belong to. */
@@ -40,6 +41,11 @@ const CheckpointDiffView = ({
     previousCheckpoint: DocumentCheckpointDto | null;
     /** Live editor instance, used for the "Curr. Checkpoint vs Curr. Document" comparison and as the restore target. */
     editor: EditorInstance | null;
+    /** Whether the requesting user has editor+ resolved access. Restore access is only
+     * enforced server-side at the Yjs sync layer, which drops an unauthorized write
+     * silently rather than returning an error — so the restore footer is hidden
+     * entirely for a viewer instead of letting them hit that dead end. */
+    isEditable: boolean;
     /** Called after a successful restore, to dismiss CheckpointHistoryModal and return to the editor. */
     onClose: () => void;
 }) => {
@@ -123,60 +129,68 @@ const CheckpointDiffView = ({
             ) : (
                 <DiffBlockNoteView entries={entries} />
             )}
-            {/* Restore footer — sticky at the bottom of the panel. Swaps between a
-                single "Restore this checkpoint" button and an inline confirm step,
-                so restoring (which overwrites the live document) always requires
-                a deliberate second click. */}
-            <div className="shrink-0 border-t border-background-elevated px-3 py-2.5">
-                {isConfirmingRestore ? (
-                    <div className="flex flex-col gap-2">
-                        <p className="text-xs text-text-secondary">
-                            Restore the document to this checkpoint? This
-                            will overwrite the current content.
-                        </p>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setIsConfirmingRestore(false)}
-                                disabled={
-                                    restoreStatus === "loading" ||
-                                    restoreStatus === "success"
-                                }
-                                className="flex-1 px-2 py-1.5 text-xs rounded-md border-none cursor-pointer transition bg-transparent text-text-secondary hover:opacity-80 disabled:cursor-default disabled:opacity-40"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() =>
-                                    restoreCheckpoint(selectedCheckpoint.id)
-                                }
-                                disabled={restoreStatus === "loading"}
-                                className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs rounded-md border-none cursor-pointer transition bg-white text-black hover:opacity-90 active:opacity-80 disabled:cursor-default disabled:opacity-60"
-                            >
-                                {restoreStatus === "loading" ? (
-                                    <AiOutlineLoading3Quarters className="w-3.5 h-3.5 animate-spin" />
-                                ) : restoreStatus === "success" ? (
-                                    <MdOutlineCheckCircle className="w-3.5 h-3.5" />
-                                ) : restoreStatus === "error" ? (
-                                    <MdOutlineError className="w-3.5 h-3.5" />
-                                ) : (
-                                    <MdOutlineRestore className="w-3.5 h-3.5" />
-                                )}
-                                {restoreStatus === "success"
-                                    ? "Restored"
-                                    : "Restore"}
-                            </button>
+            {/* Restore footer — sticky at the bottom of the panel, editor+ only.
+                Swaps between a single "Restore this checkpoint" button and an
+                inline confirm step, so restoring (which overwrites the live
+                document) always requires a deliberate second click. */}
+            {isEditable && (
+                <div className="shrink-0 border-t border-background-elevated px-3 py-2.5">
+                    {isConfirmingRestore ? (
+                        <div className="flex flex-col gap-2">
+                            <p className="text-xs text-text-secondary">
+                                Restore the document to this checkpoint? This
+                                will overwrite the current content.
+                            </p>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() =>
+                                        setIsConfirmingRestore(false)
+                                    }
+                                    disabled={
+                                        restoreStatus === "loading" ||
+                                        restoreStatus === "success"
+                                    }
+                                    className="flex-1 px-2 py-1.5 text-xs rounded-md border-none cursor-pointer transition bg-transparent text-text-secondary hover:opacity-80 disabled:cursor-default disabled:opacity-40"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() =>
+                                        restoreCheckpoint(
+                                            selectedCheckpoint.id,
+                                        )
+                                    }
+                                    disabled={restoreStatus === "loading"}
+                                    className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs rounded-md border-none cursor-pointer transition bg-white text-black hover:opacity-90 active:opacity-80 disabled:cursor-default disabled:opacity-60"
+                                >
+                                    {restoreStatus === "loading" ? (
+                                        <AiOutlineLoading3Quarters className="w-3.5 h-3.5 animate-spin" />
+                                    ) : restoreStatus === "success" ? (
+                                        <MdOutlineCheckCircle className="w-3.5 h-3.5" />
+                                    ) : restoreStatus === "error" ? (
+                                        <MdOutlineError className="w-3.5 h-3.5" />
+                                    ) : (
+                                        <MdOutlineRestore className="w-3.5 h-3.5" />
+                                    )}
+                                    {restoreStatus === "success"
+                                        ? "Restored"
+                                        : "Restore"}
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                ) : (
-                    <button
-                        onClick={() => setIsConfirmingRestore(true)}
-                        className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs rounded-md border-none cursor-pointer transition bg-white text-black hover:opacity-90 active:opacity-80"
-                    >
-                        <MdOutlineRestore className="w-3.5 h-3.5" />
-                        Restore this checkpoint
-                    </button>
-                )}
-            </div>
+                    ) : (
+                        <button
+                            onClick={() => setIsConfirmingRestore(true)}
+                            className="sm:w-1/2 w-full m-auto flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs
+                            rounded-md border-none cursor-pointer transition bg-white text-black
+                            hover:opacity-90 active:opacity-80"
+                        >
+                            <MdOutlineRestore className="w-3.5 h-3.5" />
+                            Restore this checkpoint
+                        </button>
+                    )}
+                </div>
+            )}
         </div>
     );
 };

@@ -14,9 +14,9 @@ import type { EditorInstance } from "../../../utils/checkpointDiffUtils";
  * lists checkpoints with infinite-scroll pagination and a single-select
  * highlight, defaulting to the newest checkpoint; right side renders
  * CheckpointDiffView, diffing whichever checkpoint is selected against
- * either the one before it or the live editor content, and offering a
- * restore action that overwrites the live document and closes this modal
- * on success. On mobile the list
+ * either the one before it or the live editor content, and, for editor+
+ * users, offering a restore action that overwrites the live document and
+ * closes this modal on success. On mobile the list
  * acts like Sidebar's own collapsible pattern — full width by default,
  * minimizable via the arrow button down to a slim strip with a menu button
  * that reopens it, revealing the right side while collapsed. On sm+ screens
@@ -26,12 +26,15 @@ import type { EditorInstance } from "../../../utils/checkpointDiffUtils";
 const CheckpointHistoryModal = ({
     documentId,
     editor,
+    isEditable,
     onClose,
 }: {
     /** ID of the document whose checkpoints to list. */
     documentId: string | undefined;
     /** Live editor instance, forwarded to CheckpointDiffView for its live-document comparison. */
     editor: EditorInstance | null;
+    /** Whether the requesting user has editor+ resolved access, forwarded to CheckpointDiffView to gate the restore action — restore access is only enforced server-side at the Yjs sync layer, which drops unauthorized writes silently rather than returning an error, so the UI hides the action entirely instead of letting a viewer hit that dead end. */
+    isEditable: boolean;
     /** Called when the user dismisses the modal. */
     onClose: () => void;
 }) => {
@@ -181,6 +184,7 @@ const CheckpointHistoryModal = ({
                                     selectedCheckpoint={selectedCheckpoint}
                                     previousCheckpoint={previousCheckpoint}
                                     editor={editor}
+                                    isEditable={isEditable}
                                     onClose={onClose}
                                 />
                             )}
