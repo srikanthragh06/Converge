@@ -12,7 +12,7 @@ import {
     MdOutlineError,
     MdOutlineCheckCircle,
 } from "react-icons/md";
-import { FaHistory, FaRegSave } from "react-icons/fa";
+import { FaHistory, FaRegSave, FaCog } from "react-icons/fa";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import { Avatar } from "primereact/avatar";
 import { AvatarGroup } from "primereact/avatargroup";
@@ -27,7 +27,8 @@ const MAX_VISIBLE_AVATARS = 4;
 /**
  * Top navigation bar for the editor page. On the left shows a workspace › document
  * breadcrumb (desktop only). On the right shows a sync status indicator and the
- * Manage Document button. Only rendered when documentStatus is "ready".
+ * Save Checkpoint / Checkpoint History / Document Settings icon buttons. Only
+ * rendered when documentStatus is "ready".
  */
 const EditorPageHeader = ({
     documentStatus,
@@ -96,8 +97,8 @@ const EditorPageHeader = ({
                         </span>
                     </span>
                 )}
-                {/* Right-hand controls: presence avatars, sync status, and the Manage
-                    Document button. No shrink/truncate classes here — this group always
+                {/* Right-hand controls: presence avatars, sync status, and the icon
+                    action buttons. No shrink/truncate classes here — this group always
                     renders at full size, and the breadcrumb on the left gives way instead. */}
                 <div className="flex items-center sm:space-x-8 space-x-4 ml-auto">
                     {/* Presence avatars — one tooltip + avatar per online collaborator
@@ -188,101 +189,131 @@ const EditorPageHeader = ({
                                 statusLabel !== "Offline" && <AnimatedDots />}
                         </span>
                     )}
-                    {/* Create Checkpoint button — takes a manual version-history checkpoint.
-                        Icon reflects the request's status: save icon while idle, a spinner
-                        while in flight, then a checkmark or error icon for 2s depending on
-                        the outcome before reverting to idle. */}
-                    {documentStatus === "ready" && (
-                        <>
-                            <Tooltip
-                                target="#create-checkpoint-button"
-                                position="bottom"
-                                pt={{
-                                    text: {
-                                        style: {
-                                            backgroundColor:
-                                                colors.tooltip.background,
-                                            color: colors.text.secondary,
-                                            fontSize: "0.75rem",
-                                            padding: "0.25rem 0.5rem",
+                    {/* Icon action group — Save Checkpoint, Checkpoint History, and Document
+                        Settings share a tighter gap than the sm:space-x-8 used to separate
+                        this whole group from the avatars/status label on its left. */}
+                    <div className="flex items-center space-x-3 sm:space-x-6">
+                        {/* Create Checkpoint button — takes a manual version-history checkpoint.
+                            Icon reflects the request's status: save icon while idle, a spinner
+                            while in flight, then a checkmark or error icon for 2s depending on
+                            the outcome before reverting to idle. */}
+                        {documentStatus === "ready" && (
+                            <>
+                                <Tooltip
+                                    target="#create-checkpoint-button"
+                                    position="bottom"
+                                    pt={{
+                                        text: {
+                                            style: {
+                                                backgroundColor:
+                                                    colors.tooltip.background,
+                                                color: colors.text.secondary,
+                                                fontSize: "0.75rem",
+                                                padding: "0.25rem 0.5rem",
+                                            },
                                         },
-                                    },
-                                    arrow: {
-                                        style: {
-                                            borderBottomColor:
-                                                colors.tooltip.background,
+                                        arrow: {
+                                            style: {
+                                                borderBottomColor:
+                                                    colors.tooltip.background,
+                                            },
                                         },
-                                    },
-                                }}
-                            >
-                                Save Checkpoint
-                            </Tooltip>
-                            <button
-                                id="create-checkpoint-button"
-                                onClick={createCheckpoint}
-                                disabled={createCheckpointStatus !== "idle"}
-                                className="text-white hover:opacity-70 transition cursor-pointer border-none bg-transparent disabled:cursor-default disabled:hover:opacity-100"
-                            >
-                                {createCheckpointStatus === "loading" ? (
-                                    <AiOutlineLoading3Quarters className="sm:w-4 sm:h-4 w-4 h-4 animate-spin" />
-                                ) : createCheckpointStatus === "success" ? (
-                                    <MdOutlineCheckCircle className="sm:w-4 sm:h-4 w-4 h-4" />
-                                ) : createCheckpointStatus === "error" ? (
-                                    <MdOutlineError className="sm:w-4 sm:h-4 w-4 h-4" />
-                                ) : (
-                                    <FaRegSave className="sm:w-4 sm:h-4 w-4 h-4" />
-                                )}
-                            </button>
-                        </>
-                    )}
+                                    }}
+                                >
+                                    Save Checkpoint
+                                </Tooltip>
+                                <button
+                                    id="create-checkpoint-button"
+                                    onClick={createCheckpoint}
+                                    disabled={createCheckpointStatus !== "idle"}
+                                    className="text-white opacity-70 hover:opacity-100 transition cursor-pointer border-none bg-transparent disabled:cursor-default disabled:hover:opacity-70"
+                                >
+                                    {createCheckpointStatus === "loading" ? (
+                                        <AiOutlineLoading3Quarters className="sm:w-4 sm:h-4 w-4 h-4 animate-spin" />
+                                    ) : createCheckpointStatus === "success" ? (
+                                        <MdOutlineCheckCircle className="sm:w-4 sm:h-4 w-4 h-4" />
+                                    ) : createCheckpointStatus === "error" ? (
+                                        <MdOutlineError className="sm:w-4 sm:h-4 w-4 h-4" />
+                                    ) : (
+                                        <FaRegSave className="sm:w-4 sm:h-4 w-4 h-4" />
+                                    )}
+                                </button>
+                            </>
+                        )}
 
-                    {/* Checkpoint History button — opens CheckpointHistoryModal. */}
-                    {documentStatus === "ready" && (
-                        <>
-                            <Tooltip
-                                target="#checkpoint-history-button"
-                                position="bottom"
-                                pt={{
-                                    text: {
-                                        style: {
-                                            backgroundColor:
-                                                colors.tooltip.background,
-                                            color: colors.text.secondary,
-                                            fontSize: "0.75rem",
-                                            padding: "0.25rem 0.5rem",
+                        {/* Checkpoint History button — opens CheckpointHistoryModal. */}
+                        {documentStatus === "ready" && (
+                            <>
+                                <Tooltip
+                                    target="#checkpoint-history-button"
+                                    position="bottom"
+                                    pt={{
+                                        text: {
+                                            style: {
+                                                backgroundColor:
+                                                    colors.tooltip.background,
+                                                color: colors.text.secondary,
+                                                fontSize: "0.75rem",
+                                                padding: "0.25rem 0.5rem",
+                                            },
                                         },
-                                    },
-                                    arrow: {
-                                        style: {
-                                            borderBottomColor:
-                                                colors.tooltip.background,
+                                        arrow: {
+                                            style: {
+                                                borderBottomColor:
+                                                    colors.tooltip.background,
+                                            },
                                         },
-                                    },
-                                }}
-                            >
-                                Checkpoint History
-                            </Tooltip>
-                            <button
-                                id="checkpoint-history-button"
-                                onClick={() =>
-                                    setIsCheckpointHistoryModalOpen(true)
-                                }
-                                className="text-white hover:opacity-70 transition cursor-pointer border-none bg-transparent"
-                            >
-                                <FaHistory className="sm:w-4 sm:h-4 w-4 h-4" />
-                            </button>
-                        </>
-                    )}
-                    {documentStatus === "ready" && (
-                        <button
-                            onClick={() => setIsManageModalOpen(true)}
-                            className="sm:px-2 sm:py-1 py-1 px-2 sm:text-sm text-xs rounded-md bg-white text-black
-                            border-none
-                            hover:opacity-90 active:opacity-80 transition cursor-pointer mb-1"
-                        >
-                            Manage Document
-                        </button>
-                    )}
+                                    }}
+                                >
+                                    Checkpoint History
+                                </Tooltip>
+                                <button
+                                    id="checkpoint-history-button"
+                                    onClick={() =>
+                                        setIsCheckpointHistoryModalOpen(true)
+                                    }
+                                    className="text-white opacity-70 hover:opacity-100 transition cursor-pointer border-none bg-transparent"
+                                >
+                                    <FaHistory className="sm:w-4 sm:h-4 w-4 h-4" />
+                                </button>
+                            </>
+                        )}
+                        {/* Document Settings button — opens ManageDocumentModal. */}
+                        {documentStatus === "ready" && (
+                            <>
+                                <Tooltip
+                                    target="#document-settings-button"
+                                    position="bottom"
+                                    pt={{
+                                        text: {
+                                            style: {
+                                                backgroundColor:
+                                                    colors.tooltip.background,
+                                                color: colors.text.secondary,
+                                                fontSize: "0.75rem",
+                                                padding: "0.25rem 0.5rem",
+                                            },
+                                        },
+                                        arrow: {
+                                            style: {
+                                                borderBottomColor:
+                                                    colors.tooltip.background,
+                                            },
+                                        },
+                                    }}
+                                >
+                                    Document Settings
+                                </Tooltip>
+                                <button
+                                    id="document-settings-button"
+                                    onClick={() => setIsManageModalOpen(true)}
+                                    className="text-white opacity-70 hover:opacity-100 transition cursor-pointer border-none bg-transparent"
+                                >
+                                    <FaCog className="sm:w-4 sm:h-4 w-4 h-4" />
+                                </button>
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
 
