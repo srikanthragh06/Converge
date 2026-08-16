@@ -9,6 +9,7 @@ https://github.com/user-attachments/assets/e74a9a3b-8cf7-4625-925d-6fce35e5bfdd
 ## Features
 
 - **Collaborative editing** with live presence avatars showing who is focused on which block
+- **Version history** with automatic and manual checkpoints, a diff view against any prior version, and one-click restore
 - **Rich-text editor** built on BlockNote, with image, video, and audio upload support
 - **Workspaces** to organize documents into shared spaces with owner, admin, and member roles
 - **Granular access control** with four tiers: workspace role defaults, per-doc overrides, explicit user grants, and workspace owner
@@ -28,8 +29,8 @@ Each server holds one in-memory Y.Doc per open document. When a client pushes an
 **Repair sync protocol**
 On connect and every 15-second heartbeat, the client sends its Yjs state vector. Both sides compute what the other is missing via `Y.encodeStateAsUpdate(doc, peerSV)` and exchange only the diff. Catches missed Redis events, network gaps, and post-restart divergence without re-fetching the full document.
 
-**Update compaction with distributed locking**
-Document content is an append-only Yjs update log in Postgres. When the row count crosses 5,000, a background job merges all rows up to a snapshot cursor into a single blob and replaces them atomically. A Redis `SET NX` distributed lock ensures only one server instance compacts at a time.
+**Version-history checkpoints reusing the Yjs update log**
+Document content is an append-only Yjs update log in Postgres. A checkpoint just merges every update row since the last checkpoint into one new row and deletes the originals — the same merge Yjs already does for sync, just scoped and flagged. Two pg-boss timers (idle and interval), persisted in Postgres rather than server memory, trigger checkpoints automatically and survive restarts across multiple server instances with no extra locking. Restoring one is `editor.replaceBlocks(...)`, flowing through the normal collaboration pipeline like any other edit.
 
 **Four-tier access resolution**
 Every handler resolves access via a short-circuit chain: workspace owner, explicit user grant, per-document role override, workspace role default. The library endpoint evaluates the full chain for every document in a single SQL `CASE` subquery, avoiding N+1 round-trips.

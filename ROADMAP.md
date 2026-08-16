@@ -602,3 +602,35 @@
 
 - `deploy/deploy.py` now rebuilds `packages/shared` locally before building the frontend — previously the frontend bundled whatever was last compiled into `packages/shared/dist`, silently shipping stale shared-package logic (e.g. old Zod validation limits) even after source changes landed
 
+---
+
+## Version-History Checkpoints ✅
+
+> Branch: `release-doc-checkpoint` — merged 2026-08-16
+
+### Server (NestJS backend)
+
+- `is_checkpoint` added to `document_updates` (migration `0025`) — rather than a separate snapshots table, a checkpoint is just every row since the previous checkpoint (or the beginning) merged into one new row flagged `is_checkpoint = true`, with the folded rows deleted; reuses the exact raw Yjs update bytes already being persisted for normal sync, so reconstruction is the same merge-and-apply `loadDoc()` already does, just scoped to a target checkpoint
+- `document_checkpoint_contributors` table added (migration `0026`) — join table recording which users edited leading up to a checkpoint, sourced from `document_user_metadata.last_edited_at` bounded by the previous checkpoint's timestamp; avoids in-memory contributor tracking, which would be lost on restart and wouldn't see edits applied on other server instances
+- Old count-based `document_updates` compaction removed (migration `0027` drops `update_count`/`last_compact_count` from `documents`) — checkpoint creation is now the only merge mechanism for `document_updates`, driven by the checkpoint schedule instead of a raw update-count threshold; `REDIS_LOCKS.compaction` removed as it was the only lock key defined, though `RedisService.acquireLock`/`releaseLock` stay as generic primitives
+- `checkpoint_source` (migration `0028`, `'manual' | 'idle' | 'interval'`) and `content_last_edited_at` (migration `0029`) added to `document_updates` — the former records what triggered a checkpoint, the latter records the max `created_at` across the raw rows actually folded into it, since the checkpoint row's own `created_at` can lag the real last edit by up to the idle-trigger delay
+- `DocumentCheckpointService` — `createCheckpoint(documentId, userId)` is the access-checked manual path (editor+, same bar as pushing content edits); `createCheckpointInternal(documentId, source)` is the core merge logic shared with the scheduler's triggers, which have no requesting user to check access for; captures the current max `document_updates` id before merging so a concurrently-inserted update is left untouched for the next checkpoint rather than partially folded in
+- `DocumentCheckpointSchedulerService` — two per-document pg-boss timers, chosen over server-memory timers so they survive restarts and coordinate correctly across multiple server instances with no extra locking: an idle timer (`upsert` by `singletonKey`) fires 90s after the last edit and doesn't re-arm itself, and an interval timer (`send` on a `'short'`-policy queue) fires every 360s while edits keep coming and only re-arms if its checkpoint actually captured something new, going dormant otherwise; `onDocumentEdited()` hooks into every `document_updates`-writing call site (`handleSyncDocServer` and the non-empty branches of the repair-sync handlers)
+- `POST /document/:id/checkpoint` (manual checkpoint), `GET /document/:id/checkpoints` (keyset-paginated listing, newest first, contributors batch-joined per page), `GET /document/:id/checkpoints/:checkpointId` (reconstructs full content by merging every checkpoint row up to and including it, returned as a base64 Yjs update) — all editor+ (create) or viewer+ (read); no diff or restore endpoints, since diffing runs client-side and restore is just `editor.replaceBlocks(...)` through the existing sync pipeline
+- Bug fix: `recordLastEdited` now also fires from `handleRepairSyncAckDoc`/`handleRepairAckDoc`, not just the normal edit path — edits that only ever reached the server via repair-sync previously never marked the user as having edited the document, which would have silently broken checkpoint contributor attribution
+- Bug fix: repair-sync handlers now skip no-op diffs via `isEmptyYjsUpdate` — `Y.encodeStateAsUpdate` always re-includes a document's full delete set regardless of target state vector, so any document with deletion history was re-transmitting already-known tombstones as "new" content on every 15s heartbeat, causing spurious `document_updates` rows and false edit attribution on fully idle documents
+
+### Web (React frontend)
+
+- `CheckpointHistoryModal` — browses version-history checkpoints; left side lists checkpoints with infinite-scroll pagination and single-select highlight (defaulting to newest); right side (`CheckpointDiffView`) diffs the selected checkpoint against either the checkpoint before it or the live editor, reusing the `doc-snapshots-poc` branch's client-side LCS diff logic; collapsible list on mobile, side-by-side on sm+
+- Create Checkpoint and Checkpoint History buttons added to `EditorPageHeader`, alongside a Document Settings icon replacing the old Manage Document button — all three share idle/loading/success/error status icons where applicable and brighten (rather than dim) on hover
+- Restore action — a sticky footer in `CheckpointDiffView` with an inline confirm step overwrites the live document via `editor.replaceBlocks(...)`, which produces a normal Yjs transaction flowing through the existing sync pipeline (persisted, broadcast, access-checked) exactly like a manual edit, so no dedicated restore endpoint was needed
+- Restore and Save Checkpoint actions are hidden entirely for viewers rather than left to fail on click — restore access is enforced only at the Yjs sync layer, which silently drops unauthorized writes with no error response, so a viewer could otherwise see a false "Restored" success before the write was quietly dropped
+- Checkpoint list displays each checkpoint's actual last-edit time (`contentLastEditedAt`) rather than its row-insertion time, and its trigger source (manual save vs. idle/interval auto-checkpoint)
+- Bug fixes: breadcrumb `truncate` moved from the wrapping flex containers onto the workspace-name/title spans themselves so text-overflow actually engages, preventing a long title (now up to 256 chars) from crowding out the header's right-hand controls; `gap-4` added to the header row so truncation-driven shrinking can't close the gap to zero; document title input widened to `max-w-5xl` to match the raised 256-char limit
+- Sidebar narrowed from 500px to 300px on desktop
+
+### Tooling
+
+- Fixed the `block-env.sh` PreToolUse hook, which pointed at a nonexistent path (`converge2`) and was silently no-op-ing before nearly every Read/Edit/Glob/Grep/Bash call instead of actually blocking `.env` access
+

@@ -71,7 +71,7 @@ Tracks which users belong to which workspace and with what role. The workspace o
 ---
 
 ### `documents`
-One row per document. Stores the title and per-doc role overrides; tracks compaction counters. Does not store content.
+One row per document. Stores the title and per-doc role overrides. Does not store content.
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
@@ -84,9 +84,9 @@ One row per document. Stores the title and per-doc role overrides; tracks compac
 | `non_member_doc_access` | `document_access_level` | nullable | Per-doc override for non-members; NULL means inherit workspace default |
 | `is_deleted` | `boolean` | NOT NULL, default `false` | Soft-delete flag; all read queries filter on `is_deleted = false` |
 | `deleted_at` | `timestamptz` | nullable | Set to `now()` when soft-deleted; null until then |
-| `update_count` | `integer` | NOT NULL, default `0` | Incremented atomically on every persisted Yjs update |
-| `last_compact_count` | `integer` | NOT NULL, default `0` | Value of `update_count` at the last compaction |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
+
+> `update_count` and `last_compact_count` were dropped (migration `0027`) alongside the removal of count-based compaction — see `document_updates` below.
 
 #### Indexes
 
@@ -100,23 +100,45 @@ One row per document. Stores the title and per-doc role overrides; tracks compac
 ---
 
 ### `document_updates`
-Append-only log of raw Yjs binary update payloads. The full document state is reconstructed by merging all rows for a document via `Y.mergeUpdates()`.
+Append-only log of raw Yjs binary update payloads. The full document state is reconstructed by merging all rows for a document via `Y.mergeUpdates()`. A subset of rows are version-history checkpoints — see the Checkpoints note below.
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
-| `id` | `bigserial` | PK | Monotonically increasing — used as a snapshot cursor during compaction |
+| `id` | `bigserial` | PK | Monotonically increasing — used as the merge cursor when reconstructing a checkpoint's content |
 | `document_id` | `bigint` | NOT NULL, FK → `documents.id` ON DELETE CASCADE, indexed | Scopes each update row to a specific document |
 | `update` | `bytea` | NOT NULL | Raw Yjs update binary; deserialised to `Buffer` by the `pg` driver |
+| `is_checkpoint` | `boolean` | NOT NULL, default `false` | True if this row is a merged version-history checkpoint rather than a single unfolded edit |
+| `checkpoint_source` | `text` | nullable, CHECK (`NULL` \| `manual` \| `idle` \| `interval`) | What triggered this checkpoint; NULL for non-checkpoint rows |
+| `content_last_edited_at` | `timestamptz` | nullable | Max `created_at` across the raw rows folded into this checkpoint — distinct from this row's own `created_at` (the checkpoint's insertion time), which can lag it by up to the idle-trigger delay for automatic checkpoints. NULL for non-checkpoint rows |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 
 #### Indexes
 
 | Index | Columns | Type | Source | Purpose |
 |---|---|---|---|---|
-| `document_updates_pkey` | `id` | B-tree | Implicit — PK | Fast row lookup; also used as the snapshot cursor during compaction (`WHERE id <= MAX(id)`). |
+| `document_updates_pkey` | `id` | B-tree | Implicit — PK | Fast row lookup by primary key. |
 | `idx_document_updates_document_id` | `document_id` | B-tree | Explicit — 0004 | Scopes every Yjs update query to a specific document. Hit on every `loadDoc`, every `applyDocUpdate`, and every repair-sync handshake that reads historical updates. |
+| `idx_document_updates_document_id_is_checkpoint` | `(document_id, id)` WHERE `is_checkpoint` | B-tree partial | Explicit — 0025 | Serves `listCheckpoints` and `getCheckpointContent`, both of which filter `WHERE document_id = ? AND is_checkpoint = true`. Partial on `is_checkpoint` keeps the index small since the vast majority of rows are non-checkpoint edits. |
 
-> **Compaction:** When `update_count >= last_compact_count + 5000`, all rows up to `MAX(id)` are merged into a single row and the originals are deleted in one transaction. Only one server runs compaction at a time, gated by a Redis lock.
+> **Checkpoints:** A checkpoint is created by merging every row since the previous checkpoint (or the beginning, if none exists) into one new row flagged `is_checkpoint = true`, then deleting the folded rows — this is the only merge mechanism for `document_updates` now, replacing the old count-based compaction. Creation is driven by `DocumentCheckpointService`, either manually (`POST /document/:id/checkpoint`, editor+) or automatically via `DocumentCheckpointSchedulerService`'s two pg-boss timers: an idle timer (90s after the last edit) and an interval timer (every 360s while edits keep coming). Reconstructing a checkpoint's content merges every `is_checkpoint` row up to and including it, in `id` order.
+
+---
+
+### `document_checkpoint_contributors`
+Join table recording which users contributed edits leading up to a given checkpoint row in `document_updates` (where `is_checkpoint = true`). Populated at checkpoint-creation time from `document_user_metadata.last_edited_at`, bounded by the previous checkpoint's timestamp and this one's — avoids in-memory contributor tracking, which would be lost on restart and wouldn't see edits applied on other server instances.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `update_id` | `bigint` | NOT NULL, FK → `document_updates.id` ON DELETE CASCADE | Scopes this row to a specific checkpoint row |
+| `user_id` | `bigint` | NOT NULL, FK → `users.id` ON DELETE CASCADE | A user who edited the document leading up to this checkpoint |
+
+> Composite PK on `(update_id, user_id)`.
+
+#### Indexes
+
+| Index | Columns | Type | Source | Purpose |
+|---|---|---|---|---|
+| `document_checkpoint_contributors_pkey` | `(update_id, user_id)` | B-tree composite | Implicit — PK | Enforces one contributor row per user per checkpoint. Covers `listCheckpoints`' batch join, which filters `WHERE update_id IN (...)` (the leading column) across a page of checkpoints in one query. |
 
 ---
 
@@ -177,9 +199,7 @@ Explicit per-user access grants for a document. This is tier 2 in the 4-tier acc
 
 ### Distributed Locks
 
-| Key | Constant | TTL | Purpose |
-|---|---|---|---|
-| `lock-compaction:<documentId>` | `REDIS_LOCKS.compaction(documentId)` | 1 hour | Ensures only one server instance runs document update compaction at a time per document. Acquired with `SET NX PX`; released explicitly after compaction completes. TTL is a safety net in case the holder crashes before releasing. |
+No feature currently holds a Redis-based distributed lock — the old `lock-compaction:<documentId>` key was removed alongside count-based compaction (checkpoint scheduling coordinates across server instances via pg-boss's own Postgres-backed job queue instead, needing no Redis lock). `RedisService.acquireLock`/`releaseLock` (`SET NX PX` / `DEL`) remain as generic primitives for future cross-instance coordination.
 
 ---
 
