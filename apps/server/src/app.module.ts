@@ -10,6 +10,7 @@ import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './auth/auth.module';
 import { WorkspaceModule } from './workspace/workspace.module';
 import { McpModule } from './mcp/mcp.module';
+import { ApiKeyModule } from './api-key/api-key.module';
 
 // Root module — the entry point of the NestJS DI container.
 // All feature modules (DocumentModule, UserModule, etc.) get imported here.
@@ -53,6 +54,7 @@ import { McpModule } from './mcp/mcp.module';
     AuthModule,
     WorkspaceModule,
     McpModule,
+    ApiKeyModule,
   ],
   controllers: [AppController],
   providers: [],

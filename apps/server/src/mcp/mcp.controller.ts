@@ -1,7 +1,8 @@
-import { Controller, Post, Req, Res } from '@nestjs/common';
+import { Controller, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { type Request, type Response } from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { ApiKeyGuard } from '../api-key/api-key.guard';
 
 // Exposes a single MCP endpoint over the Streamable HTTP transport. The MCP
 // SDK owns the raw request/response lifecycle itself (JSON-RPC parsing,
@@ -9,7 +10,10 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 // Nest's usual "return a value, let Nest serialize it" controller model —
 // so this route opts out of Nest's automatic response handling and hands
 // the raw Express req/res straight to the SDK's transport instead.
+// Guarded by ApiKeyGuard rather than AuthGuard — callers here are agents
+// (MCP clients), not a browser with a session cookie.
 @Controller('/mcp')
+@UseGuards(ApiKeyGuard)
 export class McpController {
   /**
    * Handles a single MCP JSON-RPC request over Streamable HTTP.

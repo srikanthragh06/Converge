@@ -108,6 +108,24 @@ export interface DocumentCheckpointContributorsTable {
   user_id: number;
 }
 
+/** Row shape for the api_keys table. */
+export interface ApiKeysTable {
+  id: Generated<number>;
+  /** FK to users.id — whose permissions this key inherits. */
+  user_id: number;
+  /** SHA-256 hash of the raw key. The raw key itself is never stored. */
+  key_hash: string;
+  /** First few characters of the raw key, shown in listings so a user can
+   * identify which key is which without ever re-displaying the secret. */
+  key_prefix: string;
+  /** User-chosen name, e.g. "Claude Code - laptop". */
+  label: string;
+  last_used_at: Date | null;
+  /** Soft revoke — a revoked key stays visible in history but fails auth. */
+  revoked_at: Date | null;
+  created_at: Generated<Date>;
+}
+
 /** Row shape for the workspace_members table. */
 export interface WorkspaceMembersTable {
   /** FK to workspaces.id — scopes this membership to a specific workspace. */
@@ -124,6 +142,7 @@ export interface WorkspaceMembersTable {
 // Root schema passed as a generic to Kysely<DatabaseSchema>.
 // Table names must exactly match the Postgres table names.
 export interface DatabaseSchema {
+  api_keys: ApiKeysTable;
   document_access: DocumentAccessTable;
   document_checkpoint_contributors: DocumentCheckpointContributorsTable;
   document_updates: DocumentUpdatesTable;

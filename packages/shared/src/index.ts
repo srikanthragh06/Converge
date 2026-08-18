@@ -2,6 +2,18 @@ export { mapsAreEqual } from "./utils/utils";
 export { GoogleAuthRequestSchema, AuthResponseSchema } from "./http/auth";
 export type { GoogleAuthRequestDto, AuthResponseDto } from "./http/auth";
 export {
+    CreateApiKeyRequestSchema,
+    CreateApiKeyResponseSchema,
+    ApiKeySchema,
+    GetApiKeysResponseSchema,
+} from "./http/api-key";
+export type {
+    CreateApiKeyRequestDto,
+    CreateApiKeyResponseDto,
+    ApiKeyDto,
+    GetApiKeysResponseDto,
+} from "./http/api-key";
+export {
     CreateCheckpointResponseSchema,
     CheckpointContributorSchema,
     DocumentCheckpointSchema,
