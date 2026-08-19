@@ -1,9 +1,8 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import * as Y from 'yjs';
 import { DocumentService } from './document.service.js';
 import { DocumentAccessService } from './document-access.service.js';
 import { DocumentYjsService } from './document-yjs.service.js';
-import { markdownFromYjsUpdate } from './editor-schema.js';
+import { markdownFromYDoc } from './editor-schema.js';
 import {
   type ListDocumentsToolInputDto,
   type GetLibraryDocumentsResponseDto,
@@ -83,7 +82,7 @@ export class DocumentTools {
       throw new ForbiddenException('You do not have access to this document.');
 
     const yDoc = await this.documentYjsService.loadDoc(input.documentId);
-    const markdown = await markdownFromYjsUpdate(Y.encodeStateAsUpdate(yDoc));
+    const markdown = await markdownFromYDoc(yDoc);
 
     return { markdown };
   }

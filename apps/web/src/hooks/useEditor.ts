@@ -9,7 +9,7 @@ import useUndoManagerGuard from "./useUndoManagerGuard";
 import useAwareness from "./useAwareness";
 import useUploadFile from "./useUploadFile";
 import deleteBlockExtension from "../lib/deleteBlockExtension";
-import editorSchema from "../lib/editorSchema";
+import { editorSchema } from "@converge/shared";
 
 /**
  * Composes the sub-hooks for document fetching, Yjs sync, and title sync into

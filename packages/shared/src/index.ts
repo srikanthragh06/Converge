@@ -1,4 +1,5 @@
 export { mapsAreEqual } from "./utils/utils.js";
+export { default as editorSchema } from "./editor/editorSchema.js";
 export { GoogleAuthRequestSchema, AuthResponseSchema } from "./http/auth.js";
 export type { GoogleAuthRequestDto, AuthResponseDto } from "./http/auth.js";
 export {

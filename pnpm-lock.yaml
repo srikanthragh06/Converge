@@ -10,15 +10,9 @@ importers:
 
   apps/server:
     dependencies:
-      '@blocknote/code-block':
-        specifier: ^0.45.0
-        version: 0.45.0(@blocknote/core@0.45.0(@tiptap/extensions@3.21.0(@tiptap/core@3.21.0(@tiptap/pm@3.21.0))(@tiptap/pm@3.21.0))(@types/hast@3.0.4))
-      '@blocknote/core':
-        specifier: ^0.45.0
-        version: 0.45.0(@tiptap/extensions@3.21.0(@tiptap/core@3.21.0(@tiptap/pm@3.21.0))(@tiptap/pm@3.21.0))(@types/hast@3.0.4)
       '@blocknote/server-util':
         specifier: ^0.45.0
-        version: 0.45.0(@floating-ui/dom@1.7.6)(@tiptap/extensions@3.21.0(@tiptap/core@3.21.0(@tiptap/pm@3.21.0))(@tiptap/pm@3.21.0))(@types/hast@3.0.4)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.7)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        version: 0.45.0(@floating-ui/dom@1.7.6)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.7)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@converge/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -282,6 +276,12 @@ importers:
 
   packages/shared:
     dependencies:
+      '@blocknote/code-block':
+        specifier: ^0.45.0
+        version: 0.45.0(@blocknote/core@0.45.0(@tiptap/extensions@3.21.0(@tiptap/core@3.21.0(@tiptap/pm@3.21.0))(@tiptap/pm@3.21.0))(@types/hast@3.0.4))
+      '@blocknote/core':
+        specifier: ^0.45.0
+        version: 0.45.0(@tiptap/extensions@3.21.0(@tiptap/core@3.21.0(@tiptap/pm@3.21.0))(@tiptap/pm@3.21.0))(@types/hast@3.0.4)
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -4488,7 +4488,7 @@ snapshots:
       - sugar-high
       - supports-color
 
-  '@blocknote/server-util@0.45.0(@floating-ui/dom@1.7.6)(@tiptap/extensions@3.21.0(@tiptap/core@3.21.0(@tiptap/pm@3.21.0))(@tiptap/pm@3.21.0))(@types/hast@3.0.4)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.7)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+  '@blocknote/server-util@0.45.0(@floating-ui/dom@1.7.6)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.7)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
       '@blocknote/core': 0.45.0(@tiptap/extensions@3.21.0(@tiptap/core@3.21.0(@tiptap/pm@3.21.0))(@tiptap/pm@3.21.0))(@types/hast@3.0.4)
       '@blocknote/react': 0.45.0(@floating-ui/dom@1.7.6)(@tiptap/extensions@3.21.0(@tiptap/core@3.21.0(@tiptap/pm@3.21.0))(@tiptap/pm@3.21.0))(@types/hast@3.0.4)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)

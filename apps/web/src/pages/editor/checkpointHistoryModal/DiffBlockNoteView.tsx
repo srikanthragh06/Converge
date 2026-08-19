@@ -3,7 +3,7 @@ import { BlockNoteEditor } from "@blocknote/core";
 import { BlockNoteView } from "@blocknote/mantine";
 import { convergeTheme } from "../../../theme/editorTheme";
 import { colors } from "../../../theme/colors";
-import editorSchema from "../../../lib/editorSchema";
+import { editorSchema } from "@converge/shared";
 import type { UnifiedBlockEntry } from "../../../utils/checkpointDiffUtils";
 
 /** Background tint applied to added/removed rows; unchanged rows get no tint. */

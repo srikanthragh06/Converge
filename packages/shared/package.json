@@ -21,6 +21,8 @@
         "typescript": "^5.0.0"
     },
     "dependencies": {
+        "@blocknote/code-block": "^0.45.0",
+        "@blocknote/core": "^0.45.0",
         "zod": "^4.3.6"
     }
 }

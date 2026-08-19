@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as Y from "yjs";
 import { BlockNoteEditor } from "@blocknote/core";
 import apiClient from "../lib/http";
-import editorSchema from "../lib/editorSchema";
-import type { GetDocumentCheckpointContentResponseDto } from "@converge/shared";
+import { editorSchema, type GetDocumentCheckpointContentResponseDto } from "@converge/shared";
 import {
     base64ToUint8Array,
     buildUnifiedDiff,
