@@ -1,14 +1,14 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
+import { AppController } from './app.controller.js';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
-import Redis from 'ioredis';
-import { DocumentModule } from './document/document.module';
-import { DatabaseModule } from './db/database.module';
-import { RedisModule } from './redis/redis.module';
-import { AuthModule } from './auth/auth.module';
-import { WorkspaceModule } from './workspace/workspace.module';
+import { Redis } from 'ioredis';
+import { DocumentModule } from './document/document.module.js';
+import { DatabaseModule } from './db/database.module.js';
+import { RedisModule } from './redis/redis.module.js';
+import { AuthModule } from './auth/auth.module.js';
+import { WorkspaceModule } from './workspace/workspace.module.js';
 
 // Root module — the entry point of the NestJS DI container.
 // All feature modules (DocumentModule, UserModule, etc.) get imported here.

@@ -12,11 +12,11 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '../auth/auth.guard';
+import { AuthGuard } from '../auth/auth.guard.js';
 import type { Request } from 'express';
-import { WorkspaceService } from './workspace.service';
-import { httpOK } from '../utils/http-response.util';
-import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe';
+import { WorkspaceService } from './workspace.service.js';
+import { httpOK } from '../utils/http-response.util.js';
+import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe.js';
 import type {
   CreateWorkspaceRequestDto,
   CreateWorkspaceResponseDto,

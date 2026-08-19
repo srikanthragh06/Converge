@@ -10,9 +10,9 @@ import {
   type GetDocumentCheckpointsResponseDto,
   type GetDocumentCheckpointContentResponseDto,
 } from '@converge/shared';
-import { DatabaseService } from '../db/database.service';
-import { DocumentAccessService } from './document-access.service';
-import { uint8ArrayToBase64 } from '../utils/utils';
+import { DatabaseService } from '../db/database.service.js';
+import { DocumentAccessService } from './document-access.service.js';
+import { uint8ArrayToBase64 } from '../utils/utils.js';
 import { sql } from 'kysely';
 
 @Injectable()

@@ -9,11 +9,11 @@ import {
 } from '@nestjs/websockets';
 import { UseFilters } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
-import { DocumentService } from './document.service';
-import { DocumentYjsService } from './document-yjs.service';
-import { DocumentAwarenessService } from './document-awareness.service';
-import { DocumentCheckpointSchedulerService } from './document-checkpoint-scheduler.service';
-import { ZodSocketValidationPipe } from '../pipes/zod-socket-validation.pipe';
+import { DocumentService } from './document.service.js';
+import { DocumentYjsService } from './document-yjs.service.js';
+import { DocumentAwarenessService } from './document-awareness.service.js';
+import { DocumentCheckpointSchedulerService } from './document-checkpoint-scheduler.service.js';
+import { ZodSocketValidationPipe } from '../pipes/zod-socket-validation.pipe.js';
 import {
   PingSchema,
   PongSchema,
@@ -41,12 +41,12 @@ import {
   type AwarenessUpdateServerPayload,
   AwarenessUpdateClientSchema,
 } from '@converge/shared';
-import { GlobalExceptionFilter } from '../utils/global-exception.filter';
-import { socketEmit, socketEmitRoom } from '../utils/ws-emit.util';
-import { RedisService } from '../redis/redis.service';
-import { REDIS_EVENTS } from '../redis/redis.events';
-import { base64ToUint8Array, isEmptyYjsUpdate } from '../utils/utils';
-import { AuthService } from '../auth/auth.service';
+import { GlobalExceptionFilter } from '../utils/global-exception.filter.js';
+import { socketEmit, socketEmitRoom } from '../utils/ws-emit.util.js';
+import { RedisService } from '../redis/redis.service.js';
+import { REDIS_EVENTS } from '../redis/redis.events.js';
+import { base64ToUint8Array, isEmptyYjsUpdate } from '../utils/utils.js';
+import { AuthService } from '../auth/auth.service.js';
 import { parse as parseCookie } from 'cookie';
 
 // Handles all document-related WebSocket events.

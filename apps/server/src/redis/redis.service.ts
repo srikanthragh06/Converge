@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
-import Redis from 'ioredis';
-import { sleep } from '../utils/utils';
+import { Redis } from 'ioredis';
+import { sleep } from '../utils/utils.js';
 
 /** Manages the two ioredis connections used for pub/sub messaging. */
 @Injectable()

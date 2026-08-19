@@ -10,12 +10,12 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '../auth/auth.guard';
-import { UserThrottlerGuard } from '../guards/user-throttler.guard';
+import { AuthGuard } from '../auth/auth.guard.js';
+import { UserThrottlerGuard } from '../guards/user-throttler.guard.js';
 import { type Request } from 'express';
-import { DocumentService } from './document.service';
-import { DocumentCheckpointService } from './document-checkpoint.service';
-import { httpOK } from '../utils/http-response.util';
+import { DocumentService } from './document.service.js';
+import { DocumentCheckpointService } from './document-checkpoint.service.js';
+import { httpOK } from '../utils/http-response.util.js';
 import {
   CreateDocumentRequestSchema,
   type CreateDocumentRequestDto,
@@ -32,7 +32,7 @@ import {
   GetLibraryDocumentsRequestSchema,
   SearchLibraryDocumentsRequestSchema,
 } from '@converge/shared';
-import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe';
+import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe.js';
 
 @Controller('/document')
 @UseGuards(AuthGuard)

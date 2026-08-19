@@ -1,10 +1,10 @@
 import { forwardRef, Module } from '@nestjs/common';
-import { AuthService } from './auth.service';
-import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service.js';
+import { AuthController } from './auth.controller.js';
 import { HttpModule } from '@nestjs/axios';
-import { DatabaseModule } from '../db/database.module';
-import { AuthGuard } from './auth.guard';
-import { WorkspaceModule } from '../workspace/workspace.module';
+import { DatabaseModule } from '../db/database.module.js';
+import { AuthGuard } from './auth.guard.js';
+import { WorkspaceModule } from '../workspace/workspace.module.js';
 
 @Module({
   controllers: [AuthController],

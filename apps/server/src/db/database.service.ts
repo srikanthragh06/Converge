@@ -1,16 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool, types } from 'pg';
-import { sleep } from '../utils/utils';
+import { sleep } from '../utils/utils.js';
 import {
   FileMigrationProvider,
   Kysely,
   Migrator,
   PostgresDialect,
 } from 'kysely';
-import { DatabaseSchema } from './database.schema';
+import { DatabaseSchema } from './database.schema.js';
 import path from 'path';
 import { promises as fs } from 'fs';
+import { fileURLToPath } from 'url';
+
+// __dirname isn't available in ES modules — reconstruct it from import.meta.url,
+// which Node populates with this file's own URL regardless of environment.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 @Injectable()
 export class DatabaseService {
@@ -103,9 +108,8 @@ export class DatabaseService {
       provider: new FileMigrationProvider({
         fs,
         path,
-        // Absolute path to the migrations directory — works for both
-        // ts-node/tsx (dev) and compiled JS (prod) because __dirname
-        // resolves relative to this file in both cases.
+        // Absolute path to the migrations directory, resolved relative to
+        // this file's own location so it works the same in dev and prod.
         migrationFolder: path.join(__dirname, '../migrations'),
       }),
     });

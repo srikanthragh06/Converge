@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { RedisService } from '../redis/redis.service';
-import { REDIS_EVENTS, REDIS_KEYS } from '../redis/redis.events';
-import { DatabaseService } from '../db/database.service';
+import { RedisService } from '../redis/redis.service.js';
+import { REDIS_EVENTS, REDIS_KEYS } from '../redis/redis.events.js';
+import { DatabaseService } from '../db/database.service.js';
 import { AwarenessUser, AwarenessUserSchema } from '@converge/shared';
-import { DocumentAccessService } from './document-access.service';
+import { DocumentAccessService } from './document-access.service.js';
 
 /** Distinct colors assigned to users on join; cycles from the start if all are taken. */
 const AWARENESS_COLORS = [
