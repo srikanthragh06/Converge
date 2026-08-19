@@ -1,6 +1,6 @@
-export { mapsAreEqual } from "./utils/utils";
-export { GoogleAuthRequestSchema, AuthResponseSchema } from "./http/auth";
-export type { GoogleAuthRequestDto, AuthResponseDto } from "./http/auth";
+export { mapsAreEqual } from "./utils/utils.js";
+export { GoogleAuthRequestSchema, AuthResponseSchema } from "./http/auth.js";
+export type { GoogleAuthRequestDto, AuthResponseDto } from "./http/auth.js";
 export {
     CreateCheckpointResponseSchema,
     CheckpointContributorSchema,
@@ -29,7 +29,7 @@ export {
     FindNewDocumentAccessUserRequestSchema,
     SetDocumentUserAccessRequestSchema,
     SetDocumentUserAccessResponseSchema,
-} from "./http/document";
+} from "./http/document.js";
 export type {
     CreateCheckpointResponseDto,
     CheckpointContributorDto,
@@ -59,7 +59,7 @@ export type {
     FindNewDocumentAccessUserRequestDto,
     SetDocumentUserAccessRequestDto,
     SetDocumentUserAccessResponseDto,
-} from "./http/document";
+} from "./http/document.js";
 export {
     GetWorkspacesResponseSchema,
     SetSelectedWorkspaceResponseSchema,
@@ -87,7 +87,7 @@ export {
     FindWorkspaceOwnerCandidateResponseSchema,
     TransferWorkspaceOwnerRequestSchema,
     TransferWorkspaceOwnerResponseSchema,
-} from "./http/workspace";
+} from "./http/workspace.js";
 export type {
     GetWorkspacesResponseDto,
     SetSelectedWorkspaceResponseDto,
@@ -115,8 +115,8 @@ export type {
     FindWorkspaceOwnerCandidateResponseDto,
     TransferWorkspaceOwnerRequestDto,
     TransferWorkspaceOwnerResponseDto,
-} from "./http/workspace";
-export { INTERNAL_SERVER_ERROR_MESSAGE } from "./constants/constants";
+} from "./http/workspace.js";
+export { INTERNAL_SERVER_ERROR_MESSAGE } from "./constants/constants.js";
 export {
     DocumentAccessLevel,
     DocumentAccessLevelSchema,
@@ -128,14 +128,14 @@ export {
     WorkspaceTypeSchema,
     WorkspaceRoleSchema,
     CheckpointSourceSchema,
-} from "./types/types";
+} from "./types/types.js";
 export type {
     ResolvedDocumentAccessLevel,
     WorkspaceType,
     WorkspaceRole,
     CheckpointSource,
-} from "./types/types";
-export { SOCKET_EVENTS } from "./socket/events";
+} from "./types/types.js";
+export { SOCKET_EVENTS } from "./socket/events.js";
 export {
     SyncDocServerSchema,
     SyncDocServerPayload,
@@ -167,9 +167,9 @@ export {
     AwarenessUpdateServerSchema,
     AwarenessUpdateClientSchema,
     GetAwarenessUpdateSchema,
-} from "./socket/socket";
+} from "./socket/socket.js";
 export type {
     AwarenessUser,
     AwarenessUpdateServerPayload,
     AwarenessUpdateClientPayload,
-} from "./socket/socket";
+} from "./socket/socket.js";

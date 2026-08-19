@@ -3,7 +3,7 @@ import {
     DocumentAccessLevelSchema,
     WorkspaceRoleSchema,
     WorkspaceTypeSchema,
-} from "../types/types";
+} from "../types/types.js";
 
 /** A workspace entry in the workspaces listing, enriched with owner info and selection state. */
 export const WorkspaceDtoSchema = z.object({
