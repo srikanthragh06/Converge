@@ -10,7 +10,7 @@ import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 
-import * as jwt from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 import { DatabaseService } from '../db/database.service.js';
 import { WorkspaceService } from '../workspace/workspace.service.js';
 import { type AuthResponseDto } from '@converge/shared';
