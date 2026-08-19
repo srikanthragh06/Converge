@@ -655,7 +655,3 @@ Both `apps/server` and `packages/shared` compiled to CommonJS via plain `tsc`, w
 - Verified end-to-end at every stage: clean typecheck, a full `nest build` with the real compiled ESM output inspected directly, a live boot in the docker dev stack with real Postgres/Redis connections and real HTTP requests, and (after the `jsonwebtoken` fix) `jwt.sign`/`jwt.verify` confirmed working against the actual compiled code inside the running container
 - `apps/web` needed no changes — Vite already handles ESM dependencies natively
 
-## Upcoming
-
-- Reconcile `mcp-poc`'s MCP tools (`listDocuments`, `getDocumentMetadata`, `readDocumentMarkdown`) with this release: once rebased on top of native ESM, `editor-schema.ts`'s dynamic-`import()` + `yjs`-realm-reconciliation workaround can be deleted in favor of plain static imports
-
