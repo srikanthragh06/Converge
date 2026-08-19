@@ -17,7 +17,9 @@ export type {
 } from "./http/api-key.js";
 export {
     ListDocumentsToolInputSchema,
+    ListDocumentsToolResponseSchema,
     GetDocumentMetadataToolInputSchema,
+    GetDocumentMetadataToolResponseSchema,
     ReadDocumentMarkdownToolInputSchema,
     ReadDocumentMarkdownResponseSchema,
     GetDocumentBlocksToolInputSchema,
@@ -25,7 +27,9 @@ export {
 } from "./tools/document.js";
 export type {
     ListDocumentsToolInputDto,
+    ListDocumentsToolResponseDto,
     GetDocumentMetadataToolInputDto,
+    GetDocumentMetadataToolResponseDto,
     ReadDocumentMarkdownToolInputDto,
     ReadDocumentMarkdownResponseDto,
     GetDocumentBlocksToolInputDto,

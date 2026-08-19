@@ -6,9 +6,9 @@ import { ApiKeyGuard } from '../api-key/api-key.guard.js';
 import { DocumentTools } from '../document/document.tools.js';
 import {
   ListDocumentsToolInputSchema,
-  GetLibraryDocumentsResponseSchema,
+  ListDocumentsToolResponseSchema,
   GetDocumentMetadataToolInputSchema,
-  GetDocumentResponseSchema,
+  GetDocumentMetadataToolResponseSchema,
   ReadDocumentMarkdownToolInputSchema,
   ReadDocumentMarkdownResponseSchema,
   GetDocumentBlocksToolInputSchema,
@@ -50,7 +50,7 @@ export class McpController {
         description:
           "Lists documents in a workspace that the caller has access to, newest last-visited first. Supports keyset pagination via the returned nextCursor.",
         inputSchema: ListDocumentsToolInputSchema,
-        outputSchema: GetLibraryDocumentsResponseSchema,
+        outputSchema: ListDocumentsToolResponseSchema,
       },
       async (input) => {
         const result = await this.documentTools.listDocuments(userId, input);
@@ -72,7 +72,7 @@ export class McpController {
         description:
           "Fetches a document's metadata (title, workspace, resolved access, createdAt). Does not return document content — see getDocumentBlocks/getDocumentMarkdown for that.",
         inputSchema: GetDocumentMetadataToolInputSchema,
-        outputSchema: GetDocumentResponseSchema,
+        outputSchema: GetDocumentMetadataToolResponseSchema,
       },
       async (input) => {
         const result = await this.documentTools.getDocumentMetadata(userId, input);

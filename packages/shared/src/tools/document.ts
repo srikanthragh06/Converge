@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { DocumentBlock } from "../editor/editorSchema.js";
+import { ResolvedDocumentAccessLevelSchema } from "../types/types.js";
 
 // Tool-facing input schemas are kept as a plain shape (not a wrapped
 // z.object) since the MCP SDK's registerTool expects individual per-field
@@ -15,9 +16,14 @@ export const ListDocumentsToolInputSchema = {
     // route, which flattens it for URL query params, JSON-RPC has no such
     // constraint. Matches the shape of the response's own nextCursor exactly,
     // so a client can pass a previous page's nextCursor straight back in.
+    // lastVisitedAt is an ISO datetime string, not z.coerce.date() — Zod's
+    // JSON Schema conversion (which the MCP SDK calls for every registered
+    // tool on tools/list) throws on a raw Date type, since JSON Schema has
+    // no Date representation. Strings are also what an MCP client actually
+    // has to work with over JSON-RPC regardless.
     cursor: z
         .object({
-            lastVisitedAt: z.coerce.date().nullable(),
+            lastVisitedAt: z.iso.datetime().nullable(),
             id: z.number().int().positive(),
         })
         .optional()
@@ -29,7 +35,40 @@ export const ListDocumentsToolInputSchema = {
 export type ListDocumentsToolInputDto = {
     workspaceId: number;
     limit?: number;
-    cursor?: { lastVisitedAt: Date | null; id: number };
+    cursor?: { lastVisitedAt: string | null; id: number };
+};
+
+// A separate response shape from the HTTP GetLibraryDocumentsResponseSchema
+// (http/document.ts) — same reason as GetDocumentMetadataToolResponseSchema
+// above: that schema's date fields use z.coerce.date(), which can't be
+// converted to JSON Schema for tools/list.
+export const ListDocumentsToolResponseSchema = z.object({
+    documents: z.array(
+        z.object({
+            id: z.number(),
+            title: z.string(),
+            access: ResolvedDocumentAccessLevelSchema,
+            lastVisitedAt: z.iso.datetime().nullable(),
+            lastEditedAt: z.iso.datetime().nullable(),
+        }),
+    ),
+    nextCursor: z
+        .object({
+            lastVisitedAt: z.iso.datetime().nullable(),
+            id: z.number(),
+        })
+        .nullable(),
+});
+
+export type ListDocumentsToolResponseDto = {
+    documents: {
+        id: number;
+        title: string;
+        access: z.infer<typeof ResolvedDocumentAccessLevelSchema>;
+        lastVisitedAt: string | null;
+        lastEditedAt: string | null;
+    }[];
+    nextCursor: { lastVisitedAt: string | null; id: number } | null;
 };
 
 export const GetDocumentMetadataToolInputSchema = {
@@ -40,6 +79,27 @@ export const GetDocumentMetadataToolInputSchema = {
 
 export type GetDocumentMetadataToolInputDto = {
     documentId: number;
+};
+
+// A separate response shape from the HTTP GetDocumentResponseSchema
+// (http/document.ts), which uses z.coerce.date() for createdAt so the web
+// client can parse it back into a real Date. That type can't be converted
+// to JSON Schema (see the cursor comment above), so the MCP-facing version
+// represents createdAt as an ISO string instead.
+export const GetDocumentMetadataToolResponseSchema = z.object({
+    id: z.number(),
+    title: z.string(),
+    createdAt: z.iso.datetime(),
+    workspace: z.object({ id: z.number(), name: z.string() }),
+    resolvedAccess: ResolvedDocumentAccessLevelSchema,
+});
+
+export type GetDocumentMetadataToolResponseDto = {
+    id: number;
+    title: string;
+    createdAt: string;
+    workspace: { id: number; name: string };
+    resolvedAccess: z.infer<typeof ResolvedDocumentAccessLevelSchema>;
 };
 
 export const ReadDocumentMarkdownToolInputSchema = {

@@ -2,9 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { DocumentService } from './document.service.js';
 import {
   type ListDocumentsToolInputDto,
-  type GetLibraryDocumentsResponseDto,
+  type ListDocumentsToolResponseDto,
   type GetDocumentMetadataToolInputDto,
-  type GetDocumentResponseDto,
+  type GetDocumentMetadataToolResponseDto,
   type ReadDocumentMarkdownToolInputDto,
   type ReadDocumentMarkdownResponseDto,
   type GetDocumentBlocksToolInputDto,
@@ -22,27 +22,52 @@ export class DocumentTools {
 
   /**
    * Lists documents in a workspace visible to the calling user, newest
-   * last-visited first. Mirrors GET /document/library exactly.
+   * last-visited first. Mirrors GET /document/library, except dates are
+   * ISO strings rather than Date objects — MCP tool schemas can't represent
+   * a Date type (see ListDocumentsToolResponseSchema).
    * @param userId - the calling user's ID, resolved from their API key
    * @param input - workspaceId plus optional pagination cursor
    */
   async listDocuments(
     userId: number,
     input: ListDocumentsToolInputDto,
-  ): Promise<GetLibraryDocumentsResponseDto> {
-    return this.documentService.getLibraryDocuments(
+  ): Promise<ListDocumentsToolResponseDto> {
+    const result = await this.documentService.getLibraryDocuments(
       userId,
       input.workspaceId,
       input.limit ?? 20,
-      input.cursor,
+      input.cursor
+        ? {
+            lastVisitedAt: input.cursor.lastVisitedAt
+              ? new Date(input.cursor.lastVisitedAt)
+              : null,
+            id: input.cursor.id,
+          }
+        : undefined,
     );
+
+    return {
+      documents: result.documents.map((doc) => ({
+        ...doc,
+        lastVisitedAt: doc.lastVisitedAt?.toISOString() ?? null,
+        lastEditedAt: doc.lastEditedAt?.toISOString() ?? null,
+      })),
+      nextCursor: result.nextCursor
+        ? {
+            ...result.nextCursor,
+            lastVisitedAt: result.nextCursor.lastVisitedAt?.toISOString() ?? null,
+          }
+        : null,
+    };
   }
 
   /**
    * Returns a document's metadata only (id, title, createdAt, workspace,
    * resolvedAccess) — no content. Content is exposed separately, by
    * readDocumentMarkdown, since it needs its own readable conversion rather
-   * than the raw Yjs blob. getDocumentOfUser throws
+   * than the raw Yjs blob. createdAt is an ISO string rather than a Date
+   * object — MCP tool schemas can't represent a Date type (see
+   * GetDocumentMetadataToolResponseSchema). getDocumentOfUser throws
    * NotFoundException/ForbiddenException on missing/inaccessible documents —
    * left uncaught here since the MCP SDK already converts a thrown error
    * into a proper isError tool result.
@@ -52,8 +77,12 @@ export class DocumentTools {
   async getDocumentMetadata(
     userId: number,
     input: GetDocumentMetadataToolInputDto,
-  ): Promise<GetDocumentResponseDto> {
-    return this.documentService.getDocumentOfUser(input.documentId, userId);
+  ): Promise<GetDocumentMetadataToolResponseDto> {
+    const result = await this.documentService.getDocumentOfUser(
+      input.documentId,
+      userId,
+    );
+    return { ...result, createdAt: result.createdAt.toISOString() };
   }
 
   /**
