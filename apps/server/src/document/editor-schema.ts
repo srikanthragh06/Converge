@@ -1,16 +1,14 @@
 import { ServerBlockNoteEditor } from '@blocknote/server-util';
 import { editorSchema } from '@converge/shared';
 import type * as Y from 'yjs';
+import { withMutex } from '../utils/async-mutex.js';
 
-// Safe to share across all calls despite @blocknote/server-util internally
-// mutating globalThis.document/window (a jsdom shim so BlockNote's
-// browser-oriented rendering code runs in Node — see _withJSDOM) — verified
-// empirically that blocksToMarkdownLossy reads what it needs before ever
-// yielding, so a concurrent call's write can't land mid-read. That guarantee
-// is specific to this method; other server-util methods that also go through
-// _withJSDOM (blocksToFullHTML, blocksToHTMLLossy, tryParseHTMLToBlocks,
-// tryParseMarkdownToBlocks) haven't been checked and shouldn't be assumed safe
-// under concurrent use without the same kind of verification.
+// Safe to share across all calls: yDocToBlocks never touches
+// globalThis.document/window, and blocksToMarkdownLossy's use of them (via
+// @blocknote/server-util's _withJSDOM, a jsdom shim letting BlockNote's
+// browser-oriented rendering code run in Node) is serialized through
+// withMutex below, so only one call can ever be using those shared globals
+// at a time — see async-mutex.ts.
 const editor = ServerBlockNoteEditor.create({ schema: editorSchema });
 
 /**
@@ -22,5 +20,5 @@ const editor = ServerBlockNoteEditor.create({ schema: editorSchema });
  */
 export function markdownFromYDoc(yDoc: Y.Doc): Promise<string> {
   const blocks = editor.yDocToBlocks(yDoc, 'blocknote');
-  return editor.blocksToMarkdownLossy(blocks);
+  return withMutex(() => editor.blocksToMarkdownLossy(blocks));
 }
