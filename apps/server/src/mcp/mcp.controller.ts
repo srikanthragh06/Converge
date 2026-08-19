@@ -9,6 +9,8 @@ import {
   GetLibraryDocumentsResponseSchema,
   GetDocumentMetadataToolInputSchema,
   GetDocumentResponseSchema,
+  ReadDocumentMarkdownToolInputSchema,
+  ReadDocumentMarkdownResponseSchema,
 } from '@converge/shared';
 
 // Exposes a single MCP endpoint over the Streamable HTTP transport. The MCP
@@ -72,6 +74,24 @@ export class McpController {
       },
       async (input) => {
         const result = await this.documentTools.getDocumentMetadata(userId, input);
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'readDocumentMarkdown',
+      {
+        title: 'Read Document Markdown',
+        description:
+          "Reads a document's content as Markdown — lossy (block ids, custom props, and structure Markdown can't express are dropped), read-only. See getDocumentMetadata for title/workspace/access info.",
+        inputSchema: ReadDocumentMarkdownToolInputSchema,
+        outputSchema: ReadDocumentMarkdownResponseSchema,
+      },
+      async (input) => {
+        const result = await this.documentTools.readDocumentMarkdown(userId, input);
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
           structuredContent: result,

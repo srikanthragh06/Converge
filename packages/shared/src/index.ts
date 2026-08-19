@@ -16,10 +16,14 @@ export type {
 export {
     ListDocumentsToolInputSchema,
     GetDocumentMetadataToolInputSchema,
+    ReadDocumentMarkdownToolInputSchema,
+    ReadDocumentMarkdownResponseSchema,
 } from "./tools/document";
 export type {
     ListDocumentsToolInputDto,
     GetDocumentMetadataToolInputDto,
+    ReadDocumentMarkdownToolInputDto,
+    ReadDocumentMarkdownResponseDto,
 } from "./tools/document";
 export {
     CreateCheckpointResponseSchema,

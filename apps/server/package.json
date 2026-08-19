@@ -15,6 +15,9 @@
     "lint": "eslint \"{src,apps,libs}/**/*.ts\" --fix"
   },
   "dependencies": {
+    "@blocknote/code-block": "^0.45.0",
+    "@blocknote/core": "^0.45.0",
+    "@blocknote/server-util": "^0.45.0",
     "@converge/shared": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@nest-lab/throttler-storage-redis": "^1.2.0",
