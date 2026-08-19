@@ -7,6 +7,8 @@ import { DocumentTools } from '../document/document.tools';
 import {
   ListDocumentsToolInputSchema,
   GetLibraryDocumentsResponseSchema,
+  GetDocumentToolInputSchema,
+  GetDocumentToolOutputSchema,
 } from '@converge/shared';
 
 // Exposes a single MCP endpoint over the Streamable HTTP transport. The MCP
@@ -42,7 +44,7 @@ export class McpController {
       {
         title: 'List Documents',
         description:
-          "Lists documents in a workspace that the caller has access to, newest last-visited first. Supports keyset pagination via the returned nextCursor.",
+          'Lists documents in a workspace that the caller has access to, newest last-visited first. Supports keyset pagination via the returned nextCursor.',
         inputSchema: ListDocumentsToolInputSchema,
         outputSchema: GetLibraryDocumentsResponseSchema,
       },
@@ -54,6 +56,28 @@ export class McpController {
         // client isn't guaranteed to forward one into the other.
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'getDocument',
+      {
+        title: 'Get Document',
+        description:
+          "Fetches a document's metadata and its full current content as a base64-encoded, compacted Yjs update.",
+        inputSchema: GetDocumentToolInputSchema,
+        outputSchema: GetDocumentToolOutputSchema,
+      },
+      async (input) => {
+        const result = await this.documentTools.getDocument(userId, input);
+        // The blob isn't meaningful for a model to read as text, so content
+        // only carries the metadata — structuredContent has the full result,
+        // including updateBase64, for whatever actually decodes it.
+        const { updateBase64, ...metadata } = result;
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(metadata) }],
           structuredContent: result,
         };
       },

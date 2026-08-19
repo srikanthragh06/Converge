@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ResolvedDocumentAccessLevelSchema } from "../types/types";
 
 // Tool-facing input schemas are kept as a plain shape (not a wrapped
 // z.object) since the MCP SDK's registerTool expects individual per-field
@@ -30,3 +31,30 @@ export type ListDocumentsToolInputDto = {
     limit?: number;
     cursor?: { lastVisitedAt: Date | null; id: number };
 };
+
+export const GetDocumentToolInputSchema = {
+    documentId: z.coerce.number().int().positive().describe(
+        "The document to fetch.",
+    ),
+};
+
+export type GetDocumentToolInputDto = {
+    documentId: number;
+};
+
+/**
+ * updateBase64 is the document's full current state as one self-contained,
+ * compacted Yjs update — reconstructed from every persisted update row
+ * (checkpoints and raw edits alike merged together), not just the latest
+ * checkpoint row, since no single stored row is a full snapshot on its own.
+ */
+export const GetDocumentToolOutputSchema = z.object({
+    id: z.number(),
+    title: z.string(),
+    createdAt: z.coerce.date(),
+    workspace: z.object({ id: z.number(), name: z.string() }),
+    resolvedAccess: ResolvedDocumentAccessLevelSchema,
+    updateBase64: z.string(),
+});
+
+export type GetDocumentToolOutputDto = z.infer<typeof GetDocumentToolOutputSchema>;

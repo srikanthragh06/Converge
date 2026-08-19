@@ -13,8 +13,16 @@ export type {
     ApiKeyDto,
     GetApiKeysResponseDto,
 } from "./http/api-key";
-export { ListDocumentsToolInputSchema } from "./tools/document";
-export type { ListDocumentsToolInputDto } from "./tools/document";
+export {
+    ListDocumentsToolInputSchema,
+    GetDocumentToolInputSchema,
+    GetDocumentToolOutputSchema,
+} from "./tools/document";
+export type {
+    ListDocumentsToolInputDto,
+    GetDocumentToolInputDto,
+    GetDocumentToolOutputDto,
+} from "./tools/document";
 export {
     CreateCheckpointResponseSchema,
     CheckpointContributorSchema,

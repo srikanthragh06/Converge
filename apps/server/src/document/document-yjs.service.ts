@@ -51,6 +51,20 @@ export class DocumentYjsService {
   }
 
   /**
+   * Returns the document's full current state as one self-contained,
+   * compacted Yjs update. No single persisted row is a full snapshot on its
+   * own — even a checkpoint row is only a delta since the previous
+   * checkpoint — so this always goes through loadDoc()'s whole-chain merge
+   * first, then re-encodes the result as one fresh blob.
+   * @param documentId - the document to compact
+   * @returns the full current state, encoded as a single Yjs update
+   */
+  async getYjsDocBlob(documentId: number): Promise<Uint8Array> {
+    const yDoc = await this.loadDoc(documentId);
+    return Y.encodeStateAsUpdate(yDoc);
+  }
+
+  /**
    * Applies a Yjs update to the shared document, persists it, and publishes it
    * to other server instances via Redis. Returns the update and the server's new
    * state vector.
