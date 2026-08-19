@@ -69,16 +69,9 @@ export const ListDocumentsToolResponseSchema = z.object({
         ),
 });
 
-export type ListDocumentsToolResponseDto = {
-    documents: {
-        id: number;
-        title: string;
-        access: z.infer<typeof ResolvedDocumentAccessLevelSchema>;
-        lastVisitedAt: string | null;
-        lastEditedAt: string | null;
-    }[];
-    nextCursor: { lastVisitedAt: string | null; id: number } | null;
-};
+export type ListDocumentsToolResponseDto = z.infer<
+    typeof ListDocumentsToolResponseSchema
+>;
 
 export const GetDocumentMetadataToolInputSchema = {
     documentId: z.coerce.number().int().positive().describe(
@@ -105,13 +98,9 @@ export const GetDocumentMetadataToolResponseSchema = z.object({
     ),
 });
 
-export type GetDocumentMetadataToolResponseDto = {
-    id: number;
-    title: string;
-    createdAt: string;
-    workspace: { id: number; name: string };
-    resolvedAccess: z.infer<typeof ResolvedDocumentAccessLevelSchema>;
-};
+export type GetDocumentMetadataToolResponseDto = z.infer<
+    typeof GetDocumentMetadataToolResponseSchema
+>;
 
 export const ReadDocumentMarkdownToolInputSchema = {
     documentId: z.coerce.number().int().positive().describe(
@@ -157,5 +146,81 @@ export const GetDocumentBlocksResponseSchema = z.object({
 });
 
 export type GetDocumentBlocksResponseDto = {
+    blocks: DocumentBlock[];
+};
+
+// A single edit within an updateDocumentBlocks call. "replace" and "insert"
+// take a Markdown string rather than raw BlockNote block JSON — an agent
+// writing plain Markdown (which it already knows how to do) is far more
+// reliable than one constructing BlockNote's nested content/styles JSON by
+// hand, and standard Markdown syntax already maps onto most of this app's
+// block types (headings, checklists, tables, code blocks, quotes, lists)
+// with no per-block-type rules needed — verified empirically against
+// tryParseMarkdownToBlocks. "remove" needs no content at all. Markdown
+// can't express everything a block supports (custom colors, alignment,
+// image/video-specific props) — those are out of scope for this tool.
+export const BlockOperationSchema = z.discriminatedUnion("type", [
+    z.object({
+        type: z.literal("replace").describe(
+            "Removes the target block and inserts the Markdown's blocks in its place. Use this to change a block's content.",
+        ),
+        blockId: z.string().describe("The id of the block to replace."),
+        markdown: z.string().describe(
+            "Markdown content to replace the block with. May expand into more than one block.",
+        ),
+    }),
+    z.object({
+        type: z.literal("insert").describe(
+            "Inserts the Markdown's blocks before or after an existing block.",
+        ),
+        referenceBlockId: z.string().describe(
+            "The id of the existing block to insert next to.",
+        ),
+        placement: z.enum(["before", "after"]).describe(
+            "Whether to insert before or after referenceBlockId.",
+        ),
+        markdown: z.string().describe("Markdown content to insert."),
+    }),
+    z.object({
+        type: z.literal("remove").describe("Deletes the given blocks."),
+        blockIds: z.array(z.string()).describe(
+            "The ids of the blocks to delete.",
+        ),
+    }),
+]);
+
+export type BlockOperationDto = z.infer<typeof BlockOperationSchema>;
+
+export const UpdateDocumentBlocksToolInputSchema = {
+    documentId: z.coerce.number().int().positive().describe(
+        "The document to edit.",
+    ),
+    // A single call takes a batch of edits, applied as one atomic save —
+    // either all of them apply or none do (e.g. a stale/nonexistent
+    // blockId fails the whole batch rather than partially applying edits).
+    // Prefer batching related edits into one call over several separate
+    // calls: each call is one saved revision and one update pushed to any
+    // live viewers, so grouping a multi-block change into one call is both
+    // more efficient and more meaningful as a single edit.
+    operations: z.array(BlockOperationSchema).min(1).describe(
+        "The edits to apply, in order, as a single atomic save.",
+    ),
+};
+
+export type UpdateDocumentBlocksToolInputDto = {
+    documentId: number;
+    operations: BlockOperationDto[];
+};
+
+// Returns the document's full updated block list rather than just a success
+// flag — the caller needs it to see the real ids of any newly inserted
+// blocks, which it has no way to predict in advance.
+export const UpdateDocumentBlocksResponseSchema = z.object({
+    blocks: z.array(z.record(z.string(), z.unknown())).describe(
+        "The document's full block list after applying the edits.",
+    ),
+});
+
+export type UpdateDocumentBlocksResponseDto = {
     blocks: DocumentBlock[];
 };

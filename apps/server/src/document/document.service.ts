@@ -18,11 +18,17 @@ import {
   type WorkspaceRole,
   hasAccess,
   type DocumentBlock,
+  type BlockOperationDto,
 } from '@converge/shared';
 import { DatabaseService } from '../db/database.service.js';
 import { DocumentAccessService } from './document-access.service.js';
 import { DocumentYjsService } from './document-yjs.service.js';
-import { markdownFromYDoc, blocksFromYDoc } from '../utils/editor-schema.js';
+import { DocumentCheckpointSchedulerService } from './document-checkpoint-scheduler.service.js';
+import {
+  markdownFromYDoc,
+  blocksFromYDoc,
+  applyBlockOperations,
+} from '../utils/editor-schema.js';
 import { sql } from 'kysely';
 
 @Injectable()
@@ -31,6 +37,7 @@ export class DocumentService {
     private readonly dbService: DatabaseService,
     private readonly documentAccessService: DocumentAccessService,
     private readonly documentYjsService: DocumentYjsService,
+    private readonly documentCheckpointSchedulerService: DocumentCheckpointSchedulerService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -125,6 +132,60 @@ export class DocumentService {
 
     const yDoc = await this.documentYjsService.loadDoc(documentId);
     return blocksFromYDoc(yDoc);
+  }
+
+  /**
+   * Applies a batch of id-addressed block edits to a document as a single
+   * atomic save, then returns the document's resulting blocks. Throws
+   * NotFoundException if the document does not exist, ForbiddenException if
+   * the requesting user has less than editor access — matching the check
+   * SYNC_DOC_SERVER enforces for a live client edit.
+   *
+   * Persists and broadcasts the same way a real client's edit does, with one
+   * gap: DocumentYjsService.applyDocUpdate publishes to Redis, and every
+   * *other* server instance with a locally connected client for this
+   * document is already subscribed and re-broadcasts to its own room from
+   * that (see document.gateway.ts) — but RedisService.subscribe filters out
+   * messages published by the current instance (to prevent echo loops), so
+   * a viewer connected to the SAME instance that handled this write gets no
+   * immediate broadcast at all. They'll only see the change on their next
+   * repair-sync heartbeat. A real client's own edit doesn't have this gap —
+   * the gateway's SYNC_DOC_SERVER handler broadcasts directly to its local
+   * room in addition to publishing to Redis; this call site has no Socket
+   * to do that with.
+   * @param documentId - the document to edit
+   * @param userId - the ID of the authenticated requesting user
+   * @param operations - the edits to apply, in order, as one atomic save
+   * @returns the document's full block list after applying the edits
+   */
+  async updateDocumentBlocks(
+    documentId: number,
+    userId: number,
+    operations: BlockOperationDto[],
+  ): Promise<DocumentBlock[]> {
+    // Resolve access — throws NotFoundException if the document does not exist.
+    const access = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+    );
+    if (!hasAccess(access, 'editor'))
+      throw new ForbiddenException(
+        'You must have editor access to edit this document.',
+      );
+
+    // Compute the edit as Yjs update bytes against a throwaway copy of the
+    // document (see applyBlockOperations), then apply it the same way a
+    // live client's own edit would be applied.
+    const yDoc = await this.documentYjsService.loadDoc(documentId);
+    const { update, blocks } = await applyBlockOperations(yDoc, operations);
+    await this.documentYjsService.applyDocUpdate(documentId, update);
+
+    // Keep last-edited tracking and automatic checkpoint scheduling
+    // consistent with a real client edit.
+    await this.documentYjsService.recordLastEdited(documentId, userId);
+    await this.documentCheckpointSchedulerService.onDocumentEdited(documentId);
+
+    return blocks;
   }
 
   /**

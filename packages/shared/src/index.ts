@@ -24,6 +24,9 @@ export {
     ReadDocumentMarkdownResponseSchema,
     GetDocumentBlocksToolInputSchema,
     GetDocumentBlocksResponseSchema,
+    BlockOperationSchema,
+    UpdateDocumentBlocksToolInputSchema,
+    UpdateDocumentBlocksResponseSchema,
 } from "./tools/document.js";
 export type {
     ListDocumentsToolInputDto,
@@ -34,6 +37,9 @@ export type {
     ReadDocumentMarkdownResponseDto,
     GetDocumentBlocksToolInputDto,
     GetDocumentBlocksResponseDto,
+    BlockOperationDto,
+    UpdateDocumentBlocksToolInputDto,
+    UpdateDocumentBlocksResponseDto,
 } from "./tools/document.js";
 export {
     CreateCheckpointResponseSchema,

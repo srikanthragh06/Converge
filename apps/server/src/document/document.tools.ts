@@ -9,6 +9,8 @@ import {
   type ReadDocumentMarkdownResponseDto,
   type GetDocumentBlocksToolInputDto,
   type GetDocumentBlocksResponseDto,
+  type UpdateDocumentBlocksToolInputDto,
+  type UpdateDocumentBlocksResponseDto,
 } from '@converge/shared';
 
 // MCP tool handlers for the document feature. Thin wrappers around
@@ -120,6 +122,28 @@ export class DocumentTools {
     const blocks = await this.documentService.getDocumentBlocks(
       input.documentId,
       userId,
+    );
+    return { blocks };
+  }
+
+  /**
+   * Applies a batch of id-addressed block edits to a document as a single
+   * atomic save, returning the document's resulting blocks. Use
+   * getDocumentBlocks first to find the block ids to target. updateDocumentBlocks
+   * throws NotFoundException/ForbiddenException on missing/inaccessible
+   * documents — left uncaught here since the MCP SDK already converts a
+   * thrown error into a proper isError tool result.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the document to edit and the edits to apply
+   */
+  async updateDocumentBlocks(
+    userId: number,
+    input: UpdateDocumentBlocksToolInputDto,
+  ): Promise<UpdateDocumentBlocksResponseDto> {
+    const blocks = await this.documentService.updateDocumentBlocks(
+      input.documentId,
+      userId,
+      input.operations,
     );
     return { blocks };
   }

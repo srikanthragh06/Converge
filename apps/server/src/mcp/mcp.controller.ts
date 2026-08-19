@@ -13,6 +13,8 @@ import {
   ReadDocumentMarkdownResponseSchema,
   GetDocumentBlocksToolInputSchema,
   GetDocumentBlocksResponseSchema,
+  UpdateDocumentBlocksToolInputSchema,
+  UpdateDocumentBlocksResponseSchema,
 } from '@converge/shared';
 
 // Exposes a single MCP endpoint over the Streamable HTTP transport. The MCP
@@ -112,6 +114,24 @@ export class McpController {
       },
       async (input) => {
         const result = await this.documentTools.getDocumentBlocks(userId, input);
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'updateDocumentBlocks',
+      {
+        title: 'Update Document Blocks',
+        description:
+          "Applies a batch of edits to a document's blocks as a single atomic save (all edits apply, or none do). Each edit either replaces an existing block, inserts new content next to one, or removes blocks — new content is given as Markdown, not raw block JSON. Use getDocumentBlocks first to find the block ids to target.",
+        inputSchema: UpdateDocumentBlocksToolInputSchema,
+        outputSchema: UpdateDocumentBlocksResponseSchema,
+      },
+      async (input) => {
+        const result = await this.documentTools.updateDocumentBlocks(userId, input);
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
           structuredContent: result,
