@@ -221,7 +221,17 @@ export class RedisService {
       }
       // Skip messages published by this server instance.
       if (message.clientId === this.clientId) return;
-      handler(message);
+      // This listener runs outside the NestJS pipeline, so GlobalExceptionFilter
+      // never sees errors thrown here — an unguarded throw from a caller's
+      // handler would crash the whole process instead of just this message.
+      try {
+        handler(message);
+      } catch (err) {
+        console.error(
+          `Handler threw while processing message on Redis channel "${channel}":`,
+          err,
+        );
+      }
     });
   }
 }
