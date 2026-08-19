@@ -47,9 +47,15 @@ export const ListDocumentsToolResponseSchema = z.object({
         z.object({
             id: z.number(),
             title: z.string(),
-            access: ResolvedDocumentAccessLevelSchema,
-            lastVisitedAt: z.iso.datetime().nullable(),
-            lastEditedAt: z.iso.datetime().nullable(),
+            access: ResolvedDocumentAccessLevelSchema.describe(
+                "The caller's resolved access level for this document.",
+            ),
+            lastVisitedAt: z.iso.datetime().nullable().describe(
+                "When the calling user last visited this document. Null if never visited.",
+            ),
+            lastEditedAt: z.iso.datetime().nullable().describe(
+                "When the calling user last edited this document. Null if never edited.",
+            ),
         }),
     ),
     nextCursor: z
@@ -57,7 +63,10 @@ export const ListDocumentsToolResponseSchema = z.object({
             lastVisitedAt: z.iso.datetime().nullable(),
             id: z.number(),
         })
-        .nullable(),
+        .nullable()
+        .describe(
+            "Pass this back as the cursor input to fetch the next page. Null when there are no more pages.",
+        ),
 });
 
 export type ListDocumentsToolResponseDto = {
@@ -91,7 +100,9 @@ export const GetDocumentMetadataToolResponseSchema = z.object({
     title: z.string(),
     createdAt: z.iso.datetime(),
     workspace: z.object({ id: z.number(), name: z.string() }),
-    resolvedAccess: ResolvedDocumentAccessLevelSchema,
+    resolvedAccess: ResolvedDocumentAccessLevelSchema.describe(
+        "The caller's resolved access level for this document.",
+    ),
 });
 
 export type GetDocumentMetadataToolResponseDto = {
@@ -140,7 +151,9 @@ export type GetDocumentBlocksToolInputDto = {
 // sync. This is server-generated output, not user input, so looseness here
 // isn't the same kind of risk it would be on the write path's input.
 export const GetDocumentBlocksResponseSchema = z.object({
-    blocks: z.array(z.record(z.string(), z.unknown())),
+    blocks: z.array(z.record(z.string(), z.unknown())).describe(
+        "The document's blocks in order, top-level only (nested blocks appear under their parent's children). Each block's id uniquely identifies it and stays the same across reads.",
+    ),
 });
 
 export type GetDocumentBlocksResponseDto = {
