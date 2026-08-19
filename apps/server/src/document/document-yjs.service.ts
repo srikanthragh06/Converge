@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import * as Y from 'yjs';
 import { mapsAreEqual } from '@converge/shared';
-import { REDIS_EVENTS } from '../redis/redis.events';
-import { DatabaseService } from '../db/database.service';
-import { RedisService } from '../redis/redis.service';
-import { uint8ArrayToBase64 } from '../utils/utils';
+import { REDIS_EVENTS } from '../redis/redis.events.js';
+import { DatabaseService } from '../db/database.service.js';
+import { RedisService } from '../redis/redis.service.js';
+import { uint8ArrayToBase64 } from '../utils/utils.js';
 import { sql } from 'kysely';
 
 @Injectable()

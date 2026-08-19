@@ -1,5 +1,5 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
-import { ApiKeyService } from './api-key.service';
+import { ApiKeyService } from './api-key.service.js';
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {

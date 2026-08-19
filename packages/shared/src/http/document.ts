@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DocumentAccessLevelSchema, ResolvedDocumentAccessLevelSchema, CheckpointSourceSchema } from "../types/types";
+import { DocumentAccessLevelSchema, ResolvedDocumentAccessLevelSchema, CheckpointSourceSchema } from "../types/types.js";
 
 /**
  * Response for POST /document/:id/checkpoint. checkpointId is null when

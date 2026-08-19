@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ResolvedDocumentAccessLevelSchema } from "../types/types";
+import { ResolvedDocumentAccessLevelSchema } from "../types/types.js";
 
 // Validates Yjs binary data sent over the wire as a number[] of byte values.
 const WireBytes = z.array(z.number().int().min(0).max(255));

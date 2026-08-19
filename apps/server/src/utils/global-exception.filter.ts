@@ -6,7 +6,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Socket } from 'socket.io';
-import { httpFail, httpInternalServerError } from './http-response.util';
+import { httpFail, httpInternalServerError } from './http-response.util.js';
 import { WsException } from '@nestjs/websockets';
 import { INTERNAL_SERVER_ERROR_MESSAGE } from '@converge/shared';
 

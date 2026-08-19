@@ -18,8 +18,8 @@ import {
   type WorkspaceRole,
   hasAccess,
 } from '@converge/shared';
-import { DatabaseService } from '../db/database.service';
-import { DocumentAccessService } from './document-access.service';
+import { DatabaseService } from '../db/database.service.js';
+import { DocumentAccessService } from './document-access.service.js';
 import { sql } from 'kysely';
 
 @Injectable()

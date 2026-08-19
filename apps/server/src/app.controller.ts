@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import { httpOK } from './utils/http-response.util';
+import { httpOK } from './utils/http-response.util.js';
 
 // Root controller — kept minimal. Feature routes live in their own modules.
 @Controller()

@@ -2,8 +2,8 @@ import { Controller, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { type Request, type Response } from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { ApiKeyGuard } from '../api-key/api-key.guard';
-import { DocumentTools } from '../document/document.tools';
+import { ApiKeyGuard } from '../api-key/api-key.guard.js';
+import { DocumentTools } from '../document/document.tools.js';
 import {
   ListDocumentsToolInputSchema,
   GetLibraryDocumentsResponseSchema,

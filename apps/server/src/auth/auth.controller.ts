@@ -4,10 +4,10 @@ import {
   GoogleAuthRequestSchema,
   type AuthResponseDto,
 } from '@converge/shared';
-import { AuthService } from './auth.service';
-import { AuthGuard } from './auth.guard';
-import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe';
-import { httpOK } from '../utils/http-response.util';
+import { AuthService } from './auth.service.js';
+import { AuthGuard } from './auth.guard.js';
+import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe.js';
+import { httpOK } from '../utils/http-response.util.js';
 import type { Request, Response } from 'express';
 
 @Controller('/auth')

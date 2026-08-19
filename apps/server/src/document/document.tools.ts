@@ -1,9 +1,9 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import * as Y from 'yjs';
-import { DocumentService } from './document.service';
-import { DocumentAccessService } from './document-access.service';
-import { DocumentYjsService } from './document-yjs.service';
-import { markdownFromYjsUpdate } from './editor-schema';
+import { DocumentService } from './document.service.js';
+import { DocumentAccessService } from './document-access.service.js';
+import { DocumentYjsService } from './document-yjs.service.js';
+import { markdownFromYjsUpdate } from './editor-schema.js';
 import {
   type ListDocumentsToolInputDto,
   type GetLibraryDocumentsResponseDto,

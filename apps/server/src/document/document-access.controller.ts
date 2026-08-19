@@ -10,10 +10,10 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '../auth/auth.guard';
+import { AuthGuard } from '../auth/auth.guard.js';
 import { type Request } from 'express';
-import { DocumentAccessService } from './document-access.service';
-import { httpOK } from '../utils/http-response.util';
+import { DocumentAccessService } from './document-access.service.js';
+import { httpOK } from '../utils/http-response.util.js';
 import {
   GetDocumentAccessUsersRequestSchema,
   SearchDocumentAccessUsersRequestSchema,
@@ -29,7 +29,7 @@ import {
   type SetDocumentUserAccessRequestDto,
   type SetDocumentUserAccessResponseDto,
 } from '@converge/shared';
-import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe';
+import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe.js';
 
 /** Handles document access management routes. All routes require authentication via AuthGuard. */
 @Controller('/document-access')

@@ -4,7 +4,7 @@ import {
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
-import { DatabaseService } from '../db/database.service';
+import { DatabaseService } from '../db/database.service.js';
 import { sql } from 'kysely';
 import { hasWorkspaceRole, WORKSPACE_ROLE_RANK } from '@converge/shared';
 import type {

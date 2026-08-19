@@ -1,12 +1,12 @@
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import { GlobalExceptionFilter } from './utils/global-exception.filter';
-import { registerProcessHandlers } from './utils/process.handlers';
-import { loadEnv } from './utils/env.loader';
+import { AppModule } from './app.module.js';
+import { GlobalExceptionFilter } from './utils/global-exception.filter.js';
+import { registerProcessHandlers } from './utils/process.handlers.js';
+import { loadEnv } from './utils/env.loader.js';
 import { IoAdapter } from '@nestjs/platform-socket.io';
-import { DatabaseService } from './db/database.service';
-import { RedisService } from './redis/redis.service';
-import { DocumentCheckpointSchedulerService } from './document/document-checkpoint-scheduler.service';
+import { DatabaseService } from './db/database.service.js';
+import { RedisService } from './redis/redis.service.js';
+import { DocumentCheckpointSchedulerService } from './document/document-checkpoint-scheduler.service.js';
 import cookieParser from 'cookie-parser';
 
 // Load .env files before the NestJS app is created so process.env is fully

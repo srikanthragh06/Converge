@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
-import Redis from 'ioredis';
-import { sleep } from '../utils/utils';
+import { Redis } from 'ioredis';
+import { sleep } from '../utils/utils.js';
 
 /** Manages the two ioredis connections used for pub/sub messaging. */
 @Injectable()
@@ -221,7 +221,17 @@ export class RedisService {
       }
       // Skip messages published by this server instance.
       if (message.clientId === this.clientId) return;
-      handler(message);
+      // This listener runs outside the NestJS pipeline, so GlobalExceptionFilter
+      // never sees errors thrown here — an unguarded throw from a caller's
+      // handler would crash the whole process instead of just this message.
+      try {
+        handler(message);
+      } catch (err) {
+        console.error(
+          `Handler threw while processing message on Redis channel "${channel}":`,
+          err,
+        );
+      }
     });
   }
 }

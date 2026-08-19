@@ -16,7 +16,7 @@ import {
   type SetDocumentUserAccessResponseDto,
   hasAccess,
 } from '@converge/shared';
-import { DatabaseService } from '../db/database.service';
+import { DatabaseService } from '../db/database.service.js';
 import { sql } from 'kysely';
 
 @Injectable()

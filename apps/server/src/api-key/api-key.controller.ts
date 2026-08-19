@@ -1,9 +1,9 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Req, UseGuards } from '@nestjs/common';
 import { type Request } from 'express';
-import { AuthGuard } from '../auth/auth.guard';
-import { ApiKeyService } from './api-key.service';
-import { httpOK } from '../utils/http-response.util';
-import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe';
+import { AuthGuard } from '../auth/auth.guard.js';
+import { ApiKeyService } from './api-key.service.js';
+import { httpOK } from '../utils/http-response.util.js';
+import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe.js';
 import {
   CreateApiKeyRequestSchema,
   type CreateApiKeyRequestDto,

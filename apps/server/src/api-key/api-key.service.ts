@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { randomBytes, createHash } from 'crypto';
-import { DatabaseService } from '../db/database.service';
+import { DatabaseService } from '../db/database.service.js';
 import { type ApiKeyDto, type CreateApiKeyResponseDto } from '@converge/shared';
 
 // Prefix on every generated key so a leaked secret is recognisable as a

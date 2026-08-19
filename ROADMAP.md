@@ -634,3 +634,24 @@
 
 - Fixed the `block-env.sh` PreToolUse hook, which pointed at a nonexistent path (`converge2`) and was silently no-op-ing before nearly every Read/Edit/Glob/Grep/Bash call instead of actually blocking `.env` access
 
+---
+
+## Native ESM Migration ✅
+
+> Branch: `release-esm-migration` — merged 2026-08-19
+
+Both `apps/server` and `packages/shared` compiled to CommonJS via plain `tsc`, with no bundler. `require()` can never load a real ES Module — a hard wall imposed by the language spec, not a bug — and that surfaced for real once a BlockNote-based MCP tool (`mcp-poc` branch) needed an ESM-only dependency chain: a static import compiled to `require()` crashed the whole process at boot (`ERR_PACKAGE_PATH_NOT_EXPORTED`, one of BlockNote's transitive deps has no CJS entry at all), and the dynamic-`import()` workaround for that then pulled in a second, incompatible `yjs` module instance alongside the one the rest of the app already used via `require()` (`Y.Text` objects from one instance failed `y-prosemirror`'s checks in the other). Rather than keep routing around CJS/ESM interop case by case for every future ESM-only dependency, both packages were migrated to real ESM outright.
+
+### Server (NestJS backend)
+
+- `apps/server/package.json` and `packages/shared/package.json` both get `"type": "module"`; `packages/shared/tsconfig.json`'s `module`/`moduleResolution` bumped from `Node16` to `nodenext` to match `apps/server`'s existing config
+- Every relative import across both packages gets an explicit `.js` extension — Node's ESM resolver does no extension-guessing the way CJS `require()` does, so the specifier has to match the compiled output file exactly, even though the source file is `.ts`
+- `db/database.service.ts`: `__dirname` doesn't exist in ES modules — reconstructed via `path.dirname(fileURLToPath(import.meta.url))`
+- Two real runtime bugs found and fixed, both the same underlying shape: a third-party CommonJS package imported via `import * as X` or a default import that Node's static `cjs-module-lexer` export-detection silently mis-resolved under strict ESM, working under the old loose CJS interop but not the new one:
+  - `ioredis`: `import Redis from 'ioredis'` resolved to the whole module namespace instead of the `Redis` class (`This expression is not constructable`) — switched to the named import `import { Redis } from 'ioredis'`, which its own `.d.ts` exports correctly
+  - `jsonwebtoken`: `import * as jwt from 'jsonwebtoken'` silently exposed only `decode` — `sign`/`verify` were `undefined` (`jwt.sign is not a function`, only surfaced at runtime on the Google OAuth login path) — switched to the default import `import jwt from 'jsonwebtoken'`, which is always guaranteed to be the full `module.exports` regardless of the lexer's heuristic
+  - Both fixes were found empirically via isolated sandbox reproductions, not guessed from reading docs — a full sweep of every other `import * as`/named CJS import in the codebase (`yjs`, `dotenv`, `kysely`, `pg`, `pg-boss`, `socket.io`, `zod`, `cookie`, `cookie-parser`, `rxjs`) turned up no further instances of this failure mode, confirmed either by real `"import"` export conditions or direct runtime verification
+- `RedisService.subscribe()`'s `'message'` listener now wraps the caller-supplied `handler()` call in its own try/catch — it runs outside the NestJS pipeline (raw ioredis `EventEmitter`), so an uncaught throw there bypassed `GlobalExceptionFilter` entirely and would have crashed the whole process instead of failing one message; every current call site already guarded itself by convention, but the guarantee is now structural
+- Verified end-to-end at every stage: clean typecheck, a full `nest build` with the real compiled ESM output inspected directly, a live boot in the docker dev stack with real Postgres/Redis connections and real HTTP requests, and (after the `jsonwebtoken` fix) `jwt.sign`/`jwt.verify` confirmed working against the actual compiled code inside the running container
+- `apps/web` needed no changes — Vite already handles ESM dependencies natively
+

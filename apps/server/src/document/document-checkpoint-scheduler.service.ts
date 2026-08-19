@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PgBoss } from 'pg-boss';
-import { DocumentCheckpointService } from './document-checkpoint.service';
+import { DocumentCheckpointService } from './document-checkpoint.service.js';
 
 /** Payload carried by both checkpoint job types. */
 interface CheckpointJobData {
