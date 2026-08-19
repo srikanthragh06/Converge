@@ -1,8 +1,5 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DocumentService } from './document.service.js';
-import { DocumentAccessService } from './document-access.service.js';
-import { DocumentYjsService } from './document-yjs.service.js';
-import { markdownFromYDoc } from './editor-schema.js';
 import {
   type ListDocumentsToolInputDto,
   type GetLibraryDocumentsResponseDto,
@@ -10,20 +7,16 @@ import {
   type GetDocumentResponseDto,
   type ReadDocumentMarkdownToolInputDto,
   type ReadDocumentMarkdownResponseDto,
-  hasAccess,
 } from '@converge/shared';
 
 // MCP tool handlers for the document feature. Thin wrappers around
 // DocumentService — access control is enforced entirely by the underlying
-// calls (see getLibraryDocuments and getDocumentOfUser), same as their HTTP
-// controller equivalents, so no separate authorization check is needed here.
+// calls (see getLibraryDocuments, getDocumentOfUser, and getDocumentMarkdown),
+// same as their HTTP controller equivalents, so no separate authorization
+// check is needed here.
 @Injectable()
 export class DocumentTools {
-  constructor(
-    private readonly documentService: DocumentService,
-    private readonly documentAccessService: DocumentAccessService,
-    private readonly documentYjsService: DocumentYjsService,
-  ) {}
+  constructor(private readonly documentService: DocumentService) {}
 
   /**
    * Lists documents in a workspace visible to the calling user, newest
@@ -62,10 +55,10 @@ export class DocumentTools {
   }
 
   /**
-   * Reads a document's content as Markdown. Lossy: block ids, custom props,
-   * and any structure Markdown can't express are dropped when converting
-   * Blocks to Markdown — read-only, not meant to be diffed back into precise
-   * block edits.
+   * Reads a document's content as Markdown. getDocumentMarkdown throws
+   * NotFoundException/ForbiddenException on missing/inaccessible documents —
+   * left uncaught here since the MCP SDK already converts a thrown error
+   * into a proper isError tool result.
    * @param userId - the calling user's ID, resolved from their API key
    * @param input - the document to read
    */
@@ -73,17 +66,10 @@ export class DocumentTools {
     userId: number,
     input: ReadDocumentMarkdownToolInputDto,
   ): Promise<ReadDocumentMarkdownResponseDto> {
-    // resolveAccess throws NotFoundException if the document does not exist.
-    const access = await this.documentAccessService.resolveAccess(
+    const markdown = await this.documentService.getDocumentMarkdown(
       input.documentId,
       userId,
     );
-    if (!hasAccess(access, 'viewer'))
-      throw new ForbiddenException('You do not have access to this document.');
-
-    const yDoc = await this.documentYjsService.loadDoc(input.documentId);
-    const markdown = await markdownFromYDoc(yDoc);
-
     return { markdown };
   }
 }

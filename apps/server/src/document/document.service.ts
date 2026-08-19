@@ -20,6 +20,8 @@ import {
 } from '@converge/shared';
 import { DatabaseService } from '../db/database.service.js';
 import { DocumentAccessService } from './document-access.service.js';
+import { DocumentYjsService } from './document-yjs.service.js';
+import { markdownFromYDoc } from './editor-schema.js';
 import { sql } from 'kysely';
 
 @Injectable()
@@ -27,6 +29,7 @@ export class DocumentService {
   constructor(
     private readonly dbService: DatabaseService,
     private readonly documentAccessService: DocumentAccessService,
+    private readonly documentYjsService: DocumentYjsService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -70,6 +73,32 @@ export class DocumentService {
       workspace: { id: row.workspaceId, name: row.workspaceName },
       resolvedAccess: access,
     };
+  }
+
+  /**
+   * Returns a document's content as Markdown. Throws NotFoundException if the
+   * document does not exist, ForbiddenException if the requesting user has
+   * less than viewer access. Lossy: block ids, custom props, and any
+   * structure Markdown can't express are dropped when converting Blocks to
+   * Markdown — read-only, not meant to be diffed back into precise block edits.
+   * @param documentId - the document to read
+   * @param userId - the ID of the authenticated requesting user
+   * @returns the document's content as a Markdown string
+   */
+  async getDocumentMarkdown(
+    documentId: number,
+    userId: number,
+  ): Promise<string> {
+    // Resolve access — throws NotFoundException if the document does not exist.
+    const access = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+    );
+    if (!hasAccess(access, 'viewer'))
+      throw new ForbiddenException('You do not have access to this document.');
+
+    const yDoc = await this.documentYjsService.loadDoc(documentId);
+    return markdownFromYDoc(yDoc);
   }
 
   /**
