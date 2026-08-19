@@ -7,8 +7,8 @@ import { DocumentTools } from '../document/document.tools';
 import {
   ListDocumentsToolInputSchema,
   GetLibraryDocumentsResponseSchema,
-  GetDocumentToolInputSchema,
-  GetDocumentToolOutputSchema,
+  GetDocumentMetadataToolInputSchema,
+  GetDocumentResponseSchema,
 } from '@converge/shared';
 
 // Exposes a single MCP endpoint over the Streamable HTTP transport. The MCP
@@ -44,7 +44,7 @@ export class McpController {
       {
         title: 'List Documents',
         description:
-          'Lists documents in a workspace that the caller has access to, newest last-visited first. Supports keyset pagination via the returned nextCursor.',
+          "Lists documents in a workspace that the caller has access to, newest last-visited first. Supports keyset pagination via the returned nextCursor.",
         inputSchema: ListDocumentsToolInputSchema,
         outputSchema: GetLibraryDocumentsResponseSchema,
       },
@@ -62,22 +62,18 @@ export class McpController {
     );
 
     server.registerTool(
-      'getDocument',
+      'getDocumentMetadata',
       {
-        title: 'Get Document',
+        title: 'Get Document Metadata',
         description:
-          "Fetches a document's metadata and its full current content as a base64-encoded, compacted Yjs update.",
-        inputSchema: GetDocumentToolInputSchema,
-        outputSchema: GetDocumentToolOutputSchema,
+          "Fetches a document's metadata (title, workspace, resolved access, createdAt). Does not return document content — see getDocumentBlocks/getDocumentMarkdown for that.",
+        inputSchema: GetDocumentMetadataToolInputSchema,
+        outputSchema: GetDocumentResponseSchema,
       },
       async (input) => {
-        const result = await this.documentTools.getDocument(userId, input);
-        // The blob isn't meaningful for a model to read as text, so content
-        // only carries the metadata — structuredContent has the full result,
-        // including updateBase64, for whatever actually decodes it.
-        const { updateBase64, ...metadata } = result;
+        const result = await this.documentTools.getDocumentMetadata(userId, input);
         return {
-          content: [{ type: 'text' as const, text: JSON.stringify(metadata) }],
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
           structuredContent: result,
         };
       },

@@ -15,13 +15,11 @@ export type {
 } from "./http/api-key";
 export {
     ListDocumentsToolInputSchema,
-    GetDocumentToolInputSchema,
-    GetDocumentToolOutputSchema,
+    GetDocumentMetadataToolInputSchema,
 } from "./tools/document";
 export type {
     ListDocumentsToolInputDto,
-    GetDocumentToolInputDto,
-    GetDocumentToolOutputDto,
+    GetDocumentMetadataToolInputDto,
 } from "./tools/document";
 export {
     CreateCheckpointResponseSchema,
