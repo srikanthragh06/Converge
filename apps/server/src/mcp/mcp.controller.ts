@@ -11,6 +11,8 @@ import {
   GetDocumentResponseSchema,
   ReadDocumentMarkdownToolInputSchema,
   ReadDocumentMarkdownResponseSchema,
+  GetDocumentBlocksToolInputSchema,
+  GetDocumentBlocksResponseSchema,
 } from '@converge/shared';
 
 // Exposes a single MCP endpoint over the Streamable HTTP transport. The MCP
@@ -92,6 +94,24 @@ export class McpController {
       },
       async (input) => {
         const result = await this.documentTools.readDocumentMarkdown(userId, input);
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'getDocumentBlocks',
+      {
+        title: 'Get Document Blocks',
+        description:
+          "Reads a document's content as BlockNote block JSON, ids and all — not lossy like readDocumentMarkdown, since it returns the exact underlying block structure rather than a Markdown conversion.",
+        inputSchema: GetDocumentBlocksToolInputSchema,
+        outputSchema: GetDocumentBlocksResponseSchema,
+      },
+      async (input) => {
+        const result = await this.documentTools.getDocumentBlocks(userId, input);
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
           structuredContent: result,

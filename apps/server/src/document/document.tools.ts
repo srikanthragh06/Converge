@@ -7,6 +7,8 @@ import {
   type GetDocumentResponseDto,
   type ReadDocumentMarkdownToolInputDto,
   type ReadDocumentMarkdownResponseDto,
+  type GetDocumentBlocksToolInputDto,
+  type GetDocumentBlocksResponseDto,
 } from '@converge/shared';
 
 // MCP tool handlers for the document feature. Thin wrappers around
@@ -71,5 +73,25 @@ export class DocumentTools {
       userId,
     );
     return { markdown };
+  }
+
+  /**
+   * Reads a document's content as BlockNote block JSON, ids and all — the
+   * read counterpart used to target block-level writes. getDocumentBlocks
+   * throws NotFoundException/ForbiddenException on missing/inaccessible
+   * documents — left uncaught here since the MCP SDK already converts a
+   * thrown error into a proper isError tool result.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the document to read
+   */
+  async getDocumentBlocks(
+    userId: number,
+    input: GetDocumentBlocksToolInputDto,
+  ): Promise<GetDocumentBlocksResponseDto> {
+    const blocks = await this.documentService.getDocumentBlocks(
+      input.documentId,
+      userId,
+    );
+    return { blocks };
   }
 }

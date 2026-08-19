@@ -17,11 +17,12 @@ import {
   type ResolvedDocumentAccessLevel,
   type WorkspaceRole,
   hasAccess,
+  type DocumentBlock,
 } from '@converge/shared';
 import { DatabaseService } from '../db/database.service.js';
 import { DocumentAccessService } from './document-access.service.js';
 import { DocumentYjsService } from './document-yjs.service.js';
-import { markdownFromYDoc } from './editor-schema.js';
+import { markdownFromYDoc, blocksFromYDoc } from '../utils/editor-schema.js';
 import { sql } from 'kysely';
 
 @Injectable()
@@ -99,6 +100,31 @@ export class DocumentService {
 
     const yDoc = await this.documentYjsService.loadDoc(documentId);
     return markdownFromYDoc(yDoc);
+  }
+
+  /**
+   * Returns a document's content as BlockNote block JSON, ids and all —
+   * the read counterpart used to target block-level writes. Throws
+   * NotFoundException if the document does not exist, ForbiddenException
+   * if the requesting user has less than viewer access.
+   * @param documentId - the document to read
+   * @param userId - the ID of the authenticated requesting user
+   * @returns the document's content as an array of blocks
+   */
+  async getDocumentBlocks(
+    documentId: number,
+    userId: number,
+  ): Promise<DocumentBlock[]> {
+    // Resolve access — throws NotFoundException if the document does not exist.
+    const access = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+    );
+    if (!hasAccess(access, 'viewer'))
+      throw new ForbiddenException('You do not have access to this document.');
+
+    const yDoc = await this.documentYjsService.loadDoc(documentId);
+    return blocksFromYDoc(yDoc);
   }
 
   /**

@@ -1,7 +1,7 @@
 import { ServerBlockNoteEditor } from '@blocknote/server-util';
-import { editorSchema } from '@converge/shared';
+import { editorSchema, type DocumentBlock } from '@converge/shared';
 import type * as Y from 'yjs';
-import { withMutex } from '../utils/async-mutex.js';
+import { withMutex } from './async-mutex.js';
 
 // Safe to share across all calls: yDocToBlocks never touches
 // globalThis.document/window, and blocksToMarkdownLossy's use of them (via
@@ -21,4 +21,16 @@ const editor = ServerBlockNoteEditor.create({ schema: editorSchema });
 export function markdownFromYDoc(yDoc: Y.Doc): Promise<string> {
   const blocks = editor.yDocToBlocks(yDoc, 'blocknote');
   return withMutex(() => editor.blocksToMarkdownLossy(blocks));
+}
+
+/**
+ * Converts a document's live Y.Doc into its BlockNote block JSON — the same
+ * shape editor.document has client-side, ids and all. Not routed through
+ * withMutex: yDocToBlocks is a pure Yjs-tree walk with no dependency on the
+ * shared globalThis.document/window DOM globals (see async-mutex.ts).
+ * @param yDoc - the document's live Y.Doc, e.g. from DocumentYjsService.loadDoc
+ * @returns the document's content as an array of blocks
+ */
+export function blocksFromYDoc(yDoc: Y.Doc): DocumentBlock[] {
+  return editor.yDocToBlocks(yDoc, 'blocknote');
 }

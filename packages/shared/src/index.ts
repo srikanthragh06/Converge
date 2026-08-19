@@ -1,5 +1,6 @@
 export { mapsAreEqual } from "./utils/utils.js";
 export { default as editorSchema } from "./editor/editorSchema.js";
+export type { DocumentBlock } from "./editor/editorSchema.js";
 export { GoogleAuthRequestSchema, AuthResponseSchema } from "./http/auth.js";
 export type { GoogleAuthRequestDto, AuthResponseDto } from "./http/auth.js";
 export {
@@ -19,12 +20,16 @@ export {
     GetDocumentMetadataToolInputSchema,
     ReadDocumentMarkdownToolInputSchema,
     ReadDocumentMarkdownResponseSchema,
+    GetDocumentBlocksToolInputSchema,
+    GetDocumentBlocksResponseSchema,
 } from "./tools/document.js";
 export type {
     ListDocumentsToolInputDto,
     GetDocumentMetadataToolInputDto,
     ReadDocumentMarkdownToolInputDto,
     ReadDocumentMarkdownResponseDto,
+    GetDocumentBlocksToolInputDto,
+    GetDocumentBlocksResponseDto,
 } from "./tools/document.js";
 export {
     CreateCheckpointResponseSchema,
