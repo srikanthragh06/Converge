@@ -7,7 +7,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { UseFilters } from '@nestjs/common';
+import { forwardRef, Inject, UseFilters } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { DocumentService } from './document.service.js';
 import { DocumentYjsService } from './document-yjs.service.js';
@@ -68,14 +68,26 @@ export class DocumentGateway
 
   private readonly subscribedDocs = new Set<number>(); // tracks which document IDs have an active Redis subscription, preventing duplicate handlers
 
+  // DocumentYjsService also injects DocumentGateway (to broadcast from
+  // applyDocUpdate), so this side needs forwardRef too to let Nest resolve
+  // the cycle.
+  private readonly documentYjsService: DocumentYjsService;
+
   constructor(
     private readonly documentService: DocumentService,
-    private readonly documentYjsService: DocumentYjsService,
+    // Untyped (not `: DocumentYjsService`) on purpose — see the matching
+    // comment in DocumentYjsService's constructor for why an explicit
+    // class-type annotation here would crash at startup regardless of
+    // forwardRef (a TypeScript emitDecoratorMetadata issue, not a Nest one).
+    @Inject(forwardRef(() => DocumentYjsService))
+    documentYjsService: any,
     private readonly redisService: RedisService,
     private readonly authService: AuthService,
     private readonly documentAwarenessService: DocumentAwarenessService,
     private readonly documentCheckpointSchedulerService: DocumentCheckpointSchedulerService,
-  ) {}
+  ) {
+    this.documentYjsService = documentYjsService;
+  }
 
   /**
    * Verifies the auth cookie and documentId, resolves the user's access level,
@@ -389,23 +401,14 @@ export class DocumentGateway
     const update = new Uint8Array(updateArray);
     const clientSV = new Uint8Array(clientSVArray);
 
-    // apply the update to the shared doc and get the new server state vector
+    // apply the update to the shared doc, get the new server state vector,
+    // and broadcast to the room (excluding this client, which already
+    // applied its own edit optimistically before sending it) — all handled
+    // by applyDocUpdate itself.
     const { serverSV } = await this.documentYjsService.applyDocUpdate(
       documentId,
       update,
-    );
-
-    const serverSVArray = Array.from(serverSV);
-    socketEmitRoom(
       client,
-      String(documentId),
-      SOCKET_EVENTS.SYNC_DOC_CLIENT,
-      SyncDocClientSchema,
-      {
-        documentId,
-        updateArray,
-        serverSVArray,
-      },
     );
 
     // record that this user edited the document
@@ -498,21 +501,8 @@ export class DocumentGateway
       hasAccess(client.data.access as ResolvedDocumentAccessLevel, 'editor') &&
       !isEmptyYjsUpdate(diff)
     ) {
-      const { serverSV } = await this.documentYjsService.applyDocUpdate(
-        documentId,
-        diff,
-      );
-      socketEmitRoom(
-        client,
-        String(documentId),
-        SOCKET_EVENTS.SYNC_DOC_CLIENT,
-        SyncDocClientSchema,
-        {
-          documentId,
-          serverSVArray: Array.from(serverSV),
-          updateArray: Array.from(diff),
-        },
-      );
+      // applyDocUpdate itself broadcasts to the room, excluding this client.
+      await this.documentYjsService.applyDocUpdate(documentId, diff, client);
 
       // record that this user edited the document
       await this.documentYjsService.recordLastEdited(documentId, userId);
@@ -545,8 +535,9 @@ export class DocumentGateway
   /**
    * Receives the final diff from the client, completing the repair sync round.
    * For editors, applies a non-empty diff to bring the server doc fully up to
-   * date and records the user as having edited the document. Viewers are
-   * silently ignored since they cannot push content.
+   * date, broadcasts it to the rest of the room, and records the user as
+   * having edited the document. Viewers are silently ignored since they
+   * cannot push content.
    * @param client - the socket that sent the diff
    * @param data - contains the diff bytes to apply to the shared doc
    */
@@ -568,7 +559,11 @@ export class DocumentGateway
       hasAccess(client.data.access as ResolvedDocumentAccessLevel, 'editor') &&
       !isEmptyYjsUpdate(diff)
     ) {
-      await this.documentYjsService.applyDocUpdate(documentId, diff);
+      // applyDocUpdate itself broadcasts to the room, excluding this client.
+      // Note: this handler previously did not broadcast to the room at all
+      // after applying — this is a behavior change, not just a refactor
+      // (see the commit message for context).
+      await this.documentYjsService.applyDocUpdate(documentId, diff, client);
 
       // record that this user edited the document
       await this.documentYjsService.recordLastEdited(documentId, userId);
@@ -599,8 +594,14 @@ export class DocumentGateway
     if (!hasAccess(client.data.access as ResolvedDocumentAccessLevel, 'editor'))
       return;
 
-    // Persist the updated title to the database.
-    await this.documentYjsService.applyDocTitleUpdate(documentId, title);
+    // Persist the updated title and broadcast to the room (excluding this
+    // client, which already has the new title) — handled by
+    // applyDocTitleUpdate itself.
+    await this.documentYjsService.applyDocTitleUpdate(
+      documentId,
+      title,
+      client,
+    );
 
     // record that this user edited the document
     await this.documentYjsService.recordLastEdited(documentId, userId);
@@ -614,15 +615,6 @@ export class DocumentGateway
       {
         changeId,
       },
-    );
-
-    // Broadcast to all other clients in the document room.
-    socketEmitRoom(
-      client,
-      String(documentId),
-      SOCKET_EVENTS.SYNC_DOC_TITLE_CLIENT,
-      SyncDocTitleClientSchema,
-      { title },
     );
   }
 

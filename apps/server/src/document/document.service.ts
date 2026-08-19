@@ -141,18 +141,12 @@ export class DocumentService {
    * the requesting user has less than editor access — matching the check
    * SYNC_DOC_SERVER enforces for a live client edit.
    *
-   * Persists and broadcasts the same way a real client's edit does, with one
-   * gap: DocumentYjsService.applyDocUpdate publishes to Redis, and every
-   * *other* server instance with a locally connected client for this
-   * document is already subscribed and re-broadcasts to its own room from
-   * that (see document.gateway.ts) — but RedisService.subscribe filters out
-   * messages published by the current instance (to prevent echo loops), so
-   * a viewer connected to the SAME instance that handled this write gets no
-   * immediate broadcast at all. They'll only see the change on their next
-   * repair-sync heartbeat. A real client's own edit doesn't have this gap —
-   * the gateway's SYNC_DOC_SERVER handler broadcasts directly to its local
-   * room in addition to publishing to Redis; this call site has no Socket
-   * to do that with.
+   * Persists and broadcasts the same way a real client's edit does —
+   * DocumentYjsService.applyDocUpdate now handles both the Redis publish
+   * (for other server instances) and the local room broadcast (for this
+   * instance's own connected clients) itself, so there's nothing extra to
+   * do here. No socket originates this write, so nothing is excluded from
+   * the broadcast — every connected viewer of this document sees it.
    * @param documentId - the document to edit
    * @param userId - the ID of the authenticated requesting user
    * @param operations - the edits to apply, in order, as one atomic save
