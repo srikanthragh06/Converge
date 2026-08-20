@@ -29,6 +29,8 @@ import {
   type GetCheckpointContentToolResponseDto,
   type RestoreCheckpointToolInputDto,
   type RestoreCheckpointResponseDto,
+  type ListDeletedDocumentsToolInputDto,
+  type ListDeletedDocumentsToolResponseDto,
 } from '@converge/shared';
 
 // MCP tool handlers for the document feature. Thin wrappers around
@@ -351,5 +353,45 @@ export class DocumentTools {
       input.checkpointId,
     );
     return { blocks };
+  }
+
+  /**
+   * Lists soft-deleted documents in a workspace, newest-deleted first.
+   * Mirrors GET /document/trash, except dates are ISO strings rather than
+   * Date objects — MCP tool schemas can't represent a Date type (see
+   * ListDeletedDocumentsToolResponseSchema). getTrashDocuments scopes
+   * results to admin+ access at the query level itself — a caller without
+   * admin+ access just sees an empty list rather than a thrown error, since
+   * admin+ is also what's required to restore a document (see
+   * restoreDocument), same as its HTTP controller equivalent — so no
+   * separate authorization check is needed here.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - workspaceId plus optional limit and pagination cursor
+   */
+  async listDeletedDocuments(
+    userId: number,
+    input: ListDeletedDocumentsToolInputDto,
+  ): Promise<ListDeletedDocumentsToolResponseDto> {
+    const result = await this.documentService.getTrashDocuments(
+      userId,
+      input.workspaceId,
+      input.limit ?? 20,
+      input.cursor
+        ? { deletedAt: new Date(input.cursor.deletedAt), id: input.cursor.id }
+        : undefined,
+    );
+
+    return {
+      documents: result.documents.map((doc) => ({
+        ...doc,
+        deletedAt: doc.deletedAt.toISOString(),
+      })),
+      nextCursor: result.nextCursor
+        ? {
+            ...result.nextCursor,
+            deletedAt: result.nextCursor.deletedAt.toISOString(),
+          }
+        : null,
+    };
   }
 }

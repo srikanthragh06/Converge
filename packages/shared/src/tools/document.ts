@@ -458,3 +458,59 @@ export const RestoreCheckpointResponseSchema = z.object({
 export type RestoreCheckpointResponseDto = {
     blocks: DocumentBlock[];
 };
+
+export const ListDeletedDocumentsToolInputSchema = {
+    workspaceId: z.coerce.number().int().positive().describe(
+        "The workspace to list soft-deleted documents from. The caller must have admin access or higher in the workspace, or on the individual document, to see it here.",
+    ),
+    limit: z.coerce.number().int().positive().optional().describe(
+        "Max documents to return in this page. Defaults to 20.",
+    ),
+    // Same reasoning as ListDocumentsToolInputSchema's cursor: a single
+    // object matching nextCursor's shape exactly, rather than the two flat
+    // query params the HTTP route uses.
+    cursor: z
+        .object({
+            deletedAt: z.iso.datetime(),
+            id: z.number().int().positive(),
+        })
+        .optional()
+        .describe(
+            "Pagination cursor from a previous page's nextCursor. Omit for the first page.",
+        ),
+};
+
+export type ListDeletedDocumentsToolInputDto = {
+    workspaceId: number;
+    limit?: number;
+    cursor?: { deletedAt: string; id: number };
+};
+
+// A separate response shape from the HTTP GetTrashDocumentsResponseSchema
+// (http/document.ts) — same reason as ListDocumentsToolResponseSchema above:
+// that schema's date fields use z.coerce.date(), which can't be converted to
+// JSON Schema for tools/list.
+export const ListDeletedDocumentsToolResponseSchema = z.object({
+    documents: z.array(
+        z.object({
+            id: z.number(),
+            title: z.string(),
+            deletedAt: z.iso.datetime().describe(
+                "When the document was deleted.",
+            ),
+        }),
+    ),
+    nextCursor: z
+        .object({
+            deletedAt: z.iso.datetime(),
+            id: z.number(),
+        })
+        .nullable()
+        .describe(
+            "Pass this back as the cursor input to fetch the next page. Null when there are no more pages.",
+        ),
+});
+
+export type ListDeletedDocumentsToolResponseDto = z.infer<
+    typeof ListDeletedDocumentsToolResponseSchema
+>;

@@ -33,6 +33,8 @@ import {
   GetCheckpointContentToolResponseSchema,
   RestoreCheckpointToolInputSchema,
   RestoreCheckpointResponseSchema,
+  ListDeletedDocumentsToolInputSchema,
+  ListDeletedDocumentsToolResponseSchema,
 } from '@converge/shared';
 
 // Exposes a single MCP endpoint over the Streamable HTTP transport. The MCP
@@ -321,6 +323,26 @@ export class McpController {
       async (input) => {
         const result = await withMcpErrorHandling(() =>
           this.documentTools.restoreCheckpoint(userId, input),
+        );
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'listDeletedDocuments',
+      {
+        title: 'List Deleted Documents',
+        description:
+          "Lists soft-deleted documents in a workspace, newest-deleted first. Only visible to callers with admin access or higher — the same bar required to restore a document. Supports keyset pagination via the returned nextCursor.",
+        inputSchema: ListDeletedDocumentsToolInputSchema,
+        outputSchema: ListDeletedDocumentsToolResponseSchema,
+      },
+      async (input) => {
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.listDeletedDocuments(userId, input),
         );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
