@@ -381,3 +381,51 @@ export const ListCheckpointsToolResponseSchema = z.object({
 export type ListCheckpointsToolResponseDto = z.infer<
     typeof ListCheckpointsToolResponseSchema
 >;
+
+export const GetCheckpointContentToolInputSchema = {
+    documentId: z.coerce.number().int().positive().describe(
+        "The document the checkpoint belongs to.",
+    ),
+    checkpointId: z.coerce.number().int().positive().describe(
+        "The checkpoint to read, from a listCheckpoints entry's id.",
+    ),
+};
+
+export type GetCheckpointContentToolInputDto = {
+    documentId: number;
+    checkpointId: number;
+};
+
+// Same metadata fields as a listCheckpoints entry, plus the checkpoint's
+// content — but as BlockNote block JSON (blocks), not the raw
+// base64-encoded Yjs update the HTTP endpoint returns. An agent has no use
+// for a raw Yjs blob; decoding it into blocks server-side (see
+// DocumentTools.getCheckpointContent) matches what getDocumentBlocks already
+// returns for a document's live content, so the two are directly comparable.
+export const GetCheckpointContentToolResponseSchema = z.object({
+    id: z.number(),
+    createdAt: z.iso.datetime().describe(
+        "When the checkpoint row itself was created.",
+    ),
+    lastEditedAt: z.iso.datetime().describe(
+        "When the most recent edit folded into this checkpoint happened — prefer this over createdAt for display, since automatic checkpoints fire some delay after the last edit.",
+    ),
+    contributors: z.array(CheckpointContributorSchema).describe(
+        "Users who edited the document since the previous checkpoint.",
+    ),
+    source: CheckpointSourceSchema.describe(
+        "What triggered this checkpoint: a manual save, an idle-timeout or interval-based auto-checkpoint, or an automatic checkpoint taken immediately before an MCP-driven edit.",
+    ),
+    blocks: z.array(z.record(z.string(), z.unknown())).describe(
+        "The document's full content at this checkpoint, as BlockNote blocks — same shape as getDocumentBlocks returns for the live document.",
+    ),
+});
+
+export type GetCheckpointContentToolResponseDto = {
+    id: number;
+    createdAt: string;
+    lastEditedAt: string;
+    contributors: z.infer<typeof CheckpointContributorSchema>[];
+    source: z.infer<typeof CheckpointSourceSchema>;
+    blocks: DocumentBlock[];
+};

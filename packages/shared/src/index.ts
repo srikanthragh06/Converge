@@ -36,6 +36,8 @@ export {
     DeleteDocumentResponseSchema,
     ListCheckpointsToolInputSchema,
     ListCheckpointsToolResponseSchema,
+    GetCheckpointContentToolInputSchema,
+    GetCheckpointContentToolResponseSchema,
 } from "./tools/document.js";
 export type {
     ListDocumentsToolInputDto,
@@ -58,6 +60,8 @@ export type {
     DeleteDocumentResponseDto,
     ListCheckpointsToolInputDto,
     ListCheckpointsToolResponseDto,
+    GetCheckpointContentToolInputDto,
+    GetCheckpointContentToolResponseDto,
 } from "./tools/document.js";
 export {
     CreateCheckpointResponseSchema,

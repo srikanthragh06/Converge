@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import * as Y from 'yjs';
 import { DocumentService } from './document.service.js';
 import { DocumentCheckpointService } from './document-checkpoint.service.js';
+import { blocksFromYDoc } from '../utils/editor-schema.js';
+import { base64ToUint8Array } from '../utils/utils.js';
 import {
   type ListDocumentsToolInputDto,
   type ListDocumentsToolResponseDto,
@@ -22,6 +25,8 @@ import {
   type DeleteDocumentResponseDto,
   type ListCheckpointsToolInputDto,
   type ListCheckpointsToolResponseDto,
+  type GetCheckpointContentToolInputDto,
+  type GetCheckpointContentToolResponseDto,
 } from '@converge/shared';
 
 // MCP tool handlers for the document feature. Thin wrappers around
@@ -281,6 +286,44 @@ export class DocumentTools {
         lastEditedAt: checkpoint.lastEditedAt.toISOString(),
       })),
       nextCursor: result.nextCursor,
+    };
+  }
+
+  /**
+   * Reads a checkpoint's full content as BlockNote blocks, alongside its
+   * metadata. getCheckpointContent throws ForbiddenException/NotFoundException
+   * on insufficient access / an unknown checkpoint — left uncaught here since
+   * the MCP SDK already converts a thrown error into a proper isError tool
+   * result.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the document and checkpoint to read
+   */
+  async getCheckpointContent(
+    userId: number,
+    input: GetCheckpointContentToolInputDto,
+  ): Promise<GetCheckpointContentToolResponseDto> {
+    const checkpoint = await this.documentCheckpointService.getCheckpointContent(
+      input.documentId,
+      userId,
+      input.checkpointId,
+    );
+
+    // A checkpoint's updateBase64 is a full self-contained Yjs state (every
+    // checkpoint row from the beginning merged up through this one), not a
+    // delta — so applying it to a fresh scratch doc fully reconstructs the
+    // document's content at that point in time. No withMutex/jsdom needed:
+    // blocksFromYDoc is a pure Yjs-tree walk (see editor-schema.ts).
+    const scratch = new Y.Doc();
+    Y.applyUpdate(scratch, base64ToUint8Array(checkpoint.updateBase64));
+    const blocks = blocksFromYDoc(scratch);
+
+    return {
+      id: checkpoint.id,
+      createdAt: checkpoint.createdAt.toISOString(),
+      lastEditedAt: checkpoint.lastEditedAt.toISOString(),
+      contributors: checkpoint.contributors,
+      source: checkpoint.source,
+      blocks,
     };
   }
 }

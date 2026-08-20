@@ -29,6 +29,8 @@ import {
   DeleteDocumentResponseSchema,
   ListCheckpointsToolInputSchema,
   ListCheckpointsToolResponseSchema,
+  GetCheckpointContentToolInputSchema,
+  GetCheckpointContentToolResponseSchema,
 } from '@converge/shared';
 
 // Exposes a single MCP endpoint over the Streamable HTTP transport. The MCP
@@ -270,13 +272,33 @@ export class McpController {
       {
         title: 'List Checkpoints',
         description:
-          "Lists a document's version-history checkpoints, newest first, each with its contributors, source, and last-edited time.",
+          "Lists a document's version-history checkpoints, newest first, each with its contributors, source, and last-edited time. Use getCheckpointContent to read a specific checkpoint's content.",
         inputSchema: ListCheckpointsToolInputSchema,
         outputSchema: ListCheckpointsToolResponseSchema,
       },
       async (input) => {
         const result = await withMcpErrorHandling(() =>
           this.documentTools.listCheckpoints(userId, input),
+        );
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'getCheckpointContent',
+      {
+        title: 'Get Checkpoint Content',
+        description:
+          "Reads a version-history checkpoint's full content as BlockNote blocks (same shape as getDocumentBlocks), plus its metadata (contributors, source, timestamps). Use listCheckpoints first to find a checkpointId.",
+        inputSchema: GetCheckpointContentToolInputSchema,
+        outputSchema: GetCheckpointContentToolResponseSchema,
+      },
+      async (input) => {
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.getCheckpointContent(userId, input),
         );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
