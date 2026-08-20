@@ -7,16 +7,21 @@ import useCreateApiKey from "../../hooks/useCreateApiKey";
 import ApiKeyCard from "./components/ApiKeyCard";
 import CreateApiKeyModal from "./components/CreateApiKeyModal";
 import RevealApiKeyModal from "./components/RevealApiKeyModal";
+import RevokeApiKeyConfirmationModal from "./components/RevokeApiKeyConfirmationModal";
 
 /**
  * Full-screen API keys page. Lists the authenticated user's API keys and
- * lets them create new ones. Revocation is not yet implemented.
+ * lets them create new ones or revoke existing ones.
  */
 const ApiKeysPage = () => {
     const { apiKeys, isLoading, fetchAll } = useApiKeys(); // fetched key list, loading flag, and manual refetch
     const { createApiKey, isCreating, error } = useCreateApiKey(); // key creation handler, in-flight flag, and last error message
     const [showCreateModal, setShowCreateModal] = useState(false); // controls Create Key modal visibility
     const [revealRawKey, setRevealRawKey] = useState<string | null>(null); // newly created key's raw value, shown once; null when no reveal is pending
+    const [revokingKey, setRevokingKey] = useState<{
+        id: number;
+        label: string;
+    } | null>(null); // key pending revoke confirmation; null when no revoke dialog is open
 
     /**
      * Creates a key via useCreateApiKey. On success, closes the create
@@ -77,7 +82,13 @@ const ApiKeysPage = () => {
                 )}
 
                 {apiKeys.map((key) => (
-                    <ApiKeyCard key={key.id} apiKey={key} />
+                    <ApiKeyCard
+                        key={key.id}
+                        apiKey={key}
+                        onRevoke={(id) =>
+                            setRevokingKey({ id, label: key.label })
+                        }
+                    />
                 ))}
             </div>
 
@@ -94,6 +105,18 @@ const ApiKeysPage = () => {
                 <RevealApiKeyModal
                     rawKey={revealRawKey}
                     onDone={handleRevealDone}
+                />
+            )}
+
+            {revokingKey && (
+                <RevokeApiKeyConfirmationModal
+                    keyId={revokingKey.id}
+                    label={revokingKey.label}
+                    onCancel={() => setRevokingKey(null)}
+                    onSuccess={() => {
+                        setRevokingKey(null);
+                        fetchAll();
+                    }}
                 />
             )}
         </Page>

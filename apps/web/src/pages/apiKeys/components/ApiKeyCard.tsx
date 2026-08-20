@@ -4,9 +4,17 @@ import { timeAgo } from "../../../utils/utils";
 
 /**
  * A single API key card showing its label, key prefix, revoked status,
- * and last-used/created timestamps. No revoke action yet.
+ * and last-used/created timestamps. Revoked keys have no actions; active
+ * keys show a Revoke button that calls onRevoke.
  */
-const ApiKeyCard = ({ apiKey }: { apiKey: ApiKeyDto }) => {
+const ApiKeyCard = ({
+    apiKey,
+    onRevoke,
+}: {
+    apiKey: ApiKeyDto;
+    /** Called with the key's id when the user clicks Revoke. */
+    onRevoke: (id: number) => void;
+}) => {
     const isRevoked = apiKey.revokedAt !== null;
 
     return (
@@ -39,6 +47,14 @@ const ApiKeyCard = ({ apiKey }: { apiKey: ApiKeyDto }) => {
                             : "Never used"}
                     </span>
                 </div>
+                {!isRevoked && (
+                    <button
+                        onClick={() => onRevoke(apiKey.id)}
+                        className="text-xs text-red-400 hover:opacity-80 transition cursor-pointer text-left"
+                    >
+                        Revoke
+                    </button>
+                )}
             </div>
         </div>
     );
