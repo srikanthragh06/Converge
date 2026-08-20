@@ -688,3 +688,29 @@ Exposes Converge's documents to AI agents via the Model Context Protocol (MCP) �
 - MCP tool surface validated with a live curl-based CRUD test pass covering auth, validation boundaries, atomicity, and access control, then separately verified end-to-end by wiring the server into a real Claude Code session as an MCP client and letting it drive multi-step document creation and editing on its own
 - The MCP-write checkpoint safety net verified end-to-end against the live dev server: two sequential MCP edits to a fresh document each produced exactly one `'mcp'`-sourced checkpoint immediately beforehand, correctly folding in everything since the last checkpoint
 
+---
+
+## MCP Tool Expansion — Workspaces, Search, Version History, Trash ✅
+
+> Branch: `release-mcp-2` — merged 2026-08-21
+
+Closes the read-only-discovery and reversibility gaps left by the first MCP release, without touching the higher-stakes access-control surface deliberately kept out of both. An agent previously had no way to discover a `workspaceId` on its own, no way to search rather than paginate, no way to see or act on version history, and no way to recover a document it had soft-deleted. Seven new tools address all four, bringing the MCP surface from 8 tools to 15.
+
+### Server (NestJS backend)
+
+- `listWorkspaces` — new `WorkspaceTools` (`WorkspaceModule`), a thin wrapper around `WorkspaceService.getWorkspaces`; the one tool from the first release that arguably should have shipped with it, since every other tool requires a `workspaceId` as input with no way to discover one
+- `searchDocuments` — trigram-similarity title search, mirrors `GET /document/library/search`; `DocumentSummaryToolSchema` extracted in `packages/shared/src/tools/document.ts` and reused by both `listDocuments` and `searchDocuments`'s response schemas rather than duplicating the document-summary shape
+- `listCheckpoints` / `getCheckpointContent` — read-only version-history access; `getCheckpointContent` decodes a checkpoint's base64 Yjs update into BlockNote block JSON server-side (`blocksFromYDoc` applied to a scratch `Y.Doc`) rather than returning the raw update bytes the HTTP endpoint returns, since an agent has no use for raw Yjs bytes
+- `restoreCheckpoint` — the one write action added, restoring a document's content (blocks only, not title — checkpoints never captured title) to a past checkpoint. New `restoreYDocFromBlocks` (`editor-schema.ts`) computes the restore as a genuine forward-only Yjs diff: bind a real BlockNote collaboration editor to a throwaway copy of the live doc, remove every current top-level block, and insert the checkpoint's blocks in their place — a CRDT can't be reverted by re-applying older update bytes onto a live doc, since Yjs merging is monotonic and never removes structs that are already present. Confirmed empirically (not assumed) that BlockNote's `replaceBlocks` honors an explicit `id` on an inserted block rather than always generating a fresh one, so a restore reproduces the checkpoint's exact block identities — unlike `updateDocumentBlocks`' Markdown-parsed inserts, which have no id of their own. `DocumentService.restoreCheckpoint` takes its own pre-write `'mcp'`-sourced checkpoint first, the same safety net `updateDocumentBlocks` already has, so a bad restore is itself just one more restore away from undo
+- `listDeletedDocuments` / `restoreDocument` — completes the trash workflow the first MCP release's Trash UI introduced; `deleteDocument`'s tool description, which previously claimed deletion "cannot be undone through the MCP tools," now correctly points to `restoreDocument`
+- All 15 tool descriptions audited together in one pass for accuracy and consistency: fixed one broken cross-reference (a description named a tool, `getDocumentMarkdown`, that doesn't exist — the real name is `readDocumentMarkdown`), and added explicit "Requires X access or higher" statements to every tool whose underlying service call throws on insufficient access, matching the phrasing tools that already had it used — left the tools that filter results at the query level instead of throwing (`listDocuments`, `searchDocuments`, `listDeletedDocuments`) with their existing non-"Requires" phrasing, since that's the more accurate description of their actual (non-throwing) behavior
+
+### Tooling
+
+- Every new tool verified end-to-end with live curl round-trips against the local dev server before being committed — not just typecheck/build — including a full write-and-revert test for `restoreCheckpoint` (two distinct versions written, restored to the first, confirmed a fresh `'mcp'` safety checkpoint captured the discarded second version) and a delete/restore/re-restore-fails test for `restoreDocument`
+- The full brainstorming and scoping process for what to add (and, as importantly, what to deliberately leave out — access-control tools, API-key management, workspace management, multimedia upload, presence — all judged too high-risk or too poor a fit for the stateless MCP model) was itself conducted through Converge's own MCP server, dogfooding `createDocument`/`updateDocumentBlocks` to write up the plan as a live Converge document
+
+## Upcoming
+
+- Workspace/document access-control MCP tools (grant/revoke per-user access, role overrides) — deliberately deferred out of both MCP releases so far as higher-stakes, permission-escalation-risk surface; would need much narrower scoping than a straight mirror of the HTTP endpoints before it's worth building
+
