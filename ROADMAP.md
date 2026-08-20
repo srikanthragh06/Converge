@@ -659,9 +659,9 @@ Both `apps/server` and `packages/shared` compiled to CommonJS via plain `tsc`, w
 
 ## MCP Server & Document Tools ✅
 
-> Branch: `release-mcp` — merged 2026-08-20
+> Branch: `release-mcp` — merged 2026-08-21
 
-Exposes Converge's documents to AI agents via the Model Context Protocol (MCP) — an agent holding an API key can list, create, read, edit, rename, and delete documents through a single `/mcp` endpoint, under the same access-control rules as a human editing through the browser.
+Exposes Converge's documents to AI agents via the Model Context Protocol (MCP) — an agent holding an API key can list, create, read, edit, rename, and delete documents through a single `/mcp` endpoint, under the same access-control rules as a human editing through the browser. Two safety nets round out the release: every MCP-driven edit takes an automatic checkpoint immediately beforehand, and a soft-deleted document can be restored from a Trash view instead of being gone for good.
 
 ### Server (NestJS backend)
 
@@ -674,10 +674,19 @@ Exposes Converge's documents to AI agents via the Model Context Protocol (MCP) �
 - `editorSchema` and the `DocumentBlock` type moved from `apps/web/src/lib` into `packages/shared/src/editor` — now the single source of truth for both server-side BlockNote usage (MCP tools, Markdown conversion) and the client editor, instead of being duplicated
 - `withMutex` (`apps/server/src/utils/async-mutex.ts`) — an in-process, promise-chain-based lock serializing every call that depends on `@blocknote/server-util`'s shared `globalThis.document`/`window` jsdom shim, an unprotected shared resource with no locking of its own
 - MCP-facing response schemas use ISO datetime strings rather than `Date`/`z.coerce.date()` — Zod's `toJSONSchema()`, called internally by the MCP SDK on every `tools/list`, throws on a raw `Date` type since JSON Schema has no equivalent
+- New `'mcp'` checkpoint source (migration `0031`, widening `document_updates.checkpoint_source`'s CHECK constraint) — `updateDocumentBlocks`, confirmed the only caller of `DocumentYjsService.applyDocUpdate` that isn't a live client edit, takes a synchronous checkpoint via `DocumentCheckpointService.createCheckpointInternal` immediately before every MCP write lands, so a human always has a restore point from right before an agent's change; sequential `await` alone gives the correctness guarantee (a write can never execute if the checkpoint call throws), so no shared DB transaction was needed
+- Soft-deleted documents can now be restored: `DocumentAccessService.resolveAccess` gained an `includeDeleted` flag (default `false`, all other callers unaffected) so access can be checked on a document specifically because it's deleted; `DocumentService.restoreDocument` (admin+) clears `is_deleted`/`deleted_at` via a single conditional `UPDATE ... WHERE is_deleted = true RETURNING id`, making the "already restored" check atomic with the write instead of racing under concurrent restores; `DocumentService.getTrashDocuments` lists a workspace's deleted documents with the same keyset-pagination and access-CASE pattern as `getLibraryDocuments`, scoped to admin+; new routes `POST /document/:id/restore` and `GET /document/trash`
+
+### Web (React frontend)
+
+- New API Keys page (`/api-keys`, sidebar entry) — lists a user's keys with create (one-time raw-key reveal modal) and revoke (confirmation dialog) flows, backed by `useApiKeys`/`useCreateApiKey`/`useRevokeApiKey`
+- New Trash tab on the Library page — reuses the existing page's search/create header area for a Library/Trash toggle; Trash lists soft-deleted documents with the same skeleton/infinite-scroll shape as the library list and a Restore action per row, via a new `useTrash` hook mirroring `useLibrary`'s keyset-pagination pattern
+- Both `useLibrary` and `useTrash` now take an `enabled` flag and only fetch while their tab is active, re-fetching on every activation — otherwise both lists would fetch unconditionally on every Library page mount regardless of which tab is showing, and switching back to a tab wouldn't reflect changes made while it was hidden
 
 ### Tooling
 
 - MCP tool surface validated with a live curl-based CRUD test pass covering auth, validation boundaries, atomicity, and access control, then separately verified end-to-end by wiring the server into a real Claude Code session as an MCP client and letting it drive multi-step document creation and editing on its own
+- The MCP-write checkpoint safety net verified end-to-end against the live dev server: two sequential MCP edits to a fresh document each produced exactly one `'mcp'`-sourced checkpoint immediately beforehand, correctly folding in everything since the last checkpoint
 
 ---
 

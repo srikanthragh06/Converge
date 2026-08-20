@@ -82,8 +82,8 @@ One row per document. Stores the title and per-doc role overrides. Does not stor
 | `admin_doc_access` | `document_access_level` | nullable | Per-doc override for workspace admins; NULL means inherit workspace default |
 | `member_doc_access` | `document_access_level` | nullable | Per-doc override for workspace members; NULL means inherit workspace default |
 | `non_member_doc_access` | `document_access_level` | nullable | Per-doc override for non-members; NULL means inherit workspace default |
-| `is_deleted` | `boolean` | NOT NULL, default `false` | Soft-delete flag; all read queries filter on `is_deleted = false` |
-| `deleted_at` | `timestamptz` | nullable | Set to `now()` when soft-deleted; null until then |
+| `is_deleted` | `boolean` | NOT NULL, default `false` | Soft-delete flag; all read queries filter on `is_deleted = false`. Cleared back to `false` by `POST /document/:id/restore` (admin+) |
+| `deleted_at` | `timestamptz` | nullable | Set to `now()` when soft-deleted; cleared back to `null` on restore |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 
 > `update_count` and `last_compact_count` were dropped (migration `0027`) alongside the removal of count-based compaction — see `document_updates` below.
@@ -108,7 +108,7 @@ Append-only log of raw Yjs binary update payloads. The full document state is re
 | `document_id` | `bigint` | NOT NULL, FK → `documents.id` ON DELETE CASCADE, indexed | Scopes each update row to a specific document |
 | `update` | `bytea` | NOT NULL | Raw Yjs update binary; deserialised to `Buffer` by the `pg` driver |
 | `is_checkpoint` | `boolean` | NOT NULL, default `false` | True if this row is a merged version-history checkpoint rather than a single unfolded edit |
-| `checkpoint_source` | `text` | nullable, CHECK (`NULL` \| `manual` \| `idle` \| `interval`) | What triggered this checkpoint; NULL for non-checkpoint rows |
+| `checkpoint_source` | `text` | nullable, CHECK (`NULL` \| `manual` \| `idle` \| `interval` \| `mcp`) | What triggered this checkpoint; NULL for non-checkpoint rows. `mcp` (migration `0031`) is taken synchronously right before `updateDocumentBlocks` applies an MCP-driven write, so an agent's edit always has a checkpoint immediately preceding it |
 | `content_last_edited_at` | `timestamptz` | nullable | Max `created_at` across the raw rows folded into this checkpoint — distinct from this row's own `created_at` (the checkpoint's insertion time), which can lag it by up to the idle-trigger delay for automatic checkpoints. NULL for non-checkpoint rows |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 
@@ -120,7 +120,7 @@ Append-only log of raw Yjs binary update payloads. The full document state is re
 | `idx_document_updates_document_id` | `document_id` | B-tree | Explicit — 0004 | Scopes every Yjs update query to a specific document. Hit on every `loadDoc`, every `applyDocUpdate`, and every repair-sync handshake that reads historical updates. |
 | `idx_document_updates_document_id_is_checkpoint` | `(document_id, id)` WHERE `is_checkpoint` | B-tree partial | Explicit — 0025 | Serves `listCheckpoints` and `getCheckpointContent`, both of which filter `WHERE document_id = ? AND is_checkpoint = true`. Partial on `is_checkpoint` keeps the index small since the vast majority of rows are non-checkpoint edits. |
 
-> **Checkpoints:** A checkpoint is created by merging every row since the previous checkpoint (or the beginning, if none exists) into one new row flagged `is_checkpoint = true`, then deleting the folded rows — this is the only merge mechanism for `document_updates` now, replacing the old count-based compaction. Creation is driven by `DocumentCheckpointService`, either manually (`POST /document/:id/checkpoint`, editor+) or automatically via `DocumentCheckpointSchedulerService`'s two pg-boss timers: an idle timer (90s after the last edit) and an interval timer (every 360s while edits keep coming). Reconstructing a checkpoint's content merges every `is_checkpoint` row up to and including it, in `id` order.
+> **Checkpoints:** A checkpoint is created by merging every row since the previous checkpoint (or the beginning, if none exists) into one new row flagged `is_checkpoint = true`, then deleting the folded rows — this is the only merge mechanism for `document_updates` now, replacing the old count-based compaction. Creation is driven by `DocumentCheckpointService`, either manually (`POST /document/:id/checkpoint`, editor+), automatically via `DocumentCheckpointSchedulerService`'s two pg-boss timers (an idle timer 90s after the last edit, and an interval timer every 360s while edits keep coming), or synchronously right before an MCP-driven write in `updateDocumentBlocks` (source `mcp`) — the only one of the three that isn't fire-and-forget, since a write can't be allowed to land without its preceding checkpoint. Reconstructing a checkpoint's content merges every `is_checkpoint` row up to and including it, in `id` order.
 
 ---
 

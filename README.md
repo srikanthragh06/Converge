@@ -13,8 +13,8 @@ https://github.com/user-attachments/assets/e74a9a3b-8cf7-4625-925d-6fce35e5bfdd
 - **Rich-text editor** built on BlockNote, with image, video, and audio upload support
 - **Workspaces** to organize documents into shared spaces with owner, admin, and member roles
 - **Granular access control** with four tiers: workspace role defaults, per-doc overrides, explicit user grants, and workspace owner
-- **Document library** with full-text search, infinite scroll, and a keyboard-navigable switcher (Ctrl+P)
-- **AI agent access via MCP** — a Model Context Protocol server exposes documents to AI agents over API-key auth (list, create, read, edit, rename, delete), enforcing the same access control as the browser editor
+- **Document library** with full-text search, infinite scroll, a keyboard-navigable switcher (Ctrl+P), and a Trash tab for restoring soft-deleted documents
+- **AI agent access via MCP** — a Model Context Protocol server exposes documents to AI agents over API-key auth (list, create, read, edit, rename, delete), enforcing the same access control as the browser editor; every agent-driven edit takes an automatic checkpoint beforehand so it can always be undone, and keys are self-served from a dedicated API Keys page
 - **Google OAuth** with secure httpOnly cookie sessions
 
 ## Architecture
@@ -47,6 +47,9 @@ A shared package (`@converge/shared`) owns all socket event schemas and HTTP DTO
 
 **Markdown-authored document edits over MCP**
 The MCP write tool applies a batch of id-addressed block edits (replace/insert/remove) as one atomic save, with new content authored as plain Markdown rather than raw editor JSON — an agent writing Markdown is far more reliable than one constructing BlockNote's nested block schema by hand, and standard Markdown syntax already covers most block types (headings, lists, tables, code blocks, checklists) with no per-type translation needed.
+
+**Checkpoints as an AI-agent safety net**
+An AI agent editing a document unsupervised is more likely to make a large, unwanted change than a human making many small ones — so every MCP-driven edit takes a synchronous checkpoint immediately beforehand, tagged with its own source so it's distinguishable from manual and scheduled ones. It's built entirely on the existing checkpoint mechanism with no new infrastructure: one extra call, one new allowed value on an existing column.
 
 ## Stack
 
