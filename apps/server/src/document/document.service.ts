@@ -1,5 +1,6 @@
 import { createHmac, randomUUID } from 'crypto';
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   InternalServerErrorException,
@@ -12,6 +13,8 @@ import {
   LibraryDocumentDto,
   GetLibraryDocumentsResponseDto,
   SearchLibraryDocumentsResponseDto,
+  type TrashDocumentDto,
+  type GetTrashDocumentsResponseDto,
   type GetUploadAuthResponseDto,
   hasWorkspaceRole,
   type ResolvedDocumentAccessLevel,
@@ -421,6 +424,137 @@ export class DocumentService {
       .set({ is_deleted: true, deleted_at: new Date() })
       .where('id', '=', documentId)
       .execute();
+  }
+
+  /**
+   * Restores a soft-deleted document, reversing deleteDocument. Throws
+   * NotFoundException if the document does not exist at all,
+   * ForbiddenException if the requesting user has less than admin access,
+   * and ConflictException if the document is not currently deleted.
+   * @param documentId - the document to restore
+   * @param userId - the authenticated user performing the restore
+   */
+  async restoreDocument(documentId: number, userId: number): Promise<void> {
+    const db = this.dbService.kysely;
+
+    // Resolve access including deleted documents — the document being
+    // deleted is precisely the case this call needs to see through.
+    const access = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+      true,
+    );
+    if (!hasAccess(access, 'admin'))
+      throw new ForbiddenException(
+        'You must have admin access to restore this document.',
+      );
+
+    // Clear is_deleted and deleted_at in one conditional update — gating the
+    // WHERE on is_deleted = true makes the "already restored" check atomic
+    // with the write itself, so two concurrent restores can't both report
+    // success.
+    const result = await db
+      .updateTable('documents')
+      .set({ is_deleted: false, deleted_at: null })
+      .where('id', '=', documentId)
+      .where('is_deleted', '=', true)
+      .returning('id')
+      .executeTakeFirst();
+    if (!result) throw new ConflictException('Document is not deleted.');
+  }
+
+  /**
+   * Returns a paginated list of soft-deleted documents in the given
+   * workspace that the user has admin+ access to, ordered by deleted_at
+   * DESC with id DESC as a tiebreaker. Uses keyset pagination via a
+   * compound cursor, mirroring getLibraryDocuments. Scoped to admin+
+   * because that's also the access level required to restore a document —
+   * viewers and editors would see entries they cannot act on.
+   * @param userId - the authenticated user whose trash to list
+   * @param workspaceId - the workspace to scope the trash to
+   * @param limit - maximum number of documents to return
+   * @param cursor - compound cursor from the previous page; omit for the first page
+   * @returns trashed documents for this page and the nextCursor to fetch the following page
+   */
+  async getTrashDocuments(
+    userId: number,
+    workspaceId: number,
+    limit: number,
+    cursor?: { deletedAt: Date; id: number },
+  ): Promise<GetTrashDocumentsResponseDto> {
+    const db = this.dbService.kysely;
+
+    // Inner subquery: join all tables and compute the resolved access level,
+    // same five-tier CASE as getLibraryDocuments but scoped to deleted docs.
+    const inner = db
+      .selectFrom('documents as d')
+      .innerJoin('workspaces as w', 'w.id', 'd.workspace_id')
+      .leftJoin('workspace_members as wm', (join) =>
+        join
+          .onRef('wm.workspace_id', '=', 'd.workspace_id')
+          .on('wm.user_id', '=', userId),
+      )
+      .leftJoin('document_access as da', (join) =>
+        join.onRef('da.document_id', '=', 'd.id').on('da.user_id', '=', userId),
+      )
+      .select([
+        'd.id',
+        'd.title',
+        'd.deleted_at as deletedAt',
+        sql<ResolvedDocumentAccessLevel>`
+          CASE
+            WHEN wm.role = 'owner' THEN 'owner'
+            WHEN da.access IS NOT NULL THEN da.access
+            WHEN wm.role = 'admin' THEN COALESCE(d.admin_doc_access, w.admin_doc_access)
+            WHEN wm.role = 'member' THEN COALESCE(d.member_doc_access, w.member_doc_access)
+            ELSE COALESCE(d.non_member_doc_access, w.non_member_doc_access)
+          END
+        `.as('access'),
+      ])
+      .where('d.is_deleted', '=', true)
+      .where('d.workspace_id', '=', workspaceId)
+      .as('r');
+
+    // Outer query: filter to admin+, apply ordering and pagination.
+    let query = db
+      .selectFrom(inner)
+      .selectAll()
+      .where('r.access', 'in', ['admin', 'owner'])
+      .orderBy('r.deletedAt', 'desc')
+      .orderBy('r.id', 'desc')
+      .limit(limit);
+
+    // Keyset pagination on the (deletedAt, id) compound cursor.
+    if (cursor) {
+      query = query.where((eb) =>
+        eb.or([
+          eb('r.deletedAt', '<', cursor.deletedAt),
+          eb.and([
+            eb('r.deletedAt', '=', cursor.deletedAt),
+            eb('r.id', '<', cursor.id),
+          ]),
+        ]),
+      );
+    }
+
+    const rows = await query.execute();
+
+    const documents: TrashDocumentDto[] = rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      deletedAt: row.deletedAt as Date,
+    }));
+
+    // nextCursor is null when there are no more results.
+    const nextCursor =
+      rows.length === limit
+        ? {
+            deletedAt: rows[rows.length - 1].deletedAt as Date,
+            id: rows[rows.length - 1].id,
+          }
+        : null;
+
+    return { documents, nextCursor };
   }
 
   /**

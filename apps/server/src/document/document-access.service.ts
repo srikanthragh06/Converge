@@ -27,19 +27,26 @@ export class DocumentAccessService {
    * Resolves the effective access level for a user on a document. Resolution
    * order: workspace owner → explicit document_access row → document-level
    * per-role override → workspace-level per-role default.
-   * Throws NotFoundException if the document does not exist or is deleted.
+   * Throws NotFoundException if the document does not exist, or is deleted
+   * and includeDeleted is false.
    * @param documentId - the document to resolve access for
    * @param userId - the user whose access level to resolve
+   * @param includeDeleted - if true, also resolves access for soft-deleted
+   * documents; needed by restoreDocument, which must check access on a
+   * document precisely because it's still deleted. Defaults to false so
+   * every other caller keeps treating deleted documents as not found.
    * @returns the resolved access level
    */
   async resolveAccess(
     documentId: number,
     userId: number,
+    includeDeleted = false,
   ): Promise<ResolvedDocumentAccessLevel> {
     const db = this.dbService.kysely;
 
-    // Step 1: fetch the document — verify it exists and is not deleted.
-    const docRow = await db
+    // Step 1: fetch the document — verify it exists (and, unless
+    // includeDeleted, that it is not soft-deleted).
+    let docQuery = db
       .selectFrom('documents')
       .select([
         'workspace_id',
@@ -47,9 +54,9 @@ export class DocumentAccessService {
         'member_doc_access',
         'non_member_doc_access',
       ])
-      .where('id', '=', documentId)
-      .where('is_deleted', '=', false)
-      .executeTakeFirst();
+      .where('id', '=', documentId);
+    if (!includeDeleted) docQuery = docQuery.where('is_deleted', '=', false);
+    const docRow = await docQuery.executeTakeFirst();
 
     if (!docRow) throw new NotFoundException('Document not found.');
 
