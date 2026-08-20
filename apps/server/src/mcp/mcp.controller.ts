@@ -11,6 +11,8 @@ import {
   ListWorkspacesToolResponseSchema,
   ListDocumentsToolInputSchema,
   ListDocumentsToolResponseSchema,
+  SearchDocumentsToolInputSchema,
+  SearchDocumentsToolResponseSchema,
   GetDocumentMetadataToolInputSchema,
   GetDocumentMetadataToolResponseSchema,
   ReadDocumentMarkdownToolInputSchema,
@@ -63,7 +65,7 @@ export class McpController {
       {
         title: 'List Workspaces',
         description:
-          "Lists every workspace the caller is a member of, along with the caller's role in each. Use this to find a workspaceId for listDocuments/createDocument when one isn't already known.",
+          "Lists every workspace the caller is a member of, along with the caller's role in each. Use this to find a workspaceId for listDocuments/searchDocuments/createDocument when one isn't already known.",
         inputSchema: ListWorkspacesToolInputSchema,
         outputSchema: ListWorkspacesToolResponseSchema,
       },
@@ -95,6 +97,26 @@ export class McpController {
         // calling model actually reads in-context, while structuredContent
         // is the schema-validated form for programmatic consumers — a
         // client isn't guaranteed to forward one into the other.
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'searchDocuments',
+      {
+        title: 'Search Documents',
+        description:
+          "Searches documents in a workspace by title, matching by similarity rather than exact text — ordered by relevance descending. Use this instead of listDocuments when looking for a specific document by name.",
+        inputSchema: SearchDocumentsToolInputSchema,
+        outputSchema: SearchDocumentsToolResponseSchema,
+      },
+      async (input) => {
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.searchDocuments(userId, input),
+        );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
           structuredContent: result,

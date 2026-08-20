@@ -18,6 +18,8 @@ export type {
 export {
     ListDocumentsToolInputSchema,
     ListDocumentsToolResponseSchema,
+    SearchDocumentsToolInputSchema,
+    SearchDocumentsToolResponseSchema,
     GetDocumentMetadataToolInputSchema,
     GetDocumentMetadataToolResponseSchema,
     ReadDocumentMarkdownToolInputSchema,
@@ -36,6 +38,8 @@ export {
 export type {
     ListDocumentsToolInputDto,
     ListDocumentsToolResponseDto,
+    SearchDocumentsToolInputDto,
+    SearchDocumentsToolResponseDto,
     GetDocumentMetadataToolInputDto,
     GetDocumentMetadataToolResponseDto,
     ReadDocumentMarkdownToolInputDto,

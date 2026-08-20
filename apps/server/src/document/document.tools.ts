@@ -3,6 +3,8 @@ import { DocumentService } from './document.service.js';
 import {
   type ListDocumentsToolInputDto,
   type ListDocumentsToolResponseDto,
+  type SearchDocumentsToolInputDto,
+  type SearchDocumentsToolResponseDto,
   type GetDocumentMetadataToolInputDto,
   type GetDocumentMetadataToolResponseDto,
   type ReadDocumentMarkdownToolInputDto,
@@ -66,6 +68,35 @@ export class DocumentTools {
             lastVisitedAt: result.nextCursor.lastVisitedAt?.toISOString() ?? null,
           }
         : null,
+    };
+  }
+
+  /**
+   * Searches documents in a workspace visible to the calling user by title,
+   * ordered by relevance. Mirrors GET /document/library/search, except dates
+   * are ISO strings rather than Date objects — MCP tool schemas can't
+   * represent a Date type (see SearchDocumentsToolResponseSchema).
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the workspace to search in, the title query, and an
+   * optional result limit
+   */
+  async searchDocuments(
+    userId: number,
+    input: SearchDocumentsToolInputDto,
+  ): Promise<SearchDocumentsToolResponseDto> {
+    const result = await this.documentService.searchLibraryDocuments(
+      userId,
+      input.workspaceId,
+      input.title,
+      input.limit ?? 20,
+    );
+
+    return {
+      documents: result.documents.map((doc) => ({
+        ...doc,
+        lastVisitedAt: doc.lastVisitedAt?.toISOString() ?? null,
+        lastEditedAt: doc.lastEditedAt?.toISOString() ?? null,
+      })),
     };
   }
 

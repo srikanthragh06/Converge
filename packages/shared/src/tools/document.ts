@@ -38,26 +38,29 @@ export type ListDocumentsToolInputDto = {
     cursor?: { lastVisitedAt: string | null; id: number };
 };
 
+// Shared by both ListDocumentsToolResponseSchema and
+// SearchDocumentsToolResponseSchema below — same document summary shape
+// either way, just a different set of matching documents.
+const DocumentSummaryToolSchema = z.object({
+    id: z.number(),
+    title: z.string(),
+    access: ResolvedDocumentAccessLevelSchema.describe(
+        "The caller's resolved access level for this document.",
+    ),
+    lastVisitedAt: z.iso.datetime().nullable().describe(
+        "When the calling user last visited this document. Null if never visited.",
+    ),
+    lastEditedAt: z.iso.datetime().nullable().describe(
+        "When the calling user last edited this document. Null if never edited.",
+    ),
+});
+
 // A separate response shape from the HTTP GetLibraryDocumentsResponseSchema
 // (http/document.ts) — same reason as GetDocumentMetadataToolResponseSchema
 // above: that schema's date fields use z.coerce.date(), which can't be
 // converted to JSON Schema for tools/list.
 export const ListDocumentsToolResponseSchema = z.object({
-    documents: z.array(
-        z.object({
-            id: z.number(),
-            title: z.string(),
-            access: ResolvedDocumentAccessLevelSchema.describe(
-                "The caller's resolved access level for this document.",
-            ),
-            lastVisitedAt: z.iso.datetime().nullable().describe(
-                "When the calling user last visited this document. Null if never visited.",
-            ),
-            lastEditedAt: z.iso.datetime().nullable().describe(
-                "When the calling user last edited this document. Null if never edited.",
-            ),
-        }),
-    ),
+    documents: z.array(DocumentSummaryToolSchema),
     nextCursor: z
         .object({
             lastVisitedAt: z.iso.datetime().nullable(),
@@ -71,6 +74,37 @@ export const ListDocumentsToolResponseSchema = z.object({
 
 export type ListDocumentsToolResponseDto = z.infer<
     typeof ListDocumentsToolResponseSchema
+>;
+
+export const SearchDocumentsToolInputSchema = {
+    workspaceId: z.coerce.number().int().positive().describe(
+        "The workspace to search documents in.",
+    ),
+    title: z.string().min(1).max(256).describe(
+        "The search query, matched against document titles by similarity. Must be non-empty.",
+    ),
+    limit: z.coerce.number().int().positive().optional().describe(
+        "Max documents to return. Defaults to 20.",
+    ),
+};
+
+export type SearchDocumentsToolInputDto = {
+    workspaceId: number;
+    title: string;
+    limit?: number;
+};
+
+// No pagination — unlike listDocuments, search results are already ranked
+// by relevance, so a single best-effort page (capped by limit) covers the
+// "find the doc about X" use case this tool exists for.
+export const SearchDocumentsToolResponseSchema = z.object({
+    documents: z.array(DocumentSummaryToolSchema).describe(
+        "Matching documents ordered by title similarity score descending.",
+    ),
+});
+
+export type SearchDocumentsToolResponseDto = z.infer<
+    typeof SearchDocumentsToolResponseSchema
 >;
 
 export const GetDocumentMetadataToolInputSchema = {
