@@ -14,6 +14,7 @@ https://github.com/user-attachments/assets/e74a9a3b-8cf7-4625-925d-6fce35e5bfdd
 - **Workspaces** to organize documents into shared spaces with owner, admin, and member roles
 - **Granular access control** with four tiers: workspace role defaults, per-doc overrides, explicit user grants, and workspace owner
 - **Document library** with full-text search, infinite scroll, and a keyboard-navigable switcher (Ctrl+P)
+- **AI agent access via MCP** — a Model Context Protocol server exposes documents to AI agents over API-key auth (list, create, read, edit, rename, delete), enforcing the same access control as the browser editor
 - **Google OAuth** with secure httpOnly cookie sessions
 
 ## Architecture
@@ -44,13 +45,16 @@ Two Docker Compose projects (blue on ports 5001-5003, green on 5004-5006) sit be
 **End-to-end type safety**
 A shared package (`@converge/shared`) owns all socket event schemas and HTTP DTOs as Zod schemas. `ZodHttpValidationPipe` validates request bodies server-side; `socketEmit` / `socketReceive` wrappers validate every payload at the socket boundary on the client.
 
+**Markdown-authored document edits over MCP**
+The MCP write tool applies a batch of id-addressed block edits (replace/insert/remove) as one atomic save, with new content authored as plain Markdown rather than raw editor JSON — an agent writing Markdown is far more reliable than one constructing BlockNote's nested block schema by hand, and standard Markdown syntax already covers most block types (headings, lists, tables, code blocks, checklists) with no per-type translation needed.
+
 ## Stack
 
 | Layer | Tech |
 |---|---|
 | Frontend | React 19, Vite, TypeScript, Tailwind CSS v3, Jotai |
 | Editor | BlockNote (ProseMirror + Tiptap), Yjs, y-prosemirror |
-| Backend | NestJS 11, Socket.io, Kysely, PostgreSQL 16 |
+| Backend | NestJS 11, Socket.io, Kysely, PostgreSQL 16, MCP SDK |
 | Infrastructure | Redis 7, Docker, nginx, Supabase (DB), Upstash (Redis) |
 | Shared | Zod schemas and TypeScript types via `@converge/shared` |
 

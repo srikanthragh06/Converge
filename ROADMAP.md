@@ -655,3 +655,33 @@ Both `apps/server` and `packages/shared` compiled to CommonJS via plain `tsc`, w
 - Verified end-to-end at every stage: clean typecheck, a full `nest build` with the real compiled ESM output inspected directly, a live boot in the docker dev stack with real Postgres/Redis connections and real HTTP requests, and (after the `jsonwebtoken` fix) `jwt.sign`/`jwt.verify` confirmed working against the actual compiled code inside the running container
 - `apps/web` needed no changes — Vite already handles ESM dependencies natively
 
+---
+
+## MCP Server & Document Tools ✅
+
+> Branch: `release-mcp` — merged 2026-08-20
+
+Exposes Converge's documents to AI agents via the Model Context Protocol (MCP) — an agent holding an API key can list, create, read, edit, rename, and delete documents through a single `/mcp` endpoint, under the same access-control rules as a human editing through the browser.
+
+### Server (NestJS backend)
+
+- New `api_keys` table (migration `0030`) and `ApiKeyModule` — long-lived credentials for non-browser callers (MCP, CLI, scripts) that inherit the full permissions of the owning user; only a SHA-256 hash of the raw key is ever stored, and the raw key is shown once at creation and never recoverable again; `/api-keys` CRUD routes (session-authenticated) let a user create, list, and revoke their own keys; `ApiKeyGuard` resolves a `Bearer` key from the `Authorization` header to a `userId`, mirroring how `AuthGuard` stamps `userId` from a session cookie
+- New `/mcp` endpoint (`McpModule`/`McpController`), guarded by `ApiKeyGuard`, exposing 8 tools on `@modelcontextprotocol/sdk`'s Streamable HTTP transport in stateless mode — a fresh `McpServer` and transport per request, no session state to manage: `listDocuments`, `createDocument`, `getDocumentMetadata`, `readDocumentMarkdown`, `getDocumentBlocks`, `updateDocumentBlocks`, `updateDocumentTitle`, `deleteDocument`
+- `updateDocumentBlocks` applies a batch of id-addressed block edits (`replace`/`insert`/`remove`) as one atomic save — new content is authored as plain Markdown rather than raw BlockNote JSON, since standard Markdown syntax already maps onto most of the app's block types with no per-block-type rules needed
+- New documents are seeded with a single empty block at creation (`seedInitialDocumentUpdate`, built via `@blocknote/server-util`'s `blocksToYDoc`) — without it, a freshly created document had zero blocks and no way to add its first content, since both `replace` and `insert` require an existing block id to target
+- Room broadcasting consolidated into `DocumentYjsService.applyDocUpdate`/`applyDocTitleUpdate` themselves (new optional `excludeSocket` param) rather than left to every caller to remember — closes a same-instance broadcast gap where a server-originated write with no originating socket (e.g. from an MCP tool) reached other server instances via Redis but never the writing instance's own locally-connected viewers, since `RedisService.subscribe` filters out an instance's own published messages
+- MCP tool error messages are curated via `withMcpErrorHandling` so internal error details are never leaked to a calling agent — mirrors `GlobalExceptionFilter`'s behavior for HTTP/WebSocket handlers, which the MCP endpoint bypasses entirely by handing raw req/res straight to the SDK transport
+- `editorSchema` and the `DocumentBlock` type moved from `apps/web/src/lib` into `packages/shared/src/editor` — now the single source of truth for both server-side BlockNote usage (MCP tools, Markdown conversion) and the client editor, instead of being duplicated
+- `withMutex` (`apps/server/src/utils/async-mutex.ts`) — an in-process, promise-chain-based lock serializing every call that depends on `@blocknote/server-util`'s shared `globalThis.document`/`window` jsdom shim, an unprotected shared resource with no locking of its own
+- MCP-facing response schemas use ISO datetime strings rather than `Date`/`z.coerce.date()` — Zod's `toJSONSchema()`, called internally by the MCP SDK on every `tools/list`, throws on a raw `Date` type since JSON Schema has no equivalent
+
+### Tooling
+
+- MCP tool surface validated with a live curl-based CRUD test pass covering auth, validation boundaries, atomicity, and access control, then separately verified end-to-end by wiring the server into a real Claude Code session as an MCP client and letting it drive multi-step document creation and editing on its own
+
+---
+
+## Upcoming
+
+- Workspace and access-control MCP tools (create/list workspaces, grant/revoke document access) — deliberately out of scope for this release; letting an agent grant *other people* access to documents is a higher-stakes capability than editing content and warrants its own design pass (rate limits, audit trail, confirmation semantics)
+

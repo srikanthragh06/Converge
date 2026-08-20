@@ -183,6 +183,31 @@ Explicit per-user access grants for a document. This is tier 2 in the 4-tier acc
 
 ---
 
+### `api_keys`
+Long-lived credentials for non-browser callers (MCP, CLI, scripts) that inherit the full permissions of the owning user. Only a hash of the raw key is ever stored.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `bigserial` | PK | |
+| `user_id` | `bigint` | NOT NULL, FK → `users.id` ON DELETE CASCADE | Whose permissions this key inherits |
+| `key_hash` | `text` | NOT NULL, UNIQUE | SHA-256 hash of the raw key; the raw key itself is never stored and is shown to the user once, at creation |
+| `key_prefix` | `text` | NOT NULL | First few characters of the raw key, shown in listings so a user can identify which key is which without ever re-displaying the secret |
+| `label` | `text` | NOT NULL | User-chosen name, e.g. "Claude Code - laptop" |
+| `last_used_at` | `timestamptz` | nullable | Updated fire-and-forget on every successful `validateApiKey` call; null until first use |
+| `revoked_at` | `timestamptz` | nullable | Soft revoke — a revoked key stays visible in history but fails auth; null while active |
+| `created_at` | `timestamptz` | NOT NULL, default `now()` | |
+
+#### Indexes
+
+| Index | Columns | Type | Source | Purpose |
+|---|---|---|---|---|
+| `api_keys_pkey` | `id` | B-tree | Implicit — PK | Fast row lookup by primary key. |
+| `api_keys_key_hash_key` | `key_hash` | B-tree unique | Implicit — UNIQUE | Serves `validateApiKey`'s lookup (`WHERE key_hash = ?`) on every authenticated MCP/API-key request, and enforces no two keys hash to the same value. |
+
+> No index on `user_id` — `listApiKeys` (`WHERE user_id = ?`) currently does a sequential scan, acceptable given how few keys a single user is expected to hold.
+
+---
+
 ## Redis
 
 ### Pub/Sub Channels
