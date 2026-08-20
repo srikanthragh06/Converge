@@ -28,6 +28,8 @@ export {
     UpdateDocumentBlocksToolInputSchema,
     UpdateDocumentBlocksResponseSchema,
     CreateDocumentToolInputSchema,
+    UpdateDocumentTitleToolInputSchema,
+    UpdateDocumentTitleResponseSchema,
 } from "./tools/document.js";
 export type {
     ListDocumentsToolInputDto,
@@ -42,6 +44,8 @@ export type {
     UpdateDocumentBlocksToolInputDto,
     UpdateDocumentBlocksResponseDto,
     CreateDocumentToolInputDto,
+    UpdateDocumentTitleToolInputDto,
+    UpdateDocumentTitleResponseDto,
 } from "./tools/document.js";
 export {
     CreateCheckpointResponseSchema,

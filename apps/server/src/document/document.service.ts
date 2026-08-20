@@ -249,6 +249,42 @@ export class DocumentService {
   }
 
   /**
+   * Renames a document. Throws NotFoundException if the document does not
+   * exist, ForbiddenException if the requesting user has less than editor
+   * access — matching the check SYNC_DOC_TITLE_SERVER enforces for a live
+   * client rename. Doesn't schedule a checkpoint: SYNC_DOC_TITLE_SERVER's
+   * handler doesn't either, since title isn't part of the Yjs content log
+   * checkpoints are built from.
+   * @param documentId - the document to rename
+   * @param userId - the ID of the authenticated requesting user
+   * @param title - the document's new title
+   * @returns the document's title after the update
+   */
+  async updateDocumentTitle(
+    documentId: number,
+    userId: number,
+    title: string,
+  ): Promise<string> {
+    // Resolve access — throws NotFoundException if the document does not exist.
+    const access = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+    );
+    if (!hasAccess(access, 'editor'))
+      throw new ForbiddenException(
+        'You must have editor access to rename this document.',
+      );
+
+    // Persists and broadcasts the same way a real client's rename does — no
+    // socket originates this write, so nothing is excluded from the
+    // broadcast (see applyDocTitleUpdate).
+    await this.documentYjsService.applyDocTitleUpdate(documentId, title);
+    await this.documentYjsService.recordLastEdited(documentId, userId);
+
+    return title;
+  }
+
+  /**
    * Returns overview metadata for the given document: title, creator and owner
    * name and email, and creation date. Throws NotFoundException if the document
    * does not exist or is deleted, and ForbiddenException if the requesting user

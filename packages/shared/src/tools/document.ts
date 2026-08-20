@@ -246,3 +246,28 @@ export type CreateDocumentToolInputDto = {
 // (http/document.ts) is just { documentId: number }, no date fields, so
 // there's no JSON-Schema-conversion issue to work around here (unlike the
 // list/metadata tools) and nothing to gain by duplicating it.
+
+export const UpdateDocumentTitleToolInputSchema = {
+    documentId: z.coerce.number().int().positive().describe(
+        "The document to rename.",
+    ),
+    // Same rule as the live rename path (SyncDocTitleServerSchema in
+    // socket/socket.ts) and createDocument's optional title above — kept in
+    // sync so a title is valid regardless of which path set it.
+    title: z.string().trim().max(256).describe(
+        "The document's new title.",
+    ),
+};
+
+export type UpdateDocumentTitleToolInputDto = {
+    documentId: number;
+    title: string;
+};
+
+export const UpdateDocumentTitleResponseSchema = z.object({
+    title: z.string().describe("The document's title after the update."),
+});
+
+export type UpdateDocumentTitleResponseDto = z.infer<
+    typeof UpdateDocumentTitleResponseSchema
+>;

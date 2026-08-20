@@ -18,6 +18,8 @@ import {
   UpdateDocumentBlocksResponseSchema,
   CreateDocumentToolInputSchema,
   CreateDocumentResponseSchema,
+  UpdateDocumentTitleToolInputSchema,
+  UpdateDocumentTitleResponseSchema,
 } from '@converge/shared';
 
 // Exposes a single MCP endpoint over the Streamable HTTP transport. The MCP
@@ -164,6 +166,25 @@ export class McpController {
       async (input) => {
         const result = await withMcpErrorHandling(() =>
           this.documentTools.updateDocumentBlocks(userId, input),
+        );
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'updateDocumentTitle',
+      {
+        title: 'Update Document Title',
+        description: 'Renames a document. Requires editor access or higher.',
+        inputSchema: UpdateDocumentTitleToolInputSchema,
+        outputSchema: UpdateDocumentTitleResponseSchema,
+      },
+      async (input) => {
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.updateDocumentTitle(userId, input),
         );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],

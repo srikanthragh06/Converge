@@ -13,6 +13,8 @@ import {
   type UpdateDocumentBlocksResponseDto,
   type CreateDocumentToolInputDto,
   type CreateDocumentResponseDto,
+  type UpdateDocumentTitleToolInputDto,
+  type UpdateDocumentTitleResponseDto,
 } from '@converge/shared';
 
 // MCP tool handlers for the document feature. Thin wrappers around
@@ -170,5 +172,26 @@ export class DocumentTools {
       input.title,
     );
     return { documentId };
+  }
+
+  /**
+   * Renames a document. updateDocumentTitle throws
+   * NotFoundException/ForbiddenException on missing/inaccessible documents —
+   * left uncaught here since the MCP SDK already converts a thrown error
+   * into a proper isError tool result.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the document to rename and its new title (already
+   * trimmed and length-checked by UpdateDocumentTitleToolInputSchema)
+   */
+  async updateDocumentTitle(
+    userId: number,
+    input: UpdateDocumentTitleToolInputDto,
+  ): Promise<UpdateDocumentTitleResponseDto> {
+    const title = await this.documentService.updateDocumentTitle(
+      input.documentId,
+      userId,
+      input.title,
+    );
+    return { title };
   }
 }
