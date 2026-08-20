@@ -42,6 +42,29 @@ export function blocksFromYDoc(yDoc: Y.Doc): DocumentBlock[] {
 }
 
 /**
+ * Builds the Yjs update bytes for a brand-new document's initial content:
+ * a single empty paragraph, the same shape a live client's first editor
+ * mount produces. Needed because the block-manipulation API
+ * (insertBlocks/replaceBlocks, used by applyBlockOperations) has no way to
+ * insert content into a document with zero existing blocks — every method
+ * on it requires an existing block id to anchor to. blocksToYDoc sidesteps
+ * that entirely: it's a separate, lower-level conversion that builds Yjs
+ * structure directly from a blocks array, not through the manipulation API.
+ * Not routed through withMutex/_withJSDOM: confirmed empirically that
+ * blocksToYDoc, like yDocToBlocks, is a pure Yjs-tree build with no
+ * dependency on the shared globalThis.document/window DOM globals (see
+ * async-mutex.ts).
+ * @returns Yjs update bytes ready to hand to DocumentYjsService.applyDocUpdate
+ */
+export function seedInitialDocumentUpdate(): Uint8Array {
+  const yDoc = editor.blocksToYDoc(
+    [{ type: 'paragraph', content: [] }],
+    'blocknote',
+  );
+  return Y.encodeStateAsUpdate(yDoc);
+}
+
+/**
  * Applies a batch of id-addressed block edits to a document, atomically —
  * if any operation fails (e.g. a stale/nonexistent block id), none of them
  * are applied, and the failure is thrown as a BadRequestException (safe to

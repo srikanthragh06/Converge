@@ -28,6 +28,7 @@ import {
   markdownFromYDoc,
   blocksFromYDoc,
   applyBlockOperations,
+  seedInitialDocumentUpdate,
 } from '../utils/editor-schema.js';
 import { sql } from 'kysely';
 
@@ -186,6 +187,15 @@ export class DocumentService {
    * Creates a new document and its initial metadata row in a single transaction,
    * returning the new document's ID. The user must have at least the member role
    * in the target workspace.
+   *
+   * Also seeds the document's Yjs content with a single empty paragraph
+   * block once the transaction has committed — without it, a fresh document
+   * has zero blocks, and updateDocumentBlocks's insert/replace operations
+   * both require an existing block id to target, leaving no way to add a
+   * document's first content. Seeding isn't part of the transaction: it
+   * goes through applyDocUpdate, which does its own persistence plus a
+   * Redis publish and room broadcast — not something to run inside a DB
+   * transaction that might still roll back.
    * @param userId - the ID of the authenticated user who will own the document
    * @param workspaceId - the workspace the document belongs to
    * @param title - optional initial title; defaults to the DB's empty-string
@@ -244,6 +254,14 @@ export class DocumentService {
 
       return documentRow;
     });
+
+    // Seed the document with one empty block so it isn't left in a state
+    // updateDocumentBlocks has no way to add content to — see the doc
+    // comment above.
+    await this.documentYjsService.applyDocUpdate(
+      row.id,
+      seedInitialDocumentUpdate(),
+    );
 
     return row.id;
   }
