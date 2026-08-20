@@ -27,6 +27,7 @@ export {
     BlockOperationSchema,
     UpdateDocumentBlocksToolInputSchema,
     UpdateDocumentBlocksResponseSchema,
+    CreateDocumentToolInputSchema,
 } from "./tools/document.js";
 export type {
     ListDocumentsToolInputDto,
@@ -40,6 +41,7 @@ export type {
     BlockOperationDto,
     UpdateDocumentBlocksToolInputDto,
     UpdateDocumentBlocksResponseDto,
+    CreateDocumentToolInputDto,
 } from "./tools/document.js";
 export {
     CreateCheckpointResponseSchema,

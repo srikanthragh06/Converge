@@ -16,6 +16,8 @@ import {
   GetDocumentBlocksResponseSchema,
   UpdateDocumentBlocksToolInputSchema,
   UpdateDocumentBlocksResponseSchema,
+  CreateDocumentToolInputSchema,
+  CreateDocumentResponseSchema,
 } from '@converge/shared';
 
 // Exposes a single MCP endpoint over the Streamable HTTP transport. The MCP
@@ -51,7 +53,7 @@ export class McpController {
       {
         title: 'List Documents',
         description:
-          "Lists documents in a workspace that the caller has access to, newest last-visited first. Supports keyset pagination via the returned nextCursor.",
+          'Lists documents in a workspace that the caller has access to, newest last-visited first. Supports keyset pagination via the returned nextCursor.',
         inputSchema: ListDocumentsToolInputSchema,
         outputSchema: ListDocumentsToolResponseSchema,
       },
@@ -63,6 +65,26 @@ export class McpController {
         // calling model actually reads in-context, while structuredContent
         // is the schema-validated form for programmatic consumers — a
         // client isn't guaranteed to forward one into the other.
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'createDocument',
+      {
+        title: 'Create Document',
+        description:
+          'Creates a new, empty document in a workspace and returns its id. The caller must be at least a member of the workspace. Use updateDocumentBlocks to add content to the new document.',
+        inputSchema: CreateDocumentToolInputSchema,
+        outputSchema: CreateDocumentResponseSchema,
+      },
+      async (input) => {
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.createDocument(userId, input),
+        );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
           structuredContent: result,

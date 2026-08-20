@@ -11,6 +11,8 @@ import {
   type GetDocumentBlocksResponseDto,
   type UpdateDocumentBlocksToolInputDto,
   type UpdateDocumentBlocksResponseDto,
+  type CreateDocumentToolInputDto,
+  type CreateDocumentResponseDto,
 } from '@converge/shared';
 
 // MCP tool handlers for the document feature. Thin wrappers around
@@ -146,5 +148,24 @@ export class DocumentTools {
       input.operations,
     );
     return { blocks };
+  }
+
+  /**
+   * Creates a new, empty document in a workspace and returns its id.
+   * createNewDocument throws ForbiddenException if the caller is not at
+   * least a member of the workspace — left uncaught here since the MCP SDK
+   * already converts a thrown error into a proper isError tool result.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the workspace to create the document in
+   */
+  async createDocument(
+    userId: number,
+    input: CreateDocumentToolInputDto,
+  ): Promise<CreateDocumentResponseDto> {
+    const documentId = await this.documentService.createNewDocument(
+      userId,
+      input.workspaceId,
+    );
+    return { documentId };
   }
 }

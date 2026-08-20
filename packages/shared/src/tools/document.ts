@@ -224,3 +224,18 @@ export const UpdateDocumentBlocksResponseSchema = z.object({
 export type UpdateDocumentBlocksResponseDto = {
     blocks: DocumentBlock[];
 };
+
+export const CreateDocumentToolInputSchema = {
+    workspaceId: z.coerce.number().int().positive().describe(
+        "The workspace to create the document in. The caller must be at least a member of this workspace.",
+    ),
+};
+
+export type CreateDocumentToolInputDto = {
+    workspaceId: number;
+};
+
+// No response schema of its own — CreateDocumentResponseSchema
+// (http/document.ts) is just { documentId: number }, no date fields, so
+// there's no JSON-Schema-conversion issue to work around here (unlike the
+// list/metadata tools) and nothing to gain by duplicating it.
