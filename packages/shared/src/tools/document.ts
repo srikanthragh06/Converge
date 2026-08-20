@@ -229,10 +229,17 @@ export const CreateDocumentToolInputSchema = {
     workspaceId: z.coerce.number().int().positive().describe(
         "The workspace to create the document in. The caller must be at least a member of this workspace.",
     ),
+    // Same rule as the live rename path (SyncDocTitleServerSchema in
+    // socket/socket.ts) — kept in sync so a title is valid regardless of
+    // which path set it.
+    title: z.string().trim().max(256).optional().describe(
+        "Optional initial title for the document. Defaults to empty (untitled) if omitted.",
+    ),
 };
 
 export type CreateDocumentToolInputDto = {
     workspaceId: number;
+    title?: string;
 };
 
 // No response schema of its own — CreateDocumentResponseSchema

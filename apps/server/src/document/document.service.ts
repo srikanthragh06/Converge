@@ -188,11 +188,14 @@ export class DocumentService {
    * in the target workspace.
    * @param userId - the ID of the authenticated user who will own the document
    * @param workspaceId - the workspace the document belongs to
+   * @param title - optional initial title; defaults to the DB's empty-string
+   * default when omitted, matching a document created via the editor UI
    * @returns the newly created document's ID
    */
   async createNewDocument(
     userId: number,
     workspaceId: number,
+    title?: string,
   ): Promise<number> {
     const db = this.dbService.kysely;
 
@@ -222,6 +225,10 @@ export class DocumentService {
         .values({
           creator_id: userId,
           workspace_id: workspaceId,
+          // title has a DB default (empty string) — only set it when the
+          // caller actually provided one, rather than passing an empty
+          // string through explicitly.
+          ...(title !== undefined ? { title } : {}),
         })
         .returning('documents.id')
         .executeTakeFirst();

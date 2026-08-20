@@ -77,7 +77,7 @@ export class McpController {
       {
         title: 'Create Document',
         description:
-          'Creates a new, empty document in a workspace and returns its id. The caller must be at least a member of the workspace. Use updateDocumentBlocks to add content to the new document.',
+          'Creates a new, empty document in a workspace and returns its id. Optionally set an initial title. The caller must be at least a member of the workspace. Use updateDocumentBlocks to add content to the new document.',
         inputSchema: CreateDocumentToolInputSchema,
         outputSchema: CreateDocumentResponseSchema,
       },

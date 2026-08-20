@@ -156,7 +156,9 @@ export class DocumentTools {
    * least a member of the workspace — left uncaught here since the MCP SDK
    * already converts a thrown error into a proper isError tool result.
    * @param userId - the calling user's ID, resolved from their API key
-   * @param input - the workspace to create the document in
+   * @param input - the workspace to create the document in, plus an
+   * optional initial title (already trimmed and length-checked by
+   * CreateDocumentToolInputSchema)
    */
   async createDocument(
     userId: number,
@@ -165,6 +167,7 @@ export class DocumentTools {
     const documentId = await this.documentService.createNewDocument(
       userId,
       input.workspaceId,
+      input.title,
     );
     return { documentId };
   }
