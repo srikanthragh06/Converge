@@ -4,8 +4,11 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { ApiKeyGuard } from '../api-key/api-key.guard.js';
 import { DocumentTools } from '../document/document.tools.js';
+import { WorkspaceTools } from '../workspace/workspace.tools.js';
 import { withMcpErrorHandling } from '../utils/mcp-error-handling.util.js';
 import {
+  ListWorkspacesToolInputSchema,
+  ListWorkspacesToolResponseSchema,
   ListDocumentsToolInputSchema,
   ListDocumentsToolResponseSchema,
   GetDocumentMetadataToolInputSchema,
@@ -35,7 +38,10 @@ import {
 @Controller('/mcp')
 @UseGuards(ApiKeyGuard)
 export class McpController {
-  constructor(private readonly documentTools: DocumentTools) {} // Supplies the actual tool logic; this controller only wires it to the transport.
+  constructor(
+    private readonly documentTools: DocumentTools, // Supplies document tool logic; this controller only wires it to the transport.
+    private readonly workspaceTools: WorkspaceTools, // Supplies workspace tool logic; this controller only wires it to the transport.
+  ) {}
 
   /**
    * Handles a single MCP JSON-RPC request over Streamable HTTP.
@@ -51,6 +57,26 @@ export class McpController {
   async handleMcpRequest(@Req() req: Request, @Res() res: Response) {
     const userId = (req as any).userId as number;
     const server = new McpServer({ name: 'converge-mcp', version: '0.0.1' });
+
+    server.registerTool(
+      'listWorkspaces',
+      {
+        title: 'List Workspaces',
+        description:
+          "Lists every workspace the caller is a member of, along with the caller's role in each. Use this to find a workspaceId for listDocuments/createDocument when one isn't already known.",
+        inputSchema: ListWorkspacesToolInputSchema,
+        outputSchema: ListWorkspacesToolResponseSchema,
+      },
+      async () => {
+        const result = await withMcpErrorHandling(() =>
+          this.workspaceTools.listWorkspaces(userId),
+        );
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
 
     server.registerTool(
       'listDocuments',

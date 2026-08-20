@@ -117,6 +117,14 @@ export type {
     SetDocumentUserAccessResponseDto,
 } from "./http/document.js";
 export {
+    ListWorkspacesToolInputSchema,
+    ListWorkspacesToolResponseSchema,
+} from "./tools/workspace.js";
+export type {
+    ListWorkspacesToolInputDto,
+    ListWorkspacesToolResponseDto,
+} from "./tools/workspace.js";
+export {
     GetWorkspacesResponseSchema,
     SetSelectedWorkspaceResponseSchema,
     CreateWorkspaceRequestSchema,
