@@ -14,7 +14,7 @@ https://github.com/user-attachments/assets/e74a9a3b-8cf7-4625-925d-6fce35e5bfdd
 - **Workspaces** to organize documents into shared spaces with owner, admin, and member roles
 - **Granular access control** with four tiers: workspace role defaults, per-doc overrides, explicit user grants, and workspace owner
 - **Document library** with full-text search, infinite scroll, a keyboard-navigable switcher (Ctrl+P), and a Trash tab for restoring soft-deleted documents
-- **AI agent access via MCP** — a Model Context Protocol server exposes documents to AI agents over API-key auth: discover workspaces, list and search documents, read and edit content, browse and restore version history, and manage the trash — all enforcing the same access control as the browser editor. Every agent-driven edit or restore takes an automatic checkpoint beforehand so it can always be undone, and keys are self-served from a dedicated API Keys page
+- **AI agent access via MCP** — a Model Context Protocol server exposes documents to AI agents over API-key auth (list, create, read, edit, rename, delete), enforcing the same access control as the browser editor; every agent-driven edit takes an automatic checkpoint beforehand so it can always be undone, and keys are self-served from a dedicated API Keys page
 - **Google OAuth** with secure httpOnly cookie sessions
 
 ## Architecture
@@ -50,9 +50,6 @@ The MCP write tool applies a batch of id-addressed block edits (replace/insert/r
 
 **Checkpoints as an AI-agent safety net**
 An AI agent editing a document unsupervised is more likely to make a large, unwanted change than a human making many small ones — so every MCP-driven edit takes a synchronous checkpoint immediately beforehand, tagged with its own source so it's distinguishable from manual and scheduled ones. It's built entirely on the existing checkpoint mechanism with no new infrastructure: one extra call, one new allowed value on an existing column.
-
-**Reverting a CRDT without replaying history**
-Restoring a document to a past version can't be done by re-applying old Yjs update bytes onto the live document — CRDT merges are monotonic, so an older update just merges alongside current content instead of replacing it. Instead, a restore (available both in the editor and as an MCP tool) reconstructs the target version as BlockNote blocks, binds a real collaboration-aware editor to a throwaway copy of the live document, and calls `replaceBlocks` to explicitly remove current content and insert the target content — the same forward-only delete-and-insert operations either way, flowing through the normal sync pipeline like any other edit.
 
 ## Stack
 
