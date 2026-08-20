@@ -139,7 +139,7 @@ export class McpController {
       {
         title: 'Create Document',
         description:
-          'Creates a new, empty document in a workspace and returns its id. Optionally set an initial title. The caller must be at least a member of the workspace. Use updateDocumentBlocks to add content to the new document.',
+          'Creates a new, empty document in a workspace and returns its id. Optionally set an initial title. Requires at least the member role in the workspace. Use updateDocumentBlocks to add content to the new document.',
         inputSchema: CreateDocumentToolInputSchema,
         outputSchema: CreateDocumentResponseSchema,
       },
@@ -159,7 +159,7 @@ export class McpController {
       {
         title: 'Get Document Metadata',
         description:
-          "Fetches a document's metadata (title, workspace, resolved access, createdAt). Does not return document content — see getDocumentBlocks/getDocumentMarkdown for that.",
+          "Fetches a document's metadata (title, workspace, resolved access, createdAt). Does not return document content — see getDocumentBlocks/readDocumentMarkdown for that. Requires viewer access or higher.",
         inputSchema: GetDocumentMetadataToolInputSchema,
         outputSchema: GetDocumentMetadataToolResponseSchema,
       },
@@ -179,7 +179,7 @@ export class McpController {
       {
         title: 'Read Document Markdown',
         description:
-          "Reads a document's content as Markdown — lossy (block ids, custom props, and structure Markdown can't express are dropped), read-only. See getDocumentMetadata for title/workspace/access info.",
+          "Reads a document's content as Markdown — lossy (block ids, custom props, and structure Markdown can't express are dropped), read-only. See getDocumentMetadata for title/workspace/access info. Requires viewer access or higher.",
         inputSchema: ReadDocumentMarkdownToolInputSchema,
         outputSchema: ReadDocumentMarkdownResponseSchema,
       },
@@ -199,7 +199,7 @@ export class McpController {
       {
         title: 'Get Document Blocks',
         description:
-          "Reads a document's content as BlockNote block JSON, ids and all — not lossy like readDocumentMarkdown, since it returns the exact underlying block structure rather than a Markdown conversion.",
+          "Reads a document's content as BlockNote block JSON, ids and all — not lossy like readDocumentMarkdown, since it returns the exact underlying block structure rather than a Markdown conversion. Requires viewer access or higher.",
         inputSchema: GetDocumentBlocksToolInputSchema,
         outputSchema: GetDocumentBlocksResponseSchema,
       },
@@ -219,7 +219,7 @@ export class McpController {
       {
         title: 'Update Document Blocks',
         description:
-          "Applies a batch of edits to a document's blocks as a single atomic save (all edits apply, or none do). Each edit either replaces an existing block, inserts new content next to one, or removes blocks — new content is given as Markdown, not raw block JSON. Use getDocumentBlocks first to find the block ids to target.",
+          "Applies a batch of edits to a document's blocks as a single atomic save (all edits apply, or none do). Requires editor access or higher. Each edit either replaces an existing block, inserts new content next to one, or removes blocks — new content is given as Markdown, not raw block JSON. Use getDocumentBlocks first to find the block ids to target.",
         inputSchema: UpdateDocumentBlocksToolInputSchema,
         outputSchema: UpdateDocumentBlocksResponseSchema,
       },
@@ -278,7 +278,7 @@ export class McpController {
       {
         title: 'List Checkpoints',
         description:
-          "Lists a document's version-history checkpoints, newest first, each with its contributors, source, and last-edited time. Use getCheckpointContent to read a specific checkpoint's content.",
+          "Lists a document's version-history checkpoints, newest first, each with its contributors, source, and last-edited time. Use getCheckpointContent to read a specific checkpoint's content. Requires viewer access or higher.",
         inputSchema: ListCheckpointsToolInputSchema,
         outputSchema: ListCheckpointsToolResponseSchema,
       },
@@ -298,7 +298,7 @@ export class McpController {
       {
         title: 'Get Checkpoint Content',
         description:
-          "Reads a version-history checkpoint's full content as BlockNote blocks (same shape as getDocumentBlocks), plus its metadata (contributors, source, timestamps). Use listCheckpoints first to find a checkpointId.",
+          "Reads a version-history checkpoint's full content as BlockNote blocks (same shape as getDocumentBlocks), plus its metadata (contributors, source, timestamps). Use listCheckpoints first to find a checkpointId. Requires viewer access or higher.",
         inputSchema: GetCheckpointContentToolInputSchema,
         outputSchema: GetCheckpointContentToolResponseSchema,
       },
@@ -338,7 +338,7 @@ export class McpController {
       {
         title: 'List Deleted Documents',
         description:
-          "Lists soft-deleted documents in a workspace, newest-deleted first. Only visible to callers with admin access or higher — the same bar required to restore a document. Supports keyset pagination via the returned nextCursor.",
+          "Lists soft-deleted documents in a workspace, newest-deleted first. Only visible to callers with admin access or higher — the same bar restoreDocument requires. Supports keyset pagination via the returned nextCursor. Use restoreDocument to undo a deletion.",
         inputSchema: ListDeletedDocumentsToolInputSchema,
         outputSchema: ListDeletedDocumentsToolResponseSchema,
       },
