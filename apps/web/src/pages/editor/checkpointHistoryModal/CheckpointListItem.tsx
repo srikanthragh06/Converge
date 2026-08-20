@@ -31,9 +31,10 @@ const formatContributorNames = (names: string[]): string => {
  * One row in the checkpoint history list. First line shows lastEditedAt —
  * the timestamp of the actual last edit folded into this checkpoint, not
  * createdAt (when the checkpoint row itself was inserted, which can lag
- * behind for automatic checkpoints) — and a Manual/Auto label derived from
- * the checkpoint's source. Second line shows a stacked-avatar contributor
- * summary — up to MAX_VISIBLE_CONTRIBUTOR_AVATARS avatars, and inline names
+ * behind for automatic checkpoints) — and a Manual/Auto/"Before AI edit"
+ * label derived from the checkpoint's source. Second line shows a
+ * stacked-avatar contributor summary — up to
+ * MAX_VISIBLE_CONTRIBUTOR_AVATARS avatars, and inline names
  * capped separately at MAX_NAMED_CONTRIBUTORS. Hovering the avatar stack
  * shows every contributor's name, including ones collapsed out of both caps.
  * Clicking the row selects it; isSelected controls the highlighted style.
@@ -65,13 +66,17 @@ const CheckpointListItem = ({
                 : "hover:opacity-80 active:opacity-60"
         }`}
         >
-            {/* Row 1: last-edited time (left) and Manual/Auto source label (right) */}
+            {/* Row 1: last-edited time (left) and Manual/Auto/"Before AI edit" source label (right) */}
             <div className="flex items-center justify-between text-xs">
                 <span className="text-text-secondary">
                     {formatDate(checkpoint.lastEditedAt)}
                 </span>
                 <span className="text-text-secondary opacity-60">
-                    {checkpoint.source === "manual" ? "Manual" : "Auto"}
+                    {checkpoint.source === "manual"
+                        ? "Manual"
+                        : checkpoint.source === "mcp"
+                          ? "Before AI edit"
+                          : "Auto"}
                 </span>
             </div>
             {/* Row 2: stacked contributor avatars + names, only rendered if there are any contributors */}

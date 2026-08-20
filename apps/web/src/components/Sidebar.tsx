@@ -12,6 +12,7 @@ import {
     MdLibraryBooks,
     MdLogout,
     MdDescription,
+    MdVpnKey,
 } from "react-icons/md";
 import { Dropdown } from "primereact/dropdown";
 import "primereact/resources/themes/lara-dark-blue/theme.css";
@@ -165,7 +166,7 @@ const Sidebar = ({
                     />
                 </div>
                 {/* Primary navigation actions — create/browse documents, switch workspaces,
-                    and log out (behind an inline confirm step) */}
+                    manage API keys, and log out (behind an inline confirm step) */}
                 <div className="mt-3 flex flex-col space-y-0">
                     <button
                         onClick={() => {
@@ -202,6 +203,17 @@ const Sidebar = ({
                     >
                         <MdWorkspaces className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                         <span className="text-sm sm:text-base">Workspaces</span>
+                    </button>
+                    <button
+                        onClick={() => {
+                            navigate("/api-keys");
+                            closeOnMobile();
+                        }}
+                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
+                        aria-label="API Keys"
+                    >
+                        <MdVpnKey className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                        <span className="text-sm sm:text-base">API Keys</span>
                     </button>
                     {isLogoutConfirming ? (
                         <div className="flex items-center gap-2 py-1 px-2 mt-2">

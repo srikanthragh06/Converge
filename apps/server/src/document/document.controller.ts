@@ -27,10 +27,12 @@ import {
   type GetDocumentOverviewResponseDto,
   type GetLibraryDocumentsResponseDto,
   type SearchLibraryDocumentsResponseDto,
+  type GetTrashDocumentsResponseDto,
   type GetUploadAuthResponseDto,
   GetDocumentCheckpointsRequestSchema,
   GetLibraryDocumentsRequestSchema,
   SearchLibraryDocumentsRequestSchema,
+  GetTrashDocumentsRequestSchema,
 } from '@converge/shared';
 import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe.js';
 
@@ -94,6 +96,58 @@ export class DocumentController {
   ): Promise<void> {
     const userId = (req as any).userId as number;
     await this.documentService.deleteDocument(documentId, userId);
+  }
+
+  /**
+   * Restores a soft-deleted document with the given ID. Throws 404 if it
+   * does not exist at all, 403 if the user does not have admin access, and
+   * 409 if the document is not currently deleted.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param documentId - the document ID parsed from the URL path
+   */
+  @Post('/:id/restore')
+  async handleRestoreDocument(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) documentId: number,
+  ): Promise<void> {
+    const userId = (req as any).userId as number;
+    await this.documentService.restoreDocument(documentId, userId);
+  }
+
+  /**
+   * Returns a paginated list of soft-deleted documents in the given
+   * workspace the user has admin+ access to, ordered by deleted_at DESC.
+   * Uses keyset pagination — pass cursorDeletedAt and cursorId from the
+   * previous response's nextCursor to fetch the next page.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param query - workspaceId, optional limit, cursorDeletedAt, and cursorId
+   * @returns trashed documents for this page and nextCursor (null on the last page)
+   */
+  @Get('/trash')
+  async handleGetTrashDocuments(
+    @Req() req: Request,
+    @Query(new ZodHttpValidationPipe(GetTrashDocumentsRequestSchema))
+    query: {
+      workspaceId: number;
+      limit?: number;
+      cursorDeletedAt?: Date;
+      cursorId?: number;
+    },
+  ): Promise<GetTrashDocumentsResponseDto> {
+    const userId = (req as any).userId as number;
+    const limit = query.limit ?? 20;
+    const cursor =
+      query.cursorDeletedAt !== undefined && query.cursorId !== undefined
+        ? { deletedAt: query.cursorDeletedAt, id: query.cursorId }
+        : undefined;
+    return httpOK(
+      await this.documentService.getTrashDocuments(
+        userId,
+        query.workspaceId,
+        limit,
+        cursor,
+      ),
+    );
   }
 
   /**

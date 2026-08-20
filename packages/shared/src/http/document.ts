@@ -209,6 +209,59 @@ export const SearchLibraryDocumentsResponseSchema = z.object({
 export type SearchLibraryDocumentsResponseDto = z.infer<
     typeof SearchLibraryDocumentsResponseSchema
 >;
+
+/**
+ * Query params for GET /document/trash.
+ * workspaceId is the selected workspace scope.
+ * limit defaults to 20 if omitted.
+ * cursorDeletedAt and cursorId must both be present or both be absent —
+ * they together form the compound cursor for keyset pagination.
+ */
+export const GetTrashDocumentsRequestSchema = z
+    .object({
+        workspaceId: z.coerce.number().int().positive(),
+        limit: z.coerce.number().int().positive().optional(),
+        cursorDeletedAt: z.coerce.date().optional(),
+        cursorId: z.coerce.number().int().positive().optional(),
+    })
+    .refine(
+        (data) =>
+            (data.cursorDeletedAt === undefined) ===
+            (data.cursorId === undefined),
+        {
+            message:
+                "cursorDeletedAt and cursorId must both be provided or both be omitted",
+        },
+    );
+
+export type GetTrashDocumentsRequestDto = z.infer<
+    typeof GetTrashDocumentsRequestSchema
+>;
+
+/** A single document entry returned by the trash listing. */
+export const TrashDocumentSchema = z.object({
+    id: z.number(),
+    title: z.string(),
+    deletedAt: z.coerce.date(),
+});
+
+export type TrashDocumentDto = z.infer<typeof TrashDocumentSchema>;
+
+/** Response for GET /document/trash. nextCursor is null when there are no more pages. */
+export const GetTrashDocumentsResponseSchema = z.object({
+    documents: z.array(TrashDocumentSchema),
+    nextCursor: z
+        .object({
+            deletedAt: z.coerce.date(),
+            id: z.number(),
+        })
+        .nullable(),
+});
+
+export type GetTrashDocumentsResponseDto = z.infer<
+    typeof GetTrashDocumentsResponseSchema
+>;
+
 /** A single user entry in the document access list. Shared by both the access list and search endpoints. */
 export const DocumentAccessUserSchema = z.object({
     id: z.number(),
