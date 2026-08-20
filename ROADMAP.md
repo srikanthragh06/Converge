@@ -688,9 +688,3 @@ Exposes Converge's documents to AI agents via the Model Context Protocol (MCP) â
 - MCP tool surface validated with a live curl-based CRUD test pass covering auth, validation boundaries, atomicity, and access control, then separately verified end-to-end by wiring the server into a real Claude Code session as an MCP client and letting it drive multi-step document creation and editing on its own
 - The MCP-write checkpoint safety net verified end-to-end against the live dev server: two sequential MCP edits to a fresh document each produced exactly one `'mcp'`-sourced checkpoint immediately beforehand, correctly folding in everything since the last checkpoint
 
----
-
-## Upcoming
-
-- Workspace and access-control MCP tools (create/list workspaces, grant/revoke document access) â€” deliberately out of scope for this release; letting an agent grant *other people* access to documents is a higher-stakes capability than editing content and warrants its own design pass (rate limits, audit trail, confirmation semantics)
-
