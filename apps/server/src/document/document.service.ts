@@ -24,6 +24,7 @@ import { DatabaseService } from '../db/database.service.js';
 import { DocumentAccessService } from './document-access.service.js';
 import { DocumentYjsService } from './document-yjs.service.js';
 import { DocumentCheckpointSchedulerService } from './document-checkpoint-scheduler.service.js';
+import { DocumentCheckpointService } from './document-checkpoint.service.js';
 import {
   markdownFromYDoc,
   blocksFromYDoc,
@@ -39,6 +40,7 @@ export class DocumentService {
     private readonly documentAccessService: DocumentAccessService,
     private readonly documentYjsService: DocumentYjsService,
     private readonly documentCheckpointSchedulerService: DocumentCheckpointSchedulerService,
+    private readonly documentCheckpointService: DocumentCheckpointService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -68,7 +70,13 @@ export class DocumentService {
     const row = await db
       .selectFrom('documents as d')
       .innerJoin('workspaces as w', 'w.id', 'd.workspace_id')
-      .select(['d.id', 'd.title', 'd.created_at', 'w.id as workspaceId', 'w.name as workspaceName'])
+      .select([
+        'd.id',
+        'd.title',
+        'd.created_at',
+        'w.id as workspaceId',
+        'w.name as workspaceName',
+      ])
       .where('d.id', '=', documentId)
       .where('d.is_deleted', '=', false)
       .executeTakeFirst();
@@ -148,6 +156,13 @@ export class DocumentService {
    * instance's own connected clients) itself, so there's nothing extra to
    * do here. No socket originates this write, so nothing is excluded from
    * the broadcast — every connected viewer of this document sees it.
+   *
+   * This is currently the only caller of DocumentYjsService.applyDocUpdate
+   * that isn't a live client edit — it's the MCP write path exclusively —
+   * so it takes a synchronous 'mcp' checkpoint immediately beforehand,
+   * folding in everything since the last checkpoint. That gives a human a
+   * restore point from right before the agent's change, regardless of the
+   * idle/interval scheduler's own timing.
    * @param documentId - the document to edit
    * @param userId - the ID of the authenticated requesting user
    * @param operations - the edits to apply, in order, as one atomic save
@@ -167,6 +182,13 @@ export class DocumentService {
       throw new ForbiddenException(
         'You must have editor access to edit this document.',
       );
+
+    // Snapshot everything since the last checkpoint before the agent's write
+    // lands, so restoring it undoes exactly this call.
+    await this.documentCheckpointService.createCheckpointInternal(
+      documentId,
+      'mcp',
+    );
 
     // Compute the edit as Yjs update bytes against a throwaway copy of the
     // document (see applyBlockOperations), then apply it the same way a
@@ -593,7 +615,9 @@ export class DocumentService {
   getImageKitUploadAuth(): GetUploadAuthResponseDto {
     const privateKey = this.configService.get<string>('IMAGEKIT_PRIVATE_KEY');
     if (!privateKey)
-      throw new InternalServerErrorException('ImageKit private key is not configured.');
+      throw new InternalServerErrorException(
+        'ImageKit private key is not configured.',
+      );
 
     // A unique token per request prevents replay attacks — ImageKit rejects reused tokens.
     const token = randomUUID();
