@@ -15,6 +15,8 @@ import {
   type CreateDocumentResponseDto,
   type UpdateDocumentTitleToolInputDto,
   type UpdateDocumentTitleResponseDto,
+  type DeleteDocumentToolInputDto,
+  type DeleteDocumentResponseDto,
 } from '@converge/shared';
 
 // MCP tool handlers for the document feature. Thin wrappers around
@@ -193,5 +195,21 @@ export class DocumentTools {
       input.title,
     );
     return { title };
+  }
+
+  /**
+   * Soft-deletes a document. deleteDocument throws
+   * NotFoundException/ForbiddenException on missing/inaccessible documents —
+   * left uncaught here since the MCP SDK already converts a thrown error
+   * into a proper isError tool result.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the document to delete
+   */
+  async deleteDocument(
+    userId: number,
+    input: DeleteDocumentToolInputDto,
+  ): Promise<DeleteDocumentResponseDto> {
+    await this.documentService.deleteDocument(input.documentId, userId);
+    return { success: true };
   }
 }

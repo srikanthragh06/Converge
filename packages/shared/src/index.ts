@@ -30,6 +30,8 @@ export {
     CreateDocumentToolInputSchema,
     UpdateDocumentTitleToolInputSchema,
     UpdateDocumentTitleResponseSchema,
+    DeleteDocumentToolInputSchema,
+    DeleteDocumentResponseSchema,
 } from "./tools/document.js";
 export type {
     ListDocumentsToolInputDto,
@@ -46,6 +48,8 @@ export type {
     CreateDocumentToolInputDto,
     UpdateDocumentTitleToolInputDto,
     UpdateDocumentTitleResponseDto,
+    DeleteDocumentToolInputDto,
+    DeleteDocumentResponseDto,
 } from "./tools/document.js";
 export {
     CreateCheckpointResponseSchema,

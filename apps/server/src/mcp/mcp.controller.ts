@@ -20,6 +20,8 @@ import {
   CreateDocumentResponseSchema,
   UpdateDocumentTitleToolInputSchema,
   UpdateDocumentTitleResponseSchema,
+  DeleteDocumentToolInputSchema,
+  DeleteDocumentResponseSchema,
 } from '@converge/shared';
 
 // Exposes a single MCP endpoint over the Streamable HTTP transport. The MCP
@@ -185,6 +187,26 @@ export class McpController {
       async (input) => {
         const result = await withMcpErrorHandling(() =>
           this.documentTools.updateDocumentTitle(userId, input),
+        );
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'deleteDocument',
+      {
+        title: 'Delete Document',
+        description:
+          'Soft-deletes a document. Requires admin access or higher. This cannot be undone through the MCP tools.',
+        inputSchema: DeleteDocumentToolInputSchema,
+        outputSchema: DeleteDocumentResponseSchema,
+      },
+      async (input) => {
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.deleteDocument(userId, input),
         );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],

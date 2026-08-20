@@ -271,3 +271,25 @@ export const UpdateDocumentTitleResponseSchema = z.object({
 export type UpdateDocumentTitleResponseDto = z.infer<
     typeof UpdateDocumentTitleResponseSchema
 >;
+
+export const DeleteDocumentToolInputSchema = {
+    documentId: z.coerce.number().int().positive().describe(
+        "The document to delete. The caller must have admin access.",
+    ),
+};
+
+export type DeleteDocumentToolInputDto = {
+    documentId: number;
+};
+
+// deleteDocument soft-deletes (sets is_deleted/deleted_at) rather than
+// removing the row, matching DELETE /document/:id — but the MCP tool has
+// nothing meaningful to return either way, so this is just a confirmation
+// flag rather than exposing that implementation detail.
+export const DeleteDocumentResponseSchema = z.object({
+    success: z.literal(true),
+});
+
+export type DeleteDocumentResponseDto = z.infer<
+    typeof DeleteDocumentResponseSchema
+>;
