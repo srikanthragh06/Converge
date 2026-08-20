@@ -4,6 +4,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { ApiKeyGuard } from '../api-key/api-key.guard.js';
 import { DocumentTools } from '../document/document.tools.js';
+import { withMcpErrorHandling } from '../utils/mcp-error-handling.util.js';
 import {
   ListDocumentsToolInputSchema,
   ListDocumentsToolResponseSchema,
@@ -55,7 +56,9 @@ export class McpController {
         outputSchema: ListDocumentsToolResponseSchema,
       },
       async (input) => {
-        const result = await this.documentTools.listDocuments(userId, input);
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.listDocuments(userId, input),
+        );
         // Both fields carry the same data: content's text block is what a
         // calling model actually reads in-context, while structuredContent
         // is the schema-validated form for programmatic consumers — a
@@ -77,7 +80,9 @@ export class McpController {
         outputSchema: GetDocumentMetadataToolResponseSchema,
       },
       async (input) => {
-        const result = await this.documentTools.getDocumentMetadata(userId, input);
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.getDocumentMetadata(userId, input),
+        );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
           structuredContent: result,
@@ -95,7 +100,9 @@ export class McpController {
         outputSchema: ReadDocumentMarkdownResponseSchema,
       },
       async (input) => {
-        const result = await this.documentTools.readDocumentMarkdown(userId, input);
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.readDocumentMarkdown(userId, input),
+        );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
           structuredContent: result,
@@ -113,7 +120,9 @@ export class McpController {
         outputSchema: GetDocumentBlocksResponseSchema,
       },
       async (input) => {
-        const result = await this.documentTools.getDocumentBlocks(userId, input);
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.getDocumentBlocks(userId, input),
+        );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
           structuredContent: result,
@@ -131,7 +140,9 @@ export class McpController {
         outputSchema: UpdateDocumentBlocksResponseSchema,
       },
       async (input) => {
-        const result = await this.documentTools.updateDocumentBlocks(userId, input);
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.updateDocumentBlocks(userId, input),
+        );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
           structuredContent: result,

@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { ServerBlockNoteEditor } from '@blocknote/server-util';
 import { BlockNoteEditor } from '@blocknote/core';
 import {
@@ -43,10 +44,11 @@ export function blocksFromYDoc(yDoc: Y.Doc): DocumentBlock[] {
 /**
  * Applies a batch of id-addressed block edits to a document, atomically —
  * if any operation fails (e.g. a stale/nonexistent block id), none of them
- * are applied. Returns the resulting document's blocks and the Yjs update
- * bytes representing the change, ready to hand to
- * DocumentYjsService.applyDocUpdate — the caller is responsible for
- * persisting it; this function never touches the live Y.Doc.
+ * are applied, and the failure is thrown as a BadRequestException (safe to
+ * show the caller — see the catch block below). Returns the resulting
+ * document's blocks and the Yjs update bytes representing the change, ready
+ * to hand to DocumentYjsService.applyDocUpdate — the caller is responsible
+ * for persisting it; this function never touches the live Y.Doc.
  *
  * Runs entirely inside a single withMutex + _withJSDOM scope: everything
  * here (parsing Markdown, mounting a collaboration-bound editor) depends on
@@ -114,9 +116,26 @@ export function applyBlockOperations(
           if (op.type === 'replace') {
             collabEditor.replaceBlocks([op.blockId], blocks);
           } else {
-            collabEditor.insertBlocks(blocks, op.referenceBlockId, op.placement);
+            collabEditor.insertBlocks(
+              blocks,
+              op.referenceBlockId,
+              op.placement,
+            );
           }
         }
+      } catch (err) {
+        // Every failure mode here (a stale/nonexistent block id, Markdown
+        // that fails to parse) is about what the caller asked for, not an
+        // internal failure — re-thrown as BadRequestException, one of our
+        // own controlled exception types, rather than letting @blocknote/
+        // core's raw internal error message pass through unchecked. See
+        // mcp.controller.ts's error handling for why that distinction
+        // matters at the MCP boundary.
+        throw new BadRequestException(
+          err instanceof Error
+            ? err.message
+            : 'Failed to apply the requested block operations.',
+        );
       } finally {
         collabEditor.unmount();
       }
