@@ -429,3 +429,32 @@ export type GetCheckpointContentToolResponseDto = {
     source: z.infer<typeof CheckpointSourceSchema>;
     blocks: DocumentBlock[];
 };
+
+export const RestoreCheckpointToolInputSchema = {
+    documentId: z.coerce.number().int().positive().describe(
+        "The document to restore.",
+    ),
+    checkpointId: z.coerce.number().int().positive().describe(
+        "The checkpoint to restore the document's content to, from a listCheckpoints entry's id. Requires editor access or higher.",
+    ),
+};
+
+export type RestoreCheckpointToolInputDto = {
+    documentId: number;
+    checkpointId: number;
+};
+
+// Only blocks are restored, not title — a checkpoint's Yjs update never
+// captured title, since title sync is a separate channel. A fresh 'mcp'
+// checkpoint is taken immediately before the restore lands (same safety net
+// updateDocumentBlocks gets), so an unwanted restore is itself just one more
+// restore away from undo.
+export const RestoreCheckpointResponseSchema = z.object({
+    blocks: z.array(z.record(z.string(), z.unknown())).describe(
+        "The document's full block list after the restore.",
+    ),
+});
+
+export type RestoreCheckpointResponseDto = {
+    blocks: DocumentBlock[];
+};

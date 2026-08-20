@@ -32,9 +32,12 @@ import {
   markdownFromYDoc,
   blocksFromYDoc,
   applyBlockOperations,
+  restoreYDocFromBlocks,
   seedInitialDocumentUpdate,
 } from '../utils/editor-schema.js';
+import { base64ToUint8Array } from '../utils/utils.js';
 import { sql } from 'kysely';
+import * as Y from 'yjs';
 
 @Injectable()
 export class DocumentService {
@@ -198,6 +201,71 @@ export class DocumentService {
     // live client's own edit would be applied.
     const yDoc = await this.documentYjsService.loadDoc(documentId);
     const { update, blocks } = await applyBlockOperations(yDoc, operations);
+    await this.documentYjsService.applyDocUpdate(documentId, update);
+
+    // Keep last-edited tracking and automatic checkpoint scheduling
+    // consistent with a real client edit.
+    await this.documentYjsService.recordLastEdited(documentId, userId);
+    await this.documentCheckpointSchedulerService.onDocumentEdited(documentId);
+
+    return blocks;
+  }
+
+  /**
+   * Restores a document's content to a past checkpoint — the MCP-tool
+   * equivalent of the live editor's restore action (`editor.replaceBlocks(...)`
+   * flowing through the normal sync pipeline). Only restores blocks, not
+   * title: a checkpoint's Yjs update never captured title, since title sync
+   * is a separate channel (see SyncDocTitleServerSchema in socket/socket.ts).
+   * Throws NotFoundException if the document does not exist,
+   * ForbiddenException if the requesting user has less than editor access,
+   * or whatever getCheckpointContent throws if checkpointId is not a
+   * checkpoint on this document.
+   * @param documentId - the document to restore
+   * @param userId - the requesting user, must have editor+ access
+   * @param checkpointId - the checkpoint to restore the document's content to
+   * @returns the document's resulting blocks after the restore
+   */
+  async restoreCheckpoint(
+    documentId: number,
+    userId: number,
+    checkpointId: number,
+  ): Promise<DocumentBlock[]> {
+    // Resolve access — throws NotFoundException if the document does not exist.
+    const access = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+    );
+    if (!hasAccess(access, 'editor'))
+      throw new ForbiddenException(
+        'You must have editor access to restore this document.',
+      );
+
+    // Snapshot everything since the last checkpoint before the restore
+    // lands, so undoing a bad restore is itself just restoring to this new
+    // checkpoint — same safety net updateDocumentBlocks gets.
+    await this.documentCheckpointService.createCheckpointInternal(
+      documentId,
+      'mcp',
+    );
+
+    // Reconstruct the target checkpoint's content: its stored update is a
+    // full self-contained Yjs state, not a delta, so applying it alone to
+    // an empty scratch doc fully reconstructs the checkpoint's content.
+    const checkpoint = await this.documentCheckpointService.getCheckpointContent(
+      documentId,
+      userId,
+      checkpointId,
+    );
+    const targetScratch = new Y.Doc();
+    Y.applyUpdate(targetScratch, base64ToUint8Array(checkpoint.updateBase64));
+    const targetBlocks = blocksFromYDoc(targetScratch);
+
+    // Compute the restore as Yjs update bytes against a throwaway copy of
+    // the live document (see restoreYDocFromBlocks), then apply it the same
+    // way a live client's own restore action would be applied.
+    const yDoc = await this.documentYjsService.loadDoc(documentId);
+    const { update, blocks } = await restoreYDocFromBlocks(yDoc, targetBlocks);
     await this.documentYjsService.applyDocUpdate(documentId, update);
 
     // Keep last-edited tracking and automatic checkpoint scheduling

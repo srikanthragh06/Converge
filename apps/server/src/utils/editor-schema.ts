@@ -171,3 +171,82 @@ export function applyBlockOperations(
     }),
   );
 }
+
+/**
+ * Replaces a document's entire content with a target set of blocks — the
+ * server-side equivalent of the live editor's `editor.replaceBlocks(...)`
+ * restore action, used by DocumentService.restoreCheckpoint. Returns the
+ * Yjs update bytes for the change and the document's resulting blocks; the
+ * caller is responsible for persisting the update via
+ * DocumentYjsService.applyDocUpdate — this function never touches the live
+ * Y.Doc.
+ *
+ * Runs entirely inside a single withMutex + _withJSDOM scope, for the same
+ * reason applyBlockOperations does — everything here depends on the shared
+ * globalThis.document/window jsdom shim.
+ *
+ * Never binds the collaboration editor to the live Y.Doc directly — it
+ * operates on a throwaway copy instead, matching applyBlockOperations, so
+ * this function can compute a clean diff without ambiguity about whether
+ * DocumentYjsService.applyDocUpdate would be re-applying an update the live
+ * doc already has.
+ *
+ * No error handling around replaceBlocks itself, unlike applyBlockOperations:
+ * targetBlocks comes from an already-decoded checkpoint (trusted internal
+ * data, not caller input to validate), and currentTopLevelIds is always
+ * freshly read from the same scratch doc immediately before use, so there's
+ * no stale-id failure mode to guard against here.
+ * @param liveYDoc - the document's live Y.Doc, e.g. from DocumentYjsService.loadDoc
+ * @param targetBlocks - the full block content to restore the document to,
+ * e.g. from blocksFromYDoc on a decoded checkpoint
+ * @returns the Yjs update bytes for the change, and the document's resulting blocks
+ */
+export function restoreYDocFromBlocks(
+  liveYDoc: Y.Doc,
+  targetBlocks: DocumentBlock[],
+): Promise<{ update: Uint8Array; blocks: DocumentBlock[] }> {
+  return withMutex(() =>
+    editor._withJSDOM(async () => {
+      // Work on a throwaway copy of the document's current state, not the
+      // live doc — see the doc comment above.
+      const scratch = new Y.Doc();
+      Y.applyUpdate(scratch, Y.encodeStateAsUpdate(liveYDoc));
+      const fragment = scratch.getXmlFragment('blocknote');
+      const beforeSV = Y.encodeStateVector(scratch);
+
+      // Bind a real, collaboration-aware editor to the copy's fragment —
+      // same mount()/trailingBlock setup as applyBlockOperations, and for
+      // the same reasons (see its doc comment).
+      const collabEditor = BlockNoteEditor.create({
+        schema: editorSchema,
+        trailingBlock: false,
+        collaboration: {
+          fragment,
+          provider: {},
+          user: { name: 'agent', color: '#000000' },
+        },
+      });
+      collabEditor.mount(document.createElement('div'));
+
+      try {
+        // Replace every current top-level block with the target checkpoint's
+        // content in one call. Unlike applyBlockOperations' replace/insert
+        // (which inserts blocks freshly parsed from Markdown, with no id of
+        // their own), targetBlocks carries real historical ids from the
+        // checkpoint — confirmed empirically that BlockNote's replaceBlocks
+        // honors an explicit id on an inserted block rather than always
+        // generating a fresh one, so a restore reproduces the checkpoint's
+        // exact block identities, not just its content.
+        const currentTopLevelIds = editor
+          .yDocToBlocks(scratch, 'blocknote')
+          .map((block) => block.id);
+        collabEditor.replaceBlocks(currentTopLevelIds, targetBlocks);
+      } finally {
+        collabEditor.unmount();
+      }
+
+      const update = Y.encodeStateAsUpdate(scratch, beforeSV);
+      return { update, blocks: editor.yDocToBlocks(scratch, 'blocknote') };
+    }),
+  );
+}

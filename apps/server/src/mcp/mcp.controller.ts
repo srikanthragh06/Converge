@@ -31,6 +31,8 @@ import {
   ListCheckpointsToolResponseSchema,
   GetCheckpointContentToolInputSchema,
   GetCheckpointContentToolResponseSchema,
+  RestoreCheckpointToolInputSchema,
+  RestoreCheckpointResponseSchema,
 } from '@converge/shared';
 
 // Exposes a single MCP endpoint over the Streamable HTTP transport. The MCP
@@ -299,6 +301,26 @@ export class McpController {
       async (input) => {
         const result = await withMcpErrorHandling(() =>
           this.documentTools.getCheckpointContent(userId, input),
+        );
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'restoreCheckpoint',
+      {
+        title: 'Restore Checkpoint',
+        description:
+          "Restores a document's content to a past checkpoint. Requires editor access or higher. Only restores blocks, not title. Takes a fresh checkpoint immediately before the restore lands, so an unwanted restore is itself just one more restore away from undo. Use listCheckpoints first to find a checkpointId.",
+        inputSchema: RestoreCheckpointToolInputSchema,
+        outputSchema: RestoreCheckpointResponseSchema,
+      },
+      async (input) => {
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.restoreCheckpoint(userId, input),
         );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],

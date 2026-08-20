@@ -27,6 +27,8 @@ import {
   type ListCheckpointsToolResponseDto,
   type GetCheckpointContentToolInputDto,
   type GetCheckpointContentToolResponseDto,
+  type RestoreCheckpointToolInputDto,
+  type RestoreCheckpointResponseDto,
 } from '@converge/shared';
 
 // MCP tool handlers for the document feature. Thin wrappers around
@@ -325,5 +327,29 @@ export class DocumentTools {
       source: checkpoint.source,
       blocks,
     };
+  }
+
+  /**
+   * Restores a document's content to a past checkpoint. Only restores
+   * blocks, not title (see DocumentService.restoreCheckpoint). Takes a
+   * fresh 'mcp' checkpoint immediately before the restore lands, same as
+   * updateDocumentBlocks, so an unwanted restore is itself just one more
+   * restore away from undo. restoreCheckpoint throws
+   * NotFoundException/ForbiddenException on insufficient access / an
+   * unknown checkpoint — left uncaught here since the MCP SDK already
+   * converts a thrown error into a proper isError tool result.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the document and checkpoint to restore to
+   */
+  async restoreCheckpoint(
+    userId: number,
+    input: RestoreCheckpointToolInputDto,
+  ): Promise<RestoreCheckpointResponseDto> {
+    const blocks = await this.documentService.restoreCheckpoint(
+      input.documentId,
+      userId,
+      input.checkpointId,
+    );
+    return { blocks };
   }
 }
