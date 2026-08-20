@@ -42,6 +42,8 @@ export {
     RestoreCheckpointResponseSchema,
     ListDeletedDocumentsToolInputSchema,
     ListDeletedDocumentsToolResponseSchema,
+    RestoreDocumentToolInputSchema,
+    RestoreDocumentResponseSchema,
 } from "./tools/document.js";
 export type {
     ListDocumentsToolInputDto,
@@ -70,6 +72,8 @@ export type {
     RestoreCheckpointResponseDto,
     ListDeletedDocumentsToolInputDto,
     ListDeletedDocumentsToolResponseDto,
+    RestoreDocumentToolInputDto,
+    RestoreDocumentResponseDto,
 } from "./tools/document.js";
 export {
     CreateCheckpointResponseSchema,

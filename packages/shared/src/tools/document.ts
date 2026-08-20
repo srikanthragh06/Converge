@@ -514,3 +514,24 @@ export const ListDeletedDocumentsToolResponseSchema = z.object({
 export type ListDeletedDocumentsToolResponseDto = z.infer<
     typeof ListDeletedDocumentsToolResponseSchema
 >;
+
+export const RestoreDocumentToolInputSchema = {
+    documentId: z.coerce.number().int().positive().describe(
+        "The soft-deleted document to restore. The caller must have admin access.",
+    ),
+};
+
+export type RestoreDocumentToolInputDto = {
+    documentId: number;
+};
+
+// restoreDocument (the underlying service call) returns void — matching
+// DeleteDocumentResponseSchema's shape, since there's nothing meaningful to
+// return either way beyond confirming success.
+export const RestoreDocumentResponseSchema = z.object({
+    success: z.literal(true),
+});
+
+export type RestoreDocumentResponseDto = z.infer<
+    typeof RestoreDocumentResponseSchema
+>;

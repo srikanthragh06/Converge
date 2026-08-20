@@ -31,6 +31,8 @@ import {
   type RestoreCheckpointResponseDto,
   type ListDeletedDocumentsToolInputDto,
   type ListDeletedDocumentsToolResponseDto,
+  type RestoreDocumentToolInputDto,
+  type RestoreDocumentResponseDto,
 } from '@converge/shared';
 
 // MCP tool handlers for the document feature. Thin wrappers around
@@ -393,5 +395,23 @@ export class DocumentTools {
           }
         : null,
     };
+  }
+
+  /**
+   * Restores a soft-deleted document. restoreDocument throws
+   * NotFoundException if the document does not exist at all,
+   * ForbiddenException if the caller lacks admin access, and
+   * ConflictException if the document is not currently deleted — left
+   * uncaught here since the MCP SDK already converts a thrown error into a
+   * proper isError tool result.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the deleted document to restore
+   */
+  async restoreDocument(
+    userId: number,
+    input: RestoreDocumentToolInputDto,
+  ): Promise<RestoreDocumentResponseDto> {
+    await this.documentService.restoreDocument(input.documentId, userId);
+    return { success: true };
   }
 }

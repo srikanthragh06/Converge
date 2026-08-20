@@ -35,6 +35,8 @@ import {
   RestoreCheckpointResponseSchema,
   ListDeletedDocumentsToolInputSchema,
   ListDeletedDocumentsToolResponseSchema,
+  RestoreDocumentToolInputSchema,
+  RestoreDocumentResponseSchema,
 } from '@converge/shared';
 
 // Exposes a single MCP endpoint over the Streamable HTTP transport. The MCP
@@ -256,7 +258,7 @@ export class McpController {
       {
         title: 'Delete Document',
         description:
-          'Soft-deletes a document. Requires admin access or higher. This cannot be undone through the MCP tools.',
+          'Soft-deletes a document. Requires admin access or higher. Use restoreDocument to undo this.',
         inputSchema: DeleteDocumentToolInputSchema,
         outputSchema: DeleteDocumentResponseSchema,
       },
@@ -343,6 +345,26 @@ export class McpController {
       async (input) => {
         const result = await withMcpErrorHandling(() =>
           this.documentTools.listDeletedDocuments(userId, input),
+        );
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'restoreDocument',
+      {
+        title: 'Restore Document',
+        description:
+          'Restores a soft-deleted document, undoing deleteDocument. Requires admin access or higher.',
+        inputSchema: RestoreDocumentToolInputSchema,
+        outputSchema: RestoreDocumentResponseSchema,
+      },
+      async (input) => {
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.restoreDocument(userId, input),
         );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
