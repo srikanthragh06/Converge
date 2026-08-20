@@ -1,6 +1,10 @@
 import { z } from "zod";
 import type { DocumentBlock } from "../editor/editorSchema.js";
-import { ResolvedDocumentAccessLevelSchema } from "../types/types.js";
+import {
+    ResolvedDocumentAccessLevelSchema,
+    CheckpointSourceSchema,
+} from "../types/types.js";
+import { CheckpointContributorSchema } from "../http/document.js";
 
 // Tool-facing input schemas are kept as a plain shape (not a wrapped
 // z.object) since the MCP SDK's registerTool expects individual per-field
@@ -326,4 +330,54 @@ export const DeleteDocumentResponseSchema = z.object({
 
 export type DeleteDocumentResponseDto = z.infer<
     typeof DeleteDocumentResponseSchema
+>;
+
+export const ListCheckpointsToolInputSchema = {
+    documentId: z.coerce.number().int().positive().describe(
+        "The document to list version-history checkpoints for.",
+    ),
+    limit: z.coerce.number().int().positive().optional().describe(
+        "Max checkpoints to return in this page. Defaults to 20.",
+    ),
+    cursorId: z.coerce.number().int().positive().optional().describe(
+        "Pagination cursor from a previous page's nextCursor. Omit for the first page.",
+    ),
+};
+
+export type ListCheckpointsToolInputDto = {
+    documentId: number;
+    limit?: number;
+    cursorId?: number;
+};
+
+// A separate response shape from the HTTP GetDocumentCheckpointsResponseSchema
+// (http/document.ts) — same reason as ListDocumentsToolResponseSchema above:
+// that schema's date fields use z.coerce.date(), which can't be converted to
+// JSON Schema for tools/list. CheckpointContributorSchema and
+// CheckpointSourceSchema are reused as-is, since neither has a Date field.
+export const ListCheckpointsToolResponseSchema = z.object({
+    checkpoints: z.array(
+        z.object({
+            id: z.number(),
+            createdAt: z.iso.datetime().describe(
+                "When the checkpoint row itself was created.",
+            ),
+            lastEditedAt: z.iso.datetime().describe(
+                "When the most recent edit folded into this checkpoint happened — prefer this over createdAt for display, since automatic checkpoints fire some delay after the last edit.",
+            ),
+            contributors: z.array(CheckpointContributorSchema).describe(
+                "Users who edited the document since the previous checkpoint.",
+            ),
+            source: CheckpointSourceSchema.describe(
+                "What triggered this checkpoint: a manual save, an idle-timeout or interval-based auto-checkpoint, or an automatic checkpoint taken immediately before an MCP-driven edit.",
+            ),
+        }),
+    ),
+    nextCursor: z.number().nullable().describe(
+        "Pass this back as cursorId to fetch the next page. Null when there are no more pages.",
+    ),
+});
+
+export type ListCheckpointsToolResponseDto = z.infer<
+    typeof ListCheckpointsToolResponseSchema
 >;

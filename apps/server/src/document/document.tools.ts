@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DocumentService } from './document.service.js';
+import { DocumentCheckpointService } from './document-checkpoint.service.js';
 import {
   type ListDocumentsToolInputDto,
   type ListDocumentsToolResponseDto,
@@ -19,16 +20,22 @@ import {
   type UpdateDocumentTitleResponseDto,
   type DeleteDocumentToolInputDto,
   type DeleteDocumentResponseDto,
+  type ListCheckpointsToolInputDto,
+  type ListCheckpointsToolResponseDto,
 } from '@converge/shared';
 
 // MCP tool handlers for the document feature. Thin wrappers around
-// DocumentService — access control is enforced entirely by the underlying
-// calls (see getLibraryDocuments, getDocumentOfUser, and getDocumentMarkdown),
-// same as their HTTP controller equivalents, so no separate authorization
-// check is needed here.
+// DocumentService/DocumentCheckpointService — access control is enforced
+// entirely by the underlying calls (see getLibraryDocuments,
+// getDocumentOfUser, getDocumentMarkdown, and listCheckpoints), same as
+// their HTTP controller equivalents, so no separate authorization check is
+// needed here.
 @Injectable()
 export class DocumentTools {
-  constructor(private readonly documentService: DocumentService) {}
+  constructor(
+    private readonly documentService: DocumentService,
+    private readonly documentCheckpointService: DocumentCheckpointService,
+  ) {}
 
   /**
    * Lists documents in a workspace visible to the calling user, newest
@@ -242,5 +249,38 @@ export class DocumentTools {
   ): Promise<DeleteDocumentResponseDto> {
     await this.documentService.deleteDocument(input.documentId, userId);
     return { success: true };
+  }
+
+  /**
+   * Lists a document's version-history checkpoints, newest first, each with
+   * its contributors. Mirrors GET /document/:id/checkpoints, except dates
+   * are ISO strings rather than Date objects — MCP tool schemas can't
+   * represent a Date type (see ListCheckpointsToolResponseSchema).
+   * listCheckpoints throws ForbiddenException if the caller lacks viewer+
+   * access — left uncaught here since the MCP SDK already converts a thrown
+   * error into a proper isError tool result.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the document to list checkpoints for, plus an optional
+   * limit and pagination cursor
+   */
+  async listCheckpoints(
+    userId: number,
+    input: ListCheckpointsToolInputDto,
+  ): Promise<ListCheckpointsToolResponseDto> {
+    const result = await this.documentCheckpointService.listCheckpoints(
+      input.documentId,
+      userId,
+      input.limit ?? 20,
+      input.cursorId,
+    );
+
+    return {
+      checkpoints: result.checkpoints.map((checkpoint) => ({
+        ...checkpoint,
+        createdAt: checkpoint.createdAt.toISOString(),
+        lastEditedAt: checkpoint.lastEditedAt.toISOString(),
+      })),
+      nextCursor: result.nextCursor,
+    };
   }
 }

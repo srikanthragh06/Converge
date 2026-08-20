@@ -27,6 +27,8 @@ import {
   UpdateDocumentTitleResponseSchema,
   DeleteDocumentToolInputSchema,
   DeleteDocumentResponseSchema,
+  ListCheckpointsToolInputSchema,
+  ListCheckpointsToolResponseSchema,
 } from '@converge/shared';
 
 // Exposes a single MCP endpoint over the Streamable HTTP transport. The MCP
@@ -255,6 +257,26 @@ export class McpController {
       async (input) => {
         const result = await withMcpErrorHandling(() =>
           this.documentTools.deleteDocument(userId, input),
+        );
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'listCheckpoints',
+      {
+        title: 'List Checkpoints',
+        description:
+          "Lists a document's version-history checkpoints, newest first, each with its contributors, source, and last-edited time.",
+        inputSchema: ListCheckpointsToolInputSchema,
+        outputSchema: ListCheckpointsToolResponseSchema,
+      },
+      async (input) => {
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.listCheckpoints(userId, input),
         );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
