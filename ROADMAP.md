@@ -710,6 +710,20 @@ Closes the read-only-discovery and reversibility gaps left by the first MCP rele
 - Every new tool verified end-to-end with live curl round-trips against the local dev server before being committed — not just typecheck/build — including a full write-and-revert test for `restoreCheckpoint` (two distinct versions written, restored to the first, confirmed a fresh `'mcp'` safety checkpoint captured the discarded second version) and a delete/restore/re-restore-fails test for `restoreDocument`
 - The full brainstorming and scoping process for what to add (and, as importantly, what to deliberately leave out — access-control tools, API-key management, workspace management, multimedia upload, presence — all judged too high-risk or too poor a fit for the stateless MCP model) was itself conducted through Converge's own MCP server, dogfooding `createDocument`/`updateDocumentBlocks` to write up the plan as a live Converge document
 
+## Database Index Audit ✅
+
+> Branch: `release-missing-indices` — merged 2026-08-31
+
+An exhaustive pass over every SQL query in `apps/server` — every `selectFrom`/`updateTable`/`deleteFrom`/`insertInto` call site across all eight services touching the database — checking each `WHERE`/`JOIN` column against the leading column of some actual index (primary key, unique constraint, or explicit `CREATE INDEX`), not just assuming past migrations covered it.
+
+### Server (NestJS backend)
+
+- Three columns were found filtered on directly with no supporting index, forcing a sequential scan over the entire table on every call: `documents.workspace_id` (migration `0032`), `workspaces.owner_id` (migration `0033`), and `api_keys.user_id` (migration `0034`) — each now has a standalone B-tree index
+- `documents.workspace_id` was the most significant gap: it's the leading filter in `getLibraryDocuments`, `getTrashDocuments`, and `searchLibraryDocuments` (the Library, Trash, and Search pages, hit on effectively every page load) and in `getOverview`'s document count — despite the column existing since migration `0018`, no migration ever indexed it
+- `workspaces.owner_id` backs `upsertUserPersonalWorkspace`'s lookup of a user's personal workspace, which runs on every login and signup
+- `api_keys.user_id` backs `listApiKeys` — lower urgency than the other two since a single user is expected to hold very few keys, but the same missing-index pattern
+- Every other `user_id`/`owner_id`-shaped column in the schema was confirmed already covered — either by its own standalone index (`workspace_members.user_id`, `document_user_metadata.user_id`) or because every call site filters it alongside the leading column of a composite primary key (`document_access`, `document_checkpoint_contributors`) — so these three were the only real gaps in the entire query surface
+
 ## Upcoming
 
 - Workspace/document access-control MCP tools (grant/revoke per-user access, role overrides) — deliberately deferred out of both MCP releases so far as higher-stakes, permission-escalation-risk surface; would need much narrower scoping than a straight mirror of the HTTP endpoints before it's worth building

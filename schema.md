@@ -45,6 +45,7 @@ One row per workspace. Holds the workspace name, owner reference, type, and per-
 |---|---|---|---|---|
 | `workspaces_pkey` | `id` | B-tree | Implicit — PK | Fast row lookup by primary key; used by all FK checks from `documents`, `workspace_members`, and `users.current_workspace_id`. |
 | `workspaces_name_trgm_idx` | `name` | GIN (trigram) | Explicit — 0022 | Powers the workspace search endpoint (`GET /workspaces/search`). Enables `ILIKE` substring matching without a sequential scan. |
+| `idx_workspaces_owner_id` | `owner_id` | B-tree | Explicit — 0033 | Serves `upsertUserPersonalWorkspace`'s lookup (`WHERE owner_id = ? AND type = 'personal'`), which runs on every login and signup to find or create the user's personal workspace. Previously a sequential scan on every auth request. |
 
 ---
 
@@ -94,7 +95,7 @@ One row per document. Stores the title and per-doc role overrides. Does not stor
 |---|---|---|---|---|
 | `documents_pkey` | `id` | B-tree | Implicit — PK | Fast row lookup by primary key; used by all joins and FK checks from `document_updates`, `document_user_metadata`, and `document_access`. |
 | `idx_documents_creator_id` | `creator_id` | B-tree | Explicit — 0005 | Accelerates queries that filter or join on the document creator. |
-| `idx_documents_workspace_id` | `workspace_id` | B-tree | Explicit — 0018 | Accelerates workspace-scoped document queries — used by the library endpoint and `resolveAccess` when fetching the workspace's per-role defaults. |
+| `idx_documents_workspace_id` | `workspace_id` | B-tree | Explicit — 0032 | Accelerates workspace-scoped document queries — `getLibraryDocuments`, `getTrashDocuments`, and `searchLibraryDocuments` (the Library, Trash, and Search pages) and `getOverview`'s document count all filter `WHERE workspace_id = ?`. The column has existed since migration `0018`, but was left unindexed until `0032` — every one of these queries did a sequential scan over the full table until then. |
 | `documents_title_trgm_idx` | `title` | GIN (trigram) | Explicit — 0010 | Powers the library search endpoint (`GET /document/library/search`). Enables `similarity()` ranking without a sequential scan. GIN is preferred over GiST for read-heavy search. |
 
 ---
@@ -203,8 +204,7 @@ Long-lived credentials for non-browser callers (MCP, CLI, scripts) that inherit 
 |---|---|---|---|---|
 | `api_keys_pkey` | `id` | B-tree | Implicit — PK | Fast row lookup by primary key. |
 | `api_keys_key_hash_key` | `key_hash` | B-tree unique | Implicit — UNIQUE | Serves `validateApiKey`'s lookup (`WHERE key_hash = ?`) on every authenticated MCP/API-key request, and enforces no two keys hash to the same value. |
-
-> No index on `user_id` — `listApiKeys` (`WHERE user_id = ?`) currently does a sequential scan, acceptable given how few keys a single user is expected to hold.
+| `idx_api_keys_user_id` | `user_id` | B-tree | Explicit — 0034 | Serves `listApiKeys`' lookup (`WHERE user_id = ?`). Low urgency compared to the other two indexes added alongside it, since a single user is expected to hold very few keys, but the same missing-index pattern. |
 
 ---
 
