@@ -724,6 +724,18 @@ An exhaustive pass over every SQL query in `apps/server` — every `selectFrom`/
 - `api_keys.user_id` backs `listApiKeys` — lower urgency than the other two since a single user is expected to hold very few keys, but the same missing-index pattern
 - Every other `user_id`/`owner_id`-shaped column in the schema was confirmed already covered — either by its own standalone index (`workspace_members.user_id`, `document_user_metadata.user_id`) or because every call site filters it alongside the leading column of a composite primary key (`document_access`, `document_checkpoint_contributors`) — so these three were the only real gaps in the entire query surface
 
+## Access-Control Race Condition Fix ✅
+
+> Branch: `release-missing-transactions` — merged 2026-08-31
+
+A transaction audit of every `*.service.ts` file in `apps/server` — checking each method with a multi-write or check-then-act sequence against whether it actually needed a shared transaction — turned up one real, recurring bug: three permission-gate methods read a target's current role to decide whether the caller was allowed to act, then wrote unconditionally with no re-check, leaving a window for a concurrent role change to slip past an owner-only rule.
+
+### Server (NestJS backend)
+
+- `DocumentAccessService.removeUserAccess`, `WorkspaceService.addMember`, and `WorkspaceService.removeMember` each had the same TOCTOU shape: read the target's role to enforce "only the owner can revoke/modify an admin," then delete/upsert without re-verifying at write time — a concurrent role change between the read and the write let a non-owner admin bypass the rule (e.g. revoke a target's access after the owner had just promoted them to admin, in the gap between the check and the delete)
+- Fixed by wrapping each in `db.transaction().execute(...)` and re-reading the target row with `.forUpdate()` inside the transaction, so the permission check and the write are now atomic against the same row version — a concurrent grant/role-change blocks on the row lock until the transaction commits, instead of racing
+- The rest of the service layer was confirmed already correct: `document.service.ts::createNewDocument`, `document-checkpoint.service.ts::createCheckpointInternal`, and several `workspace.service.ts` methods (`upsertUserPersonalWorkspace`, `createWorkspace`, `leaveWorkspace`, `transferOwner`, `setSelectedWorkspace`) already wrap their multi-write sequences in transactions; everything else is single-write or self-healing/best-effort and doesn't need one — noted for awareness, not fixed: `auth.service.ts`'s user-row upsert and personal-workspace upsert are two separate idempotent operations, so a crash between them just self-heals on the next login
+
 ## Upcoming
 
 - Workspace/document access-control MCP tools (grant/revoke per-user access, role overrides) — deliberately deferred out of both MCP releases so far as higher-stakes, permission-escalation-risk surface; would need much narrower scoping than a straight mirror of the HTTP endpoints before it's worth building
