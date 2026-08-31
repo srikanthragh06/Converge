@@ -629,49 +629,54 @@ export class WorkspaceService {
       throw new ConflictException('Cannot modify the workspace owner.');
     }
 
-    // Check existing membership to determine if this is an add or role change.
-    const existingMember = await db
-      .selectFrom('workspace_members')
-      .select(['user_id', 'role'])
-      .where('workspace_id', '=', workspaceId)
-      .where('user_id', '=', targetUser.id)
-      .executeTakeFirst();
+    return await db.transaction().execute(async (tx) => {
+      // Lock the target's membership row (if any) for the duration of the
+      // check+upsert so a concurrent role change can't slip in between the
+      // admin-modification check and the write.
+      const existingMember = await tx
+        .selectFrom('workspace_members')
+        .select(['user_id', 'role'])
+        .where('workspace_id', '=', workspaceId)
+        .where('user_id', '=', targetUser.id)
+        .forUpdate()
+        .executeTakeFirst();
 
-    // Only the owner can assign or change to admin, or modify an existing admin.
-    if (!isOwner) {
-      if (body.role === 'admin') {
-        throw new ForbiddenException(
-          'Only the owner can assign the admin role.',
-        );
+      // Only the owner can assign or change to admin, or modify an existing admin.
+      if (!isOwner) {
+        if (body.role === 'admin') {
+          throw new ForbiddenException(
+            'Only the owner can assign the admin role.',
+          );
+        }
+        if (existingMember && existingMember.role === 'admin') {
+          throw new ForbiddenException('Only the owner can modify an admin.');
+        }
       }
-      if (existingMember && existingMember.role === 'admin') {
-        throw new ForbiddenException('Only the owner can modify an admin.');
-      }
-    }
 
-    // Upsert the membership row.
-    const upserted = await db
-      .insertInto('workspace_members')
-      .values({
-        workspace_id: workspaceId,
-        user_id: targetUser.id,
-        role: body.role,
-      })
-      .onConflict((oc) =>
-        oc.columns(['workspace_id', 'user_id']).doUpdateSet({
+      // Upsert the membership row.
+      const upserted = await tx
+        .insertInto('workspace_members')
+        .values({
+          workspace_id: workspaceId,
+          user_id: targetUser.id,
           role: body.role,
-        }),
-      )
-      .returning(['role'])
-      .executeTakeFirstOrThrow();
+        })
+        .onConflict((oc) =>
+          oc.columns(['workspace_id', 'user_id']).doUpdateSet({
+            role: body.role,
+          }),
+        )
+        .returning(['role'])
+        .executeTakeFirstOrThrow();
 
-    return {
-      id: targetUser.id,
-      name: targetUser.name,
-      email: targetUser.email,
-      avatarUrl: targetUser.avatar_url,
-      role: upserted.role,
-    };
+      return {
+        id: targetUser.id,
+        name: targetUser.name,
+        email: targetUser.email,
+        avatarUrl: targetUser.avatar_url,
+        role: upserted.role,
+      };
+    });
   }
 
   /**
@@ -719,30 +724,31 @@ export class WorkspaceService {
 
     const isOwner = membership.role === 'owner';
 
-    // Only the owner can remove an admin.
-    if (!isOwner) {
-      const targetMember = await db
+    await db.transaction().execute(async (tx) => {
+      // Lock the target's membership row for the duration of the check+delete
+      // so a concurrent role change can't slip in between the admin check and
+      // the delete.
+      const targetMember = await tx
         .selectFrom('workspace_members')
         .select('role')
         .where('workspace_id', '=', workspaceId)
         .where('user_id', '=', targetUserId)
+        .forUpdate()
         .executeTakeFirst();
 
-      if (targetMember && targetMember.role === 'admin') {
+      if (!targetMember) throw new NotFoundException('Member not found.');
+
+      // Only the owner can remove an admin.
+      if (!isOwner && targetMember.role === 'admin') {
         throw new ForbiddenException('Only the owner can remove an admin.');
       }
-    }
 
-    // Delete the membership row.
-    const result = await db
-      .deleteFrom('workspace_members')
-      .where('workspace_id', '=', workspaceId)
-      .where('user_id', '=', targetUserId)
-      .executeTakeFirst();
-
-    if (!result.numDeletedRows) {
-      throw new NotFoundException('Member not found.');
-    }
+      await tx
+        .deleteFrom('workspace_members')
+        .where('workspace_id', '=', workspaceId)
+        .where('user_id', '=', targetUserId)
+        .execute();
+    });
   }
 
   /**

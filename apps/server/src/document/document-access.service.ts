@@ -509,26 +509,31 @@ export class DocumentAccessService {
     if (!hasAccess(callerAccess, 'admin'))
       throw new ForbiddenException('You do not have access to this document.');
 
-    // Fetch the target's current access level before deleting.
-    const targetRow = await db
-      .selectFrom('document_access')
-      .select('access')
-      .where('document_id', '=', documentId)
-      .where('user_id', '=', targetUserId)
-      .executeTakeFirst();
+    await db.transaction().execute(async (tx) => {
+      // Lock the target's access row for the duration of the check+delete so
+      // a concurrent grant can't slip in and get deleted by a caller who was
+      // only cleared to revoke a non-admin.
+      const targetRow = await tx
+        .selectFrom('document_access')
+        .select('access')
+        .where('document_id', '=', documentId)
+        .where('user_id', '=', targetUserId)
+        .forUpdate()
+        .executeTakeFirst();
 
-    if (!targetRow) throw new NotFoundException('Access entry not found.');
+      if (!targetRow) throw new NotFoundException('Access entry not found.');
 
-    // Only the document owner may revoke admin access.
-    if (targetRow.access === 'admin' && callerAccess !== 'owner')
-      throw new ForbiddenException(
-        'Only the document owner can revoke admin access.',
-      );
+      // Only the document owner may revoke admin access.
+      if (targetRow.access === 'admin' && callerAccess !== 'owner')
+        throw new ForbiddenException(
+          'Only the document owner can revoke admin access.',
+        );
 
-    await db
-      .deleteFrom('document_access')
-      .where('document_id', '=', documentId)
-      .where('user_id', '=', targetUserId)
-      .execute();
+      await tx
+        .deleteFrom('document_access')
+        .where('document_id', '=', documentId)
+        .where('user_id', '=', targetUserId)
+        .execute();
+    });
   }
 }
