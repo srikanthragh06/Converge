@@ -13,6 +13,7 @@ import { DocumentCheckpointSchedulerService } from './document-checkpoint-schedu
 import { AuthModule } from '../auth/auth.module.js';
 import { DocumentTools } from './document.tools.js';
 import { DocumentEmbeddingService } from './document-embedding.service.js';
+import { DocumentIndexingService } from './document-indexing.service.js';
 
 @Module({
   imports: [DatabaseModule, RedisModule, AuthModule],
@@ -28,6 +29,7 @@ import { DocumentEmbeddingService } from './document-embedding.service.js';
     DocumentCheckpointSchedulerService,
     DocumentTools,
     DocumentEmbeddingService,
+    DocumentIndexingService,
   ],
 })
 export class DocumentModule {}
