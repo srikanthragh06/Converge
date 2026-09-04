@@ -49,7 +49,7 @@ const DiffBlockNoteView = ({ entries }: { entries: UnifiedBlockEntry[] }) => {
     return (
         <div
             data-checkpoint-diff-view
-            className="flex-1 min-h-0 overflow-y-auto"
+            className="flex-1 min-h-0 overflow-y-auto overflow-x-auto"
         >
             <style>{statusStyles}</style>
             <BlockNoteView
