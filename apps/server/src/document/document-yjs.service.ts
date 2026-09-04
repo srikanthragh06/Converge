@@ -45,13 +45,27 @@ export class DocumentYjsService {
 
   /**
    * Returns the in-memory Y.Doc for the given document, loading and caching it
-   * from the database on first access. Subsequent calls return the cached instance.
+   * from the database on first access. Subsequent calls return the cached
+   * instance, unless rebuild is true.
    * @param documentId - the document to load
+   * @param rebuild - if true, always reconstructs the doc fresh from
+   * document_updates and replaces the cached instance, instead of trusting
+   * whatever is already cached. The cache is only ever kept fresh via a
+   * Redis subscription, and that subscription is only ever established when
+   * a real client socket connects to this document on this server instance
+   * (see document.gateway.ts's handleConnection) — a caller with no socket
+   * of its own (e.g. a scheduled background job like
+   * DocumentIndexingService.reindexDocument) has no guarantee this instance
+   * was ever subscribed, so the cache could be silently, permanently stale.
+   * Defaults to false so every existing socket-driven caller (which IS
+   * covered by that subscription) keeps its current, cheaper behavior.
    * @returns the live Y.Doc instance for this document
    */
-  async loadDoc(documentId: number): Promise<Y.Doc> {
-    const yDoc = this.yDocsMap.get(documentId);
-    if (yDoc) return yDoc;
+  async loadDoc(documentId: number, rebuild = false): Promise<Y.Doc> {
+    if (!rebuild) {
+      const cached = this.yDocsMap.get(documentId);
+      if (cached) return cached;
+    }
 
     const db = this.dbService.kysely;
 

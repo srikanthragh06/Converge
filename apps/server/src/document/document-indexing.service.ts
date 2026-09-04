@@ -33,8 +33,12 @@ export class DocumentIndexingService {
     // Load the document's current content and convert every block to
     // Markdown up front — slow (jsdom-mutex-serialized) work that doesn't
     // need a DB lock, so it happens before the transaction opens rather
-    // than inside it.
-    const yDoc = await this.documentYjsService.loadDoc(documentId);
+    // than inside it. rebuild: true — this runs as a scheduled background
+    // job, not a live socket connection, so there's no guarantee this
+    // server instance was ever subscribed to this document's Redis updates
+    // (see DocumentYjsService.loadDoc); the cached copy could be silently
+    // stale, so always reconstruct fresh from document_updates instead.
+    const yDoc = await this.documentYjsService.loadDoc(documentId, true);
     const blocks = blocksFromYDoc(yDoc);
     const blockTexts: BlockText[] = [];
     const currentDocBlockHashMap = new Map<string, string>();
