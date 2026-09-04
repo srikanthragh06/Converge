@@ -736,6 +736,15 @@ A transaction audit of every `*.service.ts` file in `apps/server` — checking e
 - Fixed by wrapping each in `db.transaction().execute(...)` and re-reading the target row with `.forUpdate()` inside the transaction, so the permission check and the write are now atomic against the same row version — a concurrent grant/role-change blocks on the row lock until the transaction commits, instead of racing
 - The rest of the service layer was confirmed already correct: `document.service.ts::createNewDocument`, `document-checkpoint.service.ts::createCheckpointInternal`, and several `workspace.service.ts` methods (`upsertUserPersonalWorkspace`, `createWorkspace`, `leaveWorkspace`, `transferOwner`, `setSelectedWorkspace`) already wrap their multi-write sequences in transactions; everything else is single-write or self-healing/best-effort and doesn't need one — noted for awareness, not fixed: `auth.service.ts`'s user-row upsert and personal-workspace upsert are two separate idempotent operations, so a crash between them just self-heals on the next login
 
+## Checkpoint Diff Panel Layout Fix ✅
+
+> Branch: `release-fix-checkpoint-ui-bug-fix` — merged 2026-09-04
+
+### Web (React frontend)
+
+- Fixed the "Restore this checkpoint" button in the version-history diff panel (`CheckpointDiffView`) rendering pushed far to the right instead of staying centered, on documents whose diff contained wide, non-wrapping content (a table, a long code line, an unbroken long string) — the right-side diff column (`CheckpointHistoryModal`) had no `min-w-0`, so as a row-flex item it defaulted to `min-width: auto` and silently expanded to fit that content's full intrinsic width; the restore button's `m-auto` centering then centered it within that oversized, visually-clipped column instead of the panel actually visible to the user
+- Added `min-w-0` to the diff column to cap it at its fair `flex-1` share regardless of content width, and `overflow-x-auto` to `DiffBlockNoteView`'s content container so wide diff content scrolls horizontally in place instead of forcing the column wider
+
 ## Upcoming
 
 - Workspace/document access-control MCP tools (grant/revoke per-user access, role overrides) — deliberately deferred out of both MCP releases so far as higher-stakes, permission-escalation-risk surface; would need much narrower scoping than a straight mirror of the HTTP endpoints before it's worth building
