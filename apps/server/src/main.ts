@@ -7,6 +7,7 @@ import { IoAdapter } from '@nestjs/platform-socket.io';
 import { DatabaseService } from './db/database.service.js';
 import { RedisService } from './redis/redis.service.js';
 import { DocumentCheckpointSchedulerService } from './document/document-checkpoint-scheduler.service.js';
+import { DocumentIndexingSchedulerService } from './document/document-indexing-scheduler.service.js';
 import cookieParser from 'cookie-parser';
 
 // Load .env files before the NestJS app is created so process.env is fully
@@ -65,6 +66,11 @@ async function bootstrap() {
     DocumentCheckpointSchedulerService,
   );
   await checkpointSchedulerService.start();
+
+  // Start the RAG indexing scheduler for the same reason and at the same
+  // point — needs document_chunks/document_block_hashes to already exist.
+  const indexingSchedulerService = app.get(DocumentIndexingSchedulerService);
+  await indexingSchedulerService.start();
 
   await app.listen(PORT);
 }

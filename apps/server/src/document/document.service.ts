@@ -28,6 +28,7 @@ import { DocumentAccessService } from './document-access.service.js';
 import { DocumentYjsService } from './document-yjs.service.js';
 import { DocumentCheckpointSchedulerService } from './document-checkpoint-scheduler.service.js';
 import { DocumentCheckpointService } from './document-checkpoint.service.js';
+import { DocumentIndexingSchedulerService } from './document-indexing-scheduler.service.js';
 import {
   markdownFromYDoc,
   blocksFromYDoc,
@@ -47,6 +48,7 @@ export class DocumentService {
     private readonly documentYjsService: DocumentYjsService,
     private readonly documentCheckpointSchedulerService: DocumentCheckpointSchedulerService,
     private readonly documentCheckpointService: DocumentCheckpointService,
+    private readonly documentIndexingSchedulerService: DocumentIndexingSchedulerService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -163,12 +165,13 @@ export class DocumentService {
    * do here. No socket originates this write, so nothing is excluded from
    * the broadcast — every connected viewer of this document sees it.
    *
-   * This is currently the only caller of DocumentYjsService.applyDocUpdate
-   * that isn't a live client edit — it's the MCP write path exclusively —
-   * so it takes a synchronous 'mcp' checkpoint immediately beforehand,
-   * folding in everything since the last checkpoint. That gives a human a
-   * restore point from right before the agent's change, regardless of the
-   * idle/interval scheduler's own timing.
+   * This is the MCP write path — one of the callers of
+   * DocumentYjsService.applyDocUpdate that isn't a live client edit (see
+   * also restoreCheckpoint below) — so it takes a synchronous 'mcp'
+   * checkpoint immediately beforehand, folding in everything since the
+   * last checkpoint. That gives a human a restore point from right before
+   * the agent's change, regardless of the idle/interval scheduler's own
+   * timing.
    * @param documentId - the document to edit
    * @param userId - the ID of the authenticated requesting user
    * @param operations - the edits to apply, in order, as one atomic save
@@ -203,10 +206,11 @@ export class DocumentService {
     const { update, blocks } = await applyBlockOperations(yDoc, operations);
     await this.documentYjsService.applyDocUpdate(documentId, update);
 
-    // Keep last-edited tracking and automatic checkpoint scheduling
-    // consistent with a real client edit.
+    // Keep last-edited tracking and automatic checkpoint/indexing
+    // scheduling consistent with a real client edit.
     await this.documentYjsService.recordLastEdited(documentId, userId);
     await this.documentCheckpointSchedulerService.onDocumentEdited(documentId);
+    await this.documentIndexingSchedulerService.onDocumentEdited(documentId);
 
     return blocks;
   }
@@ -252,11 +256,12 @@ export class DocumentService {
     // Reconstruct the target checkpoint's content: its stored update is a
     // full self-contained Yjs state, not a delta, so applying it alone to
     // an empty scratch doc fully reconstructs the checkpoint's content.
-    const checkpoint = await this.documentCheckpointService.getCheckpointContent(
-      documentId,
-      userId,
-      checkpointId,
-    );
+    const checkpoint =
+      await this.documentCheckpointService.getCheckpointContent(
+        documentId,
+        userId,
+        checkpointId,
+      );
     const targetScratch = new Y.Doc();
     Y.applyUpdate(targetScratch, base64ToUint8Array(checkpoint.updateBase64));
     const targetBlocks = blocksFromYDoc(targetScratch);
@@ -268,10 +273,11 @@ export class DocumentService {
     const { update, blocks } = await restoreYDocFromBlocks(yDoc, targetBlocks);
     await this.documentYjsService.applyDocUpdate(documentId, update);
 
-    // Keep last-edited tracking and automatic checkpoint scheduling
-    // consistent with a real client edit.
+    // Keep last-edited tracking and automatic checkpoint/indexing
+    // scheduling consistent with a real client edit.
     await this.documentYjsService.recordLastEdited(documentId, userId);
     await this.documentCheckpointSchedulerService.onDocumentEdited(documentId);
+    await this.documentIndexingSchedulerService.onDocumentEdited(documentId);
 
     return blocks;
   }

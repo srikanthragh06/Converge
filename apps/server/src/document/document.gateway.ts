@@ -13,6 +13,7 @@ import { DocumentService } from './document.service.js';
 import { DocumentYjsService } from './document-yjs.service.js';
 import { DocumentAwarenessService } from './document-awareness.service.js';
 import { DocumentCheckpointSchedulerService } from './document-checkpoint-scheduler.service.js';
+import { DocumentIndexingSchedulerService } from './document-indexing-scheduler.service.js';
 import { ZodSocketValidationPipe } from '../pipes/zod-socket-validation.pipe.js';
 import {
   PingSchema,
@@ -85,6 +86,7 @@ export class DocumentGateway
     private readonly authService: AuthService,
     private readonly documentAwarenessService: DocumentAwarenessService,
     private readonly documentCheckpointSchedulerService: DocumentCheckpointSchedulerService,
+    private readonly documentIndexingSchedulerService: DocumentIndexingSchedulerService,
   ) {
     this.documentYjsService = documentYjsService;
   }
@@ -417,6 +419,9 @@ export class DocumentGateway
     // reset the idle checkpoint timer and ensure the interval one is running
     await this.documentCheckpointSchedulerService.onDocumentEdited(documentId);
 
+    // reset the idle re-indexing timer
+    await this.documentIndexingSchedulerService.onDocumentEdited(documentId);
+
     // if the client is behind, prompt it to start a repair sync
     const isSynced = await this.documentYjsService.isClientAndServerDocSynced(
       documentId,
@@ -511,6 +516,9 @@ export class DocumentGateway
       await this.documentCheckpointSchedulerService.onDocumentEdited(
         documentId,
       );
+
+      // reset the idle re-indexing timer
+      await this.documentIndexingSchedulerService.onDocumentEdited(documentId);
     }
 
     // Calculate the remaining diff the client is still missing and send it back,
@@ -572,6 +580,9 @@ export class DocumentGateway
       await this.documentCheckpointSchedulerService.onDocumentEdited(
         documentId,
       );
+
+      // reset the idle re-indexing timer
+      await this.documentIndexingSchedulerService.onDocumentEdited(documentId);
     }
   }
 

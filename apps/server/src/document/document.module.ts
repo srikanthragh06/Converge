@@ -14,10 +14,15 @@ import { AuthModule } from '../auth/auth.module.js';
 import { DocumentTools } from './document.tools.js';
 import { DocumentEmbeddingService } from './document-embedding.service.js';
 import { DocumentIndexingService } from './document-indexing.service.js';
+import { DocumentIndexingSchedulerService } from './document-indexing-scheduler.service.js';
 
 @Module({
   imports: [DatabaseModule, RedisModule, AuthModule],
-  exports: [DocumentCheckpointSchedulerService, DocumentTools],
+  exports: [
+    DocumentCheckpointSchedulerService,
+    DocumentIndexingSchedulerService,
+    DocumentTools,
+  ],
   controllers: [DocumentController, DocumentAccessController],
   providers: [
     DocumentGateway,
@@ -30,6 +35,7 @@ import { DocumentIndexingService } from './document-indexing.service.js';
     DocumentTools,
     DocumentEmbeddingService,
     DocumentIndexingService,
+    DocumentIndexingSchedulerService,
   ],
 })
 export class DocumentModule {}
