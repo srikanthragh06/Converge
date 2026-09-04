@@ -34,6 +34,7 @@
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.3.1",
     "ioredis": "^5.10.1",
+    "js-tiktoken": "^1.0.0",
     "jsonwebtoken": "^9.0.3",
     "kysely": "^0.28.15",
     "pg": "^8.20.0",

@@ -42,6 +42,19 @@ export function blocksFromYDoc(yDoc: Y.Doc): DocumentBlock[] {
 }
 
 /**
+ * Converts a single block to Markdown — the per-block granularity the RAG
+ * indexing pipeline needs for chunking, embedding, and content hashing
+ * (see document-indexing.service.ts). Routed through withMutex like
+ * markdownFromYDoc above, since blocksToMarkdownLossy depends on the shared
+ * jsdom shim.
+ * @param block - the block to convert, e.g. from blocksFromYDoc
+ * @returns the block's content as a Markdown string
+ */
+export function markdownFromBlock(block: DocumentBlock): Promise<string> {
+  return withMutex(() => editor.blocksToMarkdownLossy([block]));
+}
+
+/**
  * Builds the Yjs update bytes for a brand-new document's initial content:
  * a single empty paragraph, the same shape a live client's first editor
  * mount produces. Needed because the block-manipulation API

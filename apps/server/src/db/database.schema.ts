@@ -126,6 +126,38 @@ export interface ApiKeysTable {
   created_at: Generated<Date>;
 }
 
+/**
+ * Row shape for the document_chunks table.
+ * `embedding` is a pgvector column; Kysely has no native vector type, so it
+ * round-trips as the string pgvector itself uses (e.g. "[0.1,0.2,...]") on
+ * both read and write — callers must format/parse it themselves.
+ */
+export interface DocumentChunksTable {
+  id: Generated<number>;
+  /** FK to documents.id — the document this chunk was extracted from. */
+  document_id: number;
+  /** Denormalized from documents.workspace_id — lets retrieval filter by access without a join. */
+  workspace_id: number;
+  /** BlockNote block ids (UUID strings) this chunk spans, in document order. */
+  block_ids: string[];
+  /** The chunk's text, as Markdown — what gets embedded and what's shown as a citation excerpt. */
+  content: string;
+  /** pgvector embedding, 1536 dimensions (text-embedding-3-small). */
+  embedding: string;
+  created_at: Generated<Date>;
+}
+
+/** Row shape for the document_block_hashes table — per-block content fingerprints used to detect changed/added/deleted blocks between indexing runs. */
+export interface DocumentBlockHashesTable {
+  /** FK to documents.id — scopes this row to a specific document. */
+  document_id: number;
+  /** BlockNote block id (UUID string) this fingerprint belongs to. */
+  block_id: string;
+  /** Content hash of the block's Markdown as of the last indexing run. */
+  hash: string;
+  updated_at: Generated<Date>;
+}
+
 /** Row shape for the workspace_members table. */
 export interface WorkspaceMembersTable {
   /** FK to workspaces.id — scopes this membership to a specific workspace. */
@@ -144,7 +176,9 @@ export interface WorkspaceMembersTable {
 export interface DatabaseSchema {
   api_keys: ApiKeysTable;
   document_access: DocumentAccessTable;
+  document_block_hashes: DocumentBlockHashesTable;
   document_checkpoint_contributors: DocumentCheckpointContributorsTable;
+  document_chunks: DocumentChunksTable;
   document_updates: DocumentUpdatesTable;
   document_user_metadata: DocumentUserMetadataTable;
   documents: DocumentsTable;
