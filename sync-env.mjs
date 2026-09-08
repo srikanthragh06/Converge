@@ -21,7 +21,7 @@ if (sourceRoot === targetRoot) {
   process.exit(0);
 }
 
-const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build"]);
+const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", "worktrees"]);
 
 async function findEnvFiles(dir, results = []) {
   const entries = await fs.readdir(dir, { withFileTypes: true });
