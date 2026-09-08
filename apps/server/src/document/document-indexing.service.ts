@@ -8,6 +8,7 @@ import { blocksFromYDoc, markdownFromBlock } from '../utils/editor-schema.js';
 import {
   chunkBlocks,
   countTokens,
+  groupIntoSections,
   type BlockText,
 } from '../utils/chunking.util.js';
 
@@ -41,18 +42,36 @@ export class DocumentIndexingService {
     const yDoc = await this.documentYjsService.loadDoc(documentId, true);
     const blocks = blocksFromYDoc(yDoc);
     const blockTexts: BlockText[] = [];
-    const currentDocBlockHashMap = new Map<string, string>();
+    const currentBlockHashById = new Map<string, string>();
     for (const block of blocks) {
       const text = (await markdownFromBlock(block)).trim();
       if (!text) continue; // empty blocks carry nothing to index
-      blockTexts.push({ blockId: block.id, text, tokens: countTokens(text) });
-      currentDocBlockHashMap.set(block.id, this.hashBlockText(text));
+      blockTexts.push({
+        blockId: block.id,
+        text,
+        tokens: countTokens(text),
+        isHeading: block.type === 'heading',
+      });
+      currentBlockHashById.set(block.id, this.hashBlockText(text));
     }
 
-    // blockTexts preserves document order (blocksFromYDoc's order), which
-    // chunkBlocks below relies on to group only consecutive blocks.
+    // blockTexts preserves document order (blocksFromYDoc's order). Both
+    // the section grouping below and the contiguous-run split further down
+    // rely on that order to know which blocks are actually adjacent in the
+    // live document.
     const blockTextById = new Map(blockTexts.map((b) => [b.blockId, b]));
     const orderedBlockIds = blockTexts.map((b) => b.blockId);
+
+    // Every block's section, keyed by every block id in it. A block not in
+    // this map is one this run treats as removed for indexing purposes —
+    // either it no longer exists in the document, or its Markdown is now
+    // empty (see the `if (!text) continue` skip above).
+    const sectionBlockIdsById = new Map<string, string[]>();
+    for (const section of groupIntoSections(blockTexts)) {
+      for (const blockId of section.blockIds) {
+        sectionBlockIdsById.set(blockId, section.blockIds);
+      }
+    }
 
     const db = this.dbService.kysely;
 
@@ -80,14 +99,14 @@ export class DocumentIndexingService {
         .where('document_id', '=', documentId)
         .forUpdate()
         .execute();
-      const existingBlockHashMap = new Map(
+      const oldBlockHashById = new Map(
         existingBlockHashRows.map((r) => [r.block_id, r.hash]),
       );
 
       // Block ids as of the last index run, vs. block ids in the document
       // right now.
-      const oldBlockIds = new Set(existingBlockHashMap.keys());
-      const newBlockIds = new Set(currentDocBlockHashMap.keys());
+      const oldBlockIds = new Set(oldBlockHashById.keys());
+      const newBlockIds = new Set(currentBlockHashById.keys());
 
       // Newly added blocks — in the document now, weren't indexed before.
       const addedBlockIds = new Set(
@@ -103,8 +122,7 @@ export class DocumentIndexingService {
         [...oldBlockIds].filter(
           (blockId) =>
             newBlockIds.has(blockId) &&
-            existingBlockHashMap.get(blockId) !==
-              currentDocBlockHashMap.get(blockId),
+            oldBlockHashById.get(blockId) !== currentBlockHashById.get(blockId),
         ),
       );
 
@@ -117,92 +135,116 @@ export class DocumentIndexingService {
         return;
       }
 
-      // Every existing chunk that spans a removed or changed block is now
-      // stale and has to be rebuilt.
-      const touchedBlockIds = [...removedBlockIds, ...changedBlockIds];
-      const staleChunks = touchedBlockIds.length
-        ? await tx
-            .selectFrom('document_chunks')
-            .select(['id', 'block_ids'])
-            .where('document_id', '=', documentId)
-            .where(
-              sql<boolean>`block_ids && ${sql.val(touchedBlockIds)}::text[]`,
-            )
-            .execute()
-        : [];
-      const chunkIdsToDelete = new Set(staleChunks.map((chunk) => chunk.id));
+      // Grow the rebuild set to a fixed point: any block directly touched
+      // by the diff pulls in (a) every block sharing an existing chunk with
+      // it, so a chunk is never partially deleted and left with orphaned
+      // survivors, and (b) every block in its heading section, so the
+      // chunker above always sees a section's true, complete size instead
+      // of a partial one. Each of those can in turn land in a chunk or
+      // section not yet accounted for, so this repeats until a full pass
+      // adds nothing new — bounded, since the set only ever grows and the
+      // whole document is a hard ceiling.
+      const rebuildBlockIds = new Set<string>([
+        ...addedBlockIds,
+        ...removedBlockIds,
+        ...changedBlockIds,
+      ]);
+      const staleChunkIds = new Set<number>();
+      let grew = true;
+      while (grew) {
+        grew = false;
 
-      // The blocks that need to be re-chunked: every block a stale chunk
-      // used to span (not just the specific block that changed — a
-      // chunk's other, unchanged blocks would otherwise fall out of the
-      // index entirely), plus every added/changed block, minus removed
-      // ones (they no longer exist in the live doc to re-chunk).
-      const blockIdsToReindex = new Set<string>();
-      for (const chunk of staleChunks) {
-        for (const blockId of chunk.block_ids) blockIdsToReindex.add(blockId);
-      }
-      for (const blockId of addedBlockIds) blockIdsToReindex.add(blockId);
-      for (const blockId of changedBlockIds) blockIdsToReindex.add(blockId);
-      for (const blockId of removedBlockIds) blockIdsToReindex.delete(blockId);
-
-      // Edge case: a newly added block isn't part of any existing chunk
-      // yet. If its immediate neighbor in document order isn't already
-      // being rebuilt, pull the neighbor's whole chunk in too, so the new
-      // block merges into that chunk's rebuild instead of being indexed
-      // as an orphaned singleton with no surrounding context.
-      for (const blockId of addedBlockIds) {
-        const idx = orderedBlockIds.indexOf(blockId);
-        const neighborBlockId =
-          orderedBlockIds[idx - 1] ?? orderedBlockIds[idx + 1];
-        if (
-          neighborBlockId === undefined ||
-          blockIdsToReindex.has(neighborBlockId)
-        )
-          continue;
-
-        const neighborChunk = await tx
+        // (a) Chunk-closure: any existing chunk that overlaps the rebuild
+        // set is stale, and every other block that chunk spans has to join
+        // the rebuild set too — otherwise deleting the chunk would silently
+        // drop its unchanged blocks from the index entirely.
+        const overlappingChunks = await tx
           .selectFrom('document_chunks')
           .select(['id', 'block_ids'])
           .where('document_id', '=', documentId)
           .where(
-            sql<boolean>`${sql.val(neighborBlockId)}::text = ANY(block_ids)`,
+            sql<boolean>`block_ids && ${sql.val([...rebuildBlockIds])}::text[]`,
           )
-          .executeTakeFirst();
-        if (!neighborChunk) continue; // neighbor has no chunk of its own yet either
-
-        chunkIdsToDelete.add(neighborChunk.id);
-        for (const spanBlockId of neighborChunk.block_ids) {
-          blockIdsToReindex.add(spanBlockId);
+          .execute();
+        for (const chunk of overlappingChunks) {
+          if (!staleChunkIds.has(chunk.id)) {
+            staleChunkIds.add(chunk.id);
+            grew = true;
+          }
+          for (const blockId of chunk.block_ids) {
+            if (!rebuildBlockIds.has(blockId)) {
+              rebuildBlockIds.add(blockId);
+              grew = true;
+            }
+          }
         }
+
+        // (b) Section-closure: any block in the rebuild set pulls in every
+        // other block in its heading section, so the chunker always sees a
+        // section's true, complete size rather than a partial one.
+        for (const blockId of [...rebuildBlockIds]) {
+          const sectionBlockIds = sectionBlockIdsById.get(blockId);
+          if (!sectionBlockIds) continue; // block no longer exists (removed)
+          for (const sectionBlockId of sectionBlockIds) {
+            if (!rebuildBlockIds.has(sectionBlockId)) {
+              rebuildBlockIds.add(sectionBlockId);
+              grew = true;
+            }
+          }
+        }
+
+        // (a) and (b) can each reveal more territory for the other — a
+        // pulled-in section can span into a fresh chunk, and a pulled-in
+        // chunk can span into a fresh section — so the loop keeps going
+        // until a full pass adds nothing new.
       }
 
-      // Delete every stale chunk, then re-chunk and re-embed the full
-      // rebuild set, in document order.
-      if (chunkIdsToDelete.size) {
+      // Every chunk touched by (a) above, across every pass, is stale.
+      if (staleChunkIds.size) {
         await tx
           .deleteFrom('document_chunks')
-          .where('id', 'in', [...chunkIdsToDelete])
+          .where('id', 'in', [...staleChunkIds])
           .execute();
       }
 
-      const rebuildBlockTexts = orderedBlockIds
-        .filter((blockId) => blockIdsToReindex.has(blockId))
-        .map((blockId) => blockTextById.get(blockId)!);
+      // Split the rebuild set into contiguous runs, using the live
+      // document's real order — a rebuild set can span two unrelated,
+      // far-apart parts of the document (e.g. two edits in the same idle
+      // window), and blocks from different runs must never be chunked
+      // together just because both happened to need rebuilding. Removed
+      // block ids never appear in orderedBlockIds, so they drop out here
+      // naturally.
+      const rebuildRuns: BlockText[][] = [];
+      let currentRun: BlockText[] = [];
+      for (const blockId of orderedBlockIds) {
+        if (rebuildBlockIds.has(blockId)) {
+          currentRun.push(blockTextById.get(blockId)!);
+        } else if (currentRun.length) {
+          rebuildRuns.push(currentRun);
+          currentRun = [];
+        }
+      }
+      if (currentRun.length) rebuildRuns.push(currentRun);
 
-      for (const chunk of chunkBlocks(rebuildBlockTexts)) {
-        const embedding = await this.documentEmbeddingService.embed(
-          chunk.content,
-        );
-        await tx
-          .insertInto('document_chunks')
-          .values({
-            document_id: documentId,
-            workspace_id: workspaceId,
-            block_ids: chunk.blockIds,
-            content: chunk.content,
-            embedding: `[${embedding.join(',')}]`,
-          })
-          .execute();
+      // Chunk and embed each run on its own, so nothing ever merges blocks
+      // across a run boundary — i.e. across untouched, still-indexed
+      // content — into one chunk.
+      for (const run of rebuildRuns) {
+        for (const chunk of chunkBlocks(run)) {
+          const embedding = await this.documentEmbeddingService.embed(
+            chunk.content,
+          );
+          await tx
+            .insertInto('document_chunks')
+            .values({
+              document_id: documentId,
+              workspace_id: workspaceId,
+              block_ids: chunk.blockIds,
+              content: chunk.content,
+              embedding: `[${embedding.join(',')}]`,
+            })
+            .execute();
+        }
       }
 
       // Store fresh hashes for added/changed blocks so the next run's
@@ -211,7 +253,7 @@ export class DocumentIndexingService {
         (blockId) => ({
           document_id: documentId,
           block_id: blockId,
-          hash: currentDocBlockHashMap.get(blockId)!,
+          hash: currentBlockHashById.get(blockId)!,
         }),
       );
       if (hashesToStore.length) {
