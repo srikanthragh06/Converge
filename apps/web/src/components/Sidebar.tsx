@@ -13,6 +13,7 @@ import {
     MdLogout,
     MdDescription,
     MdVpnKey,
+    MdLink,
 } from "react-icons/md";
 import { Dropdown } from "primereact/dropdown";
 import "primereact/resources/themes/lara-dark-blue/theme.css";
@@ -214,6 +215,17 @@ const Sidebar = ({
                     >
                         <MdVpnKey className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                         <span className="text-sm sm:text-base">API Keys</span>
+                    </button>
+                    <button
+                        onClick={() => {
+                            navigate("/mcp-docs");
+                            closeOnMobile();
+                        }}
+                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
+                        aria-label="MCP"
+                    >
+                        <MdLink className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                        <span className="text-sm sm:text-base">MCP</span>
                     </button>
                     {isLogoutConfirming ? (
                         <div className="flex items-center gap-2 py-1 px-2 mt-2">
