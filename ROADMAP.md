@@ -745,6 +745,25 @@ A transaction audit of every `*.service.ts` file in `apps/server` — checking e
 - Fixed the "Restore this checkpoint" button in the version-history diff panel (`CheckpointDiffView`) rendering pushed far to the right instead of staying centered, on documents whose diff contained wide, non-wrapping content (a table, a long code line, an unbroken long string) — the right-side diff column (`CheckpointHistoryModal`) had no `min-w-0`, so as a row-flex item it defaulted to `min-width: auto` and silently expanded to fit that content's full intrinsic width; the restore button's `m-auto` centering then centered it within that oversized, visually-clipped column instead of the panel actually visible to the user
 - Added `min-w-0` to the diff column to cap it at its fair `flex-1` share regardless of content width, and `overflow-x-auto` to `DiffBlockNoteView`'s content container so wide diff content scrolls horizontally in place instead of forcing the column wider
 
+## MCP Connection Docs & Worktree Dev Tooling ✅
+
+> Branch: `mcp-docs` — merged 2026-09-08
+
+The MCP server had no documentation anywhere a user would actually find it — just a README bullet and the ROADMAP dev log above. Adds an in-app page walking a user through connecting an AI agent client, and the git-worktree tooling that running this feature's own dev stack alongside the main checkout's turned out to need.
+
+### Web (React frontend)
+
+- New `/mcp-docs` page (`apps/web/src/pages/mcpDocs/`), reached via a new MCP sidebar nav button (`d8a0098`) — walks through getting an API key, connecting Claude Code/Cursor/Codex with copyable config snippets (`ClientConfigTabs`/`CodeBlock`), and lists all 15 MCP tools grouped by category (Discovery, Documents, Content, Version history, Trash) via `ToolCapabilities`
+- Page content — client configs and the tool list — lives in one data module (`mcpDocsContent.ts`) shared by the rendered page and a "Copy as Markdown" export button, so the two can't drift apart; `buildMcpDocsMarkdown()` assembles the same content into a Markdown document on demand
+- Sidebar's MCP button icon changed from the generic `MdLink` to the purpose-built `VscMcp`
+
+### Tooling
+
+- `dev-ports.<feature-name>.env` convention (`dev-ports.env.example`) — `docker-compose.dev.yml`'s ports and cross-service `CLIENT_URL`/`VITE_SERVER_URL` now read from env vars (defaults unchanged), so `docker compose --env-file dev-ports.<feature-name>.env -f docker-compose.dev.yml up` runs a shifted port set per worktree without colliding with another worktree's stack; the file itself is gitignored and worktree-local, named per-feature so multiple worktrees' port files stay distinguishable
+- New `sync-env.mjs` bootstraps a fresh worktree's `.env` files by copying every file literally named `.env` from the main checkout — worktrees don't inherit them since they're gitignored, not tracked; locates the main checkout generically via `git rev-parse --git-common-dir` rather than a hardcoded path, and skips `worktrees/` itself to avoid recursing into a worktree nested on disk inside the main checkout
+- `worktrees/` established as the standard location for git worktrees in this repo (moved off the default `.claude/worktrees/`) and added to `.gitignore`
+- Removed the obsolete `version` key from `docker-compose.dev.yml`, which Compose ignores and warns about on current versions
+
 ## Upcoming
 
 - Workspace/document access-control MCP tools (grant/revoke per-user access, role overrides) — deliberately deferred out of both MCP releases so far as higher-stakes, permission-escalation-risk surface; would need much narrower scoping than a straight mirror of the HTTP endpoints before it's worth building

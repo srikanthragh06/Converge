@@ -14,7 +14,7 @@ https://github.com/user-attachments/assets/e74a9a3b-8cf7-4625-925d-6fce35e5bfdd
 - **Workspaces** to organize documents into shared spaces with owner, admin, and member roles
 - **Granular access control** with four tiers: workspace role defaults, per-doc overrides, explicit user grants, and workspace owner
 - **Document library** with full-text search, infinite scroll, a keyboard-navigable switcher (Ctrl+P), and a Trash tab for restoring soft-deleted documents
-- **AI agent access via MCP** — a Model Context Protocol server exposes documents to AI agents over API-key auth (list, create, read, edit, rename, delete), enforcing the same access control as the browser editor; every agent-driven edit takes an automatic checkpoint beforehand so it can always be undone, and keys are self-served from a dedicated API Keys page
+- **AI agent access via MCP** — a Model Context Protocol server exposes documents to AI agents over API-key auth across 15 tools (list, search, create, read, edit, restore, delete, and version history), enforcing the same access control as the browser editor; every agent-driven edit takes an automatic checkpoint beforehand so it can always be undone, and an in-app guide walks through connecting Claude Code, Cursor, or Codex with a self-served API key
 - **Google OAuth** with secure httpOnly cookie sessions
 
 ## Architecture
