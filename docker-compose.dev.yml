@@ -9,7 +9,7 @@ services:
             POSTGRES_PASSWORD: converge
             POSTGRES_DB: converge
         ports:
-            - "5432:5432"
+            - "${POSTGRES_HOST_PORT:-5432}:5432"
         volumes:
             # Named volume persists data across container restarts.
             - postgres-data:/var/lib/postgresql/data
@@ -18,19 +18,19 @@ services:
     redis:
         image: redis:7-alpine
         ports:
-            - "6379:6379"
+            - "${REDIS_HOST_PORT:-6379}:6379"
 
     server-1:
         build:
             context: .
             dockerfile: apps/server/Dockerfile
         ports:
-            - "5000:5000"
+            - "${SERVER1_HOST_PORT:-5000}:5000"
         env_file:
             - apps/server/.env
         environment:
             PORT: 5000
-            CLIENT_URL: http://localhost:5173
+            CLIENT_URL: http://localhost:${WEB1_HOST_PORT:-5173}
             POSTGRES_DEV_HOST: postgres
             REDIS_DEV_URL: redis://redis:6379
         volumes:
@@ -48,12 +48,12 @@ services:
             context: .
             dockerfile: apps/server/Dockerfile
         ports:
-            - "5001:5001"
+            - "${SERVER2_HOST_PORT:-5001}:5001"
         env_file:
             - apps/server/.env
         environment:
             PORT: 5001
-            CLIENT_URL: http://localhost:5174
+            CLIENT_URL: http://localhost:${WEB2_HOST_PORT:-5174}
             POSTGRES_DEV_HOST: postgres
             REDIS_DEV_URL: redis://redis:6379
         volumes:
@@ -69,13 +69,13 @@ services:
             context: .
             dockerfile: apps/web/Dockerfile
         ports:
-            - "5173:5173"
+            - "${WEB1_HOST_PORT:-5173}:5173"
         env_file:
             - apps/web/.env
         environment:
             PORT: 5173
             # Points this web instance at server-1.
-            VITE_SERVER_URL: http://localhost:5000
+            VITE_SERVER_URL: http://localhost:${SERVER1_HOST_PORT:-5000}
         volumes:
             - ./apps/web/src:/app/apps/web/src
             - ./packages/shared/src:/app/packages/shared/src
@@ -88,13 +88,13 @@ services:
             context: .
             dockerfile: apps/web/Dockerfile
         ports:
-            - "5174:5174"
+            - "${WEB2_HOST_PORT:-5174}:5174"
         env_file:
             - apps/web/.env
         environment:
             PORT: 5174
             # Points this web instance at server-2.
-            VITE_SERVER_URL: http://localhost:5001
+            VITE_SERVER_URL: http://localhost:${SERVER2_HOST_PORT:-5001}
         volumes:
             - ./apps/web/src:/app/apps/web/src
             - ./packages/shared/src:/app/packages/shared/src
