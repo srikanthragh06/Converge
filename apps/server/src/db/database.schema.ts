@@ -71,6 +71,8 @@ export interface DocumentUserMetadataTable {
   last_visited_at: Generated<Date>;
   /** Timestamp of the last time this user pushed a content or title update. */
   last_edited_at: Generated<Date>;
+  /** Timestamp of when this user pinned the document; null if not pinned. */
+  pinned_at: Date | null;
 }
 
 /** Row shape for the document_access table. */
