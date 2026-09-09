@@ -68,7 +68,7 @@ const Sidebar = ({
         return (
             <div
                 className="sm:w-[300px] w-screen shrink-0 h-full border-r border-border md:p-2 p-1
-            flex flex-col"
+            flex flex-col overflow-y-auto"
             >
                 {/* Collapse button — hides the panel down to the slim closed-state column */}
                 <div className="flex items-center justify-end">
