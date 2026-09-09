@@ -145,19 +145,60 @@ export class DocumentIndexingService {
         return;
       }
 
-      // Grow the rebuild set to a fixed point: any block directly touched
-      // by the diff pulls in (a) every block sharing an existing chunk with
-      // it, so a chunk is never partially deleted and left with orphaned
-      // survivors, and (b) every block in its heading section, so the
-      // chunker above always sees a section's true, complete size instead
-      // of a partial one. Each of those can in turn land in a chunk or
-      // section not yet accounted for, so this repeats until a full pass
-      // adds nothing new — bounded, since the set only ever grows and the
-      // whole document is a hard ceiling.
+      // A brand-new block has no chunk of its own yet, and isn't
+      // guaranteed to be swept up by section-closure below either (it
+      // won't be, if it lands in headingless territory). Left alone, it
+      // would index as an isolated singleton with no surrounding context
+      // in its embedding. To avoid that, anchor each added block to its
+      // nearest still-existing neighbor in document order — skipping past
+      // other added blocks, which have no chunk of their own to anchor to
+      // either — so that seeding the rebuild with the anchor lets the
+      // closure loop below naturally pull in whatever chunk or section the
+      // anchor belongs to, merging the new block into that rebuild instead
+      // of standing alone. Falls back to searching forward when there's no
+      // existing block before it (e.g. an insert at the very start of the
+      // document); if there's truly no existing block in either direction
+      // (e.g. this is the document's first-ever index), the block just
+      // gets indexed on its own — there's nothing to anchor to.
+      const orderedBlockIndexById = new Map(
+        orderedBlockIds.map((blockId, index) => [blockId, index]),
+      );
+      const neighborAnchorBlockIds = new Set<string>();
+      for (const blockId of addedBlockIds) {
+        const index = orderedBlockIndexById.get(blockId)!;
+        let anchor: string | undefined;
+        for (let i = index - 1; i >= 0; i--) {
+          if (!addedBlockIds.has(orderedBlockIds[i])) {
+            anchor = orderedBlockIds[i];
+            break;
+          }
+        }
+        if (!anchor) {
+          for (let i = index + 1; i < orderedBlockIds.length; i++) {
+            if (!addedBlockIds.has(orderedBlockIds[i])) {
+              anchor = orderedBlockIds[i];
+              break;
+            }
+          }
+        }
+        if (anchor) neighborAnchorBlockIds.add(anchor);
+      }
+
+      // Grow the rebuild set to a fixed point: every block directly touched
+      // by the diff, plus every added block's neighbor anchor above, pulls
+      // in (a) every block sharing an existing chunk with it, so a chunk is
+      // never partially deleted and left with orphaned survivors, and (b)
+      // every block in its heading section, so the chunker above always
+      // sees a section's true, complete size instead of a partial one.
+      // Each of those can in turn land in a chunk or section not yet
+      // accounted for, so this repeats until a full pass adds nothing new
+      // — bounded, since the set only ever grows and the whole document is
+      // a hard ceiling.
       const rebuildBlockIds = new Set<string>([
         ...addedBlockIds,
         ...removedBlockIds,
         ...changedBlockIds,
+        ...neighborAnchorBlockIds,
       ]);
       const staleChunkIds = new Set<number>();
       let grew = true;
