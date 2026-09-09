@@ -14,6 +14,7 @@ https://github.com/user-attachments/assets/e74a9a3b-8cf7-4625-925d-6fce35e5bfdd
 - **Workspaces** to organize documents into shared spaces with owner, admin, and member roles
 - **Granular access control** with four tiers: workspace role defaults, per-doc overrides, explicit user grants, and workspace owner
 - **Document library** with full-text search, infinite scroll, a keyboard-navigable switcher (Ctrl+P), and a Trash tab for restoring soft-deleted documents
+- **Sidebar pinning** for quick access to frequently used documents, kept separate from the recently-visited list
 - **AI agent access via MCP** — a Model Context Protocol server exposes documents to AI agents over API-key auth (list, create, read, edit, rename, delete), enforcing the same access control as the browser editor; every agent-driven edit takes an automatic checkpoint beforehand so it can always be undone, and keys are self-served from a dedicated API Keys page
 - **Google OAuth** with secure httpOnly cookie sessions
 

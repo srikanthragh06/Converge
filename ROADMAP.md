@@ -769,6 +769,31 @@ Makes it possible to run a second full dev stack in a git worktree alongside the
 
 - Fixed Google login failing on any origin other than the main checkout's: the token exchange sent Google a hardcoded `GOOGLE_AUTH_CLIENT_CALLBACK_URL` (fixed to the main checkout's port) instead of the `redirect_uri` actually used in the authorization request, so Google rejected the exchange with a mismatch on any other origin/port, leaving the login silently failed and every later request reporting "No authToken present in request cookies". The client now sends its own `redirectUri` (already computed correctly per-origin) alongside `code` to `POST /auth/google`, and the server echoes it back to Google verbatim — no per-environment config to keep in sync, works for the main checkout and any worktree automatically
 
+## Write Lock & Document Pinning ✅
+
+> Branch: `release-minor-ui-changes` — merged 2026-09-09
+
+Two small, independent editor/sidebar comfort features, plus a sidebar layout bug the second one exposed.
+
+### Web (React frontend)
+
+- Write Lock — a per-document, per-browser toggle in `EditorPageHeader` (left of Save Checkpoint) that disables editing for just the current user in the current browser; purely local, no server call, no effect on any other user's ability to write. `useWriteLock` persists the flag to `localStorage` keyed by document ID and re-derives it during render (not inside a `useEffect`) when the open document changes, avoiding an extra render pass. `EditorPage` combines it with the existing access-based `isEditable` into `canWrite`, which gates both the BlockNote editor's `editable` prop and the title input
+- Document Pinning — a "Pinned" section in the sidebar above the existing Documents (recent) section, each row with a pin/unpin toggle. New `pinnedDocumentsAtom` mirrors the existing `recentDocumentsAtom`; `useSidebar` fetches both whenever the workspace changes, passing the server's new `ignorePinnedDocs` flag on the recent-documents request so the two lists never overlap without any client-side dedup. `togglePin` calls the new pin endpoint, then bumps the existing `refreshSidebarAtom` to re-fetch both lists rather than patching either atom locally — pinned and recent are server-computed complements of each other, so only a re-fetch correctly moves a document across in both directions (an unpinned document needs its correct recency position recomputed server-side, not just to disappear from Pinned). `SidebarDocumentRow` (title button + pin toggle) extracted into its own file since it's now shared between both sections
+- Bug fix: the open sidebar's container was `h-full flex-col` with no `overflow-y-auto`, so once its content grew taller than the viewport it silently clipped instead of scrolling — more likely to bite now that the new Pinned section adds height on top of Documents
+
+### Server (NestJS backend)
+
+- `pinned_at` nullable timestamptz column added to `document_user_metadata` (migration `0035`) — a timestamp rather than a boolean, mirroring `last_visited_at`/`last_edited_at` on the same table, so the pinned list can be ordered by most-recently-pinned first
+- `DocumentService.getPinnedDocuments` — reuses the same five-tier access-resolution subquery as `getLibraryDocuments`, filtered to `pinned_at IS NOT NULL` and ordered by most-recently-pinned; unpaginated, since a personal pinned list is expected to stay small
+- `DocumentService.setPinned` — resolves access (404/403, same pattern as every other doc endpoint), then upserts `document_user_metadata.pinned_at` using the DB's own clock (`sql\`now()\``, consistent with `recordLastVisited`/`recordLastEdited`) and returns the persisted value via `RETURNING` rather than re-deriving it from app-server time
+- `getLibraryDocuments` gained an `ignorePinnedDocs` param — when true, excludes documents the caller has pinned, so a consumer that already renders its own pinned list doesn't have to dedupe. `searchLibraryDocuments` was left untouched; pinning only applies to the sidebar's recent-documents list, not search
+- New routes: `GET /document/pinned`, `PUT /document/:id/pin`
+
+### Shared package
+
+- `GetPinnedDocumentsRequestSchema`/`ResponseSchema` and `SetDocumentPinnedRequestSchema`/`ResponseSchema` added to `@converge/shared/http/document`; `GetLibraryDocumentsRequestSchema` gained `ignorePinnedDocs`
+- `ignorePinnedDocs` uses Zod's `z.stringbool()` rather than `z.coerce.boolean()` — it's a query-string value, and `coerce.boolean()` treats any non-empty string (including the literal `"false"`) as `true`
+
 ## Upcoming
 
 - Workspace/document access-control MCP tools (grant/revoke per-user access, role overrides) — deliberately deferred out of both MCP releases so far as higher-stakes, permission-escalation-risk surface; would need much narrower scoping than a straight mirror of the HTTP endpoints before it's worth building
