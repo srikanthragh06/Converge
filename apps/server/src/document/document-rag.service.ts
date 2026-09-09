@@ -181,7 +181,11 @@ export class DocumentRAGService {
    * component. content_tsv @@ is built with the query's terms OR'd together
    * (not AND, websearch_to_tsquery's default) — a chunk matching only some
    * of the query's words is a real candidate, not a non-match; missing one
-   * word out of several must never exclude it outright.
+   * word out of several must never exclude it outright. Every @@ match gets
+   * a real BM25 score before anything is discarded — no ts_rank_cd pre-cut
+   * — since ts_rank_cd has no IDF and could otherwise drop the one chunk
+   * BM25 would have correctly ranked highest (e.g. a rare, distinguishing
+   * term ranked low on proximity alone) before BM25 ever saw it.
    * @param question - the natural-language query
    * @param workspaceId - the workspace to search within
    * @param accessibleDocumentIds - document ids the caller may see
@@ -229,14 +233,6 @@ export class DocumentRAGService {
       .where(
         sql<boolean>`content_tsv @@ to_tsquery('english', ${orTermsQuery})`,
       )
-      // A rough pre-cut, not the final ranking — ts_rank_cd has no IDF, but
-      // it's cheap and DB-side, good enough to bound how many candidates get
-      // fully BM25-scored below when a common query term matches far more
-      // than CANDIDATE_DEPTH chunks.
-      .orderBy(
-        sql`ts_rank_cd(content_tsv, to_tsquery('english', ${orTermsQuery})) DESC`,
-      )
-      .limit(CANDIDATE_DEPTH)
       .execute();
     if (rows.length === 0) return { candidates: [] };
 
@@ -266,9 +262,10 @@ export class DocumentRAGService {
       totalTokens: corpusStatsRow?.total_tokens ?? 0,
     };
 
-    // Score every pre-cut survivor against the query terms using the real
-    // BM25 formula, then order by that score rather than the ts_rank_cd
-    // order the SQL query above fetched them in.
+    // Score every @@ match against the query terms using the real BM25
+    // formula, then keep only the top CANDIDATE_DEPTH — the truncation
+    // happens here, after scoring, not in the SQL query above, so a rare
+    // but highly-relevant term can't be discarded before BM25 ever sees it.
     const scored = rows.map((row) => {
       const candidate: Bm25Candidate = {
         chunkId: row.id,
@@ -283,7 +280,7 @@ export class DocumentRAGService {
     scored.sort((a, b) => b.score - a.score);
 
     return {
-      candidates: scored.map(({ row }) => ({
+      candidates: scored.slice(0, CANDIDATE_DEPTH).map(({ row }) => ({
         id: row.id,
         document_id: row.document_id,
         workspace_id: row.workspace_id,
