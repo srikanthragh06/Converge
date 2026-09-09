@@ -23,11 +23,13 @@ export class DocumentIndexingService {
   /**
    * Re-indexes a document: diffs its current blocks against the last
    * indexed state, and re-chunks + re-embeds only the neighborhood of
-   * blocks that actually changed, rather than the whole document. No
-   * access check — internal-only, called by
-   * DocumentIndexingSchedulerService after the gateway has already
-   * verified the edit that triggered this run (same split as
-   * DocumentCheckpointService.createCheckpointInternal).
+   * blocks that actually changed, rather than the whole document. Also
+   * incrementally maintains this workspace's BM25 stats (per-term document
+   * frequency, and the running totals behind average chunk length) so
+   * retrieval never has to scan the corpus to compute them. No access
+   * check — internal-only, called by DocumentIndexingSchedulerService
+   * after the gateway has already verified the edit that triggered this
+   * run (same split as DocumentCheckpointService.createCheckpointInternal).
    * @param documentId - the document to re-index
    */
   async reindexDocument(documentId: number): Promise<void> {
@@ -251,7 +253,29 @@ export class DocumentIndexingService {
       }
 
       // Every chunk touched by (a) above, across every pass, is stale.
+      // Capture each stale chunk's distinct terms and token count before
+      // deleting it — both are needed below to decrement the BM25 term/
+      // corpus stats this reindex is about to invalidate, and the row won't
+      // exist to query afterward.
+      const removedTermCounts = new Map<string, number>();
+      let removedChunkCount = 0;
+      let removedTokenTotal = 0;
       if (staleChunkIds.size) {
+        const staleChunks = await tx
+          .selectFrom('document_chunks')
+          .select([
+            'token_count',
+            sql<string[]>`tsvector_to_array(content_tsv)`.as('terms'),
+          ])
+          .where('id', 'in', [...staleChunkIds])
+          .execute();
+        for (const chunk of staleChunks) {
+          removedChunkCount++;
+          removedTokenTotal += chunk.token_count;
+          for (const term of chunk.terms) {
+            removedTermCounts.set(term, (removedTermCounts.get(term) ?? 0) + 1);
+          }
+        }
         await tx
           .deleteFrom('document_chunks')
           .where('id', 'in', [...staleChunkIds])
@@ -279,22 +303,37 @@ export class DocumentIndexingService {
 
       // Chunk and embed each run on its own, so nothing ever merges blocks
       // across a run boundary — i.e. across untouched, still-indexed
-      // content — into one chunk.
+      // content — into one chunk. Term/token stats for every chunk created
+      // here mirror removedTermCounts/removedChunkCount/removedTokenTotal
+      // above — the net of the two is applied as a single delta to the
+      // running BM25 stats tables once every run has been inserted.
+      const addedTermCounts = new Map<string, number>();
+      let addedChunkCount = 0;
+      let addedTokenTotal = 0;
       for (const run of rebuildRuns) {
         for (const chunk of chunkBlocks(run)) {
           const embedding = await this.documentEmbeddingService.embed(
             chunk.content,
           );
-          await tx
+          const inserted = await tx
             .insertInto('document_chunks')
             .values({
               document_id: documentId,
               workspace_id: workspaceId,
               block_ids: chunk.blockIds,
               content: chunk.content,
+              token_count: chunk.tokens,
               embedding: `[${embedding.join(',')}]`,
             })
-            .execute();
+            .returning(
+              sql<string[]>`tsvector_to_array(content_tsv)`.as('terms'),
+            )
+            .executeTakeFirstOrThrow();
+          addedChunkCount++;
+          addedTokenTotal += chunk.tokens;
+          for (const term of inserted.terms) {
+            addedTermCounts.set(term, (addedTermCounts.get(term) ?? 0) + 1);
+          }
         }
       }
 
@@ -324,6 +363,66 @@ export class DocumentIndexingService {
           .deleteFrom('document_block_hashes')
           .where('document_id', '=', documentId)
           .where('block_id', 'in', [...removedBlockIds])
+          .execute();
+      }
+
+      // Apply the net of this run's term/token changes to the
+      // incrementally-maintained BM25 stats — document frequency per term,
+      // and the running totals behind this workspace's average chunk
+      // length. A term touched by both an added and a removed chunk in the
+      // same run (e.g. an edit that shifts which chunk it lives in)
+      // collapses to a single net upsert here rather than two writes.
+      const termDelta = new Map<string, number>();
+      for (const [term, count] of removedTermCounts) {
+        termDelta.set(term, (termDelta.get(term) ?? 0) - count);
+      }
+      for (const [term, count] of addedTermCounts) {
+        termDelta.set(term, (termDelta.get(term) ?? 0) + count);
+      }
+      const termDeltaRows = [...termDelta]
+        .filter(([, delta]) => delta !== 0)
+        .map(([term, delta]) => ({
+          workspace_id: workspaceId,
+          term,
+          document_frequency: delta,
+        }));
+      if (termDeltaRows.length) {
+        await tx
+          .insertInto('document_chunk_term_stats')
+          .values(termDeltaRows)
+          .onConflict((oc) =>
+            oc.columns(['workspace_id', 'term']).doUpdateSet({
+              document_frequency: sql`document_chunk_term_stats.document_frequency + excluded.document_frequency`,
+            }),
+          )
+          .execute();
+        // A term's last chunk in this workspace was just removed — clean up
+        // the zeroed (or, if this run ever double-counted, negative) row so
+        // an absent row keeps meaning "this term doesn't exist here" rather
+        // than accumulating stale rows over time.
+        await tx
+          .deleteFrom('document_chunk_term_stats')
+          .where('workspace_id', '=', workspaceId)
+          .where('document_frequency', '<=', 0)
+          .execute();
+      }
+
+      const chunkCountDelta = addedChunkCount - removedChunkCount;
+      const tokenTotalDelta = addedTokenTotal - removedTokenTotal;
+      if (chunkCountDelta !== 0 || tokenTotalDelta !== 0) {
+        await tx
+          .insertInto('document_chunk_corpus_stats')
+          .values({
+            workspace_id: workspaceId,
+            total_chunks: chunkCountDelta,
+            total_tokens: tokenTotalDelta,
+          })
+          .onConflict((oc) =>
+            oc.column('workspace_id').doUpdateSet({
+              total_chunks: sql`document_chunk_corpus_stats.total_chunks + excluded.total_chunks`,
+              total_tokens: sql`document_chunk_corpus_stats.total_tokens + excluded.total_tokens`,
+            }),
+          )
           .execute();
       }
     });

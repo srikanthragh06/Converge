@@ -144,7 +144,31 @@ export interface DocumentChunksTable {
   content: string;
   /** pgvector embedding, 1536 dimensions (text-embedding-3-small). */
   embedding: string;
+  /** Token count of `content`, via the same tokenizer used for chunk sizing — backs document_chunk_corpus_stats' average-length stat and BM25's length normalization. */
+  token_count: number;
+  /** GENERATED ALWAYS AS (to_tsvector('english', content)) STORED — Postgres maintains this automatically; no insert ever provides a value. Kysely has no tsvector type, so this round-trips as the driver's raw text representation, same wrinkle as `embedding`. */
+  content_tsv: Generated<string>;
   created_at: Generated<Date>;
+}
+
+/** Row shape for the document_chunk_term_stats table — per-workspace, per-term document frequency (how many chunks contain this term), the IDF ingredient tsvector/GIN alone can't provide. Incrementally maintained by DocumentIndexingService; absence of a row means zero. */
+export interface DocumentChunkTermStatsTable {
+  /** FK to workspaces.id — BM25 stats are scoped per workspace, matching retrieval's access-filtered scope. */
+  workspace_id: number;
+  /** A single Postgres-stemmed lexeme, as produced by to_tsvector('english', ...) — matches document_chunks.content_tsv's tokenization exactly. */
+  term: string;
+  /** Number of chunks in this workspace whose content_tsv contains this term. */
+  document_frequency: Generated<number>;
+}
+
+/** Row shape for the document_chunk_corpus_stats table — one row per workspace, tracking the running totals behind average chunk length (total_tokens / total_chunks), BM25's other corpus-wide ingredient. */
+export interface DocumentChunkCorpusStatsTable {
+  /** FK to workspaces.id, and this table's primary key — one row per workspace. */
+  workspace_id: number;
+  /** Total number of chunks currently indexed in this workspace. */
+  total_chunks: Generated<number>;
+  /** Sum of token_count across every chunk currently indexed in this workspace. */
+  total_tokens: Generated<number>;
 }
 
 /** Row shape for the document_block_hashes table — per-block content fingerprints used to detect changed/added/deleted blocks between indexing runs. */
@@ -179,6 +203,8 @@ export interface DatabaseSchema {
   document_block_hashes: DocumentBlockHashesTable;
   document_checkpoint_contributors: DocumentCheckpointContributorsTable;
   document_chunks: DocumentChunksTable;
+  document_chunk_corpus_stats: DocumentChunkCorpusStatsTable;
+  document_chunk_term_stats: DocumentChunkTermStatsTable;
   document_updates: DocumentUpdatesTable;
   document_user_metadata: DocumentUserMetadataTable;
   documents: DocumentsTable;

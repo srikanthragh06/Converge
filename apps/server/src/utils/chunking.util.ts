@@ -47,6 +47,8 @@ export interface BlockText {
 export interface Chunk {
   blockIds: string[];
   content: string;
+  /** Total token count across every block in this chunk — the same count already spent against MAX_TOKENS while building it, exposed so callers (e.g. the BM25 corpus-length stats) don't need to re-tokenize the joined content. */
+  tokens: number;
 }
 
 /** A run of blocks from one heading up to (not including) the next — or, for content before the document's first heading, a headingless leading run. */
@@ -114,7 +116,7 @@ export function chunkBlocks(blockTexts: BlockText[]): Chunk[] {
 
   const flush = () => {
     if (blockIds.length === 0) return;
-    chunks.push({ blockIds, content: texts.join('\n\n') });
+    chunks.push({ blockIds, content: texts.join('\n\n'), tokens });
     blockIds = [];
     texts = [];
     tokens = 0;
