@@ -60,6 +60,10 @@ import { parse as parseCookie } from 'cookie';
     origin: (_req, cb) => cb(null, process.env.CLIENT_URL),
     credentials: true,
   },
+  // Raised from Socket.io's 1MB default to match the HTTP body limit set in
+  // main.ts — both carry the same kind of Yjs update payload, so neither
+  // should be a smaller ceiling than the other.
+  maxHttpBufferSize: 5 * 1024 * 1024,
 })
 export class DocumentGateway
   implements OnGatewayConnection, OnGatewayDisconnect

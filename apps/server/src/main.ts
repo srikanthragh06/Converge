@@ -4,6 +4,7 @@ import { GlobalExceptionFilter } from './utils/global-exception.filter.js';
 import { registerProcessHandlers } from './utils/process.handlers.js';
 import { loadEnv } from './utils/env.loader.js';
 import { IoAdapter } from '@nestjs/platform-socket.io';
+import express from 'express';
 import { DatabaseService } from './db/database.service.js';
 import { RedisService } from './redis/redis.service.js';
 import { DocumentCheckpointSchedulerService } from './document/document-checkpoint-scheduler.service.js';
@@ -23,8 +24,14 @@ registerProcessHandlers();
  * global filters, validates required env vars, then starts listening.
  */
 async function bootstrap() {
-  // AppModule is the root module — all feature modules are imported from there.
-  const app = await NestFactory.create(AppModule);
+  // AppModule is the root module — all feature modules are imported from
+  // there. bodyParser: false disables Nest's own default-configured parser
+  // (Express's 100kb default) so the explicit 5mb one below applies instead —
+  // must match the raised WebSocket maxHttpBufferSize in DocumentGateway,
+  // since HTTP and WebSocket edits carry the same kind of Yjs update payload.
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  app.use(express.json({ limit: '5mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
   // Restrict CORS to the known client origin so browsers block cross-origin
   // requests from untrusted domains.

@@ -35,6 +35,23 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         return;
       }
 
+      // body-parser throws a plain Error (not an HttpException) with
+      // type: 'entity.too.large' when a request body exceeds the configured
+      // size limit (see express.json/urlencoded limits in main.ts) — without
+      // this check it would fall through to the generic 500 below, which
+      // makes the size limit look like a server crash rather than a client
+      // error the caller can act on.
+      if (
+        exception instanceof Error &&
+        'type' in exception &&
+        exception.type === 'entity.too.large'
+      ) {
+        response
+          .status(HttpStatus.PAYLOAD_TOO_LARGE)
+          .json(httpFail('Request payload is too large.'));
+        return;
+      }
+
       response
         .status(HttpStatus.INTERNAL_SERVER_ERROR)
         .json(httpInternalServerError());
