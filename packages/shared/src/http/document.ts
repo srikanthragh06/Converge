@@ -138,6 +138,11 @@ export type GetDocumentOverviewResponseDto = z.infer<
  * limit defaults to 20 if omitted.
  * cursorVisitedAt and cursorId must both be present or both be absent —
  * they together form the compound cursor for keyset pagination.
+ * ignorePinnedDocs excludes documents the caller has pinned, so a consumer
+ * that already shows a separate pinned list (e.g. the sidebar) doesn't have
+ * to dedupe client-side; defaults to false. Uses z.stringbool() rather than
+ * z.coerce.boolean() because this is a query-string value — coerce.boolean()
+ * treats any non-empty string (including the literal "false") as true.
  */
 export const GetLibraryDocumentsRequestSchema = z
     .object({
@@ -145,6 +150,7 @@ export const GetLibraryDocumentsRequestSchema = z
         limit: z.coerce.number().int().positive().optional(),
         cursorVisitedAt: z.coerce.date().optional(),
         cursorId: z.coerce.number().int().positive().optional(),
+        ignorePinnedDocs: z.stringbool().optional(),
     })
     .refine(
         (data) =>
@@ -184,6 +190,42 @@ export const GetLibraryDocumentsResponseSchema = z.object({
 
 export type GetLibraryDocumentsResponseDto = z.infer<
     typeof GetLibraryDocumentsResponseSchema
+>;
+
+/** Query params for GET /document/pinned. workspaceId is the selected workspace scope. */
+export const GetPinnedDocumentsRequestSchema = z.object({
+    workspaceId: z.coerce.number().int().positive(),
+});
+
+export type GetPinnedDocumentsRequestDto = z.infer<
+    typeof GetPinnedDocumentsRequestSchema
+>;
+
+/** Response for GET /document/pinned — the caller's pinned documents, most-recently-pinned first. Unpaginated. */
+export const GetPinnedDocumentsResponseSchema = z.object({
+    documents: z.array(LibraryDocumentSchema),
+});
+
+export type GetPinnedDocumentsResponseDto = z.infer<
+    typeof GetPinnedDocumentsResponseSchema
+>;
+
+/** Request body for PUT /document/:id/pin — pin or unpin the document for the calling user. */
+export const SetDocumentPinnedRequestSchema = z.object({
+    pinned: z.boolean(),
+});
+
+export type SetDocumentPinnedRequestDto = z.infer<
+    typeof SetDocumentPinnedRequestSchema
+>;
+
+/** Response for PUT /document/:id/pin. pinnedAt is null when the document was just unpinned. */
+export const SetDocumentPinnedResponseSchema = z.object({
+    pinnedAt: z.coerce.date().nullable(),
+});
+
+export type SetDocumentPinnedResponseDto = z.infer<
+    typeof SetDocumentPinnedResponseSchema
 >;
 
 /**
