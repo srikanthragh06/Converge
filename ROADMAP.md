@@ -754,6 +754,21 @@ A transaction audit of every `*.service.ts` file in `apps/server` — checking e
 - Links inside the editor previously rendered identically to plain text with no indication they were clickable — contenteditable suppresses the browser's default pointer cursor over anchors, so even the cursor gave no hint
 - `.bn-editor a` now dims slightly, shows a pointer cursor, and gains a dotted underline on hover; the opacity change is eased via a `transition` declared on the base rule rather than the `:hover` rule itself, since a hover-only rule has nothing to transition from and would otherwise snap instead of ease
 
+## Worktree Dev Environment ✅
+
+> Branch: `release-another-dev-setup` — merged 2026-09-09
+
+Makes it possible to run a second full dev stack in a git worktree alongside the main checkout's, without port clashes, doubled memory use, or Google login silently failing.
+
+### Tooling
+
+- New `docker-compose.dev.worktree.yml` mirrors `docker-compose.dev.yml` but runs a single `server`/`web` instance instead of two of each — the main checkout's paired instances exist for multi-instance Yjs sync testing, which a worktree doing feature work doesn't need, and each Vite/Nest instance costs ~0.7-1.3GiB — and shifts every host port by 1000, so a worktree's stack runs alongside the main checkout's with no config to hand-manage; replaces an earlier `dev-ports.<name>.env`-per-worktree override mechanism
+- Fixed the worktree compose file's default server port (6000) landing on the browser's unsafe-ports blocklist (reserved for X11) — every request to it failed client-side with `net::ERR_UNSAFE_PORT` regardless of server config; moved to 6060
+
+### Server (NestJS backend) / Web (React frontend)
+
+- Fixed Google login failing on any origin other than the main checkout's: the token exchange sent Google a hardcoded `GOOGLE_AUTH_CLIENT_CALLBACK_URL` (fixed to the main checkout's port) instead of the `redirect_uri` actually used in the authorization request, so Google rejected the exchange with a mismatch on any other origin/port, leaving the login silently failed and every later request reporting "No authToken present in request cookies". The client now sends its own `redirectUri` (already computed correctly per-origin) alongside `code` to `POST /auth/google`, and the server echoes it back to Google verbatim — no per-environment config to keep in sync, works for the main checkout and any worktree automatically
+
 ## Upcoming
 
 - Workspace/document access-control MCP tools (grant/revoke per-user access, role overrides) — deliberately deferred out of both MCP releases so far as higher-stakes, permission-escalation-risk surface; would need much narrower scoping than a straight mirror of the HTTP endpoints before it's worth building
