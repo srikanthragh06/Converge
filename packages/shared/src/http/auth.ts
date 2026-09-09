@@ -2,6 +2,9 @@ import { z } from "zod";
 
 export const GoogleAuthRequestSchema = z.object({
     code: z.string().min(1),
+    // The exact redirect_uri the client used to obtain `code` from Google — the
+    // token exchange must echo it back verbatim or Google rejects the exchange.
+    redirectUri: z.url(),
 });
 
 export type GoogleAuthRequestDto = z.infer<typeof GoogleAuthRequestSchema>;
