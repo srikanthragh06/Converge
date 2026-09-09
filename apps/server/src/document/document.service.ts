@@ -169,11 +169,12 @@ export class DocumentService {
    *
    * This is the MCP write path — one of the callers of
    * DocumentYjsService.applyDocUpdate that isn't a live client edit (see
-   * also restoreCheckpoint below) — so it takes a synchronous 'mcp'
-   * checkpoint immediately beforehand, folding in everything since the
-   * last checkpoint. That gives a human a restore point from right before
-   * the agent's change, regardless of the idle/interval scheduler's own
-   * timing.
+   * also restoreCheckpoint below) — so it takes a synchronous, forced 'mcp'
+   * checkpoint immediately beforehand: everything since the last checkpoint
+   * is folded in, or, if nothing changed since then, the last checkpoint's
+   * content is duplicated into a new row. Either way this guarantees a
+   * checkpoint immediately before the agent's change, regardless of the
+   * idle/interval scheduler's own timing.
    * @param documentId - the document to edit
    * @param userId - the ID of the authenticated requesting user
    * @param operations - the edits to apply, in order, as one atomic save
@@ -195,10 +196,13 @@ export class DocumentService {
       );
 
     // Snapshot everything since the last checkpoint before the agent's write
-    // lands, so restoring it undoes exactly this call.
+    // lands, so restoring it undoes exactly this call. Forced: an AI edit
+    // must always leave a checkpoint immediately before it, even if nothing
+    // changed since the previous one (e.g. back-to-back agent edits).
     await this.documentCheckpointService.createCheckpointInternal(
       documentId,
       'mcp',
+      true,
     );
 
     // Compute the edit as Yjs update bytes against a throwaway copy of the
@@ -249,10 +253,13 @@ export class DocumentService {
 
     // Snapshot everything since the last checkpoint before the restore
     // lands, so undoing a bad restore is itself just restoring to this new
-    // checkpoint — same safety net updateDocumentBlocks gets.
+    // checkpoint — same safety net updateDocumentBlocks gets. Forced for the
+    // same reason: an AI-triggered restore must always leave a checkpoint
+    // immediately before it.
     await this.documentCheckpointService.createCheckpointInternal(
       documentId,
       'mcp',
+      true,
     );
 
     // Reconstruct the target checkpoint's content: its stored update is a
