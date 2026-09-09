@@ -15,6 +15,8 @@ import { DocumentTools } from './document.tools.js';
 import { DocumentEmbeddingService } from './document-embedding.service.js';
 import { DocumentIndexingService } from './document-indexing.service.js';
 import { DocumentIndexingSchedulerService } from './document-indexing-scheduler.service.js';
+import { DocumentRerankService } from './document-rerank.service.js';
+import { DocumentRAGService } from './document-rag.service.js';
 
 @Module({
   imports: [DatabaseModule, RedisModule, AuthModule],
@@ -36,6 +38,8 @@ import { DocumentIndexingSchedulerService } from './document-indexing-scheduler.
     DocumentEmbeddingService,
     DocumentIndexingService,
     DocumentIndexingSchedulerService,
+    DocumentRerankService,
+    DocumentRAGService,
   ],
 })
 export class DocumentModule {}

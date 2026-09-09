@@ -37,6 +37,8 @@ import {
   ListDeletedDocumentsToolResponseSchema,
   RestoreDocumentToolInputSchema,
   RestoreDocumentResponseSchema,
+  SearchDocumentContentToolInputSchema,
+  SearchDocumentContentToolResponseSchema,
 } from '@converge/shared';
 
 // Exposes a single MCP endpoint over the Streamable HTTP transport. The MCP
@@ -119,7 +121,7 @@ export class McpController {
       {
         title: 'Search Documents',
         description:
-          "Searches documents in a workspace by title, matching by similarity rather than exact text — ordered by relevance descending. Use this instead of listDocuments when looking for a specific document by name.",
+          'Searches documents in a workspace by title, matching by similarity rather than exact text — ordered by relevance descending. Use this instead of listDocuments when looking for a specific document by name.',
         inputSchema: SearchDocumentsToolInputSchema,
         outputSchema: SearchDocumentsToolResponseSchema,
       },
@@ -338,7 +340,7 @@ export class McpController {
       {
         title: 'List Deleted Documents',
         description:
-          "Lists soft-deleted documents in a workspace, newest-deleted first. Only visible to callers with admin access or higher — the same bar restoreDocument requires. Supports keyset pagination via the returned nextCursor. Use restoreDocument to undo a deletion.",
+          'Lists soft-deleted documents in a workspace, newest-deleted first. Only visible to callers with admin access or higher — the same bar restoreDocument requires. Supports keyset pagination via the returned nextCursor. Use restoreDocument to undo a deletion.',
         inputSchema: ListDeletedDocumentsToolInputSchema,
         outputSchema: ListDeletedDocumentsToolResponseSchema,
       },
@@ -365,6 +367,26 @@ export class McpController {
       async (input) => {
         const result = await withMcpErrorHandling(() =>
           this.documentTools.restoreDocument(userId, input),
+        );
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'searchDocumentContent',
+      {
+        title: 'Search Document Content',
+        description:
+          "Retrieves the most relevant indexed content in a workspace for a natural-language question, as cited chunks — hybrid semantic + lexical (BM25) candidates, reranked. Returns grounded content and citations only; synthesizing an answer from them is the caller's job. Use listWorkspaces first to find a workspaceId. Requires at least viewer access to a document for its content to be returned.",
+        inputSchema: SearchDocumentContentToolInputSchema,
+        outputSchema: SearchDocumentContentToolResponseSchema,
+      },
+      async (input) => {
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.searchDocumentContent(userId, input),
         );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import * as Y from 'yjs';
 import { DocumentService } from './document.service.js';
 import { DocumentCheckpointService } from './document-checkpoint.service.js';
+import { DocumentRAGService } from './document-rag.service.js';
 import { blocksFromYDoc } from '../utils/editor-schema.js';
 import { base64ToUint8Array } from '../utils/utils.js';
 import {
@@ -33,6 +34,8 @@ import {
   type ListDeletedDocumentsToolResponseDto,
   type RestoreDocumentToolInputDto,
   type RestoreDocumentResponseDto,
+  type SearchDocumentContentToolInputDto,
+  type SearchDocumentContentToolResponseDto,
 } from '@converge/shared';
 
 // MCP tool handlers for the document feature. Thin wrappers around
@@ -46,6 +49,7 @@ export class DocumentTools {
   constructor(
     private readonly documentService: DocumentService,
     private readonly documentCheckpointService: DocumentCheckpointService,
+    private readonly documentRAGService: DocumentRAGService,
   ) {}
 
   /**
@@ -83,7 +87,8 @@ export class DocumentTools {
       nextCursor: result.nextCursor
         ? {
             ...result.nextCursor,
-            lastVisitedAt: result.nextCursor.lastVisitedAt?.toISOString() ?? null,
+            lastVisitedAt:
+              result.nextCursor.lastVisitedAt?.toISOString() ?? null,
           }
         : null,
     };
@@ -308,11 +313,12 @@ export class DocumentTools {
     userId: number,
     input: GetCheckpointContentToolInputDto,
   ): Promise<GetCheckpointContentToolResponseDto> {
-    const checkpoint = await this.documentCheckpointService.getCheckpointContent(
-      input.documentId,
-      userId,
-      input.checkpointId,
-    );
+    const checkpoint =
+      await this.documentCheckpointService.getCheckpointContent(
+        input.documentId,
+        userId,
+        input.checkpointId,
+      );
 
     // A checkpoint's updateBase64 is a full self-contained Yjs state (every
     // checkpoint row from the beginning merged up through this one), not a
@@ -413,5 +419,32 @@ export class DocumentTools {
   ): Promise<RestoreDocumentResponseDto> {
     await this.documentService.restoreDocument(input.documentId, userId);
     return { success: true };
+  }
+
+  /**
+   * Retrieves the most relevant indexed chunks in a workspace for a
+   * natural-language question — hybrid semantic + BM25 candidates, reranked.
+   * Returns grounded content and citations only; answer synthesis is the
+   * calling agent's job (see the RAG Discussion doc's "Tool design"
+   * decision), which keeps this tool usable by both an external MCP client
+   * and any future internal chat agent without changing its contract.
+   * Access control is enforced inside DocumentRAGService itself (a bulk
+   * resolved-access filter applied to every candidate query), not a
+   * separate check here, since a per-document resolveAccess call doesn't
+   * fit a query that can span many documents at once.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the workspace to search, the question, and an optional result limit
+   */
+  async searchDocumentContent(
+    userId: number,
+    input: SearchDocumentContentToolInputDto,
+  ): Promise<SearchDocumentContentToolResponseDto> {
+    const results = await this.documentRAGService.retrieve(
+      input.question,
+      input.workspaceId,
+      userId,
+      input.limit ?? 5,
+    );
+    return { results };
   }
 }

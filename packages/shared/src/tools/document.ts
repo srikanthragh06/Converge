@@ -535,3 +535,51 @@ export const RestoreDocumentResponseSchema = z.object({
 export type RestoreDocumentResponseDto = z.infer<
     typeof RestoreDocumentResponseSchema
 >;
+
+export const SearchDocumentContentToolInputSchema = {
+    workspaceId: z.coerce.number().int().positive().describe(
+        "The workspace to search within.",
+    ),
+    question: z.string().min(1).describe(
+        "A natural-language question to search for. Content is retrieved and returned as grounded, cited chunks — this tool does not synthesize an answer itself.",
+    ),
+    limit: z.coerce.number().int().positive().max(20).optional().describe(
+        "Max chunks to return. Defaults to 5.",
+    ),
+};
+
+export type SearchDocumentContentToolInputDto = {
+    workspaceId: number;
+    question: string;
+    limit?: number;
+};
+
+// A citation is deliberately minimal — workspaceId + documentId + the
+// specific blockIds a chunk spans, no excerpt text or score baked in (those
+// travel alongside it in the result, not inside the citation itself). See
+// the RAG Discussion doc's "Citations" section.
+const RetrievalCitationSchema = z.object({
+    workspaceId: z.number(),
+    documentId: z.number(),
+    blockIds: z.array(z.string()).describe(
+        "BlockNote block ids this chunk spans, in document order — use getDocumentBlocks or readDocumentMarkdown to jump to the exact source content.",
+    ),
+});
+
+export const SearchDocumentContentToolResponseSchema = z.object({
+    results: z.array(
+        z.object({
+            citation: RetrievalCitationSchema,
+            content: z.string().describe(
+                "The retrieved chunk's text, as Markdown.",
+            ),
+            score: z.number().describe(
+                "Relevance score from reranking — higher is more relevant. Not comparable across separate calls to this tool.",
+            ),
+        }),
+    ),
+});
+
+export type SearchDocumentContentToolResponseDto = z.infer<
+    typeof SearchDocumentContentToolResponseSchema
+>;
