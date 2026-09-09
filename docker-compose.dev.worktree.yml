@@ -18,17 +18,19 @@ services:
         ports:
             - "${REDIS_HOST_PORT:-7379}:6379"
 
-    server-1:
+    # Single server + web instance — a worktree's dev stack doesn't need
+    # multi-instance sync testing, and each Vite/Nest instance costs ~0.7-1.3GiB.
+    server:
         build:
             context: .
             dockerfile: apps/server/Dockerfile
         ports:
-            - "${SERVER1_HOST_PORT:-6000}:5000"
+            - "${SERVER_HOST_PORT:-6000}:5000"
         env_file:
             - apps/server/.env
         environment:
             PORT: 5000
-            CLIENT_URL: http://localhost:${WEB1_HOST_PORT:-6173}
+            CLIENT_URL: http://localhost:${WEB_HOST_PORT:-6173}
             POSTGRES_DEV_HOST: postgres
             REDIS_DEV_URL: redis://redis:6379
         volumes:
@@ -41,64 +43,23 @@ services:
             - postgres
             - redis
 
-    server-2:
-        build:
-            context: .
-            dockerfile: apps/server/Dockerfile
-        ports:
-            - "${SERVER2_HOST_PORT:-6001}:5001"
-        env_file:
-            - apps/server/.env
-        environment:
-            PORT: 5001
-            CLIENT_URL: http://localhost:${WEB2_HOST_PORT:-6174}
-            POSTGRES_DEV_HOST: postgres
-            REDIS_DEV_URL: redis://redis:6379
-        volumes:
-            - ./apps/server/src:/app/apps/server/src
-            - ./packages/shared/src:/app/packages/shared/src
-            - ./packages/shared/dist:/app/packages/shared/dist
-        depends_on:
-            - postgres
-            - redis
-
-    web-1:
+    web:
         build:
             context: .
             dockerfile: apps/web/Dockerfile
         ports:
-            - "${WEB1_HOST_PORT:-6173}:5173"
+            - "${WEB_HOST_PORT:-6173}:5173"
         env_file:
             - apps/web/.env
         environment:
             PORT: 5173
-            # Points this web instance at server-1.
-            VITE_SERVER_URL: http://localhost:${SERVER1_HOST_PORT:-6000}
+            VITE_SERVER_URL: http://localhost:${SERVER_HOST_PORT:-6000}
         volumes:
             - ./apps/web/src:/app/apps/web/src
             - ./packages/shared/src:/app/packages/shared/src
             - ./packages/shared/dist:/app/packages/shared/dist
         depends_on:
-            - server-1
-
-    web-2:
-        build:
-            context: .
-            dockerfile: apps/web/Dockerfile
-        ports:
-            - "${WEB2_HOST_PORT:-6174}:5174"
-        env_file:
-            - apps/web/.env
-        environment:
-            PORT: 5174
-            # Points this web instance at server-2.
-            VITE_SERVER_URL: http://localhost:${SERVER2_HOST_PORT:-6001}
-        volumes:
-            - ./apps/web/src:/app/apps/web/src
-            - ./packages/shared/src:/app/packages/shared/src
-            - ./packages/shared/dist:/app/packages/shared/dist
-        depends_on:
-            - server-2
+            - server
 
 volumes:
     postgres-data:
