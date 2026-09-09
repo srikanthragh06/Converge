@@ -61,6 +61,9 @@ importers:
       dotenv:
         specifier: ^17.3.1
         version: 17.3.1
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
