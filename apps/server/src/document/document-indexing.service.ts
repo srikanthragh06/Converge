@@ -62,12 +62,22 @@ export class DocumentIndexingService {
     const blockTextById = new Map(blockTexts.map((b) => [b.blockId, b]));
     const orderedBlockIds = blockTexts.map((b) => b.blockId);
 
-    // Every block's section, keyed by every block id in it. A block not in
-    // this map is one this run treats as removed for indexing purposes —
-    // either it no longer exists in the document, or its Markdown is now
-    // empty (see the `if (!text) continue` skip above).
+    // Every block's section, keyed by every block id in it — headingless
+    // sections excluded on purpose. Section-closure below exists solely to
+    // protect chunkBlocks' small-heading-count check, which only ever
+    // looks at sections that start with a heading; a headingless section
+    // can never affect that check, so there's nothing to protect by
+    // expanding into one. Skipping them matters in practice: without this,
+    // a document with sparse or no headings would have its single
+    // headingless section span the whole document, and any edit would
+    // section-closure its way into a full-document rebuild every time.
+    // A block missing from this map is one this run treats as needing no
+    // section expansion — either it no longer exists, its Markdown is now
+    // empty (see the `if (!text) continue` skip above), or its section has
+    // no heading.
     const sectionBlockIdsById = new Map<string, string[]>();
     for (const section of groupIntoSections(blockTexts)) {
+      if (!section.hasHeading) continue;
       for (const blockId of section.blockIds) {
         sectionBlockIdsById.set(blockId, section.blockIds);
       }
@@ -184,7 +194,7 @@ export class DocumentIndexingService {
         // section's true, complete size rather than a partial one.
         for (const blockId of [...rebuildBlockIds]) {
           const sectionBlockIds = sectionBlockIdsById.get(blockId);
-          if (!sectionBlockIds) continue; // block no longer exists (removed)
+          if (!sectionBlockIds) continue; // no heading section to protect (removed, empty, or headingless)
           for (const sectionBlockId of sectionBlockIds) {
             if (!rebuildBlockIds.has(sectionBlockId)) {
               rebuildBlockIds.add(sectionBlockId);
