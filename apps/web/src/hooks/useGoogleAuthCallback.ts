@@ -50,10 +50,12 @@ const useGoogleAuthCallback = () => {
                 localStorage.removeItem(AUTH_CSRF_STATE);
 
                 const { data: userDetails } =
-                    await apiClient.post<AuthResponseDto>(
-                        "/auth/google",
-                        { code } satisfies GoogleAuthRequestDto,
-                    );
+                    await apiClient.post<AuthResponseDto>("/auth/google", {
+                        code,
+                        // Must match the redirect_uri AuthPage.tsx sent to Google exactly —
+                        // recomputed here since we're back on that same origin/path.
+                        redirectUri: `${window.location.origin}/auth/callback`,
+                    } satisfies GoogleAuthRequestDto);
 
                 setAuth({ status: "authenticated", user: userDetails });
                 setAuthStatus("SUCCESSFUL");

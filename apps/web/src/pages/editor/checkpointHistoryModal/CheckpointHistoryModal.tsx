@@ -171,7 +171,7 @@ const CheckpointHistoryModal = ({
                             minimized, since the two sides share the full-width mobile
                             layout instead of sitting side by side. */}
                         <div
-                            className={`${isListCollapsed ? "flex" : "hidden"} sm:flex flex-1 min-h-0 flex-col`}
+                            className={`${isListCollapsed ? "flex" : "hidden"} sm:flex flex-1 min-h-0 min-w-0 flex-col`}
                         >
                             {selectedCheckpoint === null ? (
                                 <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">

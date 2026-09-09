@@ -12,6 +12,8 @@ import {
   GetDocumentOverviewResponseDto,
   LibraryDocumentDto,
   GetLibraryDocumentsResponseDto,
+  GetPinnedDocumentsResponseDto,
+  SetDocumentPinnedResponseDto,
   SearchLibraryDocumentsResponseDto,
   type TrashDocumentDto,
   type GetTrashDocumentsResponseDto,
@@ -643,6 +645,9 @@ export class DocumentService {
    * @param workspaceId - the workspace to scope the library to
    * @param limit - maximum number of documents to return
    * @param cursor - compound cursor from the previous page; omit for the first page
+   * @param ignorePinnedDocs - when true, excludes documents the user has pinned, so a
+   * caller that renders its own separate pinned list (e.g. the sidebar) doesn't have to
+   * dedupe client-side. Defaults to false.
    * @returns documents for this page and the nextCursor to fetch the following page
    */
   async getLibraryDocuments(
@@ -650,6 +655,7 @@ export class DocumentService {
     workspaceId: number,
     limit: number,
     cursor?: { lastVisitedAt: Date | null; id: number },
+    ignorePinnedDocs = false,
   ): Promise<GetLibraryDocumentsResponseDto> {
     const db = this.dbService.kysely;
 
@@ -675,6 +681,7 @@ export class DocumentService {
         'd.title',
         'dum.last_visited_at as lastVisitedAt',
         'dum.last_edited_at as lastEditedAt',
+        'dum.pinned_at as pinnedAt',
         sql<ResolvedDocumentAccessLevel>`
           CASE
             WHEN wm.role = 'owner' THEN 'owner'
@@ -697,6 +704,12 @@ export class DocumentService {
       .orderBy(sql`"r"."lastVisitedAt" DESC NULLS LAST`)
       .orderBy(sql`"r"."id" DESC`)
       .limit(limit);
+
+    // Excludes pinned documents so a caller with its own pinned-documents list
+    // (the sidebar) never has to dedupe the two lists client-side.
+    if (ignorePinnedDocs) {
+      query = query.where('r.pinnedAt', 'is', null);
+    }
 
     // Keyset pagination — handles transition into the NULL lastVisitedAt section.
     if (cursor) {
@@ -735,6 +748,127 @@ export class DocumentService {
         : null;
 
     return { documents, nextCursor };
+  }
+
+  /**
+   * Returns every document in the given workspace that the user has pinned
+   * and still has viewer+ access to, ordered by pinned_at DESC (most recently
+   * pinned first). Uses the same access-resolution subquery as
+   * getLibraryDocuments. Unpaginated — a user's pinned list is expected to
+   * stay small.
+   * @param userId - the authenticated user whose pinned documents to list
+   * @param workspaceId - the workspace to scope the list to
+   * @returns the user's pinned documents in this workspace
+   */
+  async getPinnedDocuments(
+    userId: number,
+    workspaceId: number,
+  ): Promise<GetPinnedDocumentsResponseDto> {
+    const db = this.dbService.kysely;
+
+    // Inner subquery: same five-tier access resolution as getLibraryDocuments.
+    const inner = db
+      .selectFrom('documents as d')
+      .innerJoin('workspaces as w', 'w.id', 'd.workspace_id')
+      .leftJoin('document_user_metadata as dum', (join) =>
+        join
+          .onRef('dum.document_id', '=', 'd.id')
+          .on('dum.user_id', '=', userId),
+      )
+      .leftJoin('workspace_members as wm', (join) =>
+        join
+          .onRef('wm.workspace_id', '=', 'd.workspace_id')
+          .on('wm.user_id', '=', userId),
+      )
+      .leftJoin('document_access as da', (join) =>
+        join.onRef('da.document_id', '=', 'd.id').on('da.user_id', '=', userId),
+      )
+      .select([
+        'd.id',
+        'd.title',
+        'dum.last_visited_at as lastVisitedAt',
+        'dum.last_edited_at as lastEditedAt',
+        'dum.pinned_at as pinnedAt',
+        sql<ResolvedDocumentAccessLevel>`
+          CASE
+            WHEN wm.role = 'owner' THEN 'owner'
+            WHEN da.access IS NOT NULL THEN da.access
+            WHEN wm.role = 'admin' THEN COALESCE(d.admin_doc_access, w.admin_doc_access)
+            WHEN wm.role = 'member' THEN COALESCE(d.member_doc_access, w.member_doc_access)
+            ELSE COALESCE(d.non_member_doc_access, w.non_member_doc_access)
+          END
+        `.as('access'),
+      ])
+      .where('d.is_deleted', '=', false)
+      .where('d.workspace_id', '=', workspaceId)
+      .as('r');
+
+    // Outer query: filter to pinned + viewer+ access, order by most recently pinned.
+    const rows = await db
+      .selectFrom(inner)
+      .selectAll()
+      .where('r.pinnedAt', 'is not', null)
+      .where('r.access', '!=', 'noAccess')
+      .orderBy('r.pinnedAt', 'desc')
+      .execute();
+
+    const documents: LibraryDocumentDto[] = rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      access: row.access,
+      lastVisitedAt: row.lastVisitedAt,
+      lastEditedAt: row.lastEditedAt,
+    }));
+
+    return { documents };
+  }
+
+  /**
+   * Pins or unpins the given document for the given user. Throws 404 if the
+   * document does not exist or is deleted, and 403 if the user has less than
+   * viewer access — pinning is a personal bookmark, so it requires no more
+   * access than appearing in the library already does.
+   * @param documentId - the document to pin or unpin
+   * @param userId - the authenticated user pinning or unpinning it
+   * @param pinned - true to pin, false to unpin
+   * @returns the resulting pinnedAt value — a timestamp when pinned, null when unpinned
+   */
+  async setPinned(
+    documentId: number,
+    userId: number,
+    pinned: boolean,
+  ): Promise<SetDocumentPinnedResponseDto> {
+    const db = this.dbService.kysely;
+
+    // Resolve access — throws NotFoundException if the document does not exist.
+    const access = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+    );
+    if (!hasAccess(access, 'viewer'))
+      throw new ForbiddenException('You do not have access to this document.');
+
+    // Upsert so pinning a never-before-visited document doesn't need a
+    // pre-existing document_user_metadata row. Uses the DB's own clock (not
+    // app-server time) for consistency with recordLastVisited/recordLastEdited,
+    // and returns the persisted value rather than re-deriving it client-side.
+    const pinnedAtValue = pinned ? sql<Date>`now()` : null;
+    const row = await db
+      .insertInto('document_user_metadata')
+      .values({
+        document_id: documentId,
+        user_id: userId,
+        pinned_at: pinnedAtValue,
+      })
+      .onConflict((oc) =>
+        oc
+          .columns(['document_id', 'user_id'])
+          .doUpdateSet({ pinned_at: pinnedAtValue }),
+      )
+      .returning('pinned_at as pinnedAt')
+      .executeTakeFirstOrThrow();
+
+    return { pinnedAt: row.pinnedAt };
   }
 
   /**

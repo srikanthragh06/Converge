@@ -12,7 +12,7 @@ import {
     MdOutlineError,
     MdOutlineCheckCircle,
 } from "react-icons/md";
-import { FaHistory, FaRegSave, FaCog } from "react-icons/fa";
+import { FaHistory, FaRegSave, FaCog, FaLock, FaLockOpen } from "react-icons/fa";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import { Avatar } from "primereact/avatar";
 import { AvatarGroup } from "primereact/avatargroup";
@@ -27,8 +27,8 @@ const MAX_VISIBLE_AVATARS = 4;
 /**
  * Top navigation bar for the editor page. On the left shows a workspace › document
  * breadcrumb (desktop only). On the right shows a sync status indicator and the
- * Save Checkpoint / Checkpoint History / Document Settings icon buttons. Only
- * rendered when documentStatus is "ready".
+ * Write Lock / Save Checkpoint / Checkpoint History / Document Settings icon
+ * buttons. Only rendered when documentStatus is "ready".
  */
 const EditorPageHeader = ({
     documentStatus,
@@ -37,6 +37,8 @@ const EditorPageHeader = ({
     title,
     editor,
     isEditable,
+    isWriteLocked,
+    onToggleWriteLock,
 }: {
     documentStatus: "loading" | "ready" | "forbidden" | "notFound";
     /** ID of the currently open document, forwarded to ManageDocumentModal. */
@@ -49,6 +51,10 @@ const EditorPageHeader = ({
     editor: EditorInstance | null;
     /** Whether the requesting user has editor+ resolved access, forwarded to CheckpointHistoryModal to gate the restore action. */
     isEditable: boolean;
+    /** Whether this user has locally locked writes on this document, for the write lock button's icon/tooltip. */
+    isWriteLocked: boolean;
+    /** Flips the local write lock for this document. */
+    onToggleWriteLock: () => void;
 }) => {
     const [isManageModalOpen, setIsManageModalOpen] = useState(false); // controls ManageDocumentModal visibility
     const [isCheckpointHistoryModalOpen, setIsCheckpointHistoryModalOpen] =
@@ -192,10 +198,60 @@ const EditorPageHeader = ({
                                 statusLabel !== "Offline" && <AnimatedDots />}
                         </span>
                     )}
-                    {/* Icon action group — Save Checkpoint, Checkpoint History, and Document
-                        Settings share a tighter gap than the sm:space-x-8 used to separate
-                        this whole group from the avatars/status label on its left. */}
+                    {/* Icon action group — Write Lock, Save Checkpoint, Checkpoint History, and
+                        Document Settings share a tighter gap than the sm:space-x-8 used to
+                        separate this whole group from the avatars/status label on its left. */}
                     <div className="flex items-center space-x-3 sm:space-x-6">
+                        {/* Write Lock button — a local, per-user comfort toggle that disables
+                            editing in this browser only. Has no effect on this user's actual
+                            access level or on any other user's ability to write. Shown to
+                            editor+ users only, since locking is meaningless without write access. */}
+                        {documentStatus === "ready" && isEditable && (
+                            <>
+                                <Tooltip
+                                    target="#write-lock-button"
+                                    position="bottom"
+                                    pt={{
+                                        text: {
+                                            style: {
+                                                backgroundColor:
+                                                    colors.tooltip.background,
+                                                color: colors.text.secondary,
+                                                fontSize: "0.75rem",
+                                                padding: "0.25rem 0.5rem",
+                                            },
+                                        },
+                                        arrow: {
+                                            style: {
+                                                borderBottomColor:
+                                                    colors.tooltip.background,
+                                            },
+                                        },
+                                    }}
+                                >
+                                    {isWriteLocked
+                                        ? "Unlock Writes"
+                                        : "Lock Writes"}
+                                </Tooltip>
+                                <button
+                                    id="write-lock-button"
+                                    onClick={onToggleWriteLock}
+                                    aria-pressed={isWriteLocked}
+                                    className={`transition cursor-pointer border-none bg-transparent text-white ${
+                                        isWriteLocked
+                                            ? "opacity-100"
+                                            : "opacity-70 hover:opacity-100"
+                                    }`}
+                                >
+                                    {isWriteLocked ? (
+                                        <FaLock className="sm:w-4 sm:h-4 w-4 h-4" />
+                                    ) : (
+                                        <FaLockOpen className="sm:w-4 sm:h-4 w-4 h-4" />
+                                    )}
+                                </button>
+                            </>
+                        )}
+
                         {/* Create Checkpoint button — takes a manual version-history checkpoint.
                             Editor+ only, since the endpoint requires the same access level;
                             hidden for viewers rather than left to fail with a 403 on click.

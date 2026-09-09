@@ -9,6 +9,7 @@ import BlockAwarenessOverlay from "./blockAwarenessOverlay/BlockAwarenessOverlay
 import { hasAccess } from "../../utils/utils";
 import useEditorScrollGap from "../../hooks/useEditorScrollGap";
 import useDocumentSwitcherShortcut from "../../hooks/useDocumentSwitcherShortcut";
+import useWriteLock from "../../hooks/useWriteLock";
 import { Skeleton } from "primereact/skeleton";
 import { useAtomValue } from "jotai";
 import DelayedRender from "../../components/DelayedRender";
@@ -33,9 +34,11 @@ const EditorPage = () => {
 
     const isSocketReady = useAtomValue(isSocketReadyAtom); // true only after DOC_READY — gates editor render so it never mounts before the socket handshake completes
     const scrollRef = useEditorScrollGap(editor); // ref for the scroll container — maintains a gap below the last block
+    const { isWriteLocked, toggleWriteLock } = useWriteLock(documentId); // local, per-user write lock toggle — has no effect on isEditable itself
     const editorWrapperRef = useRef<HTMLDivElement>(null); // ref for the position:relative wrapper used by BlockAwarenessOverlay
     const isEditable =
         documentAccess !== null && hasAccess(documentAccess, "editor"); // editor+ may write; viewers get a read-only instance
+    const canWrite = isEditable && !isWriteLocked; // combines resolved access with the local write lock to gate actual editing
 
     const { isSwitcherOpen, setIsSwitcherOpen } = useDocumentSwitcherShortcut();
 
@@ -52,6 +55,8 @@ const EditorPage = () => {
                     title={title}
                     editor={editor}
                     isEditable={isEditable}
+                    isWriteLocked={isWriteLocked}
+                    onToggleWriteLock={toggleWriteLock}
                 />
             )}
             {/* Forbidden state — shown when the user lacks access to this document */}
@@ -87,7 +92,7 @@ const EditorPage = () => {
                                 onChange={(e) =>
                                     handleTitleChange(e.target.value)
                                 }
-                                disabled={!isEditable}
+                                disabled={!canWrite}
                                 className={`mx-2 w-full max-w-5xl min-w-0
                                     bg-transparent border-none outline-none
                                     text-text-primary font-bold sm:text-4xl text-2xl
@@ -119,7 +124,7 @@ const EditorPage = () => {
                             <BlockNoteView
                                 editor={editor}
                                 theme={convergeTheme}
-                                editable={isEditable}
+                                editable={canWrite}
                             />
                             <BlockAwarenessOverlay
                                 editorWrapperRef={editorWrapperRef}

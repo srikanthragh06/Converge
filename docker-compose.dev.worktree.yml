@@ -1,0 +1,65 @@
+services:
+    # psql -h 127.0.0.1 -p 6432 -U converge -d converge
+    postgres:
+        image: postgres:16
+        environment:
+            POSTGRES_USER: converge
+            POSTGRES_PASSWORD: converge
+            POSTGRES_DB: converge
+        ports:
+            - "${POSTGRES_HOST_PORT:-6432}:5432"
+        volumes:
+            # Named volume persists data across container restarts.
+            - postgres-data:/var/lib/postgresql/data
+
+    # redis-cli -h 127.0.0.1 -p 7379
+    redis:
+        image: redis:7-alpine
+        ports:
+            - "${REDIS_HOST_PORT:-7379}:6379"
+
+    # Single server + web instance — a worktree's dev stack doesn't need
+    # multi-instance sync testing, and each Vite/Nest instance costs ~0.7-1.3GiB.
+    server:
+        build:
+            context: .
+            dockerfile: apps/server/Dockerfile
+        ports:
+            - "${SERVER_HOST_PORT:-6060}:5000"
+        env_file:
+            - apps/server/.env
+        environment:
+            PORT: 5000
+            CLIENT_URL: http://localhost:${WEB_HOST_PORT:-6173}
+            POSTGRES_DEV_HOST: postgres
+            REDIS_DEV_URL: redis://redis:6379
+        volumes:
+            # Mount source dirs for hot reload — node_modules stay in the image.
+            - ./apps/server/src:/app/apps/server/src
+            - ./packages/shared/src:/app/packages/shared/src
+            # Mount shared dist so local TypeScript tooling picks up compiled output.
+            - ./packages/shared/dist:/app/packages/shared/dist
+        depends_on:
+            - postgres
+            - redis
+
+    web:
+        build:
+            context: .
+            dockerfile: apps/web/Dockerfile
+        ports:
+            - "${WEB_HOST_PORT:-6173}:5173"
+        env_file:
+            - apps/web/.env
+        environment:
+            PORT: 5173
+            VITE_SERVER_URL: http://localhost:${SERVER_HOST_PORT:-6060}
+        volumes:
+            - ./apps/web/src:/app/apps/web/src
+            - ./packages/shared/src:/app/packages/shared/src
+            - ./packages/shared/dist:/app/packages/shared/dist
+        depends_on:
+            - server
+
+volumes:
+    postgres-data:

@@ -144,7 +144,7 @@ Join table recording which users contributed edits leading up to a given checkpo
 ---
 
 ### `document_user_metadata`
-Tracks per-user activity timestamps for each document. Used by the library page to display last-visited and last-edited times.
+Tracks per-user activity timestamps for each document. Used by the library page to display last-visited and last-edited times, and by the sidebar to track which documents a user has pinned.
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
@@ -152,6 +152,7 @@ Tracks per-user activity timestamps for each document. Used by the library page 
 | `user_id` | `bigint` | NOT NULL, FK → `users.id` ON DELETE CASCADE | Scopes the row to a specific user |
 | `last_visited_at` | `timestamptz` | NOT NULL, default `now()` | Upserted on every WebSocket connect for this document |
 | `last_edited_at` | `timestamptz` | NOT NULL, default `now()` | Updated on every Yjs content update and title change |
+| `pinned_at` | `timestamptz` | nullable | Set to the DB's `now()` when the user pins the document in the sidebar; cleared back to `NULL` on unpin. A timestamp rather than a boolean so the pinned list can be ordered by most-recently-pinned first |
 
 > Composite PK on `(document_id, user_id)`. Rows are upserted (insert or update) rather than inserted to keep one row per user per document.
 

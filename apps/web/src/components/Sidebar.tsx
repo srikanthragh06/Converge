@@ -11,14 +11,15 @@ import {
     MdWorkspaces,
     MdLibraryBooks,
     MdLogout,
-    MdDescription,
     MdVpnKey,
 } from "react-icons/md";
+import { VscMcp } from "react-icons/vsc";
 import { Dropdown } from "primereact/dropdown";
 import "primereact/resources/themes/lara-dark-blue/theme.css";
 import { CiSettings } from "react-icons/ci";
 import WorkspaceConfigModal from "../pages/workspaces/components/WorkspaceConfigModal";
 import { refreshSidebarAtom } from "@/atoms/sidebar";
+import SidebarDocumentRow from "./SidebarDocumentRow";
 
 /**
  * Collapsible sidebar rendered alongside page content. Shows an expanded
@@ -46,11 +47,13 @@ const Sidebar = ({
         workspaces,
         currentWorkspace,
         recentDocuments,
+        pinnedDocuments,
         isCreating,
         selectWorkspace,
         createDocument,
         refetchWorkspaces,
-    } = useSidebar(); // Workspace list, recent docs, selected workspace state, create/handle workspace actions.
+        togglePin,
+    } = useSidebar(); // Workspace list, pinned + recent docs, selected workspace state, create/handle workspace actions.
     const [isConfigOpen, setIsConfigOpen] = useState(false); // Controls workspace config modal visibility.
     const [isLogoutConfirming, setIsLogoutConfirming] = useState(false); // When true, replaces the log out button with an inline confirm/cancel row.
     const refreshSidebar = useSetAtom(refreshSidebarAtom); // Incremented on modal close to trigger workspace/document refetch in useSidebar.
@@ -65,7 +68,7 @@ const Sidebar = ({
         return (
             <div
                 className="sm:w-[300px] w-screen shrink-0 h-full border-r border-border md:p-2 p-1
-            flex flex-col"
+            flex flex-col overflow-y-auto"
             >
                 {/* Collapse button — hides the panel down to the slim closed-state column */}
                 <div className="flex items-center justify-end">
@@ -215,6 +218,17 @@ const Sidebar = ({
                         <MdVpnKey className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                         <span className="text-sm sm:text-base">API Keys</span>
                     </button>
+                    <button
+                        onClick={() => {
+                            navigate("/mcp-docs");
+                            closeOnMobile();
+                        }}
+                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
+                        aria-label="MCP"
+                    >
+                        <VscMcp className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                        <span className="text-sm sm:text-base">MCP</span>
+                    </button>
                     {isLogoutConfirming ? (
                         <div className="flex items-center gap-2 py-1 px-2 mt-2">
                             <span className="text-sm sm:text-base text-text-primary">
@@ -251,6 +265,29 @@ const Sidebar = ({
                         </button>
                     )}
                 </div>
+                {/* Pinned documents — only rendered once the user has pinned at least one,
+                    shown above the recent-documents section below. */}
+                {pinnedDocuments.length > 0 && (
+                    <div className="mt-4 flex flex-col space-y-1">
+                        <p className="opacity-50 text-xs">Pinned</p>
+                        <div className="flex flex-col">
+                            {pinnedDocuments.map((doc) => (
+                                <SidebarDocumentRow
+                                    key={doc.id}
+                                    doc={doc}
+                                    isPinned
+                                    onOpen={() => {
+                                        navigate(`/document/${doc.id}`);
+                                        closeOnMobile();
+                                    }}
+                                    onTogglePin={() =>
+                                        togglePin(doc.id, false)
+                                    }
+                                />
+                            ))}
+                        </div>
+                    </div>
+                )}
                 {/* Recently visited documents, or an empty-state message when there are none */}
                 <div className="mt-4 flex flex-col space-y-1">
                     <p className="opacity-50 text-xs">Documents</p>
@@ -261,25 +298,16 @@ const Sidebar = ({
                             </span>
                         )}
                         {recentDocuments.map((doc) => (
-                            <button
+                            <SidebarDocumentRow
                                 key={doc.id}
-                                onClick={() => {
+                                doc={doc}
+                                isPinned={false}
+                                onOpen={() => {
                                     navigate(`/document/${doc.id}`);
                                     closeOnMobile();
                                 }}
-                                className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover
-                            rounded-md transition cursor-pointer text-text-primary"
-                                aria-label={doc.title}
-                            >
-                                <MdDescription
-                                    className={`w-3 h-3 shrink-0 ${!doc.title ? "opacity-40" : ""}`}
-                                />
-                                <span
-                                    className={`text-xs sm:text-sm truncate ${!doc.title ? "opacity-40" : ""}`}
-                                >
-                                    {doc.title || "Untitled"}
-                                </span>
-                            </button>
+                                onTogglePin={() => togglePin(doc.id, true)}
+                            />
                         ))}
                     </div>
                 </div>

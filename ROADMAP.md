@@ -736,6 +736,64 @@ A transaction audit of every `*.service.ts` file in `apps/server` — checking e
 - Fixed by wrapping each in `db.transaction().execute(...)` and re-reading the target row with `.forUpdate()` inside the transaction, so the permission check and the write are now atomic against the same row version — a concurrent grant/role-change blocks on the row lock until the transaction commits, instead of racing
 - The rest of the service layer was confirmed already correct: `document.service.ts::createNewDocument`, `document-checkpoint.service.ts::createCheckpointInternal`, and several `workspace.service.ts` methods (`upsertUserPersonalWorkspace`, `createWorkspace`, `leaveWorkspace`, `transferOwner`, `setSelectedWorkspace`) already wrap their multi-write sequences in transactions; everything else is single-write or self-healing/best-effort and doesn't need one — noted for awareness, not fixed: `auth.service.ts`'s user-row upsert and personal-workspace upsert are two separate idempotent operations, so a crash between them just self-heals on the next login
 
+## Checkpoint Diff Panel Layout Fix ✅
+
+> Branch: `release-fix-checkpoint-ui-bug-fix` — merged 2026-09-04
+
+### Web (React frontend)
+
+- Fixed the "Restore this checkpoint" button in the version-history diff panel (`CheckpointDiffView`) rendering pushed far to the right instead of staying centered, on documents whose diff contained wide, non-wrapping content (a table, a long code line, an unbroken long string) — the right-side diff column (`CheckpointHistoryModal`) had no `min-w-0`, so as a row-flex item it defaulted to `min-width: auto` and silently expanded to fit that content's full intrinsic width; the restore button's `m-auto` centering then centered it within that oversized, visually-clipped column instead of the panel actually visible to the user
+- Added `min-w-0` to the diff column to cap it at its fair `flex-1` share regardless of content width, and `overflow-x-auto` to `DiffBlockNoteView`'s content container so wide diff content scrolls horizontally in place instead of forcing the column wider
+
+## Link Hover Affordance ✅
+
+> Branch: `release-visible-links` — merged 2026-09-08
+
+### Web (React frontend)
+
+- Links inside the editor previously rendered identically to plain text with no indication they were clickable — contenteditable suppresses the browser's default pointer cursor over anchors, so even the cursor gave no hint
+- `.bn-editor a` now dims slightly, shows a pointer cursor, and gains a dotted underline on hover; the opacity change is eased via a `transition` declared on the base rule rather than the `:hover` rule itself, since a hover-only rule has nothing to transition from and would otherwise snap instead of ease
+
+## Worktree Dev Environment ✅
+
+> Branch: `release-another-dev-setup` — merged 2026-09-09
+
+Makes it possible to run a second full dev stack in a git worktree alongside the main checkout's, without port clashes, doubled memory use, or Google login silently failing.
+
+### Tooling
+
+- New `docker-compose.dev.worktree.yml` mirrors `docker-compose.dev.yml` but runs a single `server`/`web` instance instead of two of each — the main checkout's paired instances exist for multi-instance Yjs sync testing, which a worktree doing feature work doesn't need, and each Vite/Nest instance costs ~0.7-1.3GiB — and shifts every host port by 1000, so a worktree's stack runs alongside the main checkout's with no config to hand-manage; replaces an earlier `dev-ports.<name>.env`-per-worktree override mechanism
+- Fixed the worktree compose file's default server port (6000) landing on the browser's unsafe-ports blocklist (reserved for X11) — every request to it failed client-side with `net::ERR_UNSAFE_PORT` regardless of server config; moved to 6060
+
+### Server (NestJS backend) / Web (React frontend)
+
+- Fixed Google login failing on any origin other than the main checkout's: the token exchange sent Google a hardcoded `GOOGLE_AUTH_CLIENT_CALLBACK_URL` (fixed to the main checkout's port) instead of the `redirect_uri` actually used in the authorization request, so Google rejected the exchange with a mismatch on any other origin/port, leaving the login silently failed and every later request reporting "No authToken present in request cookies". The client now sends its own `redirectUri` (already computed correctly per-origin) alongside `code` to `POST /auth/google`, and the server echoes it back to Google verbatim — no per-environment config to keep in sync, works for the main checkout and any worktree automatically
+
+## Write Lock & Document Pinning ✅
+
+> Branch: `release-minor-ui-changes` — merged 2026-09-09
+
+Two small, independent editor/sidebar comfort features, plus a sidebar layout bug the second one exposed.
+
+### Web (React frontend)
+
+- Write Lock — a per-document, per-browser toggle in `EditorPageHeader` (left of Save Checkpoint) that disables editing for just the current user in the current browser; purely local, no server call, no effect on any other user's ability to write. `useWriteLock` persists the flag to `localStorage` keyed by document ID and re-derives it during render (not inside a `useEffect`) when the open document changes, avoiding an extra render pass. `EditorPage` combines it with the existing access-based `isEditable` into `canWrite`, which gates both the BlockNote editor's `editable` prop and the title input
+- Document Pinning — a "Pinned" section in the sidebar above the existing Documents (recent) section, each row with a pin/unpin toggle. New `pinnedDocumentsAtom` mirrors the existing `recentDocumentsAtom`; `useSidebar` fetches both whenever the workspace changes, passing the server's new `ignorePinnedDocs` flag on the recent-documents request so the two lists never overlap without any client-side dedup. `togglePin` calls the new pin endpoint, then bumps the existing `refreshSidebarAtom` to re-fetch both lists rather than patching either atom locally — pinned and recent are server-computed complements of each other, so only a re-fetch correctly moves a document across in both directions (an unpinned document needs its correct recency position recomputed server-side, not just to disappear from Pinned). `SidebarDocumentRow` (title button + pin toggle) extracted into its own file since it's now shared between both sections
+- Bug fix: the open sidebar's container was `h-full flex-col` with no `overflow-y-auto`, so once its content grew taller than the viewport it silently clipped instead of scrolling — more likely to bite now that the new Pinned section adds height on top of Documents
+
+### Server (NestJS backend)
+
+- `pinned_at` nullable timestamptz column added to `document_user_metadata` (migration `0035`) — a timestamp rather than a boolean, mirroring `last_visited_at`/`last_edited_at` on the same table, so the pinned list can be ordered by most-recently-pinned first
+- `DocumentService.getPinnedDocuments` — reuses the same five-tier access-resolution subquery as `getLibraryDocuments`, filtered to `pinned_at IS NOT NULL` and ordered by most-recently-pinned; unpaginated, since a personal pinned list is expected to stay small
+- `DocumentService.setPinned` — resolves access (404/403, same pattern as every other doc endpoint), then upserts `document_user_metadata.pinned_at` using the DB's own clock (`sql\`now()\``, consistent with `recordLastVisited`/`recordLastEdited`) and returns the persisted value via `RETURNING` rather than re-deriving it from app-server time
+- `getLibraryDocuments` gained an `ignorePinnedDocs` param — when true, excludes documents the caller has pinned, so a consumer that already renders its own pinned list doesn't have to dedupe. `searchLibraryDocuments` was left untouched; pinning only applies to the sidebar's recent-documents list, not search
+- New routes: `GET /document/pinned`, `PUT /document/:id/pin`
+
+### Shared package
+
+- `GetPinnedDocumentsRequestSchema`/`ResponseSchema` and `SetDocumentPinnedRequestSchema`/`ResponseSchema` added to `@converge/shared/http/document`; `GetLibraryDocumentsRequestSchema` gained `ignorePinnedDocs`
+- `ignorePinnedDocs` uses Zod's `z.stringbool()` rather than `z.coerce.boolean()` — it's a query-string value, and `coerce.boolean()` treats any non-empty string (including the literal `"false"`) as `true`
+
 ## Upcoming
 
 - Workspace/document access-control MCP tools (grant/revoke per-user access, role overrides) — deliberately deferred out of both MCP releases so far as higher-stakes, permission-escalation-risk surface; would need much narrower scoping than a straight mirror of the HTTP endpoints before it's worth building

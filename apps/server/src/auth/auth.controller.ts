@@ -48,17 +48,22 @@ export class AuthController {
    * Validation or upstream errors surface as 4xx/5xx responses.
    *
    * @param code - The short-lived authorisation code from Google's OAuth redirect.
+   * @param redirectUri - The redirect_uri the client used to obtain `code`; must be echoed
+   * back to Google verbatim during the token exchange.
    * @param res - The Express response object, used to set the auth cookie.
    */
   @Post('/google')
   async handleGoogleAuth(
     @Body(new ZodHttpValidationPipe(GoogleAuthRequestSchema))
-    { code }: GoogleAuthRequestDto,
+    { code, redirectUri }: GoogleAuthRequestDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponseDto> {
     try {
       const { authToken, userDetails } =
-        await this.authService.authorizeGoogleUserAndGenerateJWT(code);
+        await this.authService.authorizeGoogleUserAndGenerateJWT(
+          code,
+          redirectUri,
+        );
       this.authService.setAuthCookie(res, authToken);
       return httpOK(userDetails);
     } catch (err) {

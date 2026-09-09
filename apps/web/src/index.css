@@ -88,3 +88,18 @@ input:invalid {
     background-color: #1c1c21 !important;
     border-radius: 6px;
 }
+
+/* Links show no affordance until hovered — contenteditable suppresses the browser's
+   default pointer cursor over anchors, so the hover state below adds it back along
+   with a dotted underline and a slight dim. The transition lives on the base rule
+   (not the :hover rule) so the opacity change eases in/out instead of snapping,
+   since there's nothing for a hover-only rule to transition from. */
+.bn-editor a {
+    transition: opacity 0.15s ease;
+}
+
+.bn-editor a:hover {
+    cursor: pointer;
+    text-decoration: underline dotted;
+    opacity: 0.8;
+}
