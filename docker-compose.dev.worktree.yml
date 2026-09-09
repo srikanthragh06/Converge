@@ -25,7 +25,7 @@ services:
             context: .
             dockerfile: apps/server/Dockerfile
         ports:
-            - "${SERVER_HOST_PORT:-6000}:5000"
+            - "${SERVER_HOST_PORT:-6060}:5000"
         env_file:
             - apps/server/.env
         environment:
@@ -53,7 +53,7 @@ services:
             - apps/web/.env
         environment:
             PORT: 5173
-            VITE_SERVER_URL: http://localhost:${SERVER_HOST_PORT:-6000}
+            VITE_SERVER_URL: http://localhost:${SERVER_HOST_PORT:-6060}
         volumes:
             - ./apps/web/src:/app/apps/web/src
             - ./packages/shared/src:/app/packages/shared/src
