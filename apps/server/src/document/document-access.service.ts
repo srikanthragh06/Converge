@@ -44,70 +44,39 @@ export class DocumentAccessService {
   ): Promise<ResolvedDocumentAccessLevel> {
     const db = this.dbService.kysely;
 
-    // Step 1: fetch the document — verify it exists (and, unless
-    // includeDeleted, that it is not soft-deleted).
-    let docQuery = db
-      .selectFrom('documents')
-      .select([
-        'workspace_id',
-        'admin_doc_access',
-        'member_doc_access',
-        'non_member_doc_access',
-      ])
-      .where('id', '=', documentId);
-    if (!includeDeleted) docQuery = docQuery.where('is_deleted', '=', false);
-    const docRow = await docQuery.executeTakeFirst();
+    // Single indexed join resolving all four tiers at once — same CASE
+    // precedence as getLibraryDocuments' access-resolution subquery.
+    let query = db
+      .selectFrom('documents as d')
+      .innerJoin('workspaces as w', 'w.id', 'd.workspace_id')
+      .leftJoin('workspace_members as wm', (join) =>
+        join
+          .onRef('wm.workspace_id', '=', 'd.workspace_id')
+          .on('wm.user_id', '=', userId),
+      )
+      .leftJoin('document_access as da', (join) =>
+        join.onRef('da.document_id', '=', 'd.id').on('da.user_id', '=', userId),
+      )
+      .select(
+        sql<ResolvedDocumentAccessLevel>`
+          CASE
+            WHEN wm.role = 'owner' THEN 'owner'
+            WHEN da.access IS NOT NULL THEN da.access
+            WHEN wm.role = 'admin' THEN COALESCE(d.admin_doc_access, w.admin_doc_access)
+            WHEN wm.role = 'member' THEN COALESCE(d.member_doc_access, w.member_doc_access)
+            ELSE COALESCE(d.non_member_doc_access, w.non_member_doc_access)
+          END
+        `.as('access'),
+      )
+      .where('d.id', '=', documentId);
+    if (!includeDeleted) query = query.where('d.is_deleted', '=', false);
 
-    if (!docRow) throw new NotFoundException('Document not found.');
+    // Execute and surface a 404 if the document doesn't exist (or is
+    // soft-deleted and includeDeleted wasn't requested).
+    const row = await query.executeTakeFirst();
+    if (!row) throw new NotFoundException('Document not found.');
 
-    // Step 2: workspace owner gets unconditional owner access.
-    const memberRow = await db
-      .selectFrom('workspace_members')
-      .select('role')
-      .where('workspace_id', '=', docRow.workspace_id)
-      .where('user_id', '=', userId)
-      .executeTakeFirst();
-
-    if (memberRow?.role === 'owner') return 'owner';
-
-    // Step 3: check for an explicit per-user document_access row.
-    const explicitRow = await db
-      .selectFrom('document_access')
-      .select('access')
-      .where('document_id', '=', documentId)
-      .where('user_id', '=', userId)
-      .executeTakeFirst();
-
-    if (explicitRow) return explicitRow.access as DocumentAccessLevel;
-
-    // Step 4: check for a document-level per-role override.
-    const role = memberRow?.role ?? null;
-
-    if (role === 'admin' && docRow.admin_doc_access != null) {
-      return docRow.admin_doc_access;
-    }
-    if (role === 'member' && docRow.member_doc_access != null) {
-      return docRow.member_doc_access;
-    }
-    if (!role && docRow.non_member_doc_access != null) {
-      return docRow.non_member_doc_access;
-    }
-
-    // Step 5: fall back to workspace-level per-role defaults.
-    const wsRow = await db
-      .selectFrom('workspaces')
-      .select([
-        'admin_doc_access',
-        'member_doc_access',
-        'non_member_doc_access',
-      ])
-      .where('id', '=', docRow.workspace_id)
-      .executeTakeFirstOrThrow();
-
-    if (role === 'admin') return wsRow.admin_doc_access as DocumentAccessLevel;
-    if (role === 'member')
-      return wsRow.member_doc_access as DocumentAccessLevel;
-    return wsRow.non_member_doc_access as DocumentAccessLevel;
+    return row.access;
   }
 
   /**
