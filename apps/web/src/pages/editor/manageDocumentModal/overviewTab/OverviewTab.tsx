@@ -1,12 +1,22 @@
-import { formatDate, hasAccess } from "../../../../utils/utils";
+import type { DocumentIndexingStatus } from "@converge/shared";
+import { formatDate, timeAgo, hasAccess } from "../../../../utils/utils";
 import DeleteDocumentConfirmationModal from "./DeleteDocumentConfirmationModal";
 import useOverviewTab from "../../../../hooks/useOverviewTab";
 import { Skeleton } from "primereact/skeleton";
 import DelayedRender from "../../../../components/DelayedRender";
 
+/** Friendly label for each RAG indexing lifecycle state. */
+const indexingStatusLabel: Record<DocumentIndexingStatus, string> = {
+    idle: "Up to date",
+    pending: "Pending",
+    indexing: "Indexing…",
+};
+
 /**
  * Overview tab content for ManageDocumentModal. Displays document metadata
- * and exposes a Delete Document action that opens the confirmation dialog.
+ * (including RAG indexing status, which useOverviewTab polls so it resolves
+ * live from pending/indexing to idle without a manual refresh) and exposes a
+ * Delete Document action that opens the confirmation dialog.
  */
 const OverviewTab = ({
     onClose,
@@ -27,6 +37,7 @@ const OverviewTab = ({
     const canDelete =
         documentAccess !== null && hasAccess(documentAccess, "admin"); // only admins and above may delete
 
+    // Skeleton placeholder shown while the overview/access fetches are in flight.
     if (isLoading)
         return (
             <DelayedRender>
@@ -41,6 +52,7 @@ const OverviewTab = ({
 
     return (
         <>
+            {/* Document metadata rows */}
             <div className="flex flex-col space-y-3 sm:space-y-4">
                 <div className="text-xs sm:text-sm">
                     <span className="opacity-50">Title: </span>
@@ -72,7 +84,26 @@ const OverviewTab = ({
                         {overview ? formatDate(overview.createdAt) : "—"}
                     </span>
                 </div>
+                <div className="text-xs sm:text-sm">
+                    <span className="opacity-50">Search indexing: </span>
+                    <span className="text-text-secondary">
+                        {overview
+                            ? indexingStatusLabel[overview.indexingStatus]
+                            : "—"}
+                    </span>
+                </div>
+                <div className="text-xs sm:text-sm">
+                    <span className="opacity-50">Last indexed: </span>
+                    <span className="text-text-secondary">
+                        {overview
+                            ? overview.lastIndexedAt
+                                ? timeAgo(overview.lastIndexedAt)
+                                : "Never"
+                            : "—"}
+                    </span>
+                </div>
             </div>
+            {/* Admin-only delete action, plus its confirmation dialog */}
             {canDelete && (
                 <button
                     onClick={() => setIsDeleteDocumentConfirmOpen(true)}

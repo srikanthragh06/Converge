@@ -32,6 +32,16 @@ export const CheckpointSourceSchema = z.enum([
 ]);
 export type CheckpointSource = z.infer<typeof CheckpointSourceSchema>;
 
+/** A document's RAG indexing lifecycle state: `idle` (up to date, or no edit pending), `pending` (an edit landed and the debounce timer is waiting to fire), `indexing` (the reindex job is actively running right now). */
+export const DocumentIndexingStatusSchema = z.enum([
+    "idle",
+    "pending",
+    "indexing",
+]);
+export type DocumentIndexingStatus = z.infer<
+    typeof DocumentIndexingStatusSchema
+>;
+
 /** Valid workspace types. Personal workspaces are 1:1 per user; custom workspaces are user-created for teams. */
 export const WorkspaceTypeSchema = z.enum(["personal", "custom"]);
 export type WorkspaceType = z.infer<typeof WorkspaceTypeSchema>;

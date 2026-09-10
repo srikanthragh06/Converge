@@ -46,6 +46,8 @@ export {
     RestoreDocumentResponseSchema,
     SearchDocumentContentToolInputSchema,
     SearchDocumentContentToolResponseSchema,
+    GetDocumentIndexingStatusToolInputSchema,
+    GetDocumentIndexingStatusToolResponseSchema,
 } from "./tools/document.js";
 export type {
     ListDocumentsToolInputDto,
@@ -78,6 +80,8 @@ export type {
     RestoreDocumentResponseDto,
     SearchDocumentContentToolInputDto,
     SearchDocumentContentToolResponseDto,
+    GetDocumentIndexingStatusToolInputDto,
+    GetDocumentIndexingStatusToolResponseDto,
 } from "./tools/document.js";
 export {
     CreateCheckpointResponseSchema,
@@ -228,12 +232,14 @@ export {
     WorkspaceTypeSchema,
     WorkspaceRoleSchema,
     CheckpointSourceSchema,
+    DocumentIndexingStatusSchema,
 } from "./types/types.js";
 export type {
     ResolvedDocumentAccessLevel,
     WorkspaceType,
     WorkspaceRole,
     CheckpointSource,
+    DocumentIndexingStatus,
 } from "./types/types.js";
 export { SOCKET_EVENTS } from "./socket/events.js";
 export {

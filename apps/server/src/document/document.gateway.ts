@@ -9,7 +9,7 @@ import {
 } from '@nestjs/websockets';
 import { forwardRef, Inject, UseFilters } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
-import { DocumentService } from './document.service.js';
+import { DocumentAccessService } from './document-access.service.js';
 import { DocumentYjsService } from './document-yjs.service.js';
 import { DocumentAwarenessService } from './document-awareness.service.js';
 import { DocumentCheckpointSchedulerService } from './document-checkpoint-scheduler.service.js';
@@ -79,7 +79,7 @@ export class DocumentGateway
   private readonly documentYjsService: DocumentYjsService;
 
   constructor(
-    private readonly documentService: DocumentService,
+    private readonly documentAccessService: DocumentAccessService,
     // Untyped (not `: DocumentYjsService`) on purpose — see the matching
     // comment in DocumentYjsService's constructor for why an explicit
     // class-type annotation here would crash at startup regardless of
@@ -96,11 +96,15 @@ export class DocumentGateway
   }
 
   /**
-   * Verifies the auth cookie and documentId, resolves the user's access level,
-   * stamps documentId, userId, and access on the socket, joins the document room,
-   * registers the user in the awareness hash, loads the Y.Doc into memory, sets up
-   * the Redis subscriptions for cross-server updates, emits DOC_READY, then broadcasts
-   * the updated awareness state so the joining client's listener is already registered.
+   * Verifies the auth cookie and documentId, verifies the user has at least
+   * viewer access, stamps documentId and userId on the socket, joins the
+   * document room, registers the user in the awareness hash, loads the Y.Doc
+   * into memory, sets up the Redis subscriptions for cross-server updates,
+   * emits DOC_READY, then broadcasts the updated awareness state so the
+   * joining client's listener is already registered. Access itself is never
+   * cached on the socket — every access-gated handler below re-resolves it
+   * fresh, so a mid-session access change (grant, revoke, role change) takes
+   * effect on the very next gated action instead of only on reconnect.
    * Rejects invalid connections using disconnect(true) to force-close the underlying
    * transport — plain disconnect() only removes the socket from namespaces but leaves
    * the WebSocket open, so the client never receives the disconnect event.
@@ -149,13 +153,20 @@ export class DocumentGateway
       }
 
       // Verify the document exists and the user has at least viewer access.
-      let resolvedAccess: ResolvedDocumentAccessLevel;
+      // resolveAccess throws NotFoundException if the document doesn't exist,
+      // so a missing document and an existing-but-forbidden one are handled
+      // by the same rejection path below.
+      let resolvedAccess: ResolvedDocumentAccessLevel | undefined;
       try {
-        ({ resolvedAccess } = await this.documentService.getDocumentOfUser(
+        resolvedAccess = await this.documentAccessService.resolveAccess(
           documentId,
           userId,
-        ));
+        );
       } catch {
+        // fall through to the shared rejection check below
+      }
+
+      if (!resolvedAccess || !hasAccess(resolvedAccess, 'viewer')) {
         console.log(
           `Connection rejected: document ${documentId} not found or forbidden for user ${userId}`,
         );
@@ -163,10 +174,11 @@ export class DocumentGateway
         return;
       }
 
-      // stamp the socket so all handlers can read documentId, userId, and access without trusting the client
+      // stamp the socket so all handlers can read documentId and userId
+      // without trusting the client — access itself is intentionally not
+      // cached here, see the handleConnection doc comment above.
       client.data.documentId = documentId;
       client.data.userId = userId;
-      client.data.access = resolvedAccess; // resolved access level stamped at connection time; used for per-handler guards
 
       // join the document room — broadcasts are scoped to this room
       client.join(String(documentId));
@@ -400,9 +412,14 @@ export class DocumentGateway
     const documentId = client.data.documentId as number;
     const userId = client.data.userId as number;
 
-    // Reject writes from viewers — editor+ access required.
-    if (!hasAccess(client.data.access as ResolvedDocumentAccessLevel, 'editor'))
-      return;
+    // Reject writes from viewers — editor+ access required. Resolved fresh
+    // (not cached on the socket) so a mid-session revoke or downgrade takes
+    // effect immediately instead of only on reconnect.
+    const access = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+    );
+    if (!hasAccess(access, 'editor')) return;
 
     const update = new Uint8Array(updateArray);
     const clientSV = new Uint8Array(clientSVArray);
@@ -505,11 +522,13 @@ export class DocumentGateway
     // viewers cannot push content, and an empty diff means the client had
     // nothing new to contribute (the repair-sync round trip still completes
     // even when there's no divergence to resolve), so there is nothing to
-    // persist, broadcast, or attribute.
-    if (
-      hasAccess(client.data.access as ResolvedDocumentAccessLevel, 'editor') &&
-      !isEmptyYjsUpdate(diff)
-    ) {
+    // persist, broadcast, or attribute. Access is resolved fresh, not read
+    // from a socket-level cache — see handleSyncDocServer for why.
+    const access = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+    );
+    if (hasAccess(access, 'editor') && !isEmptyYjsUpdate(diff)) {
       // applyDocUpdate itself broadcasts to the room, excluding this client.
       await this.documentYjsService.applyDocUpdate(documentId, diff, client);
 
@@ -567,10 +586,13 @@ export class DocumentGateway
     // Apply the final diff only for editors with a non-empty diff — viewers
     // cannot push content, and an empty diff means there is nothing left to
     // apply or attribute (see handleRepairSyncAckDoc for why this can happen).
-    if (
-      hasAccess(client.data.access as ResolvedDocumentAccessLevel, 'editor') &&
-      !isEmptyYjsUpdate(diff)
-    ) {
+    // Access is resolved fresh, not read from a socket-level cache — see
+    // handleSyncDocServer for why.
+    const access = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+    );
+    if (hasAccess(access, 'editor') && !isEmptyYjsUpdate(diff)) {
       // applyDocUpdate itself broadcasts to the room, excluding this client.
       // Note: this handler previously did not broadcast to the room at all
       // after applying — this is a behavior change, not just a refactor
@@ -605,9 +627,13 @@ export class DocumentGateway
     const documentId = client.data.documentId as number;
     const userId = client.data.userId as number;
 
-    // Reject writes from viewers — editor+ access required.
-    if (!hasAccess(client.data.access as ResolvedDocumentAccessLevel, 'editor'))
-      return;
+    // Reject writes from viewers — editor+ access required. Resolved fresh —
+    // see handleSyncDocServer for why this isn't read from a socket cache.
+    const access = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+    );
+    if (!hasAccess(access, 'editor')) return;
 
     // Persist the updated title and broadcast to the room (excluding this
     // client, which already has the new title) — handled by

@@ -3,6 +3,7 @@ import * as Y from 'yjs';
 import { DocumentService } from './document.service.js';
 import { DocumentCheckpointService } from './document-checkpoint.service.js';
 import { DocumentRAGService } from './document-rag.service.js';
+import { DocumentIndexingService } from './document-indexing.service.js';
 import { blocksFromYDoc } from '../utils/editor-schema.js';
 import { base64ToUint8Array } from '../utils/utils.js';
 import {
@@ -36,6 +37,8 @@ import {
   type RestoreDocumentResponseDto,
   type SearchDocumentContentToolInputDto,
   type SearchDocumentContentToolResponseDto,
+  type GetDocumentIndexingStatusToolInputDto,
+  type GetDocumentIndexingStatusToolResponseDto,
 } from '@converge/shared';
 
 // MCP tool handlers for the document feature. Thin wrappers around
@@ -50,6 +53,7 @@ export class DocumentTools {
     private readonly documentService: DocumentService,
     private readonly documentCheckpointService: DocumentCheckpointService,
     private readonly documentRAGService: DocumentRAGService,
+    private readonly documentIndexingService: DocumentIndexingService,
   ) {}
 
   /**
@@ -446,5 +450,31 @@ export class DocumentTools {
       input.limit ?? 5,
     );
     return { results };
+  }
+
+  /**
+   * Returns a document's RAG indexing status: its lifecycle state
+   * (idle/pending/indexing) and when it was last confirmed indexed.
+   * lastIndexedAt is an ISO string rather than a Date object — MCP tool
+   * schemas can't represent a Date type (see
+   * GetDocumentIndexingStatusToolResponseSchema). getIndexingStatus throws
+   * NotFoundException/ForbiddenException on missing/inaccessible
+   * documents — left uncaught here since the MCP SDK already converts a
+   * thrown error into a proper isError tool result.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the document to check
+   */
+  async getDocumentIndexingStatus(
+    userId: number,
+    input: GetDocumentIndexingStatusToolInputDto,
+  ): Promise<GetDocumentIndexingStatusToolResponseDto> {
+    const result = await this.documentIndexingService.getIndexingStatus(
+      input.documentId,
+      userId,
+    );
+    return {
+      indexingStatus: result.indexingStatus,
+      lastIndexedAt: result.lastIndexedAt?.toISOString() ?? null,
+    };
   }
 }

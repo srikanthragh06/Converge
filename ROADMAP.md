@@ -794,6 +794,19 @@ Two small, independent editor/sidebar comfort features, plus a sidebar layout bu
 - `GetPinnedDocumentsRequestSchema`/`ResponseSchema` and `SetDocumentPinnedRequestSchema`/`ResponseSchema` added to `@converge/shared/http/document`; `GetLibraryDocumentsRequestSchema` gained `ignorePinnedDocs`
 - `ignorePinnedDocs` uses Zod's `z.stringbool()` rather than `z.coerce.boolean()` — it's a query-string value, and `coerce.boolean()` treats any non-empty string (including the literal `"false"`) as `true`
 
+## Real-Time Access Revocation Fix ✅
+
+> Branch: `release-socket-access-removal` — merged 2026-09-10
+
+A user's access to a document was resolved once when their WebSocket connected and then cached for the lifetime of that connection — an admin revoking access, downgrading a role, or removing the user from the workspace had no way to reach an already-open socket, so the user kept their old (often editor) access until they happened to disconnect and reconnect.
+
+### Server (NestJS backend)
+
+- `DocumentAccessService.resolveAccess` collapsed from up to 4 sequential DB round-trips (document, workspace membership, explicit access row, workspace defaults) into a single indexed `LEFT JOIN` query with a SQL `CASE` expression, mirroring the access-resolution subquery `getLibraryDocuments` already used — same four-tier precedence and `includeDeleted` semantics, no caller changes needed. This was a deliberate stepping stone: made resolving access cheap enough to call on every gated socket event instead of caching it
+- `DocumentGateway` no longer stamps a resolved access level onto the socket (`client.data.access`). Every access-gated WebSocket handler — `SYNC_DOC_SERVER`, `REPAIR_SYNC_ACK_DOC_SERVER`, `REPAIR_ACK_DOC_SERVER`, `SYNC_DOC_TITLE_SERVER` — now calls `resolveAccess` fresh on each event, so a revoked grant, downgraded role, or workspace removal takes effect on the user's very next write attempt instead of only after reconnect
+- `handleConnection` also switched from `DocumentService.getDocumentOfUser` (which fetched document title and workspace name that were immediately discarded — only the resolved access level was ever used at connect time) to calling `DocumentAccessService.resolveAccess` directly, removing the gateway's last remaining `DocumentService` dependency
+- Fixed the same shape of bug in `DocumentAwarenessService`: the presence-badge `accessLevel` field was resolved once on a user's first tab open and then carried forward unchanged on every later cursor/focus update, so the collaborator badge shown to other users also never reflected a mid-session access change. `updateUser` now re-resolves it on every call, piggybacking on an event that already fires on real user activity rather than adding new invalidation plumbing
+
 ## Upcoming
 
 - Workspace/document access-control MCP tools (grant/revoke per-user access, role overrides) — deliberately deferred out of both MCP releases so far as higher-stakes, permission-escalation-risk surface; would need much narrower scoping than a straight mirror of the HTTP endpoints before it's worth building

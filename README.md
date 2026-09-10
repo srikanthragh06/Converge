@@ -34,8 +34,8 @@ On connect and every 15-second heartbeat, the client sends its Yjs state vector.
 **Version-history checkpoints reusing the Yjs update log**
 Document content is an append-only Yjs update log in Postgres. A checkpoint just merges every update row since the last checkpoint into one new row and deletes the originals — the same merge Yjs already does for sync, just scoped and flagged. Two pg-boss timers (idle and interval), persisted in Postgres rather than server memory, trigger checkpoints automatically and survive restarts across multiple server instances with no extra locking. Restoring one is `editor.replaceBlocks(...)`, flowing through the normal collaboration pipeline like any other edit.
 
-**Four-tier access resolution**
-Every handler resolves access via a short-circuit chain: workspace owner, explicit user grant, per-document role override, workspace role default. The library endpoint evaluates the full chain for every document in a single SQL `CASE` subquery, avoiding N+1 round-trips.
+**Four-tier access resolution, resolved live on every action**
+Every handler resolves access via a short-circuit chain: workspace owner, explicit user grant, per-document role override, workspace role default. Both the single-document resolver and the library endpoint's per-row resolution run as one indexed SQL `CASE` join rather than sequential round-trips, which keeps it cheap enough to call fresh on every WebSocket write instead of caching it per connection — an admin revoking or downgrading a user's access takes effect on their very next edit, not just on their next reconnect.
 
 **Real-time presence with per-tab ref counting**
 Presence state lives in a Redis hash keyed by document. A Redis Set tracks every open socket per user so presence is cleared only when the user's last tab closes, not on individual socket disconnects.
