@@ -39,6 +39,8 @@ import {
   RestoreDocumentResponseSchema,
   SearchDocumentContentToolInputSchema,
   SearchDocumentContentToolResponseSchema,
+  GetDocumentIndexingStatusToolInputSchema,
+  GetDocumentIndexingStatusToolResponseSchema,
 } from '@converge/shared';
 
 // Exposes a single MCP endpoint over the Streamable HTTP transport. The MCP
@@ -387,6 +389,26 @@ export class McpController {
       async (input) => {
         const result = await withMcpErrorHandling(() =>
           this.documentTools.searchDocumentContent(userId, input),
+        );
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'getDocumentIndexingStatus',
+      {
+        title: 'Get Document Indexing Status',
+        description:
+          "Returns a document's RAG indexing status: its lifecycle state (idle/pending/indexing) and when it was last confirmed indexed. Requires viewer access or higher.",
+        inputSchema: GetDocumentIndexingStatusToolInputSchema,
+        outputSchema: GetDocumentIndexingStatusToolResponseSchema,
+      },
+      async (input) => {
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.getDocumentIndexingStatus(userId, input),
         );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],

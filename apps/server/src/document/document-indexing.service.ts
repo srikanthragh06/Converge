@@ -1,9 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { createHash } from 'crypto';
-import { sql } from 'kysely';
+import { sql, type Transaction } from 'kysely';
+import { hasAccess, type DocumentIndexingStatus } from '@converge/shared';
 import { DatabaseService } from '../db/database.service.js';
+import type { DatabaseSchema } from '../db/database.schema.js';
 import { DocumentYjsService } from './document-yjs.service.js';
 import { DocumentEmbeddingService } from './document-embedding.service.js';
+import { DocumentAccessService } from './document-access.service.js';
 import { blocksFromYDoc, markdownFromBlock } from '../utils/editor-schema.js';
 import {
   chunkBlocks,
@@ -18,7 +21,44 @@ export class DocumentIndexingService {
     private readonly dbService: DatabaseService,
     private readonly documentYjsService: DocumentYjsService,
     private readonly documentEmbeddingService: DocumentEmbeddingService,
+    private readonly documentAccessService: DocumentAccessService,
   ) {}
+
+  /**
+   * Returns a document's current RAG indexing status: its lifecycle state
+   * (idle/pending/indexing) and when it was last confirmed indexed. Requires
+   * resolved document viewer+ access.
+   * @param documentId - the document to check
+   * @param userId - the authenticated user (must have viewer+ resolved access)
+   * @returns the document's indexing status and last-indexed timestamp (null if never indexed)
+   * @throws 404 if the document does not exist
+   * @throws 403 if the user does not have viewer+ access to the document
+   */
+  async getIndexingStatus(
+    documentId: number,
+    userId: number,
+  ): Promise<{
+    indexingStatus: DocumentIndexingStatus;
+    lastIndexedAt: Date | null;
+  }> {
+    const access = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+    );
+    if (!hasAccess(access, 'viewer'))
+      throw new ForbiddenException('You do not have access to this document.');
+
+    const row = await this.dbService.kysely
+      .selectFrom('documents')
+      .select(['indexing_status', 'last_indexed_at'])
+      .where('id', '=', documentId)
+      .executeTakeFirstOrThrow();
+
+    return {
+      indexingStatus: row.indexing_status,
+      lastIndexedAt: row.last_indexed_at,
+    };
+  }
 
   /**
    * Re-indexes a document: diffs its current blocks against the last
@@ -26,9 +66,12 @@ export class DocumentIndexingService {
    * blocks that actually changed, rather than the whole document. Also
    * incrementally maintains this workspace's BM25 stats (per-term document
    * frequency, and the running totals behind average chunk length) so
-   * retrieval never has to scan the corpus to compute them. No access
-   * check — internal-only, called by DocumentIndexingSchedulerService
-   * after the gateway has already verified the edit that triggered this
+   * retrieval never has to scan the corpus to compute them. On any
+   * successful completion (including a no-op run that finds nothing
+   * changed) marks the document idle with a fresh last_indexed_at — see
+   * markIndexed. No access check — internal-only, called by
+   * DocumentIndexingSchedulerService after the gateway has already verified
+   * the edit that triggered this
    * run (same split as DocumentCheckpointService.createCheckpointInternal).
    * @param documentId - the document to re-index
    */
@@ -139,11 +182,16 @@ export class DocumentIndexingService {
       );
 
       // Nothing changed since the last run — leave existing chunks as-is.
+      // Still marks the document freshly indexed: a run that confirms there's
+      // nothing to change is exactly what "last indexed" should mean here,
+      // not "last time content actually changed" — otherwise a long-idle,
+      // already-up-to-date document would misleadingly look stale.
       if (
         addedBlockIds.size === 0 &&
         removedBlockIds.size === 0 &&
         changedBlockIds.size === 0
       ) {
+        await this.markIndexed(tx, documentId);
         return;
       }
 
@@ -425,7 +473,31 @@ export class DocumentIndexingService {
           )
           .execute();
       }
+
+      await this.markIndexed(tx, documentId);
     });
+  }
+
+  /**
+   * Marks a document as freshly, successfully indexed: resets
+   * indexing_status to 'idle' and stamps last_indexed_at with the current
+   * time. Called from both of reindexDocument's transaction exit paths (the
+   * no-op early return and the end of full processing) so this only ever
+   * runs as part of a successful run — if the transaction rolls back
+   * (an error mid-run), this update rolls back with it, correctly leaving
+   * last_indexed_at unchanged rather than reporting a falsely-fresh time.
+   * @param tx - the open transaction reindexDocument is already running in
+   * @param documentId - the document that was just successfully indexed
+   */
+  private async markIndexed(
+    tx: Transaction<DatabaseSchema>,
+    documentId: number,
+  ): Promise<void> {
+    await tx
+      .updateTable('documents')
+      .set({ indexing_status: 'idle', last_indexed_at: sql`now()` })
+      .where('id', '=', documentId)
+      .execute();
   }
 
   /**

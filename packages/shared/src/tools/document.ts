@@ -3,6 +3,7 @@ import type { DocumentBlock } from "../editor/editorSchema.js";
 import {
     ResolvedDocumentAccessLevelSchema,
     CheckpointSourceSchema,
+    DocumentIndexingStatusSchema,
 } from "../types/types.js";
 import { CheckpointContributorSchema } from "../http/document.js";
 
@@ -582,4 +583,33 @@ export const SearchDocumentContentToolResponseSchema = z.object({
 
 export type SearchDocumentContentToolResponseDto = z.infer<
     typeof SearchDocumentContentToolResponseSchema
+>;
+
+export const GetDocumentIndexingStatusToolInputSchema = {
+    documentId: z.coerce.number().int().positive().describe(
+        "The document to check RAG indexing status for. Requires viewer access or higher.",
+    ),
+};
+
+export type GetDocumentIndexingStatusToolInputDto = {
+    documentId: number;
+};
+
+// lastIndexedAt is deliberately "last time a reindex run confirmed the index
+// is current" rather than "last time indexed content actually changed" — a
+// run that finds nothing to change still updates it, so a long-idle,
+// already-up-to-date document reads as fresh rather than looking stale/broken.
+// It only advances on a successful run, so a crashed job correctly stops
+// advancing it rather than reporting a falsely-fresh time.
+export const GetDocumentIndexingStatusToolResponseSchema = z.object({
+    indexingStatus: DocumentIndexingStatusSchema.describe(
+        "idle: up to date; no reindex is scheduled or running. pending: an edit landed and the reindex job is scheduled to run shortly. indexing: the reindex job is running right now.",
+    ),
+    lastIndexedAt: z.iso.datetime().nullable().describe(
+        "When this document's content was last confirmed indexed. Null if it has never been indexed yet.",
+    ),
+});
+
+export type GetDocumentIndexingStatusToolResponseDto = z.infer<
+    typeof GetDocumentIndexingStatusToolResponseSchema
 >;

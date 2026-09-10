@@ -1,6 +1,7 @@
 import {
   CheckpointSource,
   DocumentAccessLevel,
+  DocumentIndexingStatus,
   WorkspaceRole,
   WorkspaceType,
 } from '@converge/shared';
@@ -45,6 +46,10 @@ export interface DocumentsTable {
   /** Overrides workspace.non_member_doc_access for this document; NULL means inherit. */
   non_member_doc_access: DocumentAccessLevel | null;
   created_at: Generated<Date>;
+  /** RAG indexing lifecycle state — see DocumentIndexingStatus. Defaults to 'idle'. */
+  indexing_status: Generated<DocumentIndexingStatus>;
+  /** When this document's content was last confirmed indexed by a successful reindex run. NULL if never indexed. */
+  last_indexed_at: Date | null;
 }
 
 /** Row shape for the users table. */
