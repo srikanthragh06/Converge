@@ -86,6 +86,8 @@ One row per document. Stores the title and per-doc role overrides. Does not stor
 | `is_deleted` | `boolean` | NOT NULL, default `false` | Soft-delete flag; all read queries filter on `is_deleted = false`. Cleared back to `false` by `POST /document/:id/restore` (admin+) |
 | `deleted_at` | `timestamptz` | nullable | Set to `now()` when soft-deleted; cleared back to `null` on restore |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
+| `indexing_status` | `text` | NOT NULL, default `'idle'`, CHECK (`idle` \| `pending` \| `indexing`) | RAG indexing lifecycle state (migration `0039`): `'pending'` while an edit's debounce timer is waiting to fire, `'indexing'` while a reindex job is actively running |
+| `last_indexed_at` | `timestamptz` | nullable | When this document's content was last confirmed indexed by a successful reindex run; NULL if never indexed. Advances even on a run that finds nothing changed — means "confirmed current," not "content changed" |
 
 > `update_count` and `last_compact_count` were dropped (migration `0027`) alongside the removal of count-based compaction — see `document_updates` below.
 
@@ -206,6 +208,89 @@ Long-lived credentials for non-browser callers (MCP, CLI, scripts) that inherit 
 | `api_keys_pkey` | `id` | B-tree | Implicit — PK | Fast row lookup by primary key. |
 | `api_keys_key_hash_key` | `key_hash` | B-tree unique | Implicit — UNIQUE | Serves `validateApiKey`'s lookup (`WHERE key_hash = ?`) on every authenticated MCP/API-key request, and enforces no two keys hash to the same value. |
 | `idx_api_keys_user_id` | `user_id` | B-tree | Explicit — 0034 | Serves `listApiKeys`' lookup (`WHERE user_id = ?`). Low urgency compared to the other two indexes added alongside it, since a single user is expected to hold very few keys, but the same missing-index pattern. |
+
+---
+
+### `document_chunks`
+Embedded, searchable Markdown chunks produced by the RAG indexing pipeline. Requires the `pgvector` extension (`CREATE EXTENSION vector`, enabled in migration `0036`).
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `bigserial` | PK | |
+| `document_id` | `bigint` | NOT NULL, FK → `documents.id` ON DELETE CASCADE, indexed | The document this chunk was extracted from |
+| `workspace_id` | `integer` | NOT NULL, FK → `workspaces.id` ON DELETE CASCADE, indexed | Denormalized from `documents.workspace_id` — retrieval-time access filtering needs it directly on this table, not via a join |
+| `block_ids` | `text[]` | NOT NULL | BlockNote block ids (UUID strings) this chunk spans, in document order |
+| `content` | `text` | NOT NULL | The chunk's text, as Markdown — what gets embedded and what's shown as a citation excerpt |
+| `embedding` | `vector(1536)` | NOT NULL | `text-embedding-3-small` embedding; similarity search uses the `<=>` cosine-distance operator |
+| `token_count` | `integer` | NOT NULL, default `0` | Token count of `content`, via the same tokenizer used for chunk sizing (migration `0038`) — backs `document_chunk_corpus_stats`' average-length stat and BM25's length normalization |
+| `content_tsv` | `tsvector` | GENERATED ALWAYS AS (`to_tsvector('english', content)`) STORED (migration `0038`) | Postgres maintains this automatically; no insert ever provides a value |
+| `created_at` | `timestamptz` | NOT NULL, default `now()` | |
+
+#### Indexes
+
+| Index | Columns | Type | Source | Purpose |
+|---|---|---|---|---|
+| `document_chunks_pkey` | `id` | B-tree | Implicit — PK | Fast row lookup by primary key. |
+| `idx_document_chunks_embedding_hnsw` | `embedding` | HNSW (vector_cosine_ops) | Explicit — 0036 | Approximate-nearest-neighbor cosine similarity search — `DocumentRAGService.retrieve`'s semantic candidate query (`ORDER BY embedding <=> ?`). Built while the table was still empty, ahead of any real bulk-insert cost. |
+| `idx_document_chunks_document_id` | `document_id` | B-tree | Explicit — 0036 | Scopes chunk lookups/deletes to a specific document — hit on every `reindexDocument` run. |
+| `idx_document_chunks_workspace_id` | `workspace_id` | B-tree | Explicit — 0036 | Scopes retrieval's candidate queries to the caller's accessible workspaces. |
+| `idx_document_chunks_content_tsv` | `content_tsv` | GIN | Explicit — 0038 | Lexical candidate matching (`content_tsv @@ ...`) in `DocumentRAGService.retrieve`, ahead of BM25 scoring. |
+
+---
+
+### `document_block_hashes`
+Per-block content fingerprints, used by the RAG indexing pipeline's snapshot-diff to detect changed/added/deleted blocks between indexing runs.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `document_id` | `bigint` | NOT NULL, FK → `documents.id` ON DELETE CASCADE | Scopes this row to a specific document |
+| `block_id` | `text` | NOT NULL | BlockNote block id (UUID string) this fingerprint belongs to |
+| `hash` | `text` | NOT NULL | SHA-256 hash of the block's Markdown as of the last indexing run |
+| `updated_at` | `timestamptz` | NOT NULL, default `now()` | |
+
+> Composite PK on `(document_id, block_id)`.
+
+#### Indexes
+
+| Index | Columns | Type | Source | Purpose |
+|---|---|---|---|---|
+| `document_block_hashes_pkey` | `(document_id, block_id)` | B-tree composite | Implicit — PK | Enforces one hash row per block per document. Covers `reindexDocument`'s per-document hash-diff read (`WHERE document_id = ?`, the leading column). |
+
+---
+
+### `document_chunk_term_stats`
+Per-workspace, per-term document frequency (how many chunks contain a term) — the IDF ingredient BM25 needs that a `tsvector`/GIN index alone can't provide. Incrementally maintained by `DocumentIndexingService` as a net-delta upsert inside the same transaction as chunk inserts/deletes; absence of a row means zero (a row is deleted once its count reaches zero rather than left at `0`).
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `workspace_id` | `integer` | NOT NULL, FK → `workspaces.id` ON DELETE CASCADE | BM25 stats are scoped per workspace, matching retrieval's access-filtered scope |
+| `term` | `text` | NOT NULL | A single Postgres-stemmed lexeme, as produced by `to_tsvector('english', ...)` — matches `document_chunks.content_tsv`'s tokenization exactly |
+| `document_frequency` | `integer` | NOT NULL, default `0` | Number of chunks in this workspace whose `content_tsv` contains this term |
+
+> Composite PK on `(workspace_id, term)`.
+
+#### Indexes
+
+| Index | Columns | Type | Source | Purpose |
+|---|---|---|---|---|
+| `document_chunk_term_stats_pkey` | `(workspace_id, term)` | B-tree composite | Implicit — PK | Enforces one stats row per term per workspace. Covers the per-term lookups BM25 scoring and the incremental net-delta upsert both need (`WHERE workspace_id = ? AND term = ?`). |
+
+---
+
+### `document_chunk_corpus_stats`
+One row per workspace, tracking the running totals behind average chunk length (`total_tokens / total_chunks`) — BM25's other corpus-wide ingredient, alongside term document-frequency above. Updated by the same net-delta transaction as `document_chunk_term_stats`.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `workspace_id` | `integer` | PK, FK → `workspaces.id` ON DELETE CASCADE | One row per workspace |
+| `total_chunks` | `integer` | NOT NULL, default `0` | Total number of chunks currently indexed in this workspace |
+| `total_tokens` | `integer` | NOT NULL, default `0` | Sum of `token_count` across every chunk currently indexed in this workspace |
+
+#### Indexes
+
+| Index | Columns | Type | Source | Purpose |
+|---|---|---|---|---|
+| `document_chunk_corpus_stats_pkey` | `workspace_id` | B-tree | Implicit — PK | Fast row lookup by workspace; the only access pattern this table has. |
 
 ---
 

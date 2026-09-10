@@ -807,7 +807,46 @@ A user's access to a document was resolved once when their WebSocket connected a
 - `handleConnection` also switched from `DocumentService.getDocumentOfUser` (which fetched document title and workspace name that were immediately discarded — only the resolved access level was ever used at connect time) to calling `DocumentAccessService.resolveAccess` directly, removing the gateway's last remaining `DocumentService` dependency
 - Fixed the same shape of bug in `DocumentAwarenessService`: the presence-badge `accessLevel` field was resolved once on a user's first tab open and then carried forward unchanged on every later cursor/focus update, so the collaborator badge shown to other users also never reflected a mid-session access change. `updateUser` now re-resolves it on every call, piggybacking on an event that already fires on real user activity rather than adding new invalidation plumbing
 
+## Retrieval-Augmented Search (RAG) ✅
+
+> Branch: `release-rag` — merged 2026-09-10
+
+Adds semantic search over document content, indexed incrementally as documents are edited and exposed to AI agents via a new MCP tool — the foundation for a future "ask your workspace" chat agent. Chunking strategy, hybrid retrieval, and reranking were all built and evaluated first on a separate `rag-poc` branch (a 1,225-question benchmark plus a 300-question hand-authored hard eval) before landing here as real app infrastructure.
+
+### Server (NestJS backend)
+
+- `document_chunks` (migration `0036`) — embedded, searchable Markdown chunks with a `pgvector` `vector(1536)` column and an HNSW cosine-similarity index, denormalizing `workspace_id` so retrieval can filter by access without a join; `document_block_hashes` (migration `0037`) — per-block content fingerprints used to diff what changed between indexing runs
+- `chunking.util.ts` — the sized-headings chunking strategy validated on `rag-poc`: a 500-token hard cap that never splits a single block, closing a chunk as soon as a 4th small (<80-token) heading section would join it
+- `DocumentEmbeddingService` (OpenAI `text-embedding-3-small`) and a new `markdownFromBlock` (`editor-schema.ts`, wrapped in `withMutex` since the server has concurrent requests hitting the shared jsdom shim, unlike the POC's single-threaded script)
+- `DocumentIndexingService.reindexDocument` — the partial-reindex algorithm: hash-diffs current blocks against `document_block_hashes` to get added/removed/changed sets, anchors each new block to its nearest existing neighbor so it never indexes as an isolated singleton, then grows the rebuild set to a fixed point via alternating chunk-closure (pull in every block sharing a chunk with something already in the set) and section-closure (pull in every block sharing a *headed* section) passes, before re-chunking and re-embedding only the affected contiguous runs. No access check — internal-only, called after the caller-facing edit path already verified access
+- `DocumentYjsService.loadDoc` gained a `rebuild` param — a scheduled indexing job has no socket and no guarantee this instance was ever subscribed to the document's Redis updates, so it always reconstructs the Y.Doc fresh from `document_updates` instead of trusting the shared in-memory cache; every existing socket-driven caller keeps the cheaper cached default
+- `DocumentIndexingSchedulerService` — a dedicated 5-second idle pg-boss queue, deliberately separate and shorter than the checkpoint scheduler's 90s/360s timers since search freshness needs a tighter debounce than version history does; wired into every content-changing edit path (all three `document.gateway.ts` handlers plus both MCP write paths, `updateDocumentBlocks` and `restoreCheckpoint`)
+- BM25 term/corpus stats (migration `0038`) — `document_chunks` gains `token_count` and a generated, GIN-indexed `content_tsv` column; new `document_chunk_term_stats` (per-workspace document frequency) and `document_chunk_corpus_stats` (running chunk/token totals) tables, maintained as net-delta upserts inside the same reindex transaction. `bm25.util.ts` scores real Okapi BM25 (k1=1.5, b=0.75) against these stats — the IDF and length-normalization ingredients plain `ts_rank_cd` has no way to produce
+- `DocumentRerankService` — a thin Voyage `rerank-3` wrapper; reads `VOYAGE_API_KEY` lazily inside `rerank()` rather than the constructor, so an unconfigured key doesn't block the whole server from booting
+- `DocumentRAGService.retrieve` — the hybrid retrieval core: semantic (pgvector cosine, top 30) and lexical (BM25-scored, OR'd query terms, no pre-cut before scoring) candidates are unioned by chunk id — not RRF-fused, since a noisy stage-1 score could otherwise bury a good candidate before reranking sees it — then reranked, with access resolved via the same bulk resolved-access `CASE` query `getLibraryDocuments` uses rather than a per-document check
+- New MCP tool `searchDocumentContent` — one task-shaped tool with no caller-facing strategy parameter; returns grounded content and citations only, leaving answer synthesis to the calling agent, so the same tool stays usable by an external MCP client or a future in-app chat agent without its contract ever changing
+- Persisted indexing lifecycle (migration `0039`): `documents.indexing_status`/`last_indexed_at`, surfaced via `getDocumentOverview` and a new MCP tool `getDocumentIndexingStatus`. `last_indexed_at` means "last time a run confirmed the index is current," not "last time content changed" — a `markIndexed` step runs on every successful `reindexDocument` exit path, including a no-op "nothing changed" one, so a long-idle up-to-date document doesn't read as stale
+- `DocumentCheckpointService.createCheckpointInternal` gained a `force` param: an AI-triggered edit must always leave a checkpoint immediately beforehand, even if nothing changed since the last one (e.g. back-to-back agent edits) — forcing duplicates the previous checkpoint's exact bytes into a new row rather than silently skipping. Both MCP write paths (`updateDocumentBlocks`, `restoreCheckpoint`) now pass it
+- HTTP and WebSocket payload limits raised from framework defaults to 5MB — Express (`bodyParser: false` plus explicit `express.json`/`urlencoded` limits), Socket.io's `maxHttpBufferSize`, and nginx's `client_max_body_size` all have to move together since they gate the same Yjs update payload; `GlobalExceptionFilter` now maps body-parser's `entity.too.large` error to a clean 413 instead of a generic 500
+- Migration renumbering: `rag`'s original `0035`-`0037` collided with a `0035` migration that landed on `main` from a separate release branch while this one was still in flight — renumbered to `0036`-`0039`, exactly the scenario the migration-numbering convention in `CLAUDE.md` warns about
+
+### Web (React frontend)
+
+- Document Overview tab (in "Manage Document") shows live "Search indexing" (Up to date / Pending / Indexing…) and "Last indexed" (relative time, or "Never") rows; `useOverviewTab` polls every 5s while the tab stays mounted so a pending/indexing status resolves to idle without closing and reopening the modal
+
+### Shared package
+
+- `DocumentIndexingStatusSchema` (`idle`/`pending`/`indexing`) added to `@converge/shared`; `GetDocumentOverviewResponseSchema` extended with `indexingStatus`/`lastIndexedAt`
+- `SearchDocumentContentToolInputSchema`/`ResponseSchema` and `GetDocumentIndexingStatusToolInputSchema`/`ResponseSchema` added to `packages/shared/src/tools/document.ts`; a retrieval citation is deliberately minimal (`workspaceId` + `documentId` + `blockIds` only, no excerpt or score baked in)
+
+### Tooling
+
+- `docker-compose.dev.yml`'s Postgres image switched from `postgres:16` to `pgvector/pgvector:pg16` — plain `postgres:16` has no vector extension files, so `CREATE EXTENSION vector` fails against it
+- One-time throwaway script (`apps/server/src/scripts/backfill-rag-index.ts`) to index every document that predates this feature — no new indexing logic, it drives each target through the same `DocumentIndexingSchedulerService.onDocumentEdited` entry point a live edit uses, then polls until the resulting pg-boss jobs drain; deleted after its one production run
+
 ## Upcoming
 
+- In-app AI chat agent — synthesizes answers over `searchDocumentContent`'s grounded citations (the "ask your workspace" feature); deliberately deferred since the tool's one-task, no-exposed-strategy contract was designed specifically so this can reuse it unchanged
+- Formal retrieval quality evaluation against real production content — the `rag-poc` branch's recall/precision numbers are against a synthetic benchmark corpus and a hand-authored hard eval, not this app's actual documents
 - Workspace/document access-control MCP tools (grant/revoke per-user access, role overrides) — deliberately deferred out of both MCP releases so far as higher-stakes, permission-escalation-risk surface; would need much narrower scoping than a straight mirror of the HTTP endpoints before it's worth building
 

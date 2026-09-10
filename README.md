@@ -16,6 +16,7 @@ https://github.com/user-attachments/assets/e74a9a3b-8cf7-4625-925d-6fce35e5bfdd
 - **Document library** with full-text search, infinite scroll, a keyboard-navigable switcher (Ctrl+P), and a Trash tab for restoring soft-deleted documents
 - **Sidebar pinning** for quick access to frequently used documents, kept separate from the recently-visited list
 - **AI agent access via MCP** — a Model Context Protocol server exposes documents to AI agents over API-key auth (list, create, read, edit, rename, delete), enforcing the same access control as the browser editor; every agent-driven edit takes an automatic checkpoint beforehand so it can always be undone, and keys are self-served from a dedicated API Keys page
+- **Semantic search (RAG)** — hybrid semantic + lexical retrieval over document content, reranked and exposed as a grounded, cited MCP tool; indexed incrementally as documents are edited, with live indexing-status visibility in the document Overview panel
 - **Google OAuth** with secure httpOnly cookie sessions
 
 ## Architecture
@@ -52,13 +53,17 @@ The MCP write tool applies a batch of id-addressed block edits (replace/insert/r
 **Checkpoints as an AI-agent safety net**
 An AI agent editing a document unsupervised is more likely to make a large, unwanted change than a human making many small ones — so every MCP-driven edit takes a synchronous checkpoint immediately beforehand, tagged with its own source so it's distinguishable from manual and scheduled ones. It's built entirely on the existing checkpoint mechanism with no new infrastructure: one extra call, one new allowed value on an existing column.
 
+**Live-aware RAG indexing without full re-embeds**
+Content is diffed at the block level between indexing runs, and an edit only re-embeds the affected neighborhood: a fixed-point closure loop pulls in every block sharing a chunk or section with something that changed, so a chunk is never left partially deleted and a section is never re-chunked from incomplete context — without ever re-processing the whole document. Retrieval unions semantic (pgvector cosine) and lexical (BM25, scored against real corpus-wide term/length statistics rather than Postgres's own `ts_rank_cd`) candidates and reranks them — a design validated on a separate proof-of-concept branch against a 1,225-question benchmark (96.7% recall@10) and a 300-question hand-authored hard eval targeting cross-document synthesis, disambiguation, and unanswerable questions.
+
 ## Stack
 
 | Layer | Tech |
 |---|---|
 | Frontend | React 19, Vite, TypeScript, Tailwind CSS v3, Jotai |
 | Editor | BlockNote (ProseMirror + Tiptap), Yjs, y-prosemirror |
-| Backend | NestJS 11, Socket.io, Kysely, PostgreSQL 16, MCP SDK |
+| Backend | NestJS 11, Socket.io, Kysely, PostgreSQL 16 + pgvector, MCP SDK |
+| AI/ML | OpenAI (embeddings), Voyage AI (reranking), BM25 |
 | Infrastructure | Redis 7, Docker, nginx, Supabase (DB), Upstash (Redis) |
 | Shared | Zod schemas and TypeScript types via `@converge/shared` |
 
