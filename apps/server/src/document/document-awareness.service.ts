@@ -96,7 +96,9 @@ export class DocumentAwarenessService {
     const existing = await this.redisService.hget(awarenessKey, String(userId));
     if (!existing) {
       const users = await this.getUsers(documentId);
-      // Resolve access level at join time; stored in Redis for the duration of the session.
+      // Resolve access level at join time. Not a permanent cache — updateUser
+      // re-resolves it on every cursor interaction, so this initial value only
+      // covers the window before the user's first focus/cursor update.
       const accessLevel = await this.documentAccessService.resolveAccess(
         documentId,
         userId,
@@ -127,8 +129,12 @@ export class DocumentAwarenessService {
   }
 
   /**
-   * Updates the user's focusedBlockId in the awareness hash and refreshes the TTL
-   * on both hashes. Silently skips if the entry has expired during a long idle session.
+   * Updates the user's focusedBlockId and access level in the awareness hash,
+   * then refreshes the TTL on both hashes. Access is re-resolved on every call
+   * rather than carried forward from the existing entry, so the presence
+   * badge reflects a mid-session grant/revoke/role change instead of freezing
+   * at whatever was resolved when the user's first tab opened. Silently skips
+   * if the entry has expired during a long idle session.
    * @param documentId - the document the user is in
    * @param userId - the user whose cursor position changed
    * @param focusedBlockId - the block the user focused, or null if focus was lost
@@ -146,7 +152,14 @@ export class DocumentAwarenessService {
     const entry = this.parseEntry(existing);
     if (!entry) return;
 
-    const updated: AwarenessUser = { ...entry, focusedBlockId };
+    // Re-resolve access fresh rather than reusing entry.accessLevel — see
+    // the doc comment above for why.
+    const accessLevel = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+    );
+
+    const updated: AwarenessUser = { ...entry, focusedBlockId, accessLevel };
     await this.redisService.hset(
       awarenessKey,
       String(userId),
