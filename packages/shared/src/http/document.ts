@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DocumentAccessLevelSchema, ResolvedDocumentAccessLevelSchema, CheckpointSourceSchema } from "../types/types.js";
+import { DocumentAccessLevelSchema, ResolvedDocumentAccessLevelSchema, CheckpointSourceSchema, DocumentIndexingStatusSchema } from "../types/types.js";
 
 /**
  * Response for POST /document/:id/checkpoint. checkpointId is null when
@@ -126,6 +126,8 @@ export const GetDocumentOverviewResponseSchema = z.object({
     ownerName: z.string(),
     ownerEmail: z.string(),
     createdAt: z.coerce.date(),
+    indexingStatus: DocumentIndexingStatusSchema,
+    lastIndexedAt: z.coerce.date().nullable(),
 });
 
 export type GetDocumentOverviewResponseDto = z.infer<

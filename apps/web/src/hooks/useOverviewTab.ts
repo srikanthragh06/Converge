@@ -7,10 +7,12 @@ import { useEffect, useState } from "react";
 import apiClient from "../lib/http";
 
 /**
- * Manages Overview tab state: fetches document overview data and the current
- * user's resolved access level on mount, and controls the delete confirmation
- * modal. Also closes the parent modal on Escape unless the delete confirmation
- * is open.
+ * Manages Overview tab state: fetches document overview data (including RAG
+ * indexing status) and the current user's resolved access level on mount,
+ * and controls the delete confirmation modal. Re-polls the overview every 5s
+ * for as long as the tab stays mounted, so a pending/indexing status
+ * resolves to idle live rather than only on next open. Also closes the
+ * parent modal on Escape unless the delete confirmation is open.
  */
 const useOverviewTab = ({
     onClose,
@@ -39,7 +41,12 @@ const useOverviewTab = ({
             return;
         }
 
-        /** Fetches document metadata (title, creator, owner, created date) for the overview panel. */
+        /**
+         * Fetches document metadata (title, creator, owner, created date,
+         * indexing status) for the overview panel. Called once on mount and
+         * then repeatedly by the polling interval below, so indexing status
+         * stays current while the tab is open.
+         */
         const fetchOverview = async () => {
             try {
                 const res = await apiClient.get<GetDocumentOverviewResponseDto>(
@@ -75,6 +82,12 @@ const useOverviewTab = ({
 
         fetchOverview();
         fetchDocumentAccess();
+
+        // Poll the overview every 5s so a live indexing status
+        // (pending/indexing) resolves to idle in the UI without the user
+        // having to close and reopen the modal.
+        const intervalId = setInterval(fetchOverview, 5000);
+        return () => clearInterval(intervalId);
     }, [documentId]);
 
     // Close on Escape key, but only when the confirmation modal is not open

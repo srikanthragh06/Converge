@@ -412,9 +412,10 @@ export class DocumentService {
 
   /**
    * Returns overview metadata for the given document: title, creator and owner
-   * name and email, and creation date. Throws NotFoundException if the document
-   * does not exist or is deleted, and ForbiddenException if the requesting user
-   * has less than viewer access.
+   * name and email, creation date, and RAG indexing status (lifecycle state
+   * plus when it was last confirmed indexed). Throws NotFoundException if the
+   * document does not exist or is deleted, and ForbiddenException if the
+   * requesting user has less than viewer access.
    * @param documentId - the document to fetch overview data for
    * @param userId - the authenticated user performing the request
    * @returns overview metadata for the document
@@ -436,7 +437,13 @@ export class DocumentService {
     // Fetch the document fields needed for the overview response.
     const docRow = await db
       .selectFrom('documents')
-      .select(['title', 'creator_id', 'created_at'])
+      .select([
+        'title',
+        'creator_id',
+        'created_at',
+        'indexing_status',
+        'last_indexed_at',
+      ])
       .where('id', '=', documentId)
       .where('is_deleted', '=', false)
       .executeTakeFirst();
@@ -478,6 +485,8 @@ export class DocumentService {
       ownerName: ownerRow.name,
       ownerEmail: ownerRow.email,
       createdAt: docRow.created_at,
+      indexingStatus: docRow.indexing_status,
+      lastIndexedAt: docRow.last_indexed_at,
     };
   }
 

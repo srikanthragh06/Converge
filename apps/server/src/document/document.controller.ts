@@ -157,10 +157,10 @@ export class DocumentController {
   }
 
   /**
-   * Returns overview metadata for the given document: title, creator name and
-   * email, creation date, and the most recent last-visited and last-edited
-   * timestamps. Throws 404 if not found or deleted, 403 if the user does not
-   * have access.
+   * Returns overview metadata for the given document: title, creator and
+   * owner name and email, creation date, and RAG indexing status (lifecycle
+   * state plus when it was last confirmed indexed). Throws 404 if not found
+   * or deleted, 403 if the user does not have access.
    * @param req - the Express request, with userId stamped by AuthGuard
    * @param documentId - the document ID parsed from the URL path
    * @returns overview metadata for the document
