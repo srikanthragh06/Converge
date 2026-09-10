@@ -103,6 +103,12 @@ export const TOOL_GROUPS: ToolGroup[] = [
                     "Title, workspace, resolved access level, created date.",
             },
             {
+                name: "getDocumentIndexingStatus",
+                title: "Get Document Indexing Status",
+                description:
+                    "Whether a document's search index is current, and when it was last indexed.",
+            },
+            {
                 name: "deleteDocument",
                 title: "Delete Document",
                 description: "Soft-delete a document — recoverable.",
@@ -132,6 +138,17 @@ export const TOOL_GROUPS: ToolGroup[] = [
                 name: "updateDocumentTitle",
                 title: "Update Document Title",
                 description: "Rename a document.",
+            },
+        ],
+    },
+    {
+        title: "Search",
+        tools: [
+            {
+                name: "searchDocumentContent",
+                title: "Search Document Content",
+                description:
+                    "Semantic + lexical search over indexed content across a workspace, reranked, returned as cited chunks.",
             },
         ],
     },
