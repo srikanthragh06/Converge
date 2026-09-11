@@ -844,6 +844,16 @@ Adds semantic search over document content, indexed incrementally as documents a
 - `docker-compose.dev.yml`'s Postgres image switched from `postgres:16` to `pgvector/pgvector:pg16` — plain `postgres:16` has no vector extension files, so `CREATE EXTENSION vector` fails against it
 - One-time throwaway script (`apps/server/src/scripts/backfill-rag-index.ts`) to index every document that predates this feature — no new indexing logic, it drives each target through the same `DocumentIndexingSchedulerService.onDocumentEdited` entry point a live edit uses, then polls until the resulting pg-boss jobs drain; deleted after its one production run
 
+## No-Duplicate MCP Checkpoints ✅
+
+> Branch: `release-no-duplicate-checkpoint` — merged 2026-09-11
+
+Small fix to the RAG release's `force` checkpoint behavior: an MCP-driven write no longer forces a redundant duplicate checkpoint row when nothing has changed since the last one.
+
+### Server (NestJS backend)
+
+- `DocumentService.updateDocumentBlocks` and `restoreCheckpoint` no longer pass `force: true` to `DocumentCheckpointService.createCheckpointInternal`. Previously, if an MCP write landed with nothing changed since the last checkpoint (e.g. the idle/interval scheduler had just taken one moments earlier), the forced path duplicated that checkpoint's exact bytes into a new row just to mark the moment. The pre-edit-state guarantee doesn't actually need a new row: an existing checkpoint with nothing since it already captures the exact state right before the agent's change, `mcp`-sourced or not
+
 ## Upcoming
 
 - In-app AI chat agent — synthesizes answers over `searchDocumentContent`'s grounded citations (the "ask your workspace" feature); deliberately deferred since the tool's one-task, no-exposed-strategy contract was designed specifically so this can reuse it unchanged
