@@ -1,0 +1,19 @@
+{
+  "name": "poc",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "chat": "tsx src/chat.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/google": "^4.0.67",
+    "ai": "^7.0.97",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0"
+  }
+}
