@@ -233,6 +233,7 @@ export {
     WorkspaceRoleSchema,
     CheckpointSourceSchema,
     DocumentIndexingStatusSchema,
+    AgentMessageRoleSchema,
 } from "./types/types.js";
 export type {
     ResolvedDocumentAccessLevel,
@@ -240,7 +241,19 @@ export type {
     WorkspaceRole,
     CheckpointSource,
     DocumentIndexingStatus,
+    AgentMessageRole,
 } from "./types/types.js";
+export {
+    CreateAgentConversationRequestSchema,
+    CreateAgentConversationResponseSchema,
+    SendAgentMessageRequestSchema,
+    AGENT_MESSAGE_MAX_LENGTH,
+} from "./http/agent.js";
+export type {
+    CreateAgentConversationRequestDto,
+    CreateAgentConversationResponseDto,
+    SendAgentMessageRequestDto,
+} from "./http/agent.js";
 export { SOCKET_EVENTS } from "./socket/events.js";
 export {
     SyncDocServerSchema,

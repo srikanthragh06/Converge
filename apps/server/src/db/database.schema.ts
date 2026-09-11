@@ -1,4 +1,5 @@
 import {
+  AgentMessageRole,
   CheckpointSource,
   DocumentAccessLevel,
   DocumentIndexingStatus,
@@ -202,9 +203,32 @@ export interface WorkspaceMembersTable {
   created_at: Generated<Date>;
 }
 
+/** Row shape for the agent_conversations table. */
+export interface AgentConversationsTable {
+  id: Generated<number>;
+  /** FK to workspaces.id — fixed at creation time; decides which workspace's tools/documents this conversation can touch. */
+  workspace_id: number;
+  /** FK to users.id — the user this conversation belongs to. Conversations are not shared across users. */
+  user_id: number;
+  created_at: Generated<Date>;
+}
+
+/** Row shape for the agent_messages table — one row per turn in a conversation. */
+export interface AgentMessagesTable {
+  id: Generated<number>;
+  /** FK to agent_conversations.id — scopes this message to a specific conversation. */
+  conversation_id: number;
+  /** Who authored this message. */
+  role: AgentMessageRole;
+  content: string;
+  created_at: Generated<Date>;
+}
+
 // Root schema passed as a generic to Kysely<DatabaseSchema>.
 // Table names must exactly match the Postgres table names.
 export interface DatabaseSchema {
+  agent_conversations: AgentConversationsTable;
+  agent_messages: AgentMessagesTable;
   api_keys: ApiKeysTable;
   document_access: DocumentAccessTable;
   document_block_hashes: DocumentBlockHashesTable;

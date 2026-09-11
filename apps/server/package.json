@@ -16,6 +16,7 @@
     "lint": "eslint \"{src,apps,libs}/**/*.ts\" --fix"
   },
   "dependencies": {
+    "@ai-sdk/google": "^4.0.67",
     "@blocknote/core": "^0.45.0",
     "@blocknote/server-util": "^0.45.0",
     "@converge/shared": "workspace:*",
@@ -29,6 +30,7 @@
     "@nestjs/platform-socket.io": "^11.1.17",
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/websockets": "^11.1.17",
+    "ai": "^7.0.97",
     "axios": "^1.14.0",
     "cookie": "^1.1.1",
     "cookie-parser": "^1.4.7",
