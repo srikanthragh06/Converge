@@ -84,9 +84,17 @@ export class DocumentIndexingSchedulerService {
     // 'short' policy: at most one pending (created/retry) job per
     // singletonKey — what lets onDocumentEdited below reset this timer
     // using pg-boss's own conflict handling rather than hand-rolled
-    // bookkeeping.
+    // bookkeeping. retryLimit/retryDelay/retryBackoff override pg-boss's
+    // default of an immediate (0-delay) retry — reindexDocument's embed()
+    // calls can fail on a transient, expected condition (the shared OpenAI
+    // rate-limit window being full), and retrying instantly just re-hits
+    // the same still-full window. Backoff from 15s gives that window time
+    // to clear before each attempt.
     await this.boss.createQueue(DocumentIndexingSchedulerService.IDLE_QUEUE, {
       policy: 'short',
+      retryLimit: 5,
+      retryDelay: 15,
+      retryBackoff: true,
     });
 
     await this.boss.work<IndexingJobData>(
