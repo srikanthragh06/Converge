@@ -196,6 +196,25 @@ export class RedisService {
   }
 
   /**
+   * Atomically increments a counter key and returns its new value, setting an
+   * expiry on the key only the first time it's created (INCR is atomic, so
+   * exactly one caller ever observes count === 1 for a fresh key — no
+   * transaction or Lua script needed to avoid a double-EXPIRE race). Used as
+   * the building block for fixed-window rate limiting: the window starts
+   * ticking down from the key's first hit and resets once it expires.
+   * @param key - the Redis key to increment
+   * @param ttlSeconds - how long the window lasts, set only on the first increment
+   * @returns the counter's value after this increment
+   */
+  async incrWithExpire(key: string, ttlSeconds: number): Promise<number> {
+    const count = await this.pub.incr(key);
+    if (count === 1) {
+      await this.pub.expire(key, ttlSeconds);
+    }
+    return count;
+  }
+
+  /**
    * Subscribes to a Redis channel and invokes the handler for each incoming
    * message. Messages published by this server instance are automatically
    * skipped to prevent echo loops.

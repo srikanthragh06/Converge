@@ -16,4 +16,8 @@ export const REDIS_KEYS = {
   /** Set of active socketIds for a user in a document — used for multi-tab ref counting. */
   awarenessSockets: (documentId: number, userId: number) =>
     `awareness-sockets:${documentId}:${userId}`,
+  /** Per-IP request counter for POST /auth/google, windowed to 60s. */
+  googleAuthRateLimitIp: (ip: string) => `google-auth-ratelimit:ip:${ip}`,
+  /** Global (cross-IP) request counter for POST /auth/google, windowed to 60s. */
+  googleAuthRateLimitGlobal: 'google-auth-ratelimit:global',
 };
