@@ -6,21 +6,7 @@ import {
   WorkspaceRole,
   WorkspaceType,
 } from '@converge/shared';
-import { Generated, JSONColumnType } from 'kysely';
-
-/** Persisted shape of a tool call the agent made during a turn — see AgentMessagesTable.tool_calls. */
-export interface AgentToolCallRecord {
-  toolCallId: string;
-  toolName: string;
-  input: unknown;
-}
-
-/** Persisted shape of a tool's result during a turn, matched to a tool_calls entry by toolCallId — see AgentMessagesTable.tool_results. */
-export interface AgentToolResultRecord {
-  toolCallId: string;
-  toolName: string;
-  output: unknown;
-}
+import { Generated } from 'kysely';
 
 /**
  * Row shape for the document_updates table.
@@ -227,19 +213,29 @@ export interface AgentConversationsTable {
   created_at: Generated<Date>;
 }
 
-/** Row shape for the agent_messages table — one row per turn in a conversation. */
+/**
+ * Row shape for the agent_messages table — one row per raw AI SDK
+ * ModelMessage (not one row per turn), so a turn with a tool call persists
+ * as two rows ('assistant' with the tool-call part, 'tool' with the
+ * tool-result part) rather than bundling both onto a single row.
+ */
 export interface AgentMessagesTable {
   id: Generated<number>;
   /** FK to agent_conversations.id — scopes this message to a specific conversation. */
   conversation_id: number;
   /** Who authored this message. */
   role: AgentMessageRole;
+  /**
+   * JSON.stringify of the message's content, exactly as the AI SDK produced
+   * it on ModelMessage.content — a quoted string for a 'user' message, or a
+   * serialized array of parts (text/tool-call/tool-result) for
+   * 'assistant'/'tool'. Parsed back explicitly in AgentService rather than
+   * stored as jsonb, so no re-derivation or re-tagging either way —
+   * rehydrating history is `JSON.parse(content)` straight into a
+   * ModelMessage's content field.
+   */
   content: string;
-  /** Tool calls the model made during this turn. Null on a turn that made none. */
-  tool_calls: JSONColumnType<AgentToolCallRecord[]> | null;
-  /** Results of this turn's tool calls. Null on a turn that made none. */
-  tool_results: JSONColumnType<AgentToolResultRecord[]> | null;
-  /** Which step within a turn this row represents. Always 0 until a later phase's multi-step loop assigns higher values. */
+  /** Which step within a turn produced this message. Multiple rows can share a step_index (an assistant tool-call row and its paired tool-result row). */
   step_index: Generated<number>;
   created_at: Generated<Date>;
 }

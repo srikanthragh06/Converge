@@ -32,8 +32,8 @@ export const CheckpointSourceSchema = z.enum([
 ]);
 export type CheckpointSource = z.infer<typeof CheckpointSourceSchema>;
 
-/** Who authored an agent_messages row. No 'tool'/'system' role yet — added once a later phase introduces tool-calling. */
-export const AgentMessageRoleSchema = z.enum(["user", "assistant"]);
+/** Who authored an agent_messages row — one row per raw AI SDK ModelMessage, so 'tool' covers a tool-result message alongside 'user'/'assistant'. No 'system' role, since this app never sends one. */
+export const AgentMessageRoleSchema = z.enum(["user", "assistant", "tool"]);
 export type AgentMessageRole = z.infer<typeof AgentMessageRoleSchema>;
 
 /** A document's RAG indexing lifecycle state: `idle` (up to date, or no edit pending), `pending` (an edit landed and the debounce timer is waiting to fire), `indexing` (the reindex job is actively running right now). */

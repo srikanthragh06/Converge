@@ -5,44 +5,34 @@ import {
   streamText,
   toUIMessageStream,
   UI_MESSAGE_STREAM_HEADERS,
-  type JSONValue,
   type ModelMessage,
-  type ToolCallPart,
-  type ToolResultPart,
 } from 'ai';
 import type { Response } from 'express';
 import { DatabaseService } from '../db/database.service.js';
 import { WorkspaceService } from '../workspace/workspace.service.js';
 import { AgentTools } from './agent.tools.js';
-import type {
-  AgentToolCallRecord,
-  AgentToolResultRecord,
-} from '../db/database.schema.js';
 import {
   INTERNAL_SERVER_ERROR_MESSAGE,
   type CreateAgentConversationResponseDto,
   type SendAgentMessageRequestDto,
 } from '@converge/shared';
 
-// Minimal shape both a live SDK tool call/result (from streamText's result)
-// and a rehydrated DB row satisfy — lets toStepMessages and
-// persistAssistantStep serve both call sites without depending on the
-// AI SDK's more specific TypedToolCall/TypedToolResult generics.
-type ToolCallLike = { toolCallId: string; toolName: string; input: unknown };
-type ToolResultLike = { toolCallId: string; toolName: string; output: unknown };
-
 /**
  * Tool-calling agent chat with a real multi-step loop: each turn runs a
  * plain for-loop over streamText calls (each one still capped at the SDK's
  * own default of one step), continuing only while the model's finishReason
- * says it ended specifically to call a tool. Persists every step of a turn
- * as its own agent_messages row. Streaming is hand-written directly onto
- * `res` (SSE framing, UIMessageChunk shaping via toUIMessageStream) rather
- * than going through createUIMessageStream/writer.merge — that construct is
- * built for merging multiple *concurrent* streams, but our steps run
- * strictly sequentially, one fully finishing before the next starts, so it
- * bought us nothing but its own error-handling/cleanup, which this class
- * now does explicitly instead (see the try/catch/finally in sendMessage).
+ * says it ended specifically to call a tool. Persists every message a turn
+ * produces (result.response.messages) as its own agent_messages row,
+ * verbatim — one row per real ModelMessage, not one row per turn with a
+ * tool call's request and result bundled onto a single row — so rehydrating
+ * history for a later turn is a direct mapping back into ModelMessages with
+ * no reconstruction. Streaming is hand-written directly onto `res` (SSE
+ * framing, UIMessageChunk shaping via toUIMessageStream) rather than going
+ * through createUIMessageStream/writer.merge — that construct is built for
+ * merging multiple *concurrent* streams, but our steps run strictly
+ * sequentially, one fully finishing before the next starts, so it bought us
+ * nothing but its own error-handling/cleanup, which this class now does
+ * explicitly instead (see the try/catch/finally in sendMessage).
  */
 @Injectable()
 export class AgentService {
@@ -144,35 +134,33 @@ export class AgentService {
 
     // Persist the user's message before generating a reply, so it's part of
     // the history fetched below and durable even if generation fails.
+    // content is text; JSON.stringify wraps the plain string as valid JSON,
+    // same as every other row (see persistMessage) — parsed back with
+    // JSON.parse below rather than relying on Postgres to auto-parse jsonb.
     await db
       .insertInto('agent_messages')
       .values({
         conversation_id: conversationId,
         role: 'user',
-        content: body.content,
+        content: JSON.stringify(body.content),
       })
       .execute();
 
     // Load the full conversation history (including the message just
-    // inserted), expanding any past turn's tool calls/results back into
-    // real assistant/tool ModelMessage pairs — a past tool result is now
-    // visible to the model on a later turn, closing the gap phase 2 left
-    // open.
+    // inserted) and map each row straight back into a ModelMessage — content
+    // was stored verbatim from a real ModelMessage.content in the first
+    // place (see persistMessage), so no reconstruction is needed here, only
+    // a past turn's tool call is now visible to the model on a later turn,
+    // closing the gap phase 2 left open.
     const history = await db
       .selectFrom('agent_messages')
-      .select(['role', 'content', 'tool_calls', 'tool_results'])
+      .select(['role', 'content'])
       .where('conversation_id', '=', conversationId)
       .orderBy('id', 'asc')
       .execute();
 
-    const messages: ModelMessage[] = history.flatMap((m) =>
-      m.role === 'user'
-        ? [{ role: 'user' as const, content: m.content }]
-        : this.toStepMessages(
-            m.content,
-            m.tool_calls ?? [],
-            m.tool_results ?? [],
-          ),
+    const messages: ModelMessage[] = history.map(
+      (m) => ({ role: m.role, content: JSON.parse(m.content) }) as ModelMessage,
     );
 
     // Scoped to this conversation's fixed workspace — see AgentTools.build
@@ -211,25 +199,22 @@ export class AgentService {
           res.write(`data: ${JSON.stringify(chunk)}\n\n`);
         }
 
-        // All five already resolved by this point — the loop above fully
+        // Both already resolved by this point — the loop above fully
         // drained the stream, and these promises just hand back values
-        // buffered during that drain.
-        const [text, toolCalls, toolResults, finishReason, response] =
-          await Promise.all([
-            result.text,
-            result.toolCalls,
-            result.toolResults,
-            result.finishReason,
-            result.response,
-          ]);
+        // buffered during that drain. response.messages is the SDK's own
+        // already-correctly-shaped assistant/tool ModelMessages for this
+        // step (a plain-text step is just one assistant message; a step
+        // with tool calls is an assistant message plus a following tool
+        // message) — persisted as-is below, and also what's appended to
+        // currentMessages to continue the loop.
+        const [finishReason, response] = await Promise.all([
+          result.finishReason,
+          result.response,
+        ]);
 
-        await this.persistAssistantStep(
-          conversationId,
-          step,
-          text,
-          toolCalls,
-          toolResults,
-        );
+        for (const message of response.messages) {
+          await this.persistMessage(conversationId, step, message);
+        }
 
         // Any reason other than 'tool-calls' ends the turn here: 'stop' is
         // a final answer or a clarifying question back to the user;
@@ -255,11 +240,6 @@ export class AgentService {
           break;
         }
 
-        // response.messages is the SDK's own already-correctly-shaped
-        // assistant/tool message pair for this step — no need to build it
-        // by hand (toStepMessages still does that, but only for rehydrating
-        // history from the database above, which stores our own decomposed
-        // tool_calls/tool_results columns instead of this).
         currentMessages = [...currentMessages, ...response.messages];
       }
     } catch (err) {
@@ -298,100 +278,34 @@ export class AgentService {
   }
 
   /**
-   * Builds the assistant-message (+ following tool-role message, if there
-   * were tool calls) pair for one past step's output, to rehydrate
-   * conversation history from the database into real ModelMessages for a
-   * new turn's first streamText call. Not used inside the loop itself —
-   * there, result.response.messages already gives the SDK's own correctly
-   * shaped equivalent for free. Returns just the assistant message alone
-   * when there were no tool calls, since a plain-text step never needs a
-   * following tool-role message.
+   * Persists one ModelMessage produced during a turn as its own
+   * agent_messages row, storing its content exactly as the AI SDK produced
+   * it — no reconstruction or re-tagging, since this is already the shape a
+   * future turn's history needs. A step with a tool call persists as two
+   * rows sharing the same stepIndex (an 'assistant' row with the tool-call
+   * part, then a 'tool' row with the tool-result part); a plain-text step
+   * persists as a single 'assistant' row.
    *
-   * @param content - The step's text output, if any.
-   * @param toolCalls - Tool calls made during the step, if any.
-   * @param toolResults - Results of those tool calls, matched by toolCallId.
+   * @param conversationId - The conversation this message belongs to.
+   * @param stepIndex - Which step within the turn produced this message.
+   * @param message - The assistant or tool message to persist.
    */
-  private toStepMessages(
-    content: string,
-    toolCalls: readonly ToolCallLike[],
-    toolResults: readonly ToolResultLike[],
-  ): ModelMessage[] {
-    if (toolCalls.length === 0) {
-      return [{ role: 'assistant', content }];
-    }
-
-    const toolCallParts: ToolCallPart[] = toolCalls.map((c) => ({
-      type: 'tool-call',
-      toolCallId: c.toolCallId,
-      toolName: c.toolName,
-      input: c.input,
-    }));
-    // output must be the SDK's tagged ToolResultOutput union
-    // ({ type: 'json', value } / { type: 'text', value } / ...), not the raw
-    // tool return value — r.output here is a plain object (every AgentTools
-    // execute() returns plain JSON), so 'json' is the correct tag. Omitting
-    // this wrapper is what let a rehydrated turn 2+ fail standardizePrompt's
-    // schema check while a same-turn continuation (built from the SDK's own
-    // already-correctly-shaped response.messages) never hit it.
-    const toolResultParts: ToolResultPart[] = toolResults.map((r) => ({
-      type: 'tool-result',
-      toolCallId: r.toolCallId,
-      toolName: r.toolName,
-      output: { type: 'json', value: r.output as JSONValue },
-    }));
-
-    return [
-      {
-        role: 'assistant',
-        content: content
-          ? [{ type: 'text', text: content }, ...toolCallParts]
-          : toolCallParts,
-      },
-      { role: 'tool', content: toolResultParts },
-    ];
-  }
-
-  /**
-   * Persists one step of a turn as its own agent_messages row. A step that
-   * made no tool calls gets null tool_calls/tool_results, same shape phase
-   * 2 used for a turn that never called a tool.
-   *
-   * @param conversationId - The conversation this step belongs to.
-   * @param stepIndex - Which step within the turn this row represents.
-   * @param content - The step's text output, if any.
-   * @param toolCalls - Tool calls made during the step, if any.
-   * @param toolResults - Results of those tool calls, matched by toolCallId.
-   */
-  private async persistAssistantStep(
+  private async persistMessage(
     conversationId: number,
     stepIndex: number,
-    content: string,
-    toolCalls: readonly ToolCallLike[],
-    toolResults: readonly ToolResultLike[],
+    message: ModelMessage,
   ): Promise<void> {
-    const toolCallRecords: AgentToolCallRecord[] = toolCalls.map((c) => ({
-      toolCallId: c.toolCallId,
-      toolName: c.toolName,
-      input: c.input,
-    }));
-    const toolResultRecords: AgentToolResultRecord[] = toolResults.map((r) => ({
-      toolCallId: r.toolCallId,
-      toolName: r.toolName,
-      output: r.output,
-    }));
-
     await this.dbService.kysely
       .insertInto('agent_messages')
       .values({
         conversation_id: conversationId,
-        role: 'assistant',
-        content,
-        tool_calls:
-          toolCallRecords.length > 0 ? JSON.stringify(toolCallRecords) : null,
-        tool_results:
-          toolResultRecords.length > 0
-            ? JSON.stringify(toolResultRecords)
-            : null,
+        // response.messages only ever contains 'assistant'/'tool' messages
+        // (the SDK's own step output), never 'system'/'user' — narrowing
+        // the cast here rather than widening AgentMessageRole to match
+        // ModelMessage's full role union, which also includes roles this
+        // app never persists.
+        role: message.role as 'assistant' | 'tool',
+        content: JSON.stringify(message.content),
         step_index: stepIndex,
       })
       .execute();
