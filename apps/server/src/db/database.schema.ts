@@ -6,7 +6,21 @@ import {
   WorkspaceRole,
   WorkspaceType,
 } from '@converge/shared';
-import { Generated } from 'kysely';
+import { Generated, JSONColumnType } from 'kysely';
+
+/** Persisted shape of a tool call the agent made during a turn — see AgentMessagesTable.tool_calls. */
+export interface AgentToolCallRecord {
+  toolCallId: string;
+  toolName: string;
+  input: unknown;
+}
+
+/** Persisted shape of a tool's result during a turn, matched to a tool_calls entry by toolCallId — see AgentMessagesTable.tool_results. */
+export interface AgentToolResultRecord {
+  toolCallId: string;
+  toolName: string;
+  output: unknown;
+}
 
 /**
  * Row shape for the document_updates table.
@@ -221,6 +235,12 @@ export interface AgentMessagesTable {
   /** Who authored this message. */
   role: AgentMessageRole;
   content: string;
+  /** Tool calls the model made during this turn. Null on a turn that made none. */
+  tool_calls: JSONColumnType<AgentToolCallRecord[]> | null;
+  /** Results of this turn's tool calls. Null on a turn that made none. */
+  tool_results: JSONColumnType<AgentToolResultRecord[]> | null;
+  /** Which step within a turn this row represents. Always 0 until a later phase's multi-step loop assigns higher values. */
+  step_index: Generated<number>;
   created_at: Generated<Date>;
 }
 
