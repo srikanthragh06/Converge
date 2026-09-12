@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { tool, type ToolSet } from 'ai';
 import { DocumentTools } from '../document/document.tools.js';
+import { withAgentErrorHandling } from '../utils/agent-error-handling.util.js';
 import {
   ListDocumentsToolInputSchema,
   SearchDocumentsToolInputSchema,
@@ -38,7 +39,10 @@ export class AgentTools {
    * instead, since the agent is scoped to one workspace for its whole
    * lifetime. Document-scoped tools take no workspaceId at all —
    * resolveAccess already gates those per-document regardless of which
-   * workspace the chat happens to be in.
+   * workspace the chat happens to be in. Every execute() body is wrapped in
+   * withAgentErrorHandling — see that util for why a thrown error (rather
+   * than a returned one) would silently vanish from this app's own
+   * persisted conversation history.
    *
    * @param userId - The authenticated caller, used for every underlying access check.
    * @param workspaceId - The calling conversation's fixed workspace, bound into every workspace-scoped tool call.
@@ -52,7 +56,9 @@ export class AgentTools {
           .object(ListDocumentsToolInputSchema)
           .omit({ workspaceId: true }),
         execute: (input) =>
-          this.documentTools.listDocuments(userId, { ...input, workspaceId }),
+          withAgentErrorHandling(() =>
+            this.documentTools.listDocuments(userId, { ...input, workspaceId }),
+          ),
       }),
 
       searchDocuments: tool({
@@ -62,10 +68,12 @@ export class AgentTools {
           .object(SearchDocumentsToolInputSchema)
           .omit({ workspaceId: true }),
         execute: (input) =>
-          this.documentTools.searchDocuments(userId, {
-            ...input,
-            workspaceId,
-          }),
+          withAgentErrorHandling(() =>
+            this.documentTools.searchDocuments(userId, {
+              ...input,
+              workspaceId,
+            }),
+          ),
       }),
 
       getDocumentMetadata: tool({
@@ -73,7 +81,9 @@ export class AgentTools {
           "Fetches a document's metadata: title, workspace, the caller's resolved access level, and createdAt. Does not return content — see getDocumentBlocks/readDocumentMarkdown for that.",
         inputSchema: z.object(GetDocumentMetadataToolInputSchema),
         execute: (input) =>
-          this.documentTools.getDocumentMetadata(userId, input),
+          withAgentErrorHandling(() =>
+            this.documentTools.getDocumentMetadata(userId, input),
+          ),
       }),
 
       readDocumentMarkdown: tool({
@@ -81,14 +91,19 @@ export class AgentTools {
           "Reads a document's content as Markdown — lossy (block ids, custom props, and structure Markdown can't express are dropped), read-only.",
         inputSchema: z.object(ReadDocumentMarkdownToolInputSchema),
         execute: (input) =>
-          this.documentTools.readDocumentMarkdown(userId, input),
+          withAgentErrorHandling(() =>
+            this.documentTools.readDocumentMarkdown(userId, input),
+          ),
       }),
 
       getDocumentBlocks: tool({
         description:
           "Reads a document's content as BlockNote block JSON, ids and all — not lossy like readDocumentMarkdown. Use this first to find the block ids updateDocumentBlocks needs.",
         inputSchema: z.object(GetDocumentBlocksToolInputSchema),
-        execute: (input) => this.documentTools.getDocumentBlocks(userId, input),
+        execute: (input) =>
+          withAgentErrorHandling(() =>
+            this.documentTools.getDocumentBlocks(userId, input),
+          ),
       }),
 
       updateDocumentBlocks: tool({
@@ -96,7 +111,9 @@ export class AgentTools {
           "Applies a batch of edits to a document's blocks as a single atomic save (all edits apply, or none do). Requires editor access or higher. New content is given as Markdown, not raw block JSON. Use getDocumentBlocks first to find the block ids to target.",
         inputSchema: z.object(UpdateDocumentBlocksToolInputSchema),
         execute: (input) =>
-          this.documentTools.updateDocumentBlocks(userId, input),
+          withAgentErrorHandling(() =>
+            this.documentTools.updateDocumentBlocks(userId, input),
+          ),
       }),
 
       createDocument: tool({
@@ -106,28 +123,41 @@ export class AgentTools {
           .object(CreateDocumentToolInputSchema)
           .omit({ workspaceId: true }),
         execute: (input) =>
-          this.documentTools.createDocument(userId, { ...input, workspaceId }),
+          withAgentErrorHandling(() =>
+            this.documentTools.createDocument(userId, {
+              ...input,
+              workspaceId,
+            }),
+          ),
       }),
 
       updateDocumentTitle: tool({
         description: 'Renames a document. Requires editor access or higher.',
         inputSchema: z.object(UpdateDocumentTitleToolInputSchema),
         execute: (input) =>
-          this.documentTools.updateDocumentTitle(userId, input),
+          withAgentErrorHandling(() =>
+            this.documentTools.updateDocumentTitle(userId, input),
+          ),
       }),
 
       deleteDocument: tool({
         description:
           'Soft-deletes a document. Requires admin access or higher. Use restoreDocument to undo this.',
         inputSchema: z.object(DeleteDocumentToolInputSchema),
-        execute: (input) => this.documentTools.deleteDocument(userId, input),
+        execute: (input) =>
+          withAgentErrorHandling(() =>
+            this.documentTools.deleteDocument(userId, input),
+          ),
       }),
 
       listCheckpoints: tool({
         description:
           "Lists a document's version-history checkpoints, newest first, each with its contributors, source, and last-edited time. Use getCheckpointContent to read a specific one. Requires viewer access or higher.",
         inputSchema: z.object(ListCheckpointsToolInputSchema),
-        execute: (input) => this.documentTools.listCheckpoints(userId, input),
+        execute: (input) =>
+          withAgentErrorHandling(() =>
+            this.documentTools.listCheckpoints(userId, input),
+          ),
       }),
 
       getCheckpointContent: tool({
@@ -135,14 +165,19 @@ export class AgentTools {
           "Reads a version-history checkpoint's full content as BlockNote blocks (same shape as getDocumentBlocks), plus its metadata. Use listCheckpoints first to find a checkpointId. Requires viewer access or higher.",
         inputSchema: z.object(GetCheckpointContentToolInputSchema),
         execute: (input) =>
-          this.documentTools.getCheckpointContent(userId, input),
+          withAgentErrorHandling(() =>
+            this.documentTools.getCheckpointContent(userId, input),
+          ),
       }),
 
       restoreCheckpoint: tool({
         description:
           "Restores a document's content to a past checkpoint. Requires editor access or higher. Only restores blocks, not title. A fresh checkpoint is taken immediately before the restore lands, so an unwanted restore is itself just one more restore away from undo. Use listCheckpoints first to find a checkpointId.",
         inputSchema: z.object(RestoreCheckpointToolInputSchema),
-        execute: (input) => this.documentTools.restoreCheckpoint(userId, input),
+        execute: (input) =>
+          withAgentErrorHandling(() =>
+            this.documentTools.restoreCheckpoint(userId, input),
+          ),
       }),
 
       listDeletedDocuments: tool({
@@ -152,17 +187,22 @@ export class AgentTools {
           .object(ListDeletedDocumentsToolInputSchema)
           .omit({ workspaceId: true }),
         execute: (input) =>
-          this.documentTools.listDeletedDocuments(userId, {
-            ...input,
-            workspaceId,
-          }),
+          withAgentErrorHandling(() =>
+            this.documentTools.listDeletedDocuments(userId, {
+              ...input,
+              workspaceId,
+            }),
+          ),
       }),
 
       restoreDocument: tool({
         description:
           'Restores a soft-deleted document, undoing deleteDocument. Requires admin access or higher.',
         inputSchema: z.object(RestoreDocumentToolInputSchema),
-        execute: (input) => this.documentTools.restoreDocument(userId, input),
+        execute: (input) =>
+          withAgentErrorHandling(() =>
+            this.documentTools.restoreDocument(userId, input),
+          ),
       }),
 
       searchDocumentContent: tool({
@@ -172,10 +212,12 @@ export class AgentTools {
           .object(SearchDocumentContentToolInputSchema)
           .omit({ workspaceId: true }),
         execute: (input) =>
-          this.documentTools.searchDocumentContent(userId, {
-            ...input,
-            workspaceId,
-          }),
+          withAgentErrorHandling(() =>
+            this.documentTools.searchDocumentContent(userId, {
+              ...input,
+              workspaceId,
+            }),
+          ),
       }),
 
       getDocumentIndexingStatus: tool({
@@ -183,7 +225,9 @@ export class AgentTools {
           "Returns a document's RAG indexing status: its lifecycle state (idle/pending/indexing) and when it was last confirmed indexed. Requires viewer access or higher.",
         inputSchema: z.object(GetDocumentIndexingStatusToolInputSchema),
         execute: (input) =>
-          this.documentTools.getDocumentIndexingStatus(userId, input),
+          withAgentErrorHandling(() =>
+            this.documentTools.getDocumentIndexingStatus(userId, input),
+          ),
       }),
     };
   }
