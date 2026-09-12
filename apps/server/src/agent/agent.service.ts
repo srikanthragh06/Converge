@@ -5,6 +5,7 @@ import {
   streamText,
   toUIMessageStream,
   UI_MESSAGE_STREAM_HEADERS,
+  type JSONValue,
   type ModelMessage,
   type ToolCallPart,
   type ToolResultPart,
@@ -325,17 +326,18 @@ export class AgentService {
       toolName: c.toolName,
       input: c.input,
     }));
-    // Cast is safe, not just convenient: r.output originates from a real
-    // ToolResultOutput value produced by streamText's own tool execution,
-    // which only ever round-trips through JSON (jsonb column, then parsed
-    // back) between here and there — the shape survives that round-trip
-    // intact even though TypeScript can't see it through the `unknown` type
-    // ToolResultLike declares.
+    // output must be the SDK's tagged ToolResultOutput union
+    // ({ type: 'json', value } / { type: 'text', value } / ...), not the raw
+    // tool return value — r.output here is a plain object (every AgentTools
+    // execute() returns plain JSON), so 'json' is the correct tag. Omitting
+    // this wrapper is what let a rehydrated turn 2+ fail standardizePrompt's
+    // schema check while a same-turn continuation (built from the SDK's own
+    // already-correctly-shaped response.messages) never hit it.
     const toolResultParts: ToolResultPart[] = toolResults.map((r) => ({
       type: 'tool-result',
       toolCallId: r.toolCallId,
       toolName: r.toolName,
-      output: r.output as ToolResultPart['output'],
+      output: { type: 'json', value: r.output as JSONValue },
     }));
 
     return [
