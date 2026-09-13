@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createOpenAI } from '@ai-sdk/openai';
 import {
   streamText,
   toUIMessageStream,
@@ -36,9 +36,15 @@ import {
  */
 @Injectable()
 export class AgentService {
-  // gemini-3.1-flash-lite: the default model chosen for this feature (see
-  // the AI Agent Feature brainstorm doc). No model picker yet.
-  private static readonly MODEL = 'gemini-3.1-flash-lite';
+  // gpt-4.1-mini: chosen over both Gemini tiers (3.1-flash-lite, 3.8-flash)
+  // after evaluating all three against the same tool set — Gemini
+  // consistently guessed wrong shapes for updateDocumentBlocks's
+  // discriminated-union input (invented field names, wrong/missing
+  // required fields) before eventually self-correcting, while gpt-4.1-mini
+  // used the correct shape on its first attempt in every trial, only ever
+  // guessing a plausible-but-wrong block id value (a recoverable,
+  // execution-time error, not a schema error). No model picker yet.
+  private static readonly MODEL = 'gpt-4.1-mini';
 
   // Hard safety bound on steps per turn, independent of the model's own
   // behavior — a later phase's budget/iteration guardrails formalize this
@@ -46,7 +52,7 @@ export class AgentService {
   // bound from the moment it exists, not just once that phase lands.
   private static readonly MAX_STEPS = 8;
 
-  private readonly google: ReturnType<typeof createGoogleGenerativeAI>; // Vercel AI SDK Google provider, constructed once per instance with the configured API key.
+  private readonly openai: ReturnType<typeof createOpenAI>; // Vercel AI SDK OpenAI provider, constructed once per instance with the configured API key.
 
   constructor(
     private readonly dbService: DatabaseService,
@@ -55,10 +61,10 @@ export class AgentService {
     private readonly configService: ConfigService,
   ) {
     // Passed explicitly rather than relying on the SDK's implicit
-    // process.env.GOOGLE_GENERATIVE_AI_API_KEY read, matching how every
-    // other service in this app sources config through ConfigService.
-    this.google = createGoogleGenerativeAI({
-      apiKey: this.configService.getOrThrow<string>('GEMINI_API_KEY'),
+    // process.env.OPENAI_API_KEY read, matching how every other service in
+    // this app sources config through ConfigService.
+    this.openai = createOpenAI({
+      apiKey: this.configService.getOrThrow<string>('OPENAI_API_KEY'),
     });
   }
 
@@ -183,7 +189,7 @@ export class AgentService {
 
       for (let step = 0; step < AgentService.MAX_STEPS; step++) {
         const result = streamText({
-          model: this.google(AgentService.MODEL),
+          model: this.openai(AgentService.MODEL),
           messages: currentMessages,
           tools,
         });
