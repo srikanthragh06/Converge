@@ -128,6 +128,8 @@ export class DocumentRAGService {
       question,
       candidates.map((chunk) => chunk.content),
       limit,
+      userId,
+      workspaceId,
     );
 
     // Voyage already sorted and truncated to `limit` — just map its indexes

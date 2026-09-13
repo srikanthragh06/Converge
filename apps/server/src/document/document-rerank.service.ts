@@ -1,5 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { RedisService } from '../redis/redis.service.js';
+import { REDIS_KEYS } from '../redis/redis.events.js';
 
 /** One reranked candidate — index into the original candidates array passed to rerank, plus Voyage's own relevance score. */
 export interface RerankedCandidate {
@@ -17,7 +19,22 @@ export interface RerankedCandidate {
 export class DocumentRerankService {
   private static readonly RERANK_MODEL = 'rerank-3'; // Voyage's cross-encoder reranker model.
 
-  constructor(private readonly configService: ConfigService) {}
+  /** Max rerank calls from a single user within the window. */
+  private static readonly USER_LIMIT = 10;
+
+  /** Max rerank calls from a single workspace within the window. */
+  private static readonly WORKSPACE_LIMIT = 50;
+
+  /** Max rerank calls across every caller combined within the window — kept under Voyage's own 2000rpm account limit. */
+  private static readonly GLOBAL_LIMIT = 1800;
+
+  /** Length of all three windows, in seconds. */
+  private static readonly WINDOW_SECONDS = 60;
+
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly redisService: RedisService,
+  ) {}
 
   /**
    * Reranks a set of candidate texts against a query using Voyage's
@@ -27,13 +44,19 @@ export class DocumentRerankService {
    * @param candidates - candidate texts to rerank, in the order the caller
    * will index back into
    * @param topK - maximum number of results to return
+   * @param userId - the calling user, for the per-user rate limit tier
+   * @param workspaceId - the workspace being searched, for the per-workspace rate limit tier
    * @returns candidates re-sorted by relevance, most relevant first
    */
   async rerank(
     query: string,
     candidates: string[],
     topK: number,
+    userId: number,
+    workspaceId: number,
   ): Promise<RerankedCandidate[]> {
+    await this.checkRateLimit(userId, workspaceId);
+
     // Read lazily here rather than in the constructor (unlike
     // DocumentEmbeddingService's eager OPENAI_API_KEY read) — VOYAGE_API_KEY
     // isn't required for the app to function yet, and NestJS eagerly
@@ -71,5 +94,52 @@ export class DocumentRerankService {
       index: d.index,
       relevanceScore: d.relevance_score,
     }));
+  }
+
+  /**
+   * Enforces the three rate-limit tiers before a rerank call reaches Voyage:
+   * per-user, then per-workspace, then global. Checked in that order —
+   * cheapest/most-specific first — so a caller already over their own cap
+   * short-circuits without spending Redis round-trips on the wider tiers,
+   * same pattern as GoogleAuthRateLimitGuard's IP-then-global check.
+   * @param userId - the calling user
+   * @param workspaceId - the workspace being searched
+   */
+  private async checkRateLimit(
+    userId: number,
+    workspaceId: number,
+  ): Promise<void> {
+    const userCount = await this.redisService.incrWithExpire(
+      REDIS_KEYS.voyageRerankRateLimitUser(userId),
+      DocumentRerankService.WINDOW_SECONDS,
+    );
+    if (userCount > DocumentRerankService.USER_LIMIT) {
+      throw new HttpException(
+        'Search is temporarily rate-limited for your account. Please try again shortly.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    const workspaceCount = await this.redisService.incrWithExpire(
+      REDIS_KEYS.voyageRerankRateLimitWorkspace(workspaceId),
+      DocumentRerankService.WINDOW_SECONDS,
+    );
+    if (workspaceCount > DocumentRerankService.WORKSPACE_LIMIT) {
+      throw new HttpException(
+        'Search is temporarily rate-limited for this workspace. Please try again shortly.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    const globalCount = await this.redisService.incrWithExpire(
+      REDIS_KEYS.voyageRerankRateLimitGlobal,
+      DocumentRerankService.WINDOW_SECONDS,
+    );
+    if (globalCount > DocumentRerankService.GLOBAL_LIMIT) {
+      throw new HttpException(
+        'Search is temporarily rate-limited. Please try again shortly.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
   }
 }

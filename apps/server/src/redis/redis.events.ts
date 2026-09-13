@@ -20,4 +20,12 @@ export const REDIS_KEYS = {
   googleAuthRateLimitIp: (ip: string) => `google-auth-ratelimit:ip:${ip}`,
   /** Global (cross-IP) request counter for POST /auth/google, windowed to 60s. */
   googleAuthRateLimitGlobal: 'google-auth-ratelimit:global',
+  /** Per-user request counter for Voyage rerank, windowed to 60s. */
+  voyageRerankRateLimitUser: (userId: number) =>
+    `voyage-rerank-ratelimit:user:${userId}`,
+  /** Per-workspace request counter for Voyage rerank, windowed to 60s. */
+  voyageRerankRateLimitWorkspace: (workspaceId: number) =>
+    `voyage-rerank-ratelimit:workspace:${workspaceId}`,
+  /** Global (cross-workspace) request counter for Voyage rerank, windowed to 60s. */
+  voyageRerankRateLimitGlobal: 'voyage-rerank-ratelimit:global',
 };
