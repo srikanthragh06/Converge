@@ -210,14 +210,20 @@ export interface AgentConversationsTable {
   workspace_id: number;
   /** FK to users.id — the user this conversation belongs to. Conversations are not shared across users. */
   user_id: number;
+  /** The OpenAI Responses API response.id from this conversation's most recently completed step, passed back as previous_response_id so OpenAI's own backend supplies prior context. Null until the first step completes. */
+  last_response_id: string | null;
   created_at: Generated<Date>;
 }
 
 /**
- * Row shape for the agent_messages table — one row per raw AI SDK
- * ModelMessage (not one row per turn), so a turn with a tool call persists
- * as two rows ('assistant' with the tool-call part, 'tool' with the
- * tool-result part) rather than bundling both onto a single row.
+ * Row shape for the agent_messages table — one row per step's worth of
+ * OpenAI Responses API output (not one row per turn), so a step with a
+ * tool call persists as two rows ('assistant' with that step's raw
+ * response.output array, 'tool' with the function_call_output items sent
+ * back) rather than bundling both onto a single row. Purely a
+ * display/audit log now — a model call is driven by
+ * agent_conversations.last_response_id (previous_response_id chaining),
+ * not by reading this table back; see AgentService's class doc comment.
  */
 export interface AgentMessagesTable {
   id: Generated<number>;
@@ -226,13 +232,12 @@ export interface AgentMessagesTable {
   /** Who authored this message. */
   role: AgentMessageRole;
   /**
-   * JSON.stringify of the message's content, exactly as the AI SDK produced
-   * it on ModelMessage.content — a quoted string for a 'user' message, or a
-   * serialized array of parts (text/tool-call/tool-result) for
-   * 'assistant'/'tool'. Parsed back explicitly in AgentService rather than
-   * stored as jsonb, so no re-derivation or re-tagging either way —
-   * rehydrating history is `JSON.parse(content)` straight into a
-   * ModelMessage's content field.
+   * JSON.stringify of this row's payload — the plain text string for a
+   * 'user' row, a step's raw response.output item array for 'assistant',
+   * or that step's function_call_output item array for 'tool'. Not parsed
+   * back into any request shape (see the interface doc comment) — kept as
+   * an opaque string for the same "no re-derivation, store what was
+   * actually produced" reason as before.
    */
   content: string;
   /** Which step within a turn produced this message. Multiple rows can share a step_index (an assistant tool-call row and its paired tool-result row). */

@@ -5,14 +5,14 @@ import { INTERNAL_SERVER_ERROR_MESSAGE } from '@converge/shared';
  * Runs an AgentTools execute() body and turns a thrown error into a normal
  * returned value instead of letting it propagate — unlike
  * withMcpErrorHandling (which rethrows, since the MCP SDK itself converts a
- * thrown error into a proper isError tool result), the Vercel AI SDK only
- * records a tool call in streamText's result.toolResults when execute()
- * resolves rather than throws; an uncaught throw instead becomes a
- * tool-error step part that this app's own persistAssistantStep never
- * persists (it only reads result.toolResults), silently dropping all record
- * that the call was ever made from the conversation's DB history. Returning
- * a curated error value keeps every attempted call — successful or not — a
- * real, persisted tool result. Our own HttpExceptions (NotFoundException,
+ * thrown error into a proper isError tool result), AgentService only ever
+ * persists a tool call by calling execute() and awaiting its return value
+ * (see AgentService.sendMessage); an uncaught throw here would abort the
+ * whole turn before a 'tool' row for this call is ever persisted, silently
+ * dropping all record that the call was ever made from the conversation's
+ * DB history. Returning a curated error value keeps every attempted call —
+ * successful or not — a real, persisted tool result. Our own HttpExceptions
+ * (NotFoundException,
  * ForbiddenException, applyBlockOperations's BadRequestException, etc.)
  * carry deliberately-written, safe messages, so those are surfaced as-is.
  * Anything else — a raw DB error, a library's internal error, anything not
