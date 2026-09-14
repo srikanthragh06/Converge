@@ -362,6 +362,7 @@ export class DocumentIndexingService {
         for (const chunk of chunkBlocks(run)) {
           const embedding = await this.documentEmbeddingService.embed(
             chunk.content,
+            workspaceId,
           );
           const inserted = await tx
             .insertInto('document_chunks')

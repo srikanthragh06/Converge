@@ -103,7 +103,12 @@ export class DocumentRAGService {
     if (accessibleDocumentIds.length === 0) return [];
 
     const [semanticCandidates, lexicalResult] = await Promise.all([
-      this.getSemanticCandidates(question, workspaceId, accessibleDocumentIds),
+      this.getSemanticCandidates(
+        question,
+        workspaceId,
+        userId,
+        accessibleDocumentIds,
+      ),
       this.getLexicalCandidates(question, workspaceId, accessibleDocumentIds),
     ]);
 
@@ -153,16 +158,22 @@ export class DocumentRAGService {
    * model chunks were indexed with, ranked by pgvector cosine distance.
    * @param question - the natural-language query
    * @param workspaceId - the workspace to search within
+   * @param userId - the calling user, for the embed rate limit's per-user tier
    * @param accessibleDocumentIds - document ids the caller may see
    * @returns up to CANDIDATE_DEPTH chunks, closest first
    */
   private async getSemanticCandidates(
     question: string,
     workspaceId: number,
+    userId: number,
     accessibleDocumentIds: number[],
   ): Promise<CandidateChunkRow[]> {
     const db = this.dbService.kysely;
-    const embedding = await this.documentEmbeddingService.embed(question);
+    const embedding = await this.documentEmbeddingService.embed(
+      question,
+      workspaceId,
+      userId,
+    );
     const vector = `[${embedding.join(',')}]`;
 
     return db

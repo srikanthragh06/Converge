@@ -28,4 +28,22 @@ export const REDIS_KEYS = {
     `voyage-rerank-ratelimit:workspace:${workspaceId}`,
   /** Global (cross-workspace) request counter for Voyage rerank, windowed to 60s. */
   voyageRerankRateLimitGlobal: 'voyage-rerank-ratelimit:global',
+  /** Per-user request counter for OpenAI embedding calls, windowed to 60s (search path only). */
+  openaiEmbeddingRateLimitUserRequests: (userId: number) =>
+    `openai-embedding-ratelimit:user:${userId}:requests`,
+  /** Per-user token counter for OpenAI embedding calls, windowed to 60s (search path only). */
+  openaiEmbeddingRateLimitUserTokens: (userId: number) =>
+    `openai-embedding-ratelimit:user:${userId}:tokens`,
+  /** Per-workspace request counter for OpenAI embedding calls, windowed to 60s. */
+  openaiEmbeddingRateLimitWorkspaceRequests: (workspaceId: number) =>
+    `openai-embedding-ratelimit:workspace:${workspaceId}:requests`,
+  /** Per-workspace token counter for OpenAI embedding calls, windowed to 60s. */
+  openaiEmbeddingRateLimitWorkspaceTokens: (workspaceId: number) =>
+    `openai-embedding-ratelimit:workspace:${workspaceId}:tokens`,
+  /** Global (cross-workspace) request counter for OpenAI embedding calls, windowed to 60s. */
+  openaiEmbeddingRateLimitGlobalRequests:
+    'openai-embedding-ratelimit:global:requests',
+  /** Global (cross-workspace) token counter for OpenAI embedding calls, windowed to 60s. */
+  openaiEmbeddingRateLimitGlobalTokens:
+    'openai-embedding-ratelimit:global:tokens',
 };
