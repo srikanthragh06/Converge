@@ -36,15 +36,16 @@ import {
  */
 @Injectable()
 export class AgentService {
-  // gpt-4.1-mini: chosen over both Gemini tiers (3.1-flash-lite, 3.8-flash)
-  // after evaluating all three against the same tool set — Gemini
-  // consistently guessed wrong shapes for updateDocumentBlocks's
-  // discriminated-union input (invented field names, wrong/missing
-  // required fields) before eventually self-correcting, while gpt-4.1-mini
-  // used the correct shape on its first attempt in every trial, only ever
-  // guessing a plausible-but-wrong block id value (a recoverable,
-  // execution-time error, not a schema error). No model picker yet.
-  private static readonly MODEL = 'gpt-4.1-mini';
+  // gpt-4.1-mini was chosen over both Gemini tiers (3.1-flash-lite,
+  // 3.8-flash) after evaluating all three against the same tool set —
+  // Gemini consistently guessed wrong shapes for updateDocumentBlocks's
+  // discriminated-union input before self-correcting, while gpt-4.1-mini
+  // used the correct shape on its first attempt every time. Trying
+  // gpt-5.6-luna next to see whether it also avoids the cursor-fabrication
+  // and parallel-tool-call-mixup failures that no amount of system-prompt
+  // wording could fix on gpt-4.1-mini (see multi-02/heavy-04/write-06 in
+  // the eval harness). No model picker yet.
+  private static readonly MODEL = 'gpt-5.6-luna';
 
   // Hard safety bound on steps per turn, independent of the model's own
   // behavior — a later phase's budget/iteration guardrails formalize this
