@@ -56,6 +56,9 @@ An AI agent editing a document unsupervised is more likely to make a large, unwa
 **Live-aware RAG indexing without full re-embeds**
 Content is diffed at the block level between indexing runs, and an edit only re-embeds the affected neighborhood: a fixed-point closure loop pulls in every block sharing a chunk or section with something that changed, so a chunk is never left partially deleted and a section is never re-chunked from incomplete context — without ever re-processing the whole document. Retrieval unions semantic (pgvector cosine) and lexical (BM25, scored against real corpus-wide term/length statistics rather than Postgres's own `ts_rank_cd`) candidates and reranks them — a design validated on a separate proof-of-concept branch against a 1,225-question benchmark (96.7% recall@10) and a 300-question hand-authored hard eval targeting cross-document synthesis, disambiguation, and unanswerable questions.
 
+**Cost-aware, multi-tier rate limiting**
+The one unauthenticated route (Google OAuth exchange) and every call to a paid AI provider (OpenAI embeddings, Voyage rerank) are rate-limited with Redis-backed fixed-window counters, layered user/workspace/global — each tier checked cheapest-first so an already-over-limit caller short-circuits before touching the wider ones. Embedding calls track request count and token volume as independent windows, since OpenAI enforces both separately. When a single large edit's reindex run would blow through its own budget, it stops early, commits what it already embedded rather than losing it, and lets the same retry/backoff machinery pick up the remainder on a later pass — the document is briefly stale, never corrupted or incomplete.
+
 ## Stack
 
 | Layer | Tech |

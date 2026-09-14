@@ -854,9 +854,31 @@ Small fix to the RAG release's `force` checkpoint behavior: an MCP-driven write 
 
 - `DocumentService.updateDocumentBlocks` and `restoreCheckpoint` no longer pass `force: true` to `DocumentCheckpointService.createCheckpointInternal`. Previously, if an MCP write landed with nothing changed since the last checkpoint (e.g. the idle/interval scheduler had just taken one moments earlier), the forced path duplicated that checkpoint's exact bytes into a new row just to mark the moment. The pre-edit-state guarantee doesn't actually need a new row: an existing checkpoint with nothing since it already captures the exact state right before the agent's change, `mcp`-sourced or not
 
+## Rate Limiting & Indexing Reliability ✅
+
+> Branch: `release-rate-limiting` — merged 2026-09-14
+
+Closes the two request-volume gaps the RAG release left open — the only unauthenticated route in the app (`POST /auth/google`) and the two live paid-provider calls (OpenAI embeddings, Voyage rerank) — and, along the way, fixes a correctness gap in how the indexing pipeline reports and recovers from failure.
+
+### Server (NestJS backend)
+
+- `POST /auth/google` rate limiting — new `GoogleAuthRateLimitGuard` enforces a per-IP window (8 req/min) and a global cross-IP window (300 req/min) before the request ever reaches Google's token endpoint, rejecting with a clean 429 via the existing `HttpException`/`GlobalExceptionFilter` path. Needed `app.set('trust proxy', 1)` added to `main.ts` — without it `req.ip` resolved to nginx's own address on every request, not the real client, even though nginx already forwards the real one; trusting a count (`1`) rather than `true` limits this to the single hop nginx itself adds, so a client can't spoof the address by prepending fake entries to `X-Forwarded-For`
+- New `RedisService.incrWithExpire(key, ttlSeconds)` primitive — a fixed-window Redis counter built on plain `INCR` + a conditional `EXPIRE` set only on the key's first hit; race-free with no Lua script or transaction needed, since `INCR` is itself atomic
+- Third-party provider rate limiting — `DocumentEmbeddingService.embed()` and `DocumentRerankService.rerank()` each enforce three tiers directly inline (user, when the caller is a live search request — workspace, always — global, always), sharing the same Redis primitives as the auth guard. Embedding calls track request count and token volume as independent windows (`RedisService.incrByWithExpire`, a token-sum counterpart to `incrWithExpire`), since OpenAI enforces RPM and TPM as separate constraints; rerank tracks request count only. Background indexing calls (no live request, no single attributable user) go through the same workspace/global tiers with the user tier skipped
+- Max-chunks-per-reindex-run cap (`MAX_CHUNKS_PER_RUN = 20`, `document-indexing.service.ts`) — `reindexDocument` stops early once it hits the cap or a real 429 from the embed rate limiter, committing whatever was already embedded rather than rolling it back, then throws a new `IndexingCappedError` so the scheduler's existing failure/retry path reschedules the remainder with no new bookkeeping. Stale-chunk deletion moved to after the embed loop — a chunk is deleted only once every block it spans has either been re-embedded this run or removed from the document outright — so a capped run leaves the pre-edit text searchable (stale, never absent) until it's genuinely replaced
+- `indexing_status` correctness fix — a failed indexing job now sets `documents.indexing_status` to `'pending'` (not `'idle'`) whenever pg-boss still has a retry queued (`job.retryCount < job.retryLimit`, read via `{ includeMetadata: true }` on `boss.work`); previously it always reset to `'idle'` mid-backoff, so a status read during the retry window falsely reported the document as fully caught up
+- Indexing queue retry backoff — the idle-debounce queue's default instant retry replaced with `retryLimit: 50, retryDelay: 15, retryBackoff: true, retryDelayMax: 300`, since retrying a rate-limit failure immediately just re-hits the same still-full window; `retryLimit` raised well past what a genuine-failure budget would need because `IndexingCappedError` continuations share the same retry path
+- All eight rate-limit-exceeded messages (login, search-by-user/workspace/global, embedding-by-user/workspace/global) now tell the caller to retry in 1-2 minutes instead of "shortly"
+
+### Tooling
+
+- Worktree dev stack's Postgres image switched from `postgres:16` to `pgvector/pgvector:pg16`, matching the main compose file — plain `postgres:16` has no vector extension files, so migration `0036`'s `CREATE EXTENSION vector` failed on every worktree boot; unrelated to rate limiting but found and fixed while live-testing the auth guard against the worktree stack
+
 ## Upcoming
 
 - In-app AI chat agent — synthesizes answers over `searchDocumentContent`'s grounded citations (the "ask your workspace" feature); deliberately deferred since the tool's one-task, no-exposed-strategy contract was designed specifically so this can reuse it unchanged
 - Formal retrieval quality evaluation against real production content — the `rag-poc` branch's recall/precision numbers are against a synthetic benchmark corpus and a hand-authored hard eval, not this app's actual documents
 - Workspace/document access-control MCP tools (grant/revoke per-user access, role overrides) — deliberately deferred out of both MCP releases so far as higher-stakes, permission-escalation-risk surface; would need much narrower scoping than a straight mirror of the HTTP endpoints before it's worth building
+- `/mcp` per-user throttle (`UserThrottlerGuard` + a new named `'mcp'` throttler) — caps total MCP request volume per user for server/DB load, distinct from the provider-cost tiers now in place; lower urgency than what this release closed, since it bounds load rather than spend
+- Perimeter-level rate limiting (nginx `limit_req`/`limit_conn`, and/or an off-box layer like Cloudflare) and WebSocket gateway event throttling — deliberately deferred out of this release as lower-urgency than the unauthenticated-endpoint and paid-provider gaps it closed
 

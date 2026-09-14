@@ -86,7 +86,7 @@ One row per document. Stores the title and per-doc role overrides. Does not stor
 | `is_deleted` | `boolean` | NOT NULL, default `false` | Soft-delete flag; all read queries filter on `is_deleted = false`. Cleared back to `false` by `POST /document/:id/restore` (admin+) |
 | `deleted_at` | `timestamptz` | nullable | Set to `now()` when soft-deleted; cleared back to `null` on restore |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
-| `indexing_status` | `text` | NOT NULL, default `'idle'`, CHECK (`idle` \| `pending` \| `indexing`) | RAG indexing lifecycle state (migration `0039`): `'pending'` while an edit's debounce timer is waiting to fire, `'indexing'` while a reindex job is actively running |
+| `indexing_status` | `text` | NOT NULL, default `'idle'`, CHECK (`idle` \| `pending` \| `indexing`) | RAG indexing lifecycle state (migration `0039`): `'pending'` while an edit's debounce timer is waiting to fire, or while a failed job still has a pg-boss retry queued (rather than falsely reading `'idle'` mid-backoff); `'indexing'` while a reindex job is actively running |
 | `last_indexed_at` | `timestamptz` | nullable | When this document's content was last confirmed indexed by a successful reindex run; NULL if never indexed. Advances even on a run that finds nothing changed — means "confirmed current," not "content changed" |
 
 > `update_count` and `last_compact_count` were dropped (migration `0027`) alongside the removal of count-based compaction — see `document_updates` below.
@@ -320,3 +320,23 @@ No feature currently holds a Redis-based distributed lock — the old `lock-comp
 |---|---|---|---|---|
 | `awareness:<documentId>` | `REDIS_KEYS.awareness(documentId)` | Hash | 1 hour | Maps `userId` (string) → JSON-serialised `AwarenessUser` for every user currently present in a document. Written on connect, updated on cursor move, deleted on last-tab disconnect. TTL is refreshed on every write as a safety net against stale entries. |
 | `awareness-sockets:<documentId>:<userId>` | `REDIS_KEYS.awarenessSockets(documentId, userId)` | Set | 1 hour | Tracks the set of active `socketId`s for a user in a document — one entry per open browser tab. Used for multi-tab ref counting: the user's awareness entry is only removed when this Set becomes empty. TTL is refreshed on every write. |
+
+---
+
+### Rate-Limit Keys
+
+Fixed-window counters maintained via `RedisService.incrWithExpire` (request-count windows) and `incrByWithExpire` (token-volume windows) — plain `INCR`/`INCRBY`, with the expiry set only on the call that observes the key was just created, race-free with no Lua script or transaction needed since the increment itself is atomic. Every window below is 60 seconds, hardcoded per-caller rather than driven by a shared constant.
+
+| Key pattern | Constant | Type | Purpose |
+|---|---|---|---|
+| `google-auth-ratelimit:ip:<ip>` | `REDIS_KEYS.googleAuthRateLimitIp(ip)` | String counter | Per-IP request count for `POST /auth/google`, checked by `GoogleAuthRateLimitGuard` |
+| `google-auth-ratelimit:global` | `REDIS_KEYS.googleAuthRateLimitGlobal` | String counter | Cross-IP request count for `POST /auth/google` |
+| `voyage-rerank-ratelimit:user:<userId>` | `REDIS_KEYS.voyageRerankRateLimitUser(userId)` | String counter | Per-user request count for Voyage rerank calls, checked by `DocumentRerankService` |
+| `voyage-rerank-ratelimit:workspace:<workspaceId>` | `REDIS_KEYS.voyageRerankRateLimitWorkspace(workspaceId)` | String counter | Per-workspace request count for Voyage rerank calls |
+| `voyage-rerank-ratelimit:global` | `REDIS_KEYS.voyageRerankRateLimitGlobal` | String counter | Cross-workspace request count for Voyage rerank calls |
+| `openai-embedding-ratelimit:user:<userId>:requests` | `REDIS_KEYS.openaiEmbeddingRateLimitUserRequests(userId)` | String counter | Per-user request count for OpenAI embedding calls, checked by `DocumentEmbeddingService` — search path only, since background indexing has no single attributable user |
+| `openai-embedding-ratelimit:user:<userId>:tokens` | `REDIS_KEYS.openaiEmbeddingRateLimitUserTokens(userId)` | String counter | Per-user token volume for OpenAI embedding calls — search path only |
+| `openai-embedding-ratelimit:workspace:<workspaceId>:requests` | `REDIS_KEYS.openaiEmbeddingRateLimitWorkspaceRequests(workspaceId)` | String counter | Per-workspace request count for OpenAI embedding calls |
+| `openai-embedding-ratelimit:workspace:<workspaceId>:tokens` | `REDIS_KEYS.openaiEmbeddingRateLimitWorkspaceTokens(workspaceId)` | String counter | Per-workspace token volume for OpenAI embedding calls |
+| `openai-embedding-ratelimit:global:requests` | `REDIS_KEYS.openaiEmbeddingRateLimitGlobalRequests` | String counter | Cross-workspace request count for OpenAI embedding calls |
+| `openai-embedding-ratelimit:global:tokens` | `REDIS_KEYS.openaiEmbeddingRateLimitGlobalTokens` | String counter | Cross-workspace token volume for OpenAI embedding calls |
