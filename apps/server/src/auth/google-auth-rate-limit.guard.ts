@@ -58,7 +58,7 @@ export class GoogleAuthRateLimitGuard implements CanActivate {
     );
     if (ipCount > GoogleAuthRateLimitGuard.IP_LIMIT) {
       throw new HttpException(
-        'Too many login attempts. Please try again shortly.',
+        'Too many login attempts. Please try again in 1-2 minutes.',
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
@@ -71,7 +71,7 @@ export class GoogleAuthRateLimitGuard implements CanActivate {
     );
     if (globalCount > GoogleAuthRateLimitGuard.GLOBAL_LIMIT) {
       throw new HttpException(
-        'Login is temporarily rate-limited. Please try again shortly.',
+        'Login is temporarily rate-limited. Please try again in 1-2 minutes.',
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }

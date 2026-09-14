@@ -115,7 +115,7 @@ export class DocumentRerankService {
     );
     if (userCount > DocumentRerankService.USER_LIMIT) {
       throw new HttpException(
-        'Search is temporarily rate-limited for your account. Please try again shortly.',
+        'Search is temporarily rate-limited for your account. Please try again in 1-2 minutes.',
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
@@ -126,7 +126,7 @@ export class DocumentRerankService {
     );
     if (workspaceCount > DocumentRerankService.WORKSPACE_LIMIT) {
       throw new HttpException(
-        'Search is temporarily rate-limited for this workspace. Please try again shortly.',
+        'Search is temporarily rate-limited for this workspace. Please try again in 1-2 minutes.',
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
@@ -137,7 +137,7 @@ export class DocumentRerankService {
     );
     if (globalCount > DocumentRerankService.GLOBAL_LIMIT) {
       throw new HttpException(
-        'Search is temporarily rate-limited. Please try again shortly.',
+        'Search is temporarily rate-limited. Please try again in 1-2 minutes.',
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }

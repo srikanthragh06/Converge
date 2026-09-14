@@ -32,7 +32,7 @@ export class DocumentIndexingService {
    * forUpdate-locked transaction from holding that lock for an unbounded
    * duration.
    */
-  private static readonly MAX_CHUNKS_PER_RUN = 50;
+  private static readonly MAX_CHUNKS_PER_RUN = 20;
 
   constructor(
     private readonly dbService: DatabaseService,

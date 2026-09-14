@@ -98,7 +98,7 @@ export class DocumentEmbeddingService {
         REDIS_KEYS.openaiEmbeddingRateLimitUserTokens(userId),
         DocumentEmbeddingService.USER_TPM_LIMIT,
         tokens,
-        'Search is temporarily rate-limited for your account. Please try again shortly.',
+        'Search is temporarily rate-limited for your account. Please try again in 1-2 minutes.',
       );
     }
 
@@ -108,7 +108,7 @@ export class DocumentEmbeddingService {
       REDIS_KEYS.openaiEmbeddingRateLimitWorkspaceTokens(workspaceId),
       DocumentEmbeddingService.WORKSPACE_TPM_LIMIT,
       tokens,
-      'Embedding is temporarily rate-limited for this workspace. Please try again shortly.',
+      'Embedding is temporarily rate-limited for this workspace. Please try again in 1-2 minutes.',
     );
 
     await this.checkTierLimit(
@@ -117,7 +117,7 @@ export class DocumentEmbeddingService {
       REDIS_KEYS.openaiEmbeddingRateLimitGlobalTokens,
       DocumentEmbeddingService.GLOBAL_TPM_LIMIT,
       tokens,
-      'Embedding is temporarily rate-limited. Please try again shortly.',
+      'Embedding is temporarily rate-limited. Please try again in 1-2 minutes.',
     );
   }
 
