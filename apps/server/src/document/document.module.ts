@@ -17,6 +17,7 @@ import { DocumentIndexingService } from './document-indexing.service.js';
 import { DocumentIndexingSchedulerService } from './document-indexing-scheduler.service.js';
 import { DocumentRerankService } from './document-rerank.service.js';
 import { DocumentRAGService } from './document-rag.service.js';
+import { ImageKitUploadAuthRateLimitGuard } from './imagekit-upload-auth-rate-limit.guard.js';
 
 @Module({
   imports: [DatabaseModule, RedisModule, AuthModule],
@@ -40,6 +41,7 @@ import { DocumentRAGService } from './document-rag.service.js';
     DocumentIndexingSchedulerService,
     DocumentRerankService,
     DocumentRAGService,
+    ImageKitUploadAuthRateLimitGuard,
   ],
 })
 export class DocumentModule {}

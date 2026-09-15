@@ -196,6 +196,55 @@ export class RedisService {
   }
 
   /**
+   * Atomically increments a counter key and returns its new value, setting an
+   * expiry on the key only the first time it's created (INCR is atomic, so
+   * exactly one caller ever observes count === 1 for a fresh key — no
+   * transaction or Lua script needed to avoid a double-EXPIRE race). Used as
+   * the building block for fixed-window rate limiting: the window starts
+   * ticking down from the key's first hit and resets once it expires.
+   * @param key - the Redis key to increment
+   * @param ttlSeconds - how long the window lasts, set only on the first increment
+   * @returns the counter's value after this increment
+   */
+  async incrWithExpire(key: string, ttlSeconds: number): Promise<number> {
+    const count = await this.pub.incr(key);
+    if (count === 1) {
+      await this.pub.expire(key, ttlSeconds);
+    }
+    return count;
+  }
+
+  /**
+   * Same as incrWithExpire, but increments by an arbitrary amount instead of
+   * always 1 — used for token-based (rather than call-count-based) rate
+   * limiting, where each call's cost varies with its input size. Can't reuse
+   * incrWithExpire's "count === 1 means fresh key" check here: a later
+   * call's amount could coincidentally equal the running total and falsely
+   * look like the key's first hit, re-arming the expiry and extending the
+   * window past when it should have reset. Checking TTL === -1 (no expiry
+   * currently set) instead is a structural check, not a numeric coincidence,
+   * so it doesn't have that failure mode — a concurrent race between two
+   * genuinely-first callers is harmless, since both would just (redundantly)
+   * set the same TTL.
+   * @param key - the Redis key to increment
+   * @param amount - how much to add to the counter
+   * @param ttlSeconds - how long the window lasts, set only when the key has no expiry yet
+   * @returns the counter's value after this increment
+   */
+  async incrByWithExpire(
+    key: string,
+    amount: number,
+    ttlSeconds: number,
+  ): Promise<number> {
+    const count = await this.pub.incrby(key, amount);
+    const ttl = await this.pub.ttl(key);
+    if (ttl === -1) {
+      await this.pub.expire(key, ttlSeconds);
+    }
+    return count;
+  }
+
+  /**
    * Subscribes to a Redis channel and invokes the handler for each incoming
    * message. Messages published by this server instance are automatically
    * skipped to prevent echo loops.

@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PgBoss } from 'pg-boss';
+import { PgBoss, type JobWithMetadata } from 'pg-boss';
 import { DatabaseService } from '../db/database.service.js';
 import { DocumentIndexingService } from './document-indexing.service.js';
+import { IndexingCappedError } from './indexing-capped.error.js';
 
 /** Payload carried by the indexing job. */
 interface IndexingJobData {
@@ -18,11 +19,12 @@ interface IndexingJobData {
  * twin: re-indexing is cheap enough per run (only the changed neighborhood
  * gets re-embedded) that there's no need to also fire on a fixed cadence
  * while edits keep coming. Also owns the documents.indexing_status
- * lifecycle ('pending' when a run is scheduled, 'indexing' while one is
- * actually running) — DocumentIndexingService.reindexDocument itself only
- * ever resets it to 'idle' and stamps last_indexed_at, on its own successful
- * completion, so a status read never depends on this scheduler having run
- * cleanly to be accurate about a finished reindex.
+ * lifecycle ('pending' when a run is scheduled — including a scheduled
+ * retry after a failed attempt, 'indexing' while one is actually running) —
+ * DocumentIndexingService.reindexDocument itself only ever resets it to
+ * 'idle' and stamps last_indexed_at, on its own successful completion, so a
+ * status read never depends on this scheduler having run cleanly to be
+ * accurate about a finished reindex.
  */
 @Injectable()
 export class DocumentIndexingSchedulerService {
@@ -84,14 +86,33 @@ export class DocumentIndexingSchedulerService {
     // 'short' policy: at most one pending (created/retry) job per
     // singletonKey — what lets onDocumentEdited below reset this timer
     // using pg-boss's own conflict handling rather than hand-rolled
-    // bookkeeping.
+    // bookkeeping. retryLimit/retryDelay/retryBackoff/retryDelayMax override
+    // pg-boss's default of an immediate (0-delay) retry — reindexDocument
+    // can fail on a transient, expected condition (the shared OpenAI
+    // rate-limit window being full), and retrying instantly just re-hits
+    // the same still-full window. Backoff from 15s gives that window time
+    // to clear before each attempt; capped at 300s so the exponential
+    // growth doesn't stretch later retries out to absurd waits. retryLimit
+    // is 50, not a small number, because the same retry path also carries
+    // every IndexingCappedError continuation (see the handler below and
+    // MAX_CHUNKS_PER_RUN in DocumentIndexingService) — a single giant paste
+    // needing many capped runs must not exhaust the budget and go
+    // permanently stale before it ever gets a real failure.
     await this.boss.createQueue(DocumentIndexingSchedulerService.IDLE_QUEUE, {
       policy: 'short',
+      retryLimit: 50,
+      retryDelay: 15,
+      retryBackoff: true,
+      retryDelayMax: 300,
     });
 
-    await this.boss.work<IndexingJobData>(
+    await this.boss.work(
       DocumentIndexingSchedulerService.IDLE_QUEUE,
-      async ([job]) => {
+      // includeMetadata: true — the catch block below needs job.retryCount/
+      // retryLimit (only present on JobWithMetadata, not the default Job)
+      // to tell whether pg-boss still has a retry queued after a failure.
+      { includeMetadata: true } as const,
+      async ([job]: JobWithMetadata<IndexingJobData>[]) => {
         const { documentId } = job.data;
         // Mark 'indexing' before the run starts so a concurrent status read
         // sees it as in-progress rather than still 'pending'. pg-boss
@@ -107,18 +128,33 @@ export class DocumentIndexingSchedulerService {
             .execute();
           await this.documentIndexingService.reindexDocument(documentId);
         } catch (err) {
-          // reindexDocument's own transaction never committed, so
-          // last_indexed_at correctly stays unchanged — only reset the
-          // status here, back to idle, so a crashed run doesn't strand the
-          // document permanently showing 'indexing'. Rethrown so pg-boss
-          // still records the job as failed (its own retry/backoff policy).
-          console.error(
-            `Indexing job failed for document ${documentId}:`,
-            err,
-          );
+          // reindexDocument's own transaction either never committed (a
+          // genuine failure) or committed only partial progress before
+          // throwing IndexingCappedError on purpose (see
+          // MAX_CHUNKS_PER_RUN) — either way last_indexed_at correctly
+          // stays unchanged, and real work is still left for a follow-up
+          // run. Status depends on whether pg-boss still has a retry left
+          // for this job: if so, a run is genuinely still scheduled, so
+          // status must read 'pending' — same meaning as onDocumentEdited's
+          // 'pending', not 'idle' — otherwise a status read during the
+          // backoff window would falsely report the document as fully
+          // caught up while a retry is still coming. Only once retries are
+          // exhausted does this fall back to 'idle', leaving the document
+          // stale until the next edit re-arms the job. Rethrown either way
+          // so pg-boss still records the job as failed and reschedules it
+          // (its own retry/backoff policy) — IndexingCappedError included,
+          // since it's not logged as an error but still needs the same
+          // reschedule.
+          if (!(err instanceof IndexingCappedError)) {
+            console.error(
+              `Indexing job failed for document ${documentId}:`,
+              err,
+            );
+          }
+          const willRetry = job.retryCount < job.retryLimit;
           await this.dbService.kysely
             .updateTable('documents')
-            .set({ indexing_status: 'idle' })
+            .set({ indexing_status: willRetry ? 'pending' : 'idle' })
             .where('id', '=', documentId)
             .execute();
           throw err;

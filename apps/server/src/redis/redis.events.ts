@@ -16,4 +16,37 @@ export const REDIS_KEYS = {
   /** Set of active socketIds for a user in a document — used for multi-tab ref counting. */
   awarenessSockets: (documentId: number, userId: number) =>
     `awareness-sockets:${documentId}:${userId}`,
+  /** Per-IP request counter for POST /auth/google, windowed to 60s. */
+  googleAuthRateLimitIp: (ip: string) => `google-auth-ratelimit:ip:${ip}`,
+  /** Global (cross-IP) request counter for POST /auth/google, windowed to 60s. */
+  googleAuthRateLimitGlobal: 'google-auth-ratelimit:global',
+  /** Per-user request counter for Voyage rerank, windowed to 60s. */
+  voyageRerankRateLimitUser: (userId: number) =>
+    `voyage-rerank-ratelimit:user:${userId}`,
+  /** Per-workspace request counter for Voyage rerank, windowed to 60s. */
+  voyageRerankRateLimitWorkspace: (workspaceId: number) =>
+    `voyage-rerank-ratelimit:workspace:${workspaceId}`,
+  /** Global (cross-workspace) request counter for Voyage rerank, windowed to 60s. */
+  voyageRerankRateLimitGlobal: 'voyage-rerank-ratelimit:global',
+  /** Per-user request counter for OpenAI embedding calls, windowed to 60s (search path only). */
+  openaiEmbeddingRateLimitUserRequests: (userId: number) =>
+    `openai-embedding-ratelimit:user:${userId}:requests`,
+  /** Per-user token counter for OpenAI embedding calls, windowed to 60s (search path only). */
+  openaiEmbeddingRateLimitUserTokens: (userId: number) =>
+    `openai-embedding-ratelimit:user:${userId}:tokens`,
+  /** Per-workspace request counter for OpenAI embedding calls, windowed to 60s. */
+  openaiEmbeddingRateLimitWorkspaceRequests: (workspaceId: number) =>
+    `openai-embedding-ratelimit:workspace:${workspaceId}:requests`,
+  /** Per-workspace token counter for OpenAI embedding calls, windowed to 60s. */
+  openaiEmbeddingRateLimitWorkspaceTokens: (workspaceId: number) =>
+    `openai-embedding-ratelimit:workspace:${workspaceId}:tokens`,
+  /** Global (cross-workspace) request counter for OpenAI embedding calls, windowed to 60s. */
+  openaiEmbeddingRateLimitGlobalRequests:
+    'openai-embedding-ratelimit:global:requests',
+  /** Global (cross-workspace) token counter for OpenAI embedding calls, windowed to 60s. */
+  openaiEmbeddingRateLimitGlobalTokens:
+    'openai-embedding-ratelimit:global:tokens',
+  /** Per-user request counter for GET /document/upload-auth, windowed to 60s. */
+  imageKitUploadAuthRateLimitUser: (userId: number) =>
+    `imagekit-upload-auth-ratelimit:user:${userId}`,
 };

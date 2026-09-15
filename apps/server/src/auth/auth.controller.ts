@@ -6,6 +6,7 @@ import {
 } from '@converge/shared';
 import { AuthService } from './auth.service.js';
 import { AuthGuard } from './auth.guard.js';
+import { GoogleAuthRateLimitGuard } from './google-auth-rate-limit.guard.js';
 import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe.js';
 import { httpOK } from '../utils/http-response.util.js';
 import type { Request, Response } from 'express';
@@ -53,6 +54,7 @@ export class AuthController {
    * @param res - The Express response object, used to set the auth cookie.
    */
   @Post('/google')
+  @UseGuards(GoogleAuthRateLimitGuard)
   async handleGoogleAuth(
     @Body(new ZodHttpValidationPipe(GoogleAuthRequestSchema))
     { code, redirectUri }: GoogleAuthRequestDto,

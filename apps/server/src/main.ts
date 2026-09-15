@@ -4,6 +4,7 @@ import { GlobalExceptionFilter } from './utils/global-exception.filter.js';
 import { registerProcessHandlers } from './utils/process.handlers.js';
 import { loadEnv } from './utils/env.loader.js';
 import { IoAdapter } from '@nestjs/platform-socket.io';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import express from 'express';
 import { DatabaseService } from './db/database.service.js';
 import { RedisService } from './redis/redis.service.js';
@@ -32,6 +33,16 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
   app.use(express.json({ limit: '5mb' }));
   app.use(express.urlencoded({ extended: true, limit: '5mb' }));
+
+  // Trust exactly one hop (nginx) so req.ip is read from the X-Forwarded-For
+  // entry nginx itself appended, instead of nginx's own socket address.
+  // Must be a count (1), not `true` — `true` trusts the whole X-Forwarded-For
+  // chain and reads the leftmost entry, which a client can prepend arbitrary
+  // fake values into since nginx's $proxy_add_x_forwarded_for appends rather
+  // than overwrites. `1` only trusts the single entry the real proxy added.
+  // Cast to NestExpressApplication here only — `set` isn't on the generic
+  // INestApplication type `create` returns by default.
+  (app as NestExpressApplication).set('trust proxy', 1);
 
   // Restrict CORS to the known client origin so browsers block cross-origin
   // requests from untrusted domains.

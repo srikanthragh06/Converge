@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+} from '@nestjs/common';
 import { createHash } from 'crypto';
 import { sql, type Transaction } from 'kysely';
 import { hasAccess, type DocumentIndexingStatus } from '@converge/shared';
@@ -14,9 +19,21 @@ import {
   groupIntoSections,
   type BlockText,
 } from '../utils/chunking.util.js';
+import { IndexingCappedError } from './indexing-capped.error.js';
 
 @Injectable()
 export class DocumentIndexingService {
+  /**
+   * Upper bound on how many chunks a single reindexDocument run will embed
+   * before deliberately stopping and deferring the rest to a follow-up run
+   * (via IndexingCappedError). Bounds how much of a workspace's shared
+   * embed rate-limit budget (300 RPM — see DocumentEmbeddingService) one
+   * giant edit can consume in a single job, and keeps this run's
+   * forUpdate-locked transaction from holding that lock for an unbounded
+   * duration.
+   */
+  private static readonly MAX_CHUNKS_PER_RUN = 20;
+
   constructor(
     private readonly dbService: DatabaseService,
     private readonly documentYjsService: DocumentYjsService,
@@ -69,11 +86,25 @@ export class DocumentIndexingService {
    * retrieval never has to scan the corpus to compute them. On any
    * successful completion (including a no-op run that finds nothing
    * changed) marks the document idle with a fresh last_indexed_at — see
-   * markIndexed. No access check — internal-only, called by
+   * markIndexed. If the rebuild set needs more than MAX_CHUNKS_PER_RUN
+   * chunks embedded (or a real embed rate-limit rejection cuts a run
+   * short), commits only what was actually embedded this run — hashes and
+   * stale-chunk deletion both scoped to just the blocks that actually got
+   * a fresh chunk (or were removed outright) — and throws
+   * IndexingCappedError instead of calling markIndexed. An old chunk whose
+   * replacement didn't finish this run is left in place rather than
+   * deleted: search over that content keeps returning the pre-edit text
+   * (better than a hole in the index) until a follow-up run finishes
+   * replacing it. The document is left 'pending' (not 'idle'), and the
+   * next scheduled attempt picks up wherever the block-hash diff still
+   * shows changes. No access check — internal-only, called by
    * DocumentIndexingSchedulerService after the gateway has already verified
    * the edit that triggered this
    * run (same split as DocumentCheckpointService.createCheckpointInternal).
    * @param documentId - the document to re-index
+   * @throws IndexingCappedError if the run stopped early after hitting
+   * MAX_CHUNKS_PER_RUN or a real rate-limit rejection — the caller should
+   * treat this as a scheduled continuation, not a failure
    */
   async reindexDocument(documentId: number): Promise<void> {
     // Load the document's current content and convert every block to
@@ -138,7 +169,11 @@ export class DocumentIndexingService {
     // in exchange for a single, simple, race-free critical section; this
     // is a background job, not a request in the hot path, so the extra
     // lock duration costs nothing user-facing.
-    await db.transaction().execute(async (tx) => {
+    // completedFully tells the caller (outside the transaction, once it has
+    // committed) whether to throw IndexingCappedError. Thrown after commit,
+    // never from inside the callback below — throwing inside would roll
+    // back the partial progress this whole cap exists to preserve.
+    const completedFully = await db.transaction().execute(async (tx) => {
       // workspace_id is denormalized onto every new document_chunks row —
       // fetched once here rather than threaded through as a parameter.
       const { workspace_id: workspaceId } = await tx
@@ -192,7 +227,7 @@ export class DocumentIndexingService {
         changedBlockIds.size === 0
       ) {
         await this.markIndexed(tx, documentId);
-        return;
+        return true;
       }
 
       // A brand-new block has no chunk of its own yet, and isn't
@@ -251,6 +286,12 @@ export class DocumentIndexingService {
         ...neighborAnchorBlockIds,
       ]);
       const staleChunkIds = new Set<number>();
+      // Every stale chunk's own block_ids, captured the first time closure
+      // discovers it — needed below (after the embed loop) to work out
+      // whether a given stale chunk is actually safe to delete yet: only
+      // once every block it spans has either been removed from the
+      // document, or got a fresh chunk inserted this run.
+      const staleChunkBlockIdsById = new Map<number, string[]>();
       let grew = true;
       while (grew) {
         grew = false;
@@ -270,6 +311,7 @@ export class DocumentIndexingService {
         for (const chunk of overlappingChunks) {
           if (!staleChunkIds.has(chunk.id)) {
             staleChunkIds.add(chunk.id);
+            staleChunkBlockIdsById.set(chunk.id, chunk.block_ids);
             grew = true;
           }
           for (const blockId of chunk.block_ids) {
@@ -300,36 +342,6 @@ export class DocumentIndexingService {
         // until a full pass adds nothing new.
       }
 
-      // Every chunk touched by (a) above, across every pass, is stale.
-      // Capture each stale chunk's distinct terms and token count before
-      // deleting it — both are needed below to decrement the BM25 term/
-      // corpus stats this reindex is about to invalidate, and the row won't
-      // exist to query afterward.
-      const removedTermCounts = new Map<string, number>();
-      let removedChunkCount = 0;
-      let removedTokenTotal = 0;
-      if (staleChunkIds.size) {
-        const staleChunks = await tx
-          .selectFrom('document_chunks')
-          .select([
-            'token_count',
-            sql<string[]>`tsvector_to_array(content_tsv)`.as('terms'),
-          ])
-          .where('id', 'in', [...staleChunkIds])
-          .execute();
-        for (const chunk of staleChunks) {
-          removedChunkCount++;
-          removedTokenTotal += chunk.token_count;
-          for (const term of chunk.terms) {
-            removedTermCounts.set(term, (removedTermCounts.get(term) ?? 0) + 1);
-          }
-        }
-        await tx
-          .deleteFrom('document_chunks')
-          .where('id', 'in', [...staleChunkIds])
-          .execute();
-      }
-
       // Split the rebuild set into contiguous runs, using the live
       // document's real order — a rebuild set can span two unrelated,
       // far-apart parts of the document (e.g. two edits in the same idle
@@ -352,17 +364,60 @@ export class DocumentIndexingService {
       // Chunk and embed each run on its own, so nothing ever merges blocks
       // across a run boundary — i.e. across untouched, still-indexed
       // content — into one chunk. Term/token stats for every chunk created
-      // here mirror removedTermCounts/removedChunkCount/removedTokenTotal
-      // above — the net of the two is applied as a single delta to the
-      // running BM25 stats tables once every run has been inserted.
+      // here are netted against removedTermCounts/removedChunkCount/
+      // removedTokenTotal (computed below, once the final deletable set is
+      // known) as a single delta applied to the running BM25 stats tables.
+      //
+      // Stops after MAX_CHUNKS_PER_RUN chunks rather than embedding the
+      // full rebuild set — a single giant paste could otherwise burn far
+      // more of the workspace's shared embed rate-limit budget than any one
+      // job should, and would hold this transaction's forUpdate lock for as
+      // long as it takes. Also stops (without treating it as a failure) if
+      // the real embed rate limiter rejects a call — see the catch below.
+      // processedBlockIds tracks exactly which blocks got a real chunk
+      // inserted, so the hash writes and stale-chunk deletion below can
+      // both be scoped to only those; any block left out keeps its old (or
+      // absent) hash and old chunk, and is picked up again, unchanged, by
+      // the next run's ordinary diff logic.
       const addedTermCounts = new Map<string, number>();
+      const processedBlockIds = new Set<string>();
       let addedChunkCount = 0;
       let addedTokenTotal = 0;
-      for (const run of rebuildRuns) {
+      let completedFully = true;
+      runsLoop: for (const run of rebuildRuns) {
         for (const chunk of chunkBlocks(run)) {
-          const embedding = await this.documentEmbeddingService.embed(
-            chunk.content,
-          );
+          if (addedChunkCount >= DocumentIndexingService.MAX_CHUNKS_PER_RUN) {
+            completedFully = false;
+            break runsLoop;
+          }
+          let embedding: number[];
+          try {
+            embedding = await this.documentEmbeddingService.embed(
+              chunk.content,
+              workspaceId,
+            );
+          } catch (err) {
+            // MAX_CHUNKS_PER_RUN only makes it unlikely this run reaches the
+            // real embed rate limit — concurrent load elsewhere in the same
+            // workspace (another document indexing, or a live search) can
+            // still exhaust the shared budget before this run's own count
+            // gets there. checkRateLimit's rejection (embed() throwing
+            // HttpException 429, per document-embedding.service.ts) happens
+            // before any DB call for this chunk, so the transaction isn't in
+            // a failed state — safe to catch here and stop the same way a
+            // voluntary cap-hit does, committing what's already inserted
+            // instead of rolling the whole run back. Any other error (a
+            // real OpenAI failure, a network error) isn't ours to swallow —
+            // rethrow so the transaction rolls back as it always did.
+            if (
+              err instanceof HttpException &&
+              err.getStatus() === HttpStatus.TOO_MANY_REQUESTS
+            ) {
+              completedFully = false;
+              break runsLoop;
+            }
+            throw err;
+          }
           const inserted = await tx
             .insertInto('document_chunks')
             .values({
@@ -379,21 +434,72 @@ export class DocumentIndexingService {
             .executeTakeFirstOrThrow();
           addedChunkCount++;
           addedTokenTotal += chunk.tokens;
+          for (const blockId of chunk.blockIds) {
+            processedBlockIds.add(blockId);
+          }
           for (const term of inserted.terms) {
             addedTermCounts.set(term, (addedTermCounts.get(term) ?? 0) + 1);
           }
         }
       }
 
-      // Store fresh hashes for added/changed blocks so the next run's
-      // diff is accurate; drop hash rows for blocks that no longer exist.
-      const hashesToStore = [...addedBlockIds, ...changedBlockIds].map(
-        (blockId) => ({
+      // A stale chunk is only safe to delete once every block it spans is
+      // accounted for: either it got a fresh chunk inserted just above, or
+      // it was removed from the document entirely (removedBlockIds is
+      // fixed before the loop and never depends on how much of the loop
+      // ran). A chunk left out here — the run covering some of its blocks
+      // got cut short by the cap or a rate-limit rejection — simply isn't
+      // touched, so its (now partially stale) old text stays searchable
+      // until a follow-up run finishes replacing it.
+      const deletableChunkIds = [...staleChunkBlockIdsById]
+        .filter(([, blockIds]) =>
+          blockIds.every(
+            (blockId) =>
+              processedBlockIds.has(blockId) || removedBlockIds.has(blockId),
+          ),
+        )
+        .map(([chunkId]) => chunkId);
+
+      // Capture every deletable chunk's distinct terms and token count
+      // before deleting it — both are needed to decrement the BM25 term/
+      // corpus stats this reindex invalidates, and the row won't exist to
+      // query afterward.
+      const removedTermCounts = new Map<string, number>();
+      let removedChunkCount = 0;
+      let removedTokenTotal = 0;
+      if (deletableChunkIds.length) {
+        const staleChunks = await tx
+          .selectFrom('document_chunks')
+          .select([
+            'token_count',
+            sql<string[]>`tsvector_to_array(content_tsv)`.as('terms'),
+          ])
+          .where('id', 'in', deletableChunkIds)
+          .execute();
+        for (const chunk of staleChunks) {
+          removedChunkCount++;
+          removedTokenTotal += chunk.token_count;
+          for (const term of chunk.terms) {
+            removedTermCounts.set(term, (removedTermCounts.get(term) ?? 0) + 1);
+          }
+        }
+        await tx
+          .deleteFrom('document_chunks')
+          .where('id', 'in', deletableChunkIds)
+          .execute();
+      }
+
+      // Store fresh hashes only for added/changed blocks that actually got
+      // re-embedded this run (see processedBlockIds above); drop hash rows
+      // for blocks that no longer exist — removal needs no embed call, so
+      // it's never held back by the cap.
+      const hashesToStore = [...addedBlockIds, ...changedBlockIds]
+        .filter((blockId) => processedBlockIds.has(blockId))
+        .map((blockId) => ({
           document_id: documentId,
           block_id: blockId,
           hash: currentBlockHashById.get(blockId)!,
-        }),
-      );
+        }));
       if (hashesToStore.length) {
         await tx
           .insertInto('document_block_hashes')
@@ -474,18 +580,32 @@ export class DocumentIndexingService {
           .execute();
       }
 
-      await this.markIndexed(tx, documentId);
+      // Only a fully-completed run gets to call markIndexed — a capped run
+      // left real work for a follow-up, so last_indexed_at must not advance
+      // and indexing_status must not read 'idle' (the caller sets it back
+      // to 'pending' when it catches IndexingCappedError below).
+      if (completedFully) {
+        await this.markIndexed(tx, documentId);
+      }
+      return completedFully;
     });
+
+    if (!completedFully) {
+      throw new IndexingCappedError(documentId);
+    }
   }
 
   /**
    * Marks a document as freshly, successfully indexed: resets
    * indexing_status to 'idle' and stamps last_indexed_at with the current
-   * time. Called from both of reindexDocument's transaction exit paths (the
-   * no-op early return and the end of full processing) so this only ever
-   * runs as part of a successful run — if the transaction rolls back
-   * (an error mid-run), this update rolls back with it, correctly leaving
-   * last_indexed_at unchanged rather than reporting a falsely-fresh time.
+   * time. Called from reindexDocument's no-op early return and from the end
+   * of a fully-completed run — never from a run that stopped early after
+   * hitting MAX_CHUNKS_PER_RUN or a rate-limit rejection (that path throws
+   * IndexingCappedError instead, leaving the document 'pending') — so this
+   * only ever runs as part of a genuinely complete run. If the transaction
+   * rolls back (a real error mid-run), this update rolls back with it too,
+   * correctly leaving last_indexed_at unchanged rather than reporting a
+   * falsely-fresh time.
    * @param tx - the open transaction reindexDocument is already running in
    * @param documentId - the document that was just successfully indexed
    */
