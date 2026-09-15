@@ -10,6 +10,7 @@ import { hasAccess } from "../../utils/utils";
 import useEditorScrollGap from "../../hooks/useEditorScrollGap";
 import useDocumentSwitcherShortcut from "../../hooks/useDocumentSwitcherShortcut";
 import useWriteLock from "../../hooks/useWriteLock";
+import useScrollToBlock from "../../hooks/useScrollToBlock";
 import { Skeleton } from "primereact/skeleton";
 import { useAtomValue } from "jotai";
 import DelayedRender from "../../components/DelayedRender";
@@ -43,6 +44,7 @@ const EditorPage = () => {
     const { isSwitcherOpen, setIsSwitcherOpen } = useDocumentSwitcherShortcut();
 
     const syncStatus = useAtomValue(syncStatusAtom); // current Yjs sync state — drives skeleton vs. editor rendering
+    useScrollToBlock(documentId); // scrolls to a ?blockId= deep link once the editor's content first becomes visible
 
     return (
         // authRequired redirects unauthenticated users before rendering children
