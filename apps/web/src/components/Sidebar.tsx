@@ -12,6 +12,7 @@ import {
     MdLibraryBooks,
     MdLogout,
     MdVpnKey,
+    MdSmartToy,
 } from "react-icons/md";
 import { VscMcp } from "react-icons/vsc";
 import { Dropdown } from "primereact/dropdown";
@@ -228,6 +229,17 @@ const Sidebar = ({
                     >
                         <VscMcp className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                         <span className="text-sm sm:text-base">MCP</span>
+                    </button>
+                    <button
+                        onClick={() => {
+                            navigate("/agent");
+                            closeOnMobile();
+                        }}
+                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
+                        aria-label="AI Agent"
+                    >
+                        <MdSmartToy className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                        <span className="text-sm sm:text-base">AI Agent</span>
                     </button>
                     {isLogoutConfirming ? (
                         <div className="flex items-center gap-2 py-1 px-2 mt-2">
