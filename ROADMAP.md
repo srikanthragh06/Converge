@@ -856,7 +856,7 @@ Small fix to the RAG release's `force` checkpoint behavior: an MCP-driven write 
 
 ## Rate Limiting & Indexing Reliability ✅
 
-> Branch: `release-rate-limiting` — merged 2026-09-14
+> Branch: `release-rate-limiting` — merged 2026-09-15
 
 Closes the two request-volume gaps the RAG release left open — the only unauthenticated route in the app (`POST /auth/google`) and the two live paid-provider calls (OpenAI embeddings, Voyage rerank) — and, along the way, fixes a correctness gap in how the indexing pipeline reports and recovers from failure.
 
@@ -869,6 +869,7 @@ Closes the two request-volume gaps the RAG release left open — the only unauth
 - `indexing_status` correctness fix — a failed indexing job now sets `documents.indexing_status` to `'pending'` (not `'idle'`) whenever pg-boss still has a retry queued (`job.retryCount < job.retryLimit`, read via `{ includeMetadata: true }` on `boss.work`); previously it always reset to `'idle'` mid-backoff, so a status read during the retry window falsely reported the document as fully caught up
 - Indexing queue retry backoff — the idle-debounce queue's default instant retry replaced with `retryLimit: 50, retryDelay: 15, retryBackoff: true, retryDelayMax: 300`, since retrying a rate-limit failure immediately just re-hits the same still-full window; `retryLimit` raised well past what a genuine-failure budget would need because `IndexingCappedError` continuations share the same retry path
 - All eight rate-limit-exceeded messages (login, search-by-user/workspace/global, embedding-by-user/workspace/global) now tell the caller to retry in 1-2 minutes instead of "shortly"
+- `/document/upload-auth`'s per-user limit (10 req/min) moved off `UserThrottlerGuard` onto the same Redis-primitive pattern as the rest of this release — new `ImageKitUploadAuthRateLimitGuard` built directly on `incrWithExpire`. `UserThrottlerGuard` was its only remaining caller, so it and the `ThrottlerModule` registration (`@nestjs/throttler`, `@nest-lab/throttler-storage-redis`, and their own dedicated ioredis client) were removed entirely — one fewer rate-limiting implementation to keep consistent with the others
 
 ### Tooling
 
@@ -879,6 +880,6 @@ Closes the two request-volume gaps the RAG release left open — the only unauth
 - In-app AI chat agent — synthesizes answers over `searchDocumentContent`'s grounded citations (the "ask your workspace" feature); deliberately deferred since the tool's one-task, no-exposed-strategy contract was designed specifically so this can reuse it unchanged
 - Formal retrieval quality evaluation against real production content — the `rag-poc` branch's recall/precision numbers are against a synthetic benchmark corpus and a hand-authored hard eval, not this app's actual documents
 - Workspace/document access-control MCP tools (grant/revoke per-user access, role overrides) — deliberately deferred out of both MCP releases so far as higher-stakes, permission-escalation-risk surface; would need much narrower scoping than a straight mirror of the HTTP endpoints before it's worth building
-- `/mcp` per-user throttle (`UserThrottlerGuard` + a new named `'mcp'` throttler) — caps total MCP request volume per user for server/DB load, distinct from the provider-cost tiers now in place; lower urgency than what this release closed, since it bounds load rather than spend
+- `/mcp` per-user throttle (a per-user `incrWithExpire` guard, same pattern as `ImageKitUploadAuthRateLimitGuard`) — caps total MCP request volume per user for server/DB load, distinct from the provider-cost tiers now in place; lower urgency than what this release closed, since it bounds load rather than spend
 - Perimeter-level rate limiting (nginx `limit_req`/`limit_conn`, and/or an off-box layer like Cloudflare) and WebSocket gateway event throttling — deliberately deferred out of this release as lower-urgency than the unauthenticated-endpoint and paid-provider gaps it closed
 

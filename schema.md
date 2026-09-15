@@ -340,3 +340,4 @@ Fixed-window counters maintained via `RedisService.incrWithExpire` (request-coun
 | `openai-embedding-ratelimit:workspace:<workspaceId>:tokens` | `REDIS_KEYS.openaiEmbeddingRateLimitWorkspaceTokens(workspaceId)` | String counter | Per-workspace token volume for OpenAI embedding calls |
 | `openai-embedding-ratelimit:global:requests` | `REDIS_KEYS.openaiEmbeddingRateLimitGlobalRequests` | String counter | Cross-workspace request count for OpenAI embedding calls |
 | `openai-embedding-ratelimit:global:tokens` | `REDIS_KEYS.openaiEmbeddingRateLimitGlobalTokens` | String counter | Cross-workspace token volume for OpenAI embedding calls |
+| `imagekit-upload-auth-ratelimit:user:<userId>` | `REDIS_KEYS.imageKitUploadAuthRateLimitUser(userId)` | String counter | Per-user request count for `GET /document/upload-auth`, checked by `ImageKitUploadAuthRateLimitGuard` |
