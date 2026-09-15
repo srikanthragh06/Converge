@@ -215,6 +215,21 @@ export class RedisService {
   }
 
   /**
+   * Reads a counter key's current value without incrementing it — for a
+   * window that's checked more often than it's updated (e.g.
+   * AgentRateLimitService's token-count windows, which are only
+   * incremented once a call's real cost is known, but checked before every
+   * call). Returns 0 for a key that doesn't exist yet, same starting point
+   * incrWithExpire's first increment would produce.
+   * @param key - the Redis key to read
+   * @returns the counter's current value, or 0 if unset
+   */
+  async getCounter(key: string): Promise<number> {
+    const value = await this.pub.get(key);
+    return value === null ? 0 : Number(value);
+  }
+
+  /**
    * Same as incrWithExpire, but increments by an arbitrary amount instead of
    * always 1 — used for token-based (rather than call-count-based) rate
    * limiting, where each call's cost varies with its input size. Can't reuse

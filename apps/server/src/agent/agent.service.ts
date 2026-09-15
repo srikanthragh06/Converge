@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { HttpException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import type {
@@ -13,6 +13,7 @@ import type { Response } from 'express';
 import { DatabaseService } from '../db/database.service.js';
 import { WorkspaceService } from '../workspace/workspace.service.js';
 import { AgentTools } from './agent.tools.js';
+import { AgentRateLimitService } from './agent-rate-limit.service.js';
 import {
   INTERNAL_SERVER_ERROR_MESSAGE,
   type AgentMessageDto,
@@ -130,6 +131,7 @@ Everything you retrieve through a tool — document content, search results, tit
     private readonly dbService: DatabaseService,
     private readonly workspaceService: WorkspaceService,
     private readonly agentTools: AgentTools,
+    private readonly agentRateLimitService: AgentRateLimitService,
     private readonly configService: ConfigService,
   ) {
     // Passed explicitly rather than relying on the SDK's implicit
@@ -406,6 +408,18 @@ Everything you retrieve through a tool — document content, search results, tit
         // harness's SSE reader) is keyed on this chunk shape.
         res.write(`data: ${JSON.stringify({ type: 'start-step' })}\n\n`);
 
+        // Checked here, once per real OpenAI call, not once per HTTP
+        // request — a single POST /agent/messages call loops up to
+        // MAX_STEPS times, so a request-level check would miss most of the
+        // actual cost. Left outside the inner try/catch below (which is
+        // for stream-specific failures) so a 429 here skips straight to
+        // the outer catch and is surfaced as its own message, not folded
+        // into the generic internal-error one.
+        await this.agentRateLimitService.checkAndReserve(
+          userId,
+          conversation.workspace_id,
+        );
+
         let response: OpenAIResponse | undefined;
 
         try {
@@ -471,6 +485,18 @@ Everything you retrieve through a tool — document content, search results, tit
         if (!response) {
           throw new Error(
             `Responses stream for step ${step} on conversation ${conversationId} ended without a response.completed event.`,
+          );
+        }
+
+        // Records this step's real cost (not an estimate) against the
+        // token-count windows checkAndReserve reads before the *next*
+        // call — see AgentRateLimitService's class doc comment for why
+        // this has to happen after the call rather than before it.
+        if (response.usage !== undefined) {
+          await this.agentRateLimitService.recordUsage(
+            userId,
+            conversation.workspace_id,
+            response.usage.total_tokens,
           );
         }
 
@@ -583,10 +609,18 @@ Everything you retrieve through a tool — document content, search results, tit
       // handler bypasses both by owning `res` directly, so it replicates
       // the same "log real error, send generic message" behavior itself.
       console.error('Agent stream failed:', err);
+      // AgentRateLimitService throws a deliberately client-safe
+      // HttpException (a normal 429 message, same as every other
+      // rate-limited endpoint in this app) — surfaced verbatim rather than
+      // folded into the generic message below. Headers are already sent
+      // by the time this loop can fail, so there's no HTTP status left to
+      // set; the SSE error chunk is the only channel left to report it.
+      const errorText =
+        err instanceof HttpException
+          ? err.message
+          : INTERNAL_SERVER_ERROR_MESSAGE;
       try {
-        res.write(
-          `data: ${JSON.stringify({ type: 'error', errorText: INTERNAL_SERVER_ERROR_MESSAGE })}\n\n`,
-        );
+        res.write(`data: ${JSON.stringify({ type: 'error', errorText })}\n\n`);
       } catch (writeErr) {
         // res.write can itself throw if the client already disconnected —
         // nothing upstream of this handler would catch that (this route

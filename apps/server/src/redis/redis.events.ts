@@ -49,4 +49,36 @@ export const REDIS_KEYS = {
   /** Per-user request counter for GET /document/upload-auth, windowed to 60s. */
   imageKitUploadAuthRateLimitUser: (userId: number) =>
     `imagekit-upload-auth-ratelimit:user:${userId}`,
+  /** Per-user request counter for agent OpenAI calls, windowed to 60s. */
+  agentRateLimitUserRequestsMinute: (userId: number) =>
+    `agent-ratelimit:user:${userId}:requests:minute`,
+  /** Per-user token counter for agent OpenAI calls, windowed to 60s. */
+  agentRateLimitUserTokensMinute: (userId: number) =>
+    `agent-ratelimit:user:${userId}:tokens:minute`,
+  /** Per-user request counter for agent OpenAI calls, windowed to 24h. */
+  agentRateLimitUserRequestsDay: (userId: number) =>
+    `agent-ratelimit:user:${userId}:requests:day`,
+  /** Per-user token counter for agent OpenAI calls, windowed to 24h. */
+  agentRateLimitUserTokensDay: (userId: number) =>
+    `agent-ratelimit:user:${userId}:tokens:day`,
+  /** Per-workspace request counter for agent OpenAI calls, windowed to 60s. */
+  agentRateLimitWorkspaceRequestsMinute: (workspaceId: number) =>
+    `agent-ratelimit:workspace:${workspaceId}:requests:minute`,
+  /** Per-workspace token counter for agent OpenAI calls, windowed to 60s. */
+  agentRateLimitWorkspaceTokensMinute: (workspaceId: number) =>
+    `agent-ratelimit:workspace:${workspaceId}:tokens:minute`,
+  /** Per-workspace request counter for agent OpenAI calls, windowed to 24h. */
+  agentRateLimitWorkspaceRequestsDay: (workspaceId: number) =>
+    `agent-ratelimit:workspace:${workspaceId}:requests:day`,
+  /** Per-workspace token counter for agent OpenAI calls, windowed to 24h. */
+  agentRateLimitWorkspaceTokensDay: (workspaceId: number) =>
+    `agent-ratelimit:workspace:${workspaceId}:tokens:day`,
+  /** Global (cross-workspace) request counter for agent OpenAI calls, windowed to 60s. */
+  agentRateLimitGlobalRequestsMinute: 'agent-ratelimit:global:requests:minute',
+  /** Global (cross-workspace) token counter for agent OpenAI calls, windowed to 60s. */
+  agentRateLimitGlobalTokensMinute: 'agent-ratelimit:global:tokens:minute',
+  /** Global (cross-workspace) request counter for agent OpenAI calls, windowed to 24h. */
+  agentRateLimitGlobalRequestsDay: 'agent-ratelimit:global:requests:day',
+  /** Global (cross-workspace) token counter for agent OpenAI calls, windowed to 24h. */
+  agentRateLimitGlobalTokensDay: 'agent-ratelimit:global:tokens:day',
 };
