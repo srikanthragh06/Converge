@@ -875,9 +875,41 @@ Closes the two request-volume gaps the RAG release left open — the only unauth
 
 - Worktree dev stack's Postgres image switched from `postgres:16` to `pgvector/pgvector:pg16`, matching the main compose file — plain `postgres:16` has no vector extension files, so migration `0036`'s `CREATE EXTENSION vector` failed on every worktree boot; unrelated to rate limiting but found and fixed while live-testing the auth guard against the worktree stack
 
+## AI Agent Chat ✅
+
+> Branch: `release-ai-agent` — merged 2026-09-16
+
+An in-app, workspace-scoped chat agent that runs Converge's own MCP tool surface agentically on the user's behalf — read, search, summarize, and write documents through a real multi-step tool-calling loop, not one-shot Q&A. Always runs in auto mode (every tool call executes immediately, with no per-action approval gate) and is rate-limited on both request volume and token spend to keep provider cost bounded.
+
+### Server (NestJS backend)
+
+- New `AgentModule` (`apps/server/src/agent/`): `AgentController`/`AgentService`/`AgentTools`/`AgentRateLimitService`, backed by two new tables, `agent_conversations` and `agent_messages` (migrations `0040`-`0046`)
+- Built directly on the raw `openai` SDK's Responses API (`openai.responses.create`), not the Vercel AI SDK the feature started on — migrated off it after root-causing a reproducible crash to the SDK's own handling of the model's cross-turn reasoning continuity. Each turn chains off the previous one via `previous_response_id` rather than this app reconstructing a full message history on every call; `agent_messages` ends up as a pure display/audit log, never read back to drive a model call
+- `AgentTools` wraps all 16 of `DocumentTools`' methods (the same MCP tool surface, unchanged) as OpenAI function tools, calling straight into the same access-control-enforcing service methods the MCP surface uses — no separate authorization logic. Workspace-scoped tools drop `workspaceId` from the schema the model sees, binding it server-side to the conversation's own fixed workspace instead
+- The multi-step loop (`AgentService.sendMessage`) is a plain sequential `for` loop, hard-capped at 8 steps per turn, continuing only while the model's `finishReason` is `'tool-calls'`; each step is hand-streamed onto the response as SSE (`start-step`/`text-delta`/`tool-input-available`/`tool-output-available`/`error`/`[DONE]`) rather than through any SDK's built-in stream protocol, since the loop's steps run strictly sequentially and never need to merge concurrent streams
+- `withAgentErrorHandling` wraps every tool's `execute()` so a thrown error becomes a normal `{error}` result instead of vanishing — the loop only ever persists a step by awaiting `execute()`'s return value, so an uncaught throw would otherwise silently drop all record the call was ever attempted
+- `AgentRateLimitService` — user/workspace/global tiers, each with independent per-minute and per-day request- and token-count budgets, checked once per real OpenAI call inside the loop rather than once per HTTP request, since a single request can trigger up to 8 of them. Request budgets are checked and incremented up front (a step is always exactly one request); token budgets are checked against a running total and only trued up with the Responses API's real `usage.total_tokens` after a call completes, since `previous_response_id` chaining means a step's real prompt size is never fully knowable in advance
+- A general system prompt built up iteratively against live model failures: autonomy/groundedness (no fabricating answers from outside retrieved content, with a worked WRONG/RIGHT example), tool-fallback guidance, cursor/pagination pitfalls, and parallel-tool-call result pairing
+- Citation linking — `searchDocumentContent` results carry server-built `title`/`url` fields (`/document/{id}?blockId={firstBlockId}`) alongside the existing minimal `citation` object; the system prompt instructs the model to render `[title](url)` verbatim rather than constructing a link itself out of ids seen elsewhere
+- `EditorPage` gained `useScrollToBlock`, reading a `?blockId=` query param and scrolling to the target block once it's actually painted in the DOM — tracks the real Yjs `syncStatus` "restoring → settled" edge (not just socket-ready) plus a `MutationObserver` for BlockNote's own node-view mount delay, rather than guessing a fixed timeout
+
+### Web (React frontend)
+
+- New `/agent` page (linked from the sidebar as "AI Agent"): a two-pane layout — a conversation rail on the left (create, inline rename, delete-with-confirmation) and message history plus a composer on the right
+- `useAgentConversations` (list/select/create), `useAgentConversation` (resolve + hydrate history), and `useAgentStream` (send + hand-rolled SSE parsing via `fetch`/`getReader()`, since the send endpoint is POST and can't use `EventSource`), composed by a thin `useAgentChat`
+- `MessageList` renders user/assistant bubbles plus live/persisted tool-call status lines (pending vs. done); assistant text renders as Markdown (`react-markdown`+`remark-gfm`) styled via this app's own Tailwind tokens — a user's own message stays plain text, since it's their literal input, not model output
+- `MessageComposer` — textarea, Enter-to-send/Shift+Enter-newline (IME-composition-safe), capped at `AGENT_MESSAGE_MAX_LENGTH`
+
+### Shared package
+
+- `packages/shared/src/http/agent.ts` — HTTP DTOs/Zod schemas for the five `/agent` endpoints (create/list conversations, get messages, rename, delete, send message) plus `AGENT_MESSAGE_MAX_LENGTH`
+
 ## Upcoming
 
-- In-app AI chat agent — synthesizes answers over `searchDocumentContent`'s grounded citations (the "ask your workspace" feature); deliberately deferred since the tool's one-task, no-exposed-strategy contract was designed specifically so this can reuse it unchanged
+- Eval harness for the agent feature — 55 hand-authored cases (task success, safety-violation count, injection resistance) were built and iterated on during development, but on a branch that was ultimately abandoned rather than merged into this release; porting or rebuilding it against the shipped code is deferred, not done
+- Explicit upfront plan surfacing for the agent — the model currently reports tool-call status reactively, step by step, but never states a multi-step plan before acting on it; one of the concepts this feature was meant to showcase and the one piece still unbuilt
+- Per-workspace enable toggle and a hard cost budget for the agent, beyond the request/token rate limits now in place — deliberately descoped from this release to rate limiting only
+- A model picker for the agent — the chat model remains a single hardcoded default, with no way to choose or configure it per workspace
 - Formal retrieval quality evaluation against real production content — the `rag-poc` branch's recall/precision numbers are against a synthetic benchmark corpus and a hand-authored hard eval, not this app's actual documents
 - Workspace/document access-control MCP tools (grant/revoke per-user access, role overrides) — deliberately deferred out of both MCP releases so far as higher-stakes, permission-escalation-risk surface; would need much narrower scoping than a straight mirror of the HTTP endpoints before it's worth building
 - `/mcp` per-user throttle (a per-user `incrWithExpire` guard, same pattern as `ImageKitUploadAuthRateLimitGuard`) — caps total MCP request volume per user for server/DB load, distinct from the provider-cost tiers now in place; lower urgency than what this release closed, since it bounds load rather than spend

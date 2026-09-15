@@ -17,6 +17,7 @@ https://github.com/user-attachments/assets/e74a9a3b-8cf7-4625-925d-6fce35e5bfdd
 - **Sidebar pinning** for quick access to frequently used documents, kept separate from the recently-visited list
 - **AI agent access via MCP** — a Model Context Protocol server exposes documents to AI agents over API-key auth (list, create, read, edit, rename, delete), enforcing the same access control as the browser editor; every agent-driven edit takes an automatic checkpoint beforehand so it can always be undone, and keys are self-served from a dedicated API Keys page
 - **Semantic search (RAG)** — hybrid semantic + lexical retrieval over document content, reranked and exposed as a grounded, cited MCP tool; indexed incrementally as documents are edited, with live indexing-status visibility in the document Overview panel
+- **In-app AI agent chat** — a workspace-scoped chat assistant that runs the same MCP tool surface (read, search, write, checkpoint/restore) through a real multi-step tool-calling loop, streaming its progress live; rate-limited on both request volume and token spend, per user, per workspace, and globally, to keep provider cost bounded
 - **Google OAuth** with secure httpOnly cookie sessions
 
 ## Architecture
@@ -57,7 +58,10 @@ An AI agent editing a document unsupervised is more likely to make a large, unwa
 Content is diffed at the block level between indexing runs, and an edit only re-embeds the affected neighborhood: a fixed-point closure loop pulls in every block sharing a chunk or section with something that changed, so a chunk is never left partially deleted and a section is never re-chunked from incomplete context — without ever re-processing the whole document. Retrieval unions semantic (pgvector cosine) and lexical (BM25, scored against real corpus-wide term/length statistics rather than Postgres's own `ts_rank_cd`) candidates and reranks them — a design validated on a separate proof-of-concept branch against a 1,225-question benchmark (96.7% recall@10) and a 300-question hand-authored hard eval targeting cross-document synthesis, disambiguation, and unanswerable questions.
 
 **Cost-aware, multi-tier rate limiting**
-The one unauthenticated route (Google OAuth exchange) and every call to a paid AI provider (OpenAI embeddings, Voyage rerank) are rate-limited with Redis-backed fixed-window counters, layered user/workspace/global — each tier checked cheapest-first so an already-over-limit caller short-circuits before touching the wider ones. Embedding calls track request count and token volume as independent windows, since OpenAI enforces both separately. When a single large edit's reindex run would blow through its own budget, it stops early, commits what it already embedded rather than losing it, and lets the same retry/backoff machinery pick up the remainder on a later pass — the document is briefly stale, never corrupted or incomplete.
+The one unauthenticated route (Google OAuth exchange) and every call to a paid AI provider (OpenAI embeddings, Voyage rerank, and the AI agent's chat completions) are rate-limited with Redis-backed fixed-window counters, layered user/workspace/global — each tier checked cheapest-first so an already-over-limit caller short-circuits before touching the wider ones. Embedding and agent calls track request count and token volume as independent windows, since OpenAI enforces both separately. When a single large edit's reindex run would blow through its own budget, it stops early, commits what it already embedded rather than losing it, and lets the same retry/backoff machinery pick up the remainder on a later pass — the document is briefly stale, never corrupted or incomplete.
+
+**Tool-calling agent chat without message-history reconstruction**
+The in-app AI agent talks to OpenAI's Responses API rather than resending a full conversation on every call: each turn chains off the previous one via `previous_response_id`, so the provider itself carries forward prior context, reasoning included. A server-driven loop executes whichever of the app's own access-controlled document tools the model calls — the same tool surface external MCP clients use — feeding results back as the next step's input, hard-capped at 8 steps per turn and streamed to the client step by step over hand-rolled SSE. Since the provider hides a step's true prompt size behind that chaining, its token-rate-limit budget is checked against a running total and trued up with the call's real reported usage afterward, rather than estimated ahead of time.
 
 ## Stack
 
@@ -66,7 +70,7 @@ The one unauthenticated route (Google OAuth exchange) and every call to a paid A
 | Frontend | React 19, Vite, TypeScript, Tailwind CSS v3, Jotai |
 | Editor | BlockNote (ProseMirror + Tiptap), Yjs, y-prosemirror |
 | Backend | NestJS 11, Socket.io, Kysely, PostgreSQL 16 + pgvector, MCP SDK |
-| AI/ML | OpenAI (embeddings), Voyage AI (reranking), BM25 |
+| AI/ML | OpenAI (embeddings, agent chat), Voyage AI (reranking), BM25 |
 | Infrastructure | Redis 7, Docker, nginx, Supabase (DB), Upstash (Redis) |
 | Shared | Zod schemas and TypeScript types via `@converge/shared` |
 

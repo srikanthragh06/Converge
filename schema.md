@@ -294,6 +294,52 @@ One row per workspace, tracking the running totals behind average chunk length (
 
 ---
 
+### `agent_conversations`
+One row per AI agent chat thread. `workspace_id` is fixed at creation time — it decides which workspace's documents/tools the conversation's tool-calling loop may touch for its entire lifetime, not just whichever workspace the user currently has selected.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `bigserial` | PK | |
+| `workspace_id` | `integer` | NOT NULL, FK → `workspaces.id` ON DELETE CASCADE, indexed | Fixed at creation time; bound into every workspace-scoped tool call for this conversation |
+| `user_id` | `integer` | NOT NULL, FK → `users.id` ON DELETE CASCADE, indexed | Conversations are not shared across users |
+| `last_response_id` | `text` | nullable | The OpenAI Responses API's `response.id` from this conversation's most recently completed step, passed back as `previous_response_id` so OpenAI's own backend supplies prior turns' context (reasoning included). Null until the first step completes |
+| `updated_at` | `timestamptz` | NOT NULL, default `now()` | Bumped alongside `last_response_id` after every completed step — tracks actual activity, not just creation time. `listConversations` orders by this so a caller resumes the conversation they last used |
+| `title` | `text` | nullable | User-set display name. Null means untitled — the frontend falls back to a formatted creation date |
+| `created_at` | `timestamptz` | NOT NULL, default `now()` | |
+
+#### Indexes
+
+| Index | Columns | Type | Source | Purpose |
+|---|---|---|---|---|
+| `agent_conversations_pkey` | `id` | B-tree | Implicit — PK | Fast row lookup by primary key; used by `agent_messages`' FK. |
+| `idx_agent_conversations_workspace_id` | `workspace_id` | B-tree | Explicit — 0040 | Scopes workspace-level conversation queries. |
+| `idx_agent_conversations_user_id` | `user_id` | B-tree | Explicit — 0040 | Serves `listConversations`' lookup (`WHERE user_id = ? AND workspace_id = ?`) and every ownership check (`getMessages`, `sendMessage`, rename, delete). |
+
+---
+
+### `agent_messages`
+One row per step's worth of OpenAI Responses API output, not one row per turn — a step with a tool call persists as two rows (`'assistant'` with that step's raw `response.output` array, `'tool'` with the `function_call_output` items sent back) rather than bundling both onto a single row. Purely a display/audit log: a model call is driven by `agent_conversations.last_response_id` (`previous_response_id` chaining), not by reading this table back.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `bigserial` | PK | |
+| `conversation_id` | `bigint` | NOT NULL, FK → `agent_conversations.id` ON DELETE CASCADE, indexed | Scopes this message to a specific conversation |
+| `role` | `text` | NOT NULL, CHECK (`user` \| `assistant` \| `tool`) | Who authored this message |
+| `content` | `text` | NOT NULL | `JSON.stringify` of this row's payload — the plain text string for a `'user'` row, a step's raw `response.output` item array for `'assistant'`, or that step's `function_call_output` item array for `'tool'`. Kept as an opaque string, not parsed back into any request shape |
+| `step_index` | `integer` | NOT NULL, default `0` | Which step within a turn produced this message. Multiple rows can share a `step_index` (an assistant tool-call row and its paired tool-result row) |
+| `created_at` | `timestamptz` | NOT NULL, default `now()` | |
+
+> `tool_calls`/`tool_results` (jsonb, added in migration `0042`) were dropped in migration `0043` once a tool call and its result became two separate rows instead of two columns bundled onto one — matches what the model actually sees.
+
+#### Indexes
+
+| Index | Columns | Type | Source | Purpose |
+|---|---|---|---|---|
+| `agent_messages_pkey` | `id` | B-tree | Implicit — PK | Fast row lookup by primary key. |
+| `idx_agent_messages_conversation_id` | `conversation_id` | B-tree | Explicit — 0041 | Scopes every message query to a specific conversation — hit on every `getMessages` call and on history rehydration. |
+
+---
+
 ## Redis
 
 ### Pub/Sub Channels
@@ -325,7 +371,7 @@ No feature currently holds a Redis-based distributed lock — the old `lock-comp
 
 ### Rate-Limit Keys
 
-Fixed-window counters maintained via `RedisService.incrWithExpire` (request-count windows) and `incrByWithExpire` (token-volume windows) — plain `INCR`/`INCRBY`, with the expiry set only on the call that observes the key was just created, race-free with no Lua script or transaction needed since the increment itself is atomic. Every window below is 60 seconds, hardcoded per-caller rather than driven by a shared constant.
+Fixed-window counters maintained via `RedisService.incrWithExpire` (request-count windows) and `incrByWithExpire` (token-volume windows) — plain `INCR`/`INCRBY`, with the expiry set only on the call that observes the key was just created, race-free with no Lua script or transaction needed since the increment itself is atomic. Every window below is 60 seconds except the agent's `:day` keys (24h), hardcoded per-caller rather than driven by a shared constant. The agent's token-volume keys are also read without incrementing, via `RedisService.getCounter` — see `AgentRateLimitService`'s class doc comment for why its per-call token cost can only be known after the call completes, not before.
 
 | Key pattern | Constant | Type | Purpose |
 |---|---|---|---|
@@ -341,3 +387,15 @@ Fixed-window counters maintained via `RedisService.incrWithExpire` (request-coun
 | `openai-embedding-ratelimit:global:requests` | `REDIS_KEYS.openaiEmbeddingRateLimitGlobalRequests` | String counter | Cross-workspace request count for OpenAI embedding calls |
 | `openai-embedding-ratelimit:global:tokens` | `REDIS_KEYS.openaiEmbeddingRateLimitGlobalTokens` | String counter | Cross-workspace token volume for OpenAI embedding calls |
 | `imagekit-upload-auth-ratelimit:user:<userId>` | `REDIS_KEYS.imageKitUploadAuthRateLimitUser(userId)` | String counter | Per-user request count for `GET /document/upload-auth`, checked by `ImageKitUploadAuthRateLimitGuard` |
+| `agent-ratelimit:user:<userId>:requests:minute` | `REDIS_KEYS.agentRateLimitUserRequestsMinute(userId)` | String counter | Per-user, per-minute request count for agent OpenAI calls, checked by `AgentRateLimitService` once per real call inside the step loop |
+| `agent-ratelimit:user:<userId>:tokens:minute` | `REDIS_KEYS.agentRateLimitUserTokensMinute(userId)` | String counter | Per-user, per-minute token volume for agent OpenAI calls — read-only checked, incremented only after a call completes with its real usage |
+| `agent-ratelimit:user:<userId>:requests:day` | `REDIS_KEYS.agentRateLimitUserRequestsDay(userId)` | String counter | Per-user, per-day request count for agent OpenAI calls — a pure cost backstop, no OpenAI-side analog |
+| `agent-ratelimit:user:<userId>:tokens:day` | `REDIS_KEYS.agentRateLimitUserTokensDay(userId)` | String counter | Per-user, per-day token volume for agent OpenAI calls |
+| `agent-ratelimit:workspace:<workspaceId>:requests:minute` | `REDIS_KEYS.agentRateLimitWorkspaceRequestsMinute(workspaceId)` | String counter | Per-workspace, per-minute request count for agent OpenAI calls |
+| `agent-ratelimit:workspace:<workspaceId>:tokens:minute` | `REDIS_KEYS.agentRateLimitWorkspaceTokensMinute(workspaceId)` | String counter | Per-workspace, per-minute token volume for agent OpenAI calls |
+| `agent-ratelimit:workspace:<workspaceId>:requests:day` | `REDIS_KEYS.agentRateLimitWorkspaceRequestsDay(workspaceId)` | String counter | Per-workspace, per-day request count for agent OpenAI calls |
+| `agent-ratelimit:workspace:<workspaceId>:tokens:day` | `REDIS_KEYS.agentRateLimitWorkspaceTokensDay(workspaceId)` | String counter | Per-workspace, per-day token volume for agent OpenAI calls |
+| `agent-ratelimit:global:requests:minute` | `REDIS_KEYS.agentRateLimitGlobalRequestsMinute` | String counter | Cross-workspace, per-minute request count for agent OpenAI calls — kept at 90% of the account's real RPM limit |
+| `agent-ratelimit:global:tokens:minute` | `REDIS_KEYS.agentRateLimitGlobalTokensMinute` | String counter | Cross-workspace, per-minute token volume for agent OpenAI calls — kept at 90% of the account's real TPM limit |
+| `agent-ratelimit:global:requests:day` | `REDIS_KEYS.agentRateLimitGlobalRequestsDay` | String counter | Cross-workspace, per-day request count for agent OpenAI calls |
+| `agent-ratelimit:global:tokens:day` | `REDIS_KEYS.agentRateLimitGlobalTokensDay` | String counter | Cross-workspace, per-day token volume for agent OpenAI calls |
