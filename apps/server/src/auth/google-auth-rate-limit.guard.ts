@@ -14,8 +14,9 @@ import { REDIS_KEYS } from '../redis/redis.events.js';
  * Enforces two independent windows: a per-IP cap (catches one source
  * flooding the endpoint) and a global cap shared across every caller
  * (catches distributed abuse — many IPs, each under the per-IP limit, that
- * still add up). Can't key on userId like UserThrottlerGuard does, since
- * this route runs before any identity is established.
+ * still add up). Can't key on userId like the per-user rate-limit guards do
+ * (e.g. ImageKitUploadAuthRateLimitGuard), since this route runs before any
+ * identity is established.
  */
 @Injectable()
 export class GoogleAuthRateLimitGuard implements CanActivate {
