@@ -571,6 +571,12 @@ export const SearchDocumentContentToolResponseSchema = z.object({
     results: z.array(
         z.object({
             citation: RetrievalCitationSchema,
+            title: z.string().describe(
+                "The citation's source document title.",
+            ),
+            url: z.string().describe(
+                "A ready-to-use relative link to the citation's source document, scrolled to its first cited block. Use this verbatim when citing this result — do not construct a URL yourself.",
+            ),
             content: z.string().describe(
                 "The retrieved chunk's text, as Markdown.",
             ),

@@ -20,6 +20,10 @@ export interface RetrievalResult {
     documentId: number;
     blockIds: string[];
   };
+  /** The citation's source document title, for building a human-readable link. */
+  title: string;
+  /** A ready-to-use relative link to the citation's source document, scrolled to its first block. Server-built so callers never have to construct it themselves. */
+  url: string;
   content: string;
   score: number;
 }
@@ -81,7 +85,7 @@ export class DocumentRAGService {
       .leftJoin('document_access as da', (join) =>
         join.onRef('da.document_id', '=', 'd.id').on('da.user_id', '=', userId),
       )
-      .select(['d.id'])
+      .select(['d.id', 'd.title'])
       .select(
         sql<string>`
           CASE
@@ -101,6 +105,13 @@ export class DocumentRAGService {
       .filter((doc) => doc.access !== 'noAccess')
       .map((doc) => doc.id);
     if (accessibleDocumentIds.length === 0) return [];
+
+    // Looked up per result below to build title/url — cheap, since
+    // accessibleDocs is already fetched in bulk above rather than queried
+    // per-citation.
+    const titleByDocumentId = new Map(
+      accessibleDocs.map((doc) => [doc.id, doc.title]),
+    );
 
     const [semanticCandidates, lexicalResult] = await Promise.all([
       this.getSemanticCandidates(question, workspaceId, accessibleDocumentIds),
@@ -134,12 +145,23 @@ export class DocumentRAGService {
     // back onto the candidates that produced them.
     return reranked.map(({ index, relevanceScore }) => {
       const chunk = candidates[index];
+      // First block of the chunk, in document order — the scroll target for
+      // url. A chunk always spans at least one block, but blockId is left
+      // out of the query string entirely rather than emitted empty on the
+      // off chance block_ids is ever empty.
+      const firstBlockId = chunk.block_ids[0];
+      const url = firstBlockId
+        ? `/document/${chunk.document_id}?blockId=${encodeURIComponent(firstBlockId)}`
+        : `/document/${chunk.document_id}`;
+
       return {
         citation: {
           workspaceId: chunk.workspace_id,
           documentId: chunk.document_id,
           blockIds: chunk.block_ids,
         },
+        title: titleByDocumentId.get(chunk.document_id) ?? '',
+        url,
         content: chunk.content,
         score: relevanceScore,
       };
