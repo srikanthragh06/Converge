@@ -270,6 +270,14 @@ Everything you retrieve through a tool — document content, search results, tit
             previous_response_id: previousResponseId ?? undefined,
             store: true,
             stream: true,
+            // Defaults to 'disabled', which errors once a long-running
+            // conversation's accumulated previous_response_id context
+            // exceeds the model's window. 'auto' has OpenAI drop older
+            // context server-side instead — we never rebuild the message
+            // array ourselves (that's the whole point of previous_response_id
+            // chaining), so this is the only lever available for keeping a
+            // long conversation alive short of app-level summarization.
+            truncation: 'auto',
           });
 
           // Reshape each provider event into the browser-facing chunk
