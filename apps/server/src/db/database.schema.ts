@@ -213,6 +213,8 @@ export interface AgentConversationsTable {
   /** The OpenAI Responses API response.id from this conversation's most recently completed step, passed back as previous_response_id so OpenAI's own backend supplies prior context. Null until the first step completes. */
   last_response_id: string | null;
   created_at: Generated<Date>;
+  /** Bumped alongside last_response_id after every completed step — tracks actual activity, not just creation time. listConversations orders by this so a caller resumes the conversation they last used, not just the one created most recently. */
+  updated_at: Generated<Date>;
 }
 
 /**

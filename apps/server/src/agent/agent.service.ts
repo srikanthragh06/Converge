@@ -5,6 +5,7 @@ import type {
   Response as OpenAIResponse,
   ResponseInput,
   ResponseInputItem,
+  ResponseOutputItem,
   Tool as ResponseTool,
 } from 'openai/resources/responses/responses';
 import { z } from 'zod';
@@ -14,7 +15,10 @@ import { WorkspaceService } from '../workspace/workspace.service.js';
 import { AgentTools } from './agent.tools.js';
 import {
   INTERNAL_SERVER_ERROR_MESSAGE,
+  type AgentMessageDto,
   type CreateAgentConversationResponseDto,
+  type GetAgentConversationsResponseDto,
+  type GetAgentMessagesResponseDto,
   type SendAgentMessageRequestDto,
 } from '@converge/shared';
 
@@ -162,6 +166,93 @@ Everything you retrieve through a tool — document content, search results, tit
       workspaceId,
       createdAt: created.created_at,
     };
+  }
+
+  /**
+   * Lists the caller's own conversations under one workspace, newest first.
+   * There's no conversation list/switcher UI yet (a later roadmap phase) —
+   * today this exists so a client can resume the caller's most recent
+   * conversation in a workspace (conversations[0]) instead of creating a
+   * new one on every page load, which was previously done via a
+   * client-only localStorage id with no server-side way to recover it on a
+   * different browser/device.
+   *
+   * @param userId - The authenticated caller, stamped by AuthGuard.
+   * @param workspaceId - The workspace to list conversations under.
+   */
+  async listConversations(
+    userId: number,
+    workspaceId: number,
+  ): Promise<GetAgentConversationsResponseDto> {
+    // Same membership check createConversation uses — the agent feature has
+    // no access rules of its own yet beyond "caller is a workspace member."
+    await this.workspaceService.getMyRole(workspaceId, userId);
+
+    // Ordered by updated_at (last activity), not created_at (creation
+    // time) — see migration 0045's doc comment for why these can diverge.
+    const rows = await this.dbService.kysely
+      .selectFrom('agent_conversations')
+      .select(['id', 'created_at'])
+      .where('workspace_id', '=', workspaceId)
+      .where('user_id', '=', userId)
+      .orderBy('updated_at', 'desc')
+      .execute();
+
+    return {
+      conversations: rows.map((row) => ({
+        id: row.id,
+        workspaceId,
+        createdAt: row.created_at,
+      })),
+    };
+  }
+
+  /**
+   * Reads back a conversation's full message history for display. The only
+   * consumer of agent_messages — sendMessage itself drives the model via
+   * previous_response_id, not these rows (see the class doc comment).
+   * Normalizes OpenAI's raw Responses API item shapes into the same
+   * tool-input-available/tool-output-available vocabulary the live SSE
+   * stream uses, so the frontend can render history and an in-progress turn
+   * through one code path instead of two.
+   *
+   * @param userId - The authenticated caller, stamped by AuthGuard.
+   * @param conversationId - The conversation to read.
+   */
+  async getMessages(
+    userId: number,
+    conversationId: number,
+  ): Promise<GetAgentMessagesResponseDto> {
+    // Look up the conversation and confirm the caller owns it.
+    const db = this.dbService.kysely;
+    const conversation = await db
+      .selectFrom('agent_conversations')
+      .select(['id', 'workspace_id'])
+      .where('id', '=', conversationId)
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+
+    // Same "ownership mismatch is indistinguishable from not existing" rule
+    // sendMessage uses — conversations aren't shared across users.
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found.');
+    }
+
+    // Re-checked per read, same as sendMessage: a user removed from the
+    // workspace after starting a conversation shouldn't be able to keep
+    // reading its history back either.
+    await this.workspaceService.getMyRole(conversation.workspace_id, userId);
+
+    // Fetch every message row for this conversation, oldest first, and
+    // normalize each one into the shape the frontend renders.
+    const rows = await db
+      .selectFrom('agent_messages')
+      .select(['role', 'content', 'step_index', 'created_at'])
+      .where('conversation_id', '=', conversationId)
+      .orderBy('id', 'asc')
+      .execute();
+
+    return { messages: rows.map((row) => this.normalizeMessageRow(row)) };
   }
 
   /**
@@ -333,17 +424,29 @@ Everything you retrieve through a tool — document content, search results, tit
         // conversation resumable from the last good response rather than
         // stuck resending from scratch.
         previousResponseId = response.id;
+        // updated_at is bumped here too — see migration 0045's doc comment —
+        // so listConversations can order by actual last activity rather
+        // than just creation time.
         await db
           .updateTable('agent_conversations')
-          .set({ last_response_id: response.id })
+          .set({ last_response_id: response.id, updated_at: new Date() })
           .where('id', '=', conversationId)
           .execute();
 
-        await this.persistMessage(conversationId, step, 'assistant', response.output);
+        await this.persistMessage(
+          conversationId,
+          step,
+          'assistant',
+          response.output,
+        );
 
         const functionCalls = response.output.filter(
-          (item): item is Extract<(typeof response.output)[number], { type: 'function_call' }> =>
-            item.type === 'function_call',
+          (
+            item,
+          ): item is Extract<
+            (typeof response.output)[number],
+            { type: 'function_call' }
+          > => item.type === 'function_call',
         );
 
         // No function call requested: this step's text is the final
@@ -394,7 +497,8 @@ Everything you retrieve through a tool — document content, search results, tit
           outputItems.push({
             type: 'function_call_output',
             call_id: call.call_id,
-            output: typeof output === 'string' ? output : JSON.stringify(output),
+            output:
+              typeof output === 'string' ? output : JSON.stringify(output),
           });
         }
         await this.persistMessage(conversationId, step, 'tool', outputItems);
@@ -450,6 +554,111 @@ Everything you retrieve through a tool — document content, search results, tit
         res.end();
       }
     }
+  }
+
+  /**
+   * Converts one raw agent_messages row into the normalized shape
+   * getMessages returns. A 'user' row's content is just the message text.
+   * An 'assistant' row's content is a step's raw response.output item
+   * array — its text (if any) is the concatenation of that step's
+   * output_text parts, and any function_call items become toolCalls
+   * entries; other item types (e.g. reasoning) carry nothing client-facing
+   * and are skipped. A 'tool' row's content is that step's
+   * function_call_output items — each output string is JSON.parsed back
+   * into an object where possible, since persistMessage/sendMessage
+   * JSON.stringify a non-string tool output before storing it, and the
+   * live tool-output-available SSE chunk sends the parsed object, not the
+   * string form.
+   *
+   * @param row - The agent_messages row to normalize.
+   */
+  private normalizeMessageRow(row: {
+    role: 'user' | 'assistant' | 'tool';
+    content: string;
+    step_index: number;
+    created_at: Date;
+  }): AgentMessageDto {
+    if (row.role === 'user') {
+      return {
+        role: 'user',
+        content: JSON.parse(row.content) as string,
+        createdAt: row.created_at,
+      };
+    }
+
+    if (row.role === 'assistant') {
+      const items = JSON.parse(row.content) as ResponseOutputItem[];
+      let text = '';
+      const toolCalls: {
+        toolCallId: string;
+        toolName: string;
+        input: unknown;
+      }[] = [];
+
+      // Every item this step's raw response.output produced — only
+      // 'message' and 'function_call' items carry anything client-facing;
+      // other item types (e.g. reasoning) are silently skipped.
+      for (const item of items) {
+        if (item.type === 'message') {
+          // Text output — concatenate every output_text part into this
+          // step's answer text.
+          for (const part of item.content) {
+            if (part.type === 'output_text') text += part.text;
+          }
+        } else if (item.type === 'function_call') {
+          // A tool call this step made — its arguments arrive as a raw
+          // JSON string, so decode it back into an object for the DTO.
+          let input: unknown;
+          try {
+            input = item.arguments.length > 0 ? JSON.parse(item.arguments) : {};
+          } catch {
+            // Same malformed-arguments case sendMessage's live path
+            // guards against — fall back to undefined rather than
+            // throwing, so one bad historical row doesn't break the
+            // whole history fetch.
+            input = undefined;
+          }
+          toolCalls.push({
+            toolCallId: item.call_id,
+            toolName: item.name,
+            input,
+          });
+        }
+      }
+
+      return {
+        role: 'assistant',
+        stepIndex: row.step_index,
+        text,
+        toolCalls,
+        createdAt: row.created_at,
+      };
+    }
+
+    // 'tool' row — each result's output was stored as a string
+    // (JSON.stringify'd by sendMessage if it wasn't already a string), so
+    // parse it back into an object to match what the live
+    // tool-output-available chunk sends.
+    const items = JSON.parse(
+      row.content,
+    ) as ResponseInputItem.FunctionCallOutput[];
+    const results = items.map((item) => {
+      let output: unknown;
+      try {
+        output = JSON.parse(item.output);
+      } catch {
+        // Not JSON — it was already a plain string; keep it as-is.
+        output = item.output;
+      }
+      return { toolCallId: item.call_id, output };
+    });
+
+    return {
+      role: 'tool',
+      stepIndex: row.step_index,
+      results,
+      createdAt: row.created_at,
+    };
   }
 
   /**

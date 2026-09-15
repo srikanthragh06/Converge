@@ -1,4 +1,15 @@
-import { Body, Controller, Post, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { AgentService } from './agent.service.js';
@@ -8,6 +19,10 @@ import {
   CreateAgentConversationRequestSchema,
   type CreateAgentConversationRequestDto,
   type CreateAgentConversationResponseDto,
+  GetAgentConversationsRequestSchema,
+  type GetAgentConversationsRequestDto,
+  type GetAgentConversationsResponseDto,
+  type GetAgentMessagesResponseDto,
   SendAgentMessageRequestSchema,
   type SendAgentMessageRequestDto,
 } from '@converge/shared';
@@ -44,8 +59,45 @@ export class AgentController {
   }
 
   /**
+   * Lists the caller's own conversations under a workspace, newest first —
+   * lets a client resume the most recent one instead of always starting a
+   * new conversation.
+   *
+   * @param req - The Express request with userId stamped by AuthGuard.
+   * @param query - The workspace to list conversations under.
+   */
+  @Get('/conversations')
+  async handleListConversations(
+    @Req() req: Request,
+    @Query(new ZodHttpValidationPipe(GetAgentConversationsRequestSchema))
+    query: GetAgentConversationsRequestDto,
+  ): Promise<GetAgentConversationsResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.agentService.listConversations(userId, query.workspaceId),
+    );
+  }
+
+  /**
+   * Reads back a conversation's message history, for a frontend to
+   * rehydrate a chat panel after a page refresh.
+   *
+   * @param req - The Express request with userId stamped by AuthGuard.
+   * @param conversationId - The conversation to read.
+   */
+  @Get('/conversations/:conversationId/messages')
+  async handleGetMessages(
+    @Req() req: Request,
+    @Param('conversationId', ParseIntPipe) conversationId: number,
+  ): Promise<GetAgentMessagesResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(await this.agentService.getMessages(userId, conversationId));
+  }
+
+  /**
    * Sends a single chat message into an existing conversation and streams
-   * the assistant's reply back via the AI SDK's UI message stream protocol.
+   * the assistant's reply back as hand-rolled SSE (see AgentService's class
+   * doc comment for why this isn't any SDK's built-in stream protocol).
    *
    * @param req - The Express request with userId stamped by AuthGuard.
    * @param body - The conversation to post into and the message content.

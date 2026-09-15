@@ -246,13 +246,21 @@ export type {
 export {
     CreateAgentConversationRequestSchema,
     CreateAgentConversationResponseSchema,
+    GetAgentConversationsRequestSchema,
+    GetAgentConversationsResponseSchema,
     SendAgentMessageRequestSchema,
     AGENT_MESSAGE_MAX_LENGTH,
+    AgentMessageDtoSchema,
+    GetAgentMessagesResponseSchema,
 } from "./http/agent.js";
 export type {
     CreateAgentConversationRequestDto,
     CreateAgentConversationResponseDto,
+    GetAgentConversationsRequestDto,
+    GetAgentConversationsResponseDto,
     SendAgentMessageRequestDto,
+    AgentMessageDto,
+    GetAgentMessagesResponseDto,
 } from "./http/agent.js";
 export { SOCKET_EVENTS } from "./socket/events.js";
 export {
