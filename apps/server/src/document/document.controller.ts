@@ -12,7 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard.js';
-import { UserThrottlerGuard } from '../guards/user-throttler.guard.js';
+import { ImageKitUploadAuthRateLimitGuard } from './imagekit-upload-auth-rate-limit.guard.js';
 import { type Request } from 'express';
 import { DocumentService } from './document.service.js';
 import { DocumentCheckpointService } from './document-checkpoint.service.js';
@@ -360,7 +360,7 @@ export class DocumentController {
    * ImageKit upload credential, so uncapped calls could fill storage with junk.
    * @returns token, expire, and HMAC-SHA1 signature for a client-side ImageKit upload
    */
-  @UseGuards(UserThrottlerGuard)
+  @UseGuards(ImageKitUploadAuthRateLimitGuard)
   @Get('/upload-auth')
   handleGetUploadAuth(): GetUploadAuthResponseDto {
     return httpOK(this.documentService.getImageKitUploadAuth());
