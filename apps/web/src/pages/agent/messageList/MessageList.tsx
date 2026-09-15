@@ -1,4 +1,5 @@
 import type { AgentMessageDto } from "@converge/shared";
+import MarkdownText from "./MarkdownText";
 
 /**
  * Renders one conversation's message history. Only 'user' and 'assistant'
@@ -26,9 +27,7 @@ const MessageList = ({ messages }: { messages: AgentMessageDto[] }) => (
                 return (
                     <div key={index} className="flex justify-start">
                         <div className="max-w-[80%] min-w-0 rounded-md px-3 py-2 bg-background-elevated text-text-primary text-sm sm:text-base flex flex-col gap-1">
-                            {message.text && (
-                                <p className="whitespace-pre-wrap break-words">{message.text}</p>
-                            )}
+                            {message.text && <MarkdownText text={message.text} />}
                             {message.toolCalls.map((call) => (
                                 <p
                                     key={call.toolCallId}
