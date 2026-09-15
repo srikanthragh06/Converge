@@ -248,8 +248,10 @@ export {
     CreateAgentConversationResponseSchema,
     GetAgentConversationsRequestSchema,
     GetAgentConversationsResponseSchema,
+    RenameAgentConversationRequestSchema,
     SendAgentMessageRequestSchema,
     AGENT_MESSAGE_MAX_LENGTH,
+    AGENT_CONVERSATION_TITLE_MAX_LENGTH,
     AgentMessageDtoSchema,
     GetAgentMessagesResponseSchema,
 } from "./http/agent.js";
@@ -258,6 +260,7 @@ export type {
     CreateAgentConversationResponseDto,
     GetAgentConversationsRequestDto,
     GetAgentConversationsResponseDto,
+    RenameAgentConversationRequestDto,
     SendAgentMessageRequestDto,
     AgentMessageDto,
     GetAgentMessagesResponseDto,

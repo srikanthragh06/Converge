@@ -165,6 +165,7 @@ Everything you retrieve through a tool — document content, search results, tit
       id: created.id,
       workspaceId,
       createdAt: created.created_at,
+      title: null,
     };
   }
 
@@ -192,7 +193,7 @@ Everything you retrieve through a tool — document content, search results, tit
     // time) — see migration 0045's doc comment for why these can diverge.
     const rows = await this.dbService.kysely
       .selectFrom('agent_conversations')
-      .select(['id', 'created_at'])
+      .select(['id', 'created_at', 'title'])
       .where('workspace_id', '=', workspaceId)
       .where('user_id', '=', userId)
       .orderBy('updated_at', 'desc')
@@ -203,8 +204,61 @@ Everything you retrieve through a tool — document content, search results, tit
         id: row.id,
         workspaceId,
         createdAt: row.created_at,
+        title: row.title,
       })),
     };
+  }
+
+  /**
+   * Renames a conversation the caller owns. Same "ownership mismatch is
+   * indistinguishable from not existing" 404 rule getMessages/sendMessage
+   * use — conversations aren't shared across users, so there's no separate
+   * 403 case to distinguish.
+   *
+   * @param userId - The authenticated caller, stamped by AuthGuard.
+   * @param conversationId - The conversation to rename.
+   * @param title - The new title.
+   */
+  async renameConversation(
+    userId: number,
+    conversationId: number,
+    title: string,
+  ): Promise<void> {
+    const updated = await this.dbService.kysely
+      .updateTable('agent_conversations')
+      .set({ title })
+      .where('id', '=', conversationId)
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+
+    if (updated.numUpdatedRows === 0n) {
+      throw new NotFoundException('Conversation not found.');
+    }
+  }
+
+  /**
+   * Deletes a conversation the caller owns, hard — no trash/restore for
+   * conversations, unlike documents, since they're disposable scratch state
+   * rather than content worth recovering. agent_messages.conversation_id has
+   * an ON DELETE CASCADE FK (migration 0041), so this also removes every
+   * message row for the conversation without a separate delete.
+   *
+   * @param userId - The authenticated caller, stamped by AuthGuard.
+   * @param conversationId - The conversation to delete.
+   */
+  async deleteConversation(
+    userId: number,
+    conversationId: number,
+  ): Promise<void> {
+    const deleted = await this.dbService.kysely
+      .deleteFrom('agent_conversations')
+      .where('id', '=', conversationId)
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+
+    if (deleted.numDeletedRows === 0n) {
+      throw new NotFoundException('Conversation not found.');
+    }
   }
 
   /**

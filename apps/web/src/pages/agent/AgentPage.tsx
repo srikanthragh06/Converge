@@ -17,6 +17,8 @@ const AgentPage = () => {
         selectedConversationId,
         selectConversation,
         createConversation,
+        renameConversation,
+        deleteConversation,
         isLoading: isLoadingConversations,
         error: conversationsError,
     } = useAgentConversations();
@@ -77,6 +79,15 @@ const AgentPage = () => {
                                     }
                                     onSelect={() =>
                                         selectConversation(conversation.id)
+                                    }
+                                    onRename={(title) =>
+                                        renameConversation(
+                                            conversation.id,
+                                            title,
+                                        )
+                                    }
+                                    onDelete={() =>
+                                        deleteConversation(conversation.id)
                                     }
                                 />
                             ))

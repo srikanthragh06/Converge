@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -23,6 +25,8 @@ import {
   type GetAgentConversationsRequestDto,
   type GetAgentConversationsResponseDto,
   type GetAgentMessagesResponseDto,
+  RenameAgentConversationRequestSchema,
+  type RenameAgentConversationRequestDto,
   SendAgentMessageRequestSchema,
   type SendAgentMessageRequestDto,
 } from '@converge/shared';
@@ -92,6 +96,46 @@ export class AgentController {
   ): Promise<GetAgentMessagesResponseDto> {
     const userId = (req as any).userId as number;
     return httpOK(await this.agentService.getMessages(userId, conversationId));
+  }
+
+  /**
+   * Renames a conversation the caller owns. Throws 404 if it doesn't exist
+   * or belongs to someone else — conversations aren't shared across users.
+   *
+   * @param req - The Express request with userId stamped by AuthGuard.
+   * @param conversationId - The conversation to rename.
+   * @param body - The new title.
+   */
+  @Patch('/conversations/:conversationId')
+  async handleRenameConversation(
+    @Req() req: Request,
+    @Param('conversationId', ParseIntPipe) conversationId: number,
+    @Body(new ZodHttpValidationPipe(RenameAgentConversationRequestSchema))
+    body: RenameAgentConversationRequestDto,
+  ): Promise<void> {
+    const userId = (req as any).userId as number;
+    await this.agentService.renameConversation(
+      userId,
+      conversationId,
+      body.title,
+    );
+  }
+
+  /**
+   * Deletes a conversation the caller owns, along with all its messages.
+   * Throws 404 if it doesn't exist or belongs to someone else. Hard delete —
+   * no trash/restore for conversations, unlike documents.
+   *
+   * @param req - The Express request with userId stamped by AuthGuard.
+   * @param conversationId - The conversation to delete.
+   */
+  @Delete('/conversations/:conversationId')
+  async handleDeleteConversation(
+    @Req() req: Request,
+    @Param('conversationId', ParseIntPipe) conversationId: number,
+  ): Promise<void> {
+    const userId = (req as any).userId as number;
+    await this.agentService.deleteConversation(userId, conversationId);
   }
 
   /**

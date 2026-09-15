@@ -7,16 +7,15 @@ import type {
     GetAgentConversationsResponseDto,
 } from "@converge/shared";
 
-/** One conversation as returned by the list/create endpoints — no title field exists yet, so a row is only ever identified by when it was created. */
+/** One conversation as returned by the list/create endpoints. title is null for an untitled conversation, in which case a row falls back to its formatted creation date. */
 export type AgentConversationSummary = CreateAgentConversationResponseDto;
 
 /**
  * Lists the current workspace's agent conversations and tracks which one is
- * selected. Deliberately scoped to just listing/selecting/creating — no
- * message history or chat sending here, since the chat panel itself isn't
- * built yet. Selection is plain local state with no persistence: nothing
- * downstream reads it yet, so there's nothing to keep in sync across a
- * reload until a chat panel actually consumes it.
+ * selected, plus create/rename/delete. Deliberately scoped to conversation
+ * metadata only — no message history or chat sending here, that's
+ * useAgentChat's job. Selection is plain local state with no persistence
+ * across a reload beyond the auto-select-most-recent behavior below.
  */
 const useAgentConversations = () => {
     const workspace = useAtomValue(currentWorkspaceAtom); // the currently selected workspace, read from the global sidebar atom
@@ -80,6 +79,54 @@ const useAgentConversations = () => {
         }
     }, [workspace, fetchConversations]);
 
+    /**
+     * Renames a conversation, then refetches the list so the new title shows
+     * up immediately. Selection is untouched — renaming never changes what's
+     * selected.
+     *
+     * @param conversationId - The conversation to rename.
+     * @param title - The new title.
+     */
+    const renameConversation = useCallback(
+        async (conversationId: number, title: string) => {
+            if (!workspace) return;
+            setError(null);
+            try {
+                await apiClient.patch(`/agent/conversations/${conversationId}`, { title });
+                await fetchConversations(workspace.id);
+            } catch {
+                setError("Couldn't rename the conversation.");
+            }
+        },
+        [workspace, fetchConversations],
+    );
+
+    /**
+     * Deletes a conversation, then refetches the list. If the deleted
+     * conversation was selected, clears the selection first so the
+     * "auto-select if nothing selected" logic in fetchConversations picks
+     * the next most-recent one instead of leaving a dangling reference to a
+     * row that's about to disappear.
+     *
+     * @param conversationId - The conversation to delete.
+     */
+    const deleteConversation = useCallback(
+        async (conversationId: number) => {
+            if (!workspace) return;
+            setError(null);
+            try {
+                await apiClient.delete(`/agent/conversations/${conversationId}`);
+                setSelectedConversationId((current) =>
+                    current === conversationId ? null : current,
+                );
+                await fetchConversations(workspace.id);
+            } catch {
+                setError("Couldn't delete the conversation.");
+            }
+        },
+        [workspace, fetchConversations],
+    );
+
     // Loads the list whenever the selected workspace changes (including on
     // first mount, once the workspace atom has hydrated). Depends on
     // workspace?.id rather than the workspace object itself so this doesn't
@@ -96,6 +143,8 @@ const useAgentConversations = () => {
         selectedConversationId,
         selectConversation: setSelectedConversationId,
         createConversation,
+        renameConversation,
+        deleteConversation,
         isLoading,
         error,
     };

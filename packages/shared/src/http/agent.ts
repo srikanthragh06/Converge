@@ -3,6 +3,9 @@ import { z } from "zod";
 /** Max characters allowed in a single chat message — bounds per-request token cost, not a product-driven UX limit. */
 export const AGENT_MESSAGE_MAX_LENGTH = 4000;
 
+/** Max characters allowed in a conversation title. */
+export const AGENT_CONVERSATION_TITLE_MAX_LENGTH = 100;
+
 /** Request body for POST /agent/conversations — starts a new conversation under the given workspace. */
 export const CreateAgentConversationRequestSchema = z.object({
     workspaceId: z.number().int().positive(),
@@ -17,10 +20,26 @@ export const CreateAgentConversationResponseSchema = z.object({
     id: z.number(),
     workspaceId: z.number(),
     createdAt: z.coerce.date(),
+    // Null for a freshly created conversation, or an existing untitled one —
+    // the frontend falls back to formatting createdAt in that case.
+    title: z
+        .string()
+        .min(1)
+        .max(AGENT_CONVERSATION_TITLE_MAX_LENGTH)
+        .nullable(),
 });
 
 export type CreateAgentConversationResponseDto = z.infer<
     typeof CreateAgentConversationResponseSchema
+>;
+
+/** Request body for PATCH /agent/conversations/:conversationId — renames a conversation. */
+export const RenameAgentConversationRequestSchema = z.object({
+    title: z.string().min(1).max(AGENT_CONVERSATION_TITLE_MAX_LENGTH),
+});
+
+export type RenameAgentConversationRequestDto = z.infer<
+    typeof RenameAgentConversationRequestSchema
 >;
 
 /** Query params for GET /agent/conversations — lists the caller's conversations under one workspace. */
@@ -33,12 +52,9 @@ export type GetAgentConversationsRequestDto = z.infer<
 >;
 
 /**
- * Response for GET /agent/conversations, newest first. Used by the
- * frontend to resume the caller's most recent conversation in a workspace
- * instead of always starting a new one — there's no conversation
- * list/switcher UI yet (a later roadmap phase), so for now this is
- * consumed as "pick conversations[0], or create one if empty," not
- * rendered as an actual list.
+ * Response for GET /agent/conversations, newest-used first. Backs both the
+ * frontend's conversation list/switcher sidebar and its most-recent-first
+ * auto-select-on-load behavior.
  */
 export const GetAgentConversationsResponseSchema = z.object({
     conversations: z.array(CreateAgentConversationResponseSchema),

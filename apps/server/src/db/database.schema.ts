@@ -215,6 +215,8 @@ export interface AgentConversationsTable {
   created_at: Generated<Date>;
   /** Bumped alongside last_response_id after every completed step — tracks actual activity, not just creation time. listConversations orders by this so a caller resumes the conversation they last used, not just the one created most recently. */
   updated_at: Generated<Date>;
+  /** User-set display name. Null means untitled — the frontend falls back to a formatted creation date. */
+  title: string | null;
 }
 
 /**
