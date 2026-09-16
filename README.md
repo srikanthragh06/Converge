@@ -4,8 +4,6 @@ A Notion-style editor with live collaborative editing, workspaces, and granular 
 
 **Live:** [converge.1k5.in](https://converge.1k5.in) · sign in with any Google account.
 
-https://github.com/user-attachments/assets/e74a9a3b-8cf7-4625-925d-6fce35e5bfdd
-
 ## Features
 
 - **Collaborative editing** with live presence avatars showing who is focused on which block
