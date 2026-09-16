@@ -13,7 +13,7 @@ import type { AgentMessageDto, GetAgentMessagesResponseDto } from "@converge/sha
  */
 const useAgentConversation = (conversationId: number | null) => {
     const [messages, setMessages] = useState<AgentMessageDto[]>([]); // the conversation's messages, in insertion order, as returned by the server
-    const [isLoading, setIsLoading] = useState(false); // true while history is being (re)fetched
+    const [isLoading, setIsLoading] = useState(false); // true only while a caller has asked to show it — a first load or a conversation switch; never a background refetch
     const [error, setError] = useState<string | null>(null); // last fetch failure message, if any
 
     // Guards against a stale fetch overwriting state after a newer one has
@@ -26,13 +26,20 @@ const useAgentConversation = (conversationId: number | null) => {
      * Fetches the given conversation's message history and applies it to
      * state, unless a newer fetch (a manual refetch, or the effect below
      * firing again for a subsequent conversation change) has started in
-     * the meantime.
+     * the meantime. showLoading is the caller's own call, not inferred from
+     * current state — the effect below (a first load or conversation
+     * switch, with nothing relevant on screen yet) always wants it;
+     * refetch() (pulling in a turn's persisted version right after it
+     * streamed) never does, since useAgentChat already has that turn's
+     * content showing live via pendingUserContent/streamingSteps, even on a
+     * brand-new conversation's very first message.
      *
      * @param id - The conversation id to fetch history for.
+     * @param showLoading - Whether to surface the loading state for this fetch.
      */
-    const fetchMessages = useCallback(async (id: number) => {
+    const fetchMessages = useCallback(async (id: number, showLoading: boolean) => {
         const requestId = ++requestIdRef.current;
-        setIsLoading(true);
+        if (showLoading) setIsLoading(true);
         setError(null);
         try {
             const { data } = await apiClient.get<GetAgentMessagesResponseDto>(
@@ -47,7 +54,10 @@ const useAgentConversation = (conversationId: number | null) => {
         }
     }, []);
 
-    // Loads history whenever the selected conversation changes.
+    // Loads history whenever the selected conversation changes. Clears any
+    // previous conversation's messages first — not just on switching to
+    // "nothing selected" — so a switch between two real conversations never
+    // flashes the old one's messages while the new one is still loading.
     useEffect(() => {
         if (conversationId === null) {
             requestIdRef.current++; // invalidate any fetch still in flight for the previous conversation
@@ -55,16 +65,17 @@ const useAgentConversation = (conversationId: number | null) => {
             setError(null);
             return;
         }
-        void fetchMessages(conversationId);
+        setMessages([]);
+        void fetchMessages(conversationId, true);
     }, [conversationId, fetchMessages]);
 
     return {
         messages,
         isLoading,
         error,
-        /** Re-pulls the current conversation's history from the server. No-ops when nothing is selected. */
+        /** Re-pulls the current conversation's history from the server, without surfacing a loading state. No-ops when nothing is selected. */
         refetch: () =>
-            conversationId === null ? Promise.resolve() : fetchMessages(conversationId),
+            conversationId === null ? Promise.resolve() : fetchMessages(conversationId, false),
     };
 };
 
