@@ -75,4 +75,3 @@ The in-app AI agent talks to OpenAI's Responses API rather than resending a full
 ## Docs
 
 - [Roadmap](./ROADMAP.md)
-- [Architecture](./docs/architecture-low-level.md)
