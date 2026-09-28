@@ -1,15 +1,19 @@
 import { type ReactNode, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAtomValue } from "jotai";
+import { useNavigate, useParams } from "react-router-dom";
+import { useAtom, useAtomValue } from "jotai";
 import { authAtom } from "../atoms/auth";
+import { isSearchOpenAtom } from "../atoms/search";
+import useAppShortcuts from "../hooks/useAppShortcuts";
 import AnimatedDots from "./AnimatedDots";
-import Sidebar from "./Sidebar";
+import Sidebar from "./sidebar/Sidebar";
 import DelayedRender from "./DelayedRender";
+import DocumentSwitcherOverlay from "../pages/editor/documentSwitcherOverlay/DocumentSwitcherOverlay";
 
 /**
  * Full-viewport page shell shared across all top-level routes. When authRequired
  * is true, shows an authenticating screen while loading and redirects to /auth if unauthenticated.
- * When haveSidebar is true, renders a sidebar alongside the page content.
+ * When haveSidebar is true, renders a sidebar alongside the page content, and
+ * enables the app shortcuts and the ⌘K search palette they open.
  */
 const Page = ({
     className = "",
@@ -27,6 +31,10 @@ const Page = ({
     const [sidebarOpen, setSidebarOpen] = useState(
         () => window.innerWidth >= 640,
     ); // Starts open on desktop (≥640px), closed on mobile — matches the sm breakpoint used in sidebar layout.
+    const [isSearchOpen, setIsSearchOpen] = useAtom(isSearchOpenAtom); // ⌘K search palette visibility
+    const { documentId } = useParams(); // document open in the editor, if any — the palette leaves it out of its list
+
+    useAppShortcuts(haveSidebar); // ⌘K search and ⌘J Ask Converge, on pages with the sidebar
 
     // Redirects to /auth whenever auth resolves as unauthenticated on a protected page.
     useEffect(() => {
@@ -63,6 +71,12 @@ const Page = ({
             >
                 {children}
             </div>
+            {haveSidebar && isSearchOpen && (
+                <DocumentSwitcherOverlay
+                    onClose={() => setIsSearchOpen(false)}
+                    documentId={documentId}
+                />
+            )}
         </div>
     );
 };

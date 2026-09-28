@@ -1,4 +1,5 @@
 import { atom } from "jotai";
+import { atomWithStorage } from "jotai/utils";
 import type { LibraryDocumentDto, WorkspaceDto } from "@converge/shared";
 
 /** The user's currently selected workspace (id and name). Initialized from the auth response. */
@@ -17,3 +18,9 @@ export const recentDocumentsAtom = atom<LibraryDocumentDto[]>([]);
 
 /** Documents the user has pinned in the current workspace, most-recently-pinned first. Persisted across sidebar remounts to avoid flicker. */
 export const pinnedDocumentsAtom = atom<LibraryDocumentDto[]>([]);
+
+/** Which collapsible sidebar sections are expanded, remembered across visits. */
+export const sidebarSectionsAtom = atomWithStorage(
+    "converge-sidebar-sections",
+    { pinned: true, recent: true },
+);

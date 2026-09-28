@@ -1,4 +1,7 @@
-import type { ResolvedDocumentAccessLevel } from "@converge/shared";
+import type {
+    ResolvedDocumentAccessLevel,
+    WorkspaceDto,
+} from "@converge/shared";
 
 export { hasAccess } from "@converge/shared";
 
@@ -14,6 +17,20 @@ export const formatAccessLevel = (
         noAccess: "No access",
     };
     return labels[access];
+};
+
+/**
+ * One-line description of the user's place in a workspace, shown under its
+ * name in the sidebar: "Personal · Owner" for their personal workspace,
+ * otherwise their role ("Admin", "Member", "Owner").
+ * @param workspace - the workspace's type and the user's role in it
+ */
+export const describeWorkspace = (
+    workspace: Pick<WorkspaceDto, "type" | "role">,
+): string => {
+    const role =
+        workspace.role.charAt(0).toUpperCase() + workspace.role.slice(1);
+    return workspace.type === "personal" ? `Personal · ${role}` : role;
 };
 
 /** Returns true if the string is a valid email address. */

@@ -8,16 +8,20 @@ import AnimatedDots from "../../components/AnimatedDots";
 import Skeleton from "../../components/ui/Skeleton";
 import DelayedRender from "../../components/DelayedRender";
 import ManageDocumentModal from "../editor/manageDocumentModal/ManageDocumentModal";
-import useDocumentSwitcherShortcut from "../../hooks/useDocumentSwitcherShortcut";
-import DocumentSwitcherOverlay from "../editor/documentSwitcherOverlay/DocumentSwitcherOverlay";
 
 /**
  * Full-screen library page. Lists the authenticated user's documents
  * with debounced search and infinite scroll, and a Trash tab for
  * browsing and restoring soft-deleted documents.
+ * @param initialView - the tab shown first: "library" (default) or "trash",
+ *                      which the /trash route uses until Trash gets its own page
  */
-const LibraryPage = () => {
-    const [view, setView] = useState<"library" | "trash">("library"); // which tab — Library or Trash — is currently shown
+const LibraryPage = ({
+    initialView = "library",
+}: {
+    initialView?: "library" | "trash";
+}) => {
+    const [view, setView] = useState<"library" | "trash">(initialView); // which tab — Library or Trash — is currently shown
     const {
         searchText,
         setSearchText,
@@ -34,7 +38,6 @@ const LibraryPage = () => {
         restoringId,
         restoreDocument,
     } = useTrash(view === "trash"); // paginated trashed-document list, infinite scroll sentinel, and restore state — only fetches while the Trash tab is active
-    const { isSwitcherOpen, setIsSwitcherOpen } = useDocumentSwitcherShortcut(); // Ctrl+P document switcher overlay state
     const [managingDocumentId, setManagingDocumentId] = useState<number | null>(
         null,
     ); // ID of the document whose manage modal is open; null when closed
@@ -191,12 +194,6 @@ const LibraryPage = () => {
                 <ManageDocumentModal
                     documentId={String(managingDocumentId)}
                     onClose={() => setManagingDocumentId(null)}
-                />
-            )}
-            {isSwitcherOpen && (
-                <DocumentSwitcherOverlay
-                    onClose={() => setIsSwitcherOpen(false)}
-                    documentId={undefined}
                 />
             )}
         </>

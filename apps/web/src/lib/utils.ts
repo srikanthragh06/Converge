@@ -6,7 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /** True on macOS and iOS, where the primary shortcut modifier is ⌘ rather than Ctrl. */
-const IS_APPLE = /Mac|iPhone|iPad/.test(navigator.userAgent);
+export const IS_APPLE = /Mac|iPhone|iPad/.test(navigator.userAgent);
 
 /**
  * Formats a shortcut for display with the platform's primary modifier:

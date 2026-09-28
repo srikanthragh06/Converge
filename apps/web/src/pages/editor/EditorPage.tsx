@@ -3,12 +3,10 @@ import { BlockNoteView } from "@blocknote/mantine";
 import { convergeTheme } from "../../theme/editorTheme";
 import useEditor from "../../hooks/useEditor";
 import Page from "../../components/Page";
-import DocumentSwitcherOverlay from "./documentSwitcherOverlay/DocumentSwitcherOverlay";
 import EditorPageHeader from "./header/EditorPageHeader";
 import BlockAwarenessOverlay from "./blockAwarenessOverlay/BlockAwarenessOverlay";
 import { hasAccess } from "../../utils/utils";
 import useEditorScrollGap from "../../hooks/useEditorScrollGap";
-import useDocumentSwitcherShortcut from "../../hooks/useDocumentSwitcherShortcut";
 import useWriteLock from "../../hooks/useWriteLock";
 import useScrollToBlock from "../../hooks/useScrollToBlock";
 import Skeleton from "../../components/ui/Skeleton";
@@ -40,8 +38,6 @@ const EditorPage = () => {
     const isEditable =
         documentAccess !== null && hasAccess(documentAccess, "editor"); // editor+ may write; viewers get a read-only instance
     const canWrite = isEditable && !isWriteLocked; // combines resolved access with the local write lock to gate actual editing
-
-    const { isSwitcherOpen, setIsSwitcherOpen } = useDocumentSwitcherShortcut();
 
     const syncStatus = useAtomValue(syncStatusAtom); // current Yjs sync state — drives skeleton vs. editor rendering
     useScrollToBlock(documentId); // scrolls to a ?blockId= deep link once the editor's content first becomes visible
@@ -134,12 +130,6 @@ const EditorPage = () => {
                         </div>
                     )}
                 </div>
-            )}
-            {isSwitcherOpen && (
-                <DocumentSwitcherOverlay
-                    onClose={() => setIsSwitcherOpen(false)}
-                    documentId={documentId}
-                />
             )}
         </Page>
     );

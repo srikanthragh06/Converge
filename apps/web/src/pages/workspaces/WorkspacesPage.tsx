@@ -7,8 +7,6 @@ import useWorkspaces from "../../hooks/useWorkspaces";
 import WorkspaceCard from "./components/WorkspaceCard";
 import WorkspaceConfigModal from "./components/WorkspaceConfigModal";
 import CreateWorkspaceModal from "./components/CreateWorkspaceModal";
-import useDocumentSwitcherShortcut from "../../hooks/useDocumentSwitcherShortcut";
-import DocumentSwitcherOverlay from "../editor/documentSwitcherOverlay/DocumentSwitcherOverlay";
 
 /**
  * Full-screen workspaces page. Lists the authenticated user's workspaces
@@ -25,7 +23,6 @@ const WorkspacesPage = () => {
         fetchAll,
         fetchSearch,
     } = useWorkspaces(); // search query, workspace list, loading flag, and fetch/select actions
-    const { isSwitcherOpen, setIsSwitcherOpen } = useDocumentSwitcherShortcut(); // Ctrl+P document switcher overlay state
     const [showModal, setShowModal] = useState(false); // controls Create Workspace modal visibility
     const [configModal, setConfigModal] = useState<{
         isOpen: boolean;
@@ -138,12 +135,6 @@ const WorkspacesPage = () => {
                 />
             )}
         </Page>
-        {isSwitcherOpen && (
-            <DocumentSwitcherOverlay
-                onClose={() => setIsSwitcherOpen(false)}
-                documentId={undefined}
-            />
-        )}
         </>
     );
 };
