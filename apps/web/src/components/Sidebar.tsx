@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { authAtom } from "../atoms/auth";
+import { themeAtom } from "../atoms/theme";
+import { LuMoon, LuSun } from "react-icons/lu";
 import useSidebar from "../hooks/useSidebar";
 import useLogout from "../hooks/useLogout";
 import { IoIosMenu } from "react-icons/io";
@@ -57,6 +59,7 @@ const Sidebar = ({
     const [isConfigOpen, setIsConfigOpen] = useState(false); // Controls workspace config modal visibility.
     const [isLogoutConfirming, setIsLogoutConfirming] = useState(false); // When true, replaces the log out button with an inline confirm/cancel row.
     const refreshSidebar = useSetAtom(refreshSidebarAtom); // Incremented on modal close to trigger workspace/document refetch in useSidebar.
+    const [theme, setTheme] = useAtom(themeAtom); // active color theme, flipped by the theme toggle
 
     // Resets the logout confirmation row whenever the sidebar is collapsed, so it never
     // lingers and reappears unexpectedly when the sidebar is reopened.
@@ -209,6 +212,22 @@ const Sidebar = ({
                     >
                         <MdSmartToy className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                         <span className="text-sm sm:text-base">AI Agent</span>
+                    </button>
+                    {/* Theme toggle — labelled with the theme it switches to, as in the design */}
+                    <button
+                        onClick={() =>
+                            setTheme(theme === "dark" ? "light" : "dark")
+                        }
+                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-surface-hover rounded-md transition cursor-pointer text-fg"
+                    >
+                        {theme === "dark" ? (
+                            <LuSun className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                        ) : (
+                            <LuMoon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                        )}
+                        <span className="text-sm sm:text-base">
+                            {theme === "dark" ? "Light mode" : "Dark mode"}
+                        </span>
                     </button>
                     {isLogoutConfirming ? (
                         <div className="flex items-center gap-2 py-1 px-2 mt-2">
