@@ -1,38 +1,7 @@
-// Single source of truth for all colour values in the app.
-// Reference these tokens in editorTheme.ts and as Tailwind classes — never hardcode hex values elsewhere.
-export const colors = {
-    background: {
-        base: "#171717",
-        elevated: "#1f1f1f",
-        overlay: "#262626",
-        hover: "#303030",
-    },
-    border: "#2a2a2a",
-    shadow: "#00000060",
-    text: {
-        primary: "#e5e5e5",
-        secondary: "#d4d4d4",
-        disabled: "#525252",
-        white: "#ffffff",
-    },
-    accent: {
-        blue: "#3b82f6",
-    },
-    tooltip: {
-        background: "#404040",
-    },
-    highlights: {
-        gray: { text: "#a3a3a3", background: "#262626" },
-        brown: { text: "#c4a882", background: "#2e2520" },
-        red: { text: "#f87171", background: "#2c1515" },
-        orange: { text: "#fb923c", background: "#2c1a0e" },
-        yellow: { text: "#fbbf24", background: "#2c2210" },
-        green: { text: "#4ade80", background: "#0f2a1a" },
-        blue: { text: "#60a5fa", background: "#0f1f2e" },
-        purple: { text: "#c084fc", background: "#1e1030" },
-        pink: { text: "#f472b6", background: "#2c1020" },
-    },
-} as const;
+// Single source of truth for all color values in the app. Tokens reach the UI only
+// through CSS variables (themeVariables.ts): as Tailwind classes (bg-surface,
+// text-fg-muted, ...) or `rgb(var(--token))` in CSS and editorTheme.ts — never
+// hardcode color values elsewhere.
 
 /** The app's two color themes. Dark is the default. */
 export type ThemeMode = "dark" | "light";
@@ -72,8 +41,10 @@ type ThemeTokens = {
     "surface-selected": string;
     /** Row and menu-item hover. */
     "surface-hover": string;
-    /** Segmented-control track and code-block background. */
+    /** Segmented-control track and inline code background. */
     "surface-track": string;
+    /** Code-block background. Dark in both themes: BlockNote always highlights with Shiki's github-dark theme. */
+    "surface-code": string;
     /** Header bottom edge and table row separators. */
     "line-subtle": string;
     /** Sidebar edge, section and menu separators. */
@@ -140,6 +111,7 @@ export const themes: Record<ThemeMode, Theme> = {
             "surface-selected": "#222939",
             "surface-hover": "#1b1f2a",
             "surface-track": "#0f1219",
+            "surface-code": "#0f1219",
             "line-subtle": "#1f232e",
             line: "#222933",
             "line-strong": "#323945",
@@ -182,6 +154,7 @@ export const themes: Record<ThemeMode, Theme> = {
             "surface-selected": "#e4e0d5",
             "surface-hover": "#e9e6dd",
             "surface-track": "#f3f2ed",
+            "surface-code": "#1a1d26",
             "line-subtle": "#e9e6df",
             line: "#dfdcd3",
             "line-strong": "#cfcbc1",

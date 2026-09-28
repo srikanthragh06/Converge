@@ -1,28 +1,7 @@
 @import "@blocknote/mantine/style.css";
 
-/* shadcn/ui Neutral theme — dark mode (HSL). */
-:root {
-    --background: 0 0% 9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 13%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 13%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 90%;
-    --primary-foreground: 0 0% 13%;
-    --secondary: 0 0% 17%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 17%;
-    --muted-foreground: 0 0% 63%;
-    --destructive: 0 62% 30%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 13%;
-    --input: 0 0% 20%;
-    --ring: 0 0% 55%;
-    --radius: 0.5rem;
-}
-
-/* Tailwind base, component classes, and utility classes. */
+/* Tailwind base, component classes, and utility classes.
+   Colors come from the theme CSS variables injected by src/theme/themeVariables.ts. */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -31,6 +10,17 @@
 body {
     margin: 0;
     padding: 0;
+}
+
+/* Preflight's default placeholder color comes from Tailwind's default palette, which this app removes. */
+input::placeholder,
+textarea::placeholder {
+    color: rgb(var(--fg-muted));
+}
+
+/* Text selection tinted with the gold accent. */
+::selection {
+    background: rgb(var(--gold) / 0.3);
 }
 
 /* Headings use the display serif at medium weight, matching the document title. */
@@ -44,7 +34,7 @@ body {
     display: none !important;
 }
 
-/* Custom scrollbar styling to match the dark theme */
+/* Thin scrollbar in the theme's line colors */
 ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -55,12 +45,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #404040;
+    background: rgb(var(--line-strong));
     border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #525252;
+    background: rgb(var(--fg-muted));
 }
 
 /* Breathing room below the last block. Padding on the outer scroll container
@@ -86,10 +76,10 @@ input:invalid {
     outline: none;
 }
 
-/* Override the Shiki-injected inline background on code blocks — the default is too dark
-   against the editor background, so we lift it to a slightly lighter surface. */
+/* Override the Shiki-injected inline background on code blocks with the surface-code
+   token — dark in both themes, since Shiki always highlights with github-dark. */
 [data-content-type="codeBlock"] pre {
-    background-color: #1c1c21 !important;
+    background-color: rgb(var(--surface-code)) !important;
     border-radius: 6px;
 }
 
