@@ -14,11 +14,8 @@ import {
 } from "react-icons/md";
 import { FaHistory, FaRegSave, FaCog, FaLock, FaLockOpen } from "react-icons/fa";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
-import { Avatar } from "primereact/avatar";
-import { AvatarGroup } from "primereact/avatargroup";
-import { Tooltip } from "primereact/tooltip";
-import "primereact/resources/themes/lara-dark-blue/theme.css";
-import { colors } from "../../../theme/colors";
+import { Avatar, AvatarGroup } from "../../../components/ui/Avatar";
+import Tooltip from "../../../components/ui/Tooltip";
 import useCreateCheckpoint from "../../../hooks/useCreateCheckpoint";
 
 /** Maximum number of avatars shown before collapsing the rest into a +N label. */
@@ -114,79 +111,40 @@ const EditorPageHeader = ({
                         (self excluded), collapsing anything past MAX_VISIBLE_AVATARS into
                         a +N badge. */}
                     {documentStatus === "ready" && otherUsers.length > 0 && (
-                        <>
+                        <AvatarGroup>
                             {visibleUsers.map((user) => (
                                 <Tooltip
                                     key={user.userId}
-                                    target={`#awareness-avatar-${user.userId}`}
-                                    position="bottom"
-                                    pt={{
-                                        text: {
-                                            style: {
-                                                backgroundColor: "#171717",
-                                                color: "white",
-                                                border: "1px solid #333",
-                                            },
-                                        },
-                                        arrow: {
-                                            style: {
-                                                borderBottomColor: "#171717",
-                                            },
-                                        },
-                                    }}
+                                    content={
+                                        <>
+                                            <p className="font-medium text-sm">
+                                                {user.name}
+                                            </p>
+                                            <p className="opacity-70">
+                                                {user.email}
+                                            </p>
+                                            <p className="opacity-50 capitalize mt-0.5">
+                                                {user.accessLevel}
+                                            </p>
+                                        </>
+                                    }
                                 >
-                                    <p className="font-medium text-sm">
-                                        {user.name}
-                                    </p>
-                                    <p className="text-xs opacity-60">
-                                        {user.email}
-                                    </p>
-                                    <p className="text-xs opacity-40 capitalize mt-0.5">
-                                        {user.accessLevel}
-                                    </p>
+                                    <Avatar
+                                        name={user.name}
+                                        src={user.avatarUrl}
+                                        ringColor={user.color}
+                                        className="sm:w-8 sm:h-8 sm:text-sm"
+                                    />
                                 </Tooltip>
                             ))}
-                            <AvatarGroup>
-                                {visibleUsers.map((user) => (
-                                    <Avatar
-                                        key={user.userId}
-                                        id={`awareness-avatar-${user.userId}`}
-                                        className="sm:w-8 sm:h-8 w-6 h-6"
-                                        shape="circle"
-                                        style={{
-                                            borderColor: user.color,
-                                            borderWidth: "2px",
-                                            borderStyle: "solid",
-                                        }}
-                                        template={
-                                            user.avatarUrl ? (
-                                                <img
-                                                    src={user.avatarUrl}
-                                                    referrerPolicy="no-referrer"
-                                                    alt={user.name}
-                                                    className="w-full h-full object-cover rounded-full"
-                                                />
-                                            ) : (
-                                                <span className="text-sm">
-                                                    {user.name[0]?.toUpperCase() ??
-                                                        "?"}
-                                                </span>
-                                            )
-                                        }
-                                    />
-                                ))}
-                                {overflowCount > 0 && (
-                                    <Avatar
-                                        label={`+${overflowCount}`}
-                                        shape="circle"
-                                        style={{
-                                            backgroundColor: "#303030",
-                                            borderColor: "white",
-                                        }}
-                                    />
-                                )}
-                            </AvatarGroup>
-                        </>
+                            {overflowCount > 0 && (
+                                <Avatar
+                                    name={`${overflowCount} more`}
+                                    label={`+${overflowCount}`}
+                                    className="sm:w-8 sm:h-8"
+                                />
+                            )}
+                        </AvatarGroup>
                     )}
                     {documentStatus === "ready" && statusLabel && (
                         <span
@@ -207,34 +165,14 @@ const EditorPageHeader = ({
                             access level or on any other user's ability to write. Shown to
                             editor+ users only, since locking is meaningless without write access. */}
                         {documentStatus === "ready" && isEditable && (
-                            <>
-                                <Tooltip
-                                    target="#write-lock-button"
-                                    position="bottom"
-                                    pt={{
-                                        text: {
-                                            style: {
-                                                backgroundColor:
-                                                    colors.tooltip.background,
-                                                color: colors.text.secondary,
-                                                fontSize: "0.75rem",
-                                                padding: "0.25rem 0.5rem",
-                                            },
-                                        },
-                                        arrow: {
-                                            style: {
-                                                borderBottomColor:
-                                                    colors.tooltip.background,
-                                            },
-                                        },
-                                    }}
-                                >
-                                    {isWriteLocked
+                            <Tooltip
+                                content={
+                                    isWriteLocked
                                         ? "Unlock Writes"
-                                        : "Lock Writes"}
-                                </Tooltip>
+                                        : "Lock Writes"
+                                }
+                            >
                                 <button
-                                    id="write-lock-button"
                                     onClick={onToggleWriteLock}
                                     aria-pressed={isWriteLocked}
                                     className={`transition cursor-pointer border-none bg-transparent text-white ${
@@ -249,7 +187,7 @@ const EditorPageHeader = ({
                                         <FaLockOpen className="sm:w-4 sm:h-4 w-4 h-4" />
                                     )}
                                 </button>
-                            </>
+                            </Tooltip>
                         )}
 
                         {/* Create Checkpoint button — takes a manual version-history checkpoint.
@@ -259,32 +197,8 @@ const EditorPageHeader = ({
                             while in flight, then a checkmark or error icon for 2s depending on
                             the outcome before reverting to idle. */}
                         {documentStatus === "ready" && isEditable && (
-                            <>
-                                <Tooltip
-                                    target="#create-checkpoint-button"
-                                    position="bottom"
-                                    pt={{
-                                        text: {
-                                            style: {
-                                                backgroundColor:
-                                                    colors.tooltip.background,
-                                                color: colors.text.secondary,
-                                                fontSize: "0.75rem",
-                                                padding: "0.25rem 0.5rem",
-                                            },
-                                        },
-                                        arrow: {
-                                            style: {
-                                                borderBottomColor:
-                                                    colors.tooltip.background,
-                                            },
-                                        },
-                                    }}
-                                >
-                                    Save Checkpoint
-                                </Tooltip>
+                            <Tooltip content="Save Checkpoint">
                                 <button
-                                    id="create-checkpoint-button"
                                     onClick={createCheckpoint}
                                     disabled={createCheckpointStatus !== "idle"}
                                     className="text-white opacity-70 hover:opacity-100 transition cursor-pointer border-none bg-transparent disabled:cursor-default disabled:hover:opacity-70"
@@ -299,37 +213,13 @@ const EditorPageHeader = ({
                                         <FaRegSave className="sm:w-4 sm:h-4 w-4 h-4" />
                                     )}
                                 </button>
-                            </>
+                            </Tooltip>
                         )}
 
                         {/* Checkpoint History button — opens CheckpointHistoryModal. */}
                         {documentStatus === "ready" && (
-                            <>
-                                <Tooltip
-                                    target="#checkpoint-history-button"
-                                    position="bottom"
-                                    pt={{
-                                        text: {
-                                            style: {
-                                                backgroundColor:
-                                                    colors.tooltip.background,
-                                                color: colors.text.secondary,
-                                                fontSize: "0.75rem",
-                                                padding: "0.25rem 0.5rem",
-                                            },
-                                        },
-                                        arrow: {
-                                            style: {
-                                                borderBottomColor:
-                                                    colors.tooltip.background,
-                                            },
-                                        },
-                                    }}
-                                >
-                                    Checkpoint History
-                                </Tooltip>
+                            <Tooltip content="Checkpoint History">
                                 <button
-                                    id="checkpoint-history-button"
                                     onClick={() =>
                                         setIsCheckpointHistoryModalOpen(true)
                                     }
@@ -337,42 +227,18 @@ const EditorPageHeader = ({
                                 >
                                     <FaHistory className="sm:w-4 sm:h-4 w-4 h-4" />
                                 </button>
-                            </>
+                            </Tooltip>
                         )}
                         {/* Document Settings button — opens ManageDocumentModal. */}
                         {documentStatus === "ready" && (
-                            <>
-                                <Tooltip
-                                    target="#document-settings-button"
-                                    position="bottom"
-                                    pt={{
-                                        text: {
-                                            style: {
-                                                backgroundColor:
-                                                    colors.tooltip.background,
-                                                color: colors.text.secondary,
-                                                fontSize: "0.75rem",
-                                                padding: "0.25rem 0.5rem",
-                                            },
-                                        },
-                                        arrow: {
-                                            style: {
-                                                borderBottomColor:
-                                                    colors.tooltip.background,
-                                            },
-                                        },
-                                    }}
-                                >
-                                    Document Settings
-                                </Tooltip>
+                            <Tooltip content="Document Settings">
                                 <button
-                                    id="document-settings-button"
                                     onClick={() => setIsManageModalOpen(true)}
                                     className="text-white opacity-70 hover:opacity-100 transition cursor-pointer border-none bg-transparent"
                                 >
                                     <FaCog className="sm:w-4 sm:h-4 w-4 h-4" />
                                 </button>
-                            </>
+                            </Tooltip>
                         )}
                     </div>
                 </div>

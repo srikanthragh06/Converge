@@ -7,11 +7,13 @@ import { cn } from "../../lib/utils";
  * Extra div props (including ref) are forwarded, so it can be a Tooltip trigger.
  * @param name - the user's display name, used for the initial and image alt text
  * @param src - profile image URL, or null/undefined to show the initial
+ * @param label - text shown instead of the initial, e.g. "+3" for an overflow count
  * @param ringColor - optional 2px border color, e.g. a collaborator's presence color
  */
 export const Avatar = ({
     name,
     src,
+    label,
     ringColor,
     className,
     style,
@@ -19,8 +21,9 @@ export const Avatar = ({
 }: {
     name: string;
     src?: string | null;
+    label?: string;
     ringColor?: string;
-} & ComponentProps<"div">) => (
+} & Omit<ComponentProps<"div">, "children">) => (
     <div
         className={cn(
             "flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-selected text-xs font-medium text-fg-secondary",
@@ -39,7 +42,7 @@ export const Avatar = ({
                 className="h-full w-full object-cover"
             />
         ) : (
-            (name[0]?.toUpperCase() ?? "?")
+            (label ?? name[0]?.toUpperCase() ?? "?")
         )}
     </div>
 );

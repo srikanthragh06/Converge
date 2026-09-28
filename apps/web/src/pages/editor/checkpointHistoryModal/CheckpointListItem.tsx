@@ -1,9 +1,7 @@
-import { Avatar } from "primereact/avatar";
-import { AvatarGroup } from "primereact/avatargroup";
-import { Tooltip } from "primereact/tooltip";
 import type { DocumentCheckpointDto } from "@converge/shared";
 import { formatDate } from "../../../utils/utils";
-import { colors } from "../../../theme/colors";
+import { Avatar, AvatarGroup } from "../../../components/ui/Avatar";
+import Tooltip from "../../../components/ui/Tooltip";
 
 /** Maximum number of contributor avatars shown before the rest are collapsed (still counted in the tooltip). */
 const MAX_VISIBLE_CONTRIBUTOR_AVATARS = 4;
@@ -83,54 +81,21 @@ const CheckpointListItem = ({
             {checkpoint.contributors.length > 0 && (
                 <div className="flex items-center gap-2 mt-1.5 min-w-0">
                     <Tooltip
-                        target={`#checkpoint-${checkpoint.id}-contributors`}
-                        position="top"
-                        pt={{
-                            text: {
-                                style: {
-                                    backgroundColor: colors.tooltip.background,
-                                    color: colors.text.secondary,
-                                    fontSize: "0.75rem",
-                                    padding: "0.375rem 0.5rem",
-                                },
-                            },
-                            arrow: {
-                                style: {
-                                    borderTopColor: colors.tooltip.background,
-                                },
-                            },
-                        }}
-                    >
-                        {checkpoint.contributors.map((c) => (
+                        side="top"
+                        content={checkpoint.contributors.map((c) => (
                             <p key={c.id}>{c.name}</p>
                         ))}
-                    </Tooltip>
-                    <AvatarGroup
-                        id={`checkpoint-${checkpoint.id}-contributors`}
-                        className="shrink-0"
                     >
-                        {visibleContributors.map((c) => (
-                            <Avatar
-                                key={c.id}
-                                shape="circle"
-                                className="w-6 h-6"
-                                template={
-                                    c.avatarUrl ? (
-                                        <img
-                                            src={c.avatarUrl}
-                                            referrerPolicy="no-referrer"
-                                            alt={c.name}
-                                            className="w-full h-full object-cover rounded-full"
-                                        />
-                                    ) : (
-                                        <span className="text-xs">
-                                            {c.name[0]?.toUpperCase() ?? "?"}
-                                        </span>
-                                    )
-                                }
-                            />
-                        ))}
-                    </AvatarGroup>
+                        <AvatarGroup className="shrink-0">
+                            {visibleContributors.map((c) => (
+                                <Avatar
+                                    key={c.id}
+                                    name={c.name}
+                                    src={c.avatarUrl}
+                                />
+                            ))}
+                        </AvatarGroup>
+                    </Tooltip>
                     <span className="text-xs text-text-secondary truncate">
                         {formatContributorNames(names)}
                     </span>
