@@ -1,5 +1,21 @@
 /** @type {import('tailwindcss').Config} */
 import tailwindcssAnimate from "tailwindcss-animate";
+import { TOKEN_NAMES, themes } from "./src/theme/colors.ts";
+
+/**
+ * Maps every semantic token to a color that reads its CSS variable (see
+ * src/theme/themeVariables.ts), so classes like `bg-surface-elevated` follow
+ * the active theme. Hex tokens are stored as RGB channels and support
+ * opacity modifiers; other values (the rgba overlay) are used as-is.
+ */
+const tokenColors = Object.fromEntries(
+    TOKEN_NAMES.map((name) => [
+        name,
+        themes.dark.tokens[name].startsWith("#")
+            ? `rgb(var(--${name}) / <alpha-value>)`
+            : `var(--${name})`,
+    ]),
+);
 
 export default {
     content: ["./index.html", "./src/**/*.{ts,tsx}"],
@@ -11,6 +27,7 @@ export default {
             },
             // Mirror src/theme/colors.ts so the same palette is available as Tailwind classes.
             colors: {
+                ...tokenColors,
                 background: {
                     DEFAULT: "hsl(var(--background))",
                     base: "#171717",

@@ -9,12 +9,15 @@ import WorkspacesPage from "./pages/workspaces/WorkspacesPage";
 import ApiKeysPage from "./pages/apiKeys/ApiKeysPage";
 import McpDocsPage from "./pages/mcpDocs/McpDocsPage";
 import AgentPage from "./pages/agent/AgentPage";
+import useThemeSync from "./hooks/useThemeSync";
 
 /**
- * Root application component. Hydrates auth state and renders the top-level route tree.
+ * Root application component. Hydrates auth state, keeps the active color
+ * theme applied, and renders the top-level route tree.
  */
 function App() {
     useAuth(); // hydrate auth state from the server cookie on first load
+    useThemeSync(); // keep <html data-theme> in sync with themeAtom
 
     return (
         <div className="bg-background-base text-text-primary">
