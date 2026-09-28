@@ -33,6 +33,12 @@ body {
     padding: 0;
 }
 
+/* Headings use the display serif at medium weight, matching the document title. */
+.bn-editor [data-content-type="heading"] {
+    font-family: theme("fontFamily.serif");
+    font-weight: 500;
+}
+
 /* Remove the vertical line BlockNote renders on the left of nested block groups */
 .bn-block-group .bn-block-group > .bn-block-outer:before {
     display: none !important;

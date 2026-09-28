@@ -112,6 +112,8 @@ type ThemeTokens = {
     "tooltip-fg": string;
     /** Modal backdrop, including its own alpha. */
     overlay: string;
+    /** Drop-shadow color for popovers and menus, including its own alpha. */
+    shadow: string;
 };
 
 /** Text and background color for one BlockNote highlight. */
@@ -157,6 +159,7 @@ export const themes: Record<ThemeMode, Theme> = {
             tooltip: "#e9e6dd",
             "tooltip-fg": "#131315",
             overlay: "rgb(0 0 0 / 0.45)",
+            shadow: "rgb(0 0 0 / 0.4)",
         },
         highlights: {
             gray: { text: "#a3a3a3", background: "#262a33" },
@@ -198,6 +201,7 @@ export const themes: Record<ThemeMode, Theme> = {
             tooltip: "#1a1d26",
             "tooltip-fg": "#efefee",
             overlay: "rgb(24 26 32 / 0.32)",
+            shadow: "rgb(24 26 32 / 0.12)",
         },
         highlights: {
             gray: { text: "#787774", background: "#ebeced" },

@@ -97,7 +97,7 @@ const EditorPage = () => {
                                 disabled={!canWrite}
                                 className={`mx-2 w-full max-w-5xl min-w-0
                                     bg-transparent border-none outline-none
-                                    text-fg font-bold sm:text-4xl text-2xl
+                                    text-fg font-serif font-medium sm:text-4xl text-2xl
                                     placeholder-fg-muted transition-opacity duration-200
                                     disabled:cursor-default
                                     ${isTitlePending ? "opacity-50" : "opacity-100"}`}
