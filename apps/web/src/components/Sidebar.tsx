@@ -15,8 +15,7 @@ import {
     MdSmartToy,
 } from "react-icons/md";
 import { VscMcp } from "react-icons/vsc";
-import { Dropdown } from "primereact/dropdown";
-import "primereact/resources/themes/lara-dark-blue/theme.css";
+import Select from "./ui/Select";
 import { CiSettings } from "react-icons/ci";
 import WorkspaceConfigModal from "../pages/workspaces/components/WorkspaceConfigModal";
 import { refreshSidebarAtom } from "@/atoms/sidebar";
@@ -114,59 +113,29 @@ const Sidebar = ({
                         />
                     </div>
 
-                    <Dropdown
-                        value={currentWorkspace?.id ?? null}
+                    <Select
+                        value={
+                            currentWorkspace ? String(currentWorkspace.id) : null
+                        }
                         options={workspaces.map((w) => ({
                             label: w.name,
-                            value: w.id,
-                            type: w.type,
+                            value: String(w.id),
                         }))}
-                        onChange={(e) => selectWorkspace(e.value)}
-                        onShow={refetchWorkspaces}
-                        className="text-xs sm:text-sm"
-                        itemTemplate={(option) => (
-                            <div className="flex items-center justify-between w-full">
+                        onChange={(id) => selectWorkspace(Number(id))}
+                        onOpen={refetchWorkspaces}
+                        className="w-full justify-between border border-line-strong"
+                        renderOption={(option) => (
+                            <span className="flex items-center gap-2 min-w-0">
                                 <span className="truncate">{option.label}</span>
-                                {option.type === "personal" && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 font-medium ml-2 shrink-0">
+                                {workspaces.find(
+                                    (w) => String(w.id) === option.value,
+                                )?.type === "personal" && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-selected text-fg-secondary font-medium shrink-0">
                                         Personal
                                     </span>
                                 )}
-                            </div>
+                            </span>
                         )}
-                        valueTemplate={(option) =>
-                            option && (
-                                <div className="flex items-center gap-2">
-                                    <span className="truncate">
-                                        {option.label}
-                                    </span>
-                                    {option.type === "personal" && (
-                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 font-medium shrink-0">
-                                            Personal
-                                        </span>
-                                    )}
-                                </div>
-                            )
-                        }
-                        pt={{
-                            root: {
-                                className:
-                                    "border border-border/70 bg-transparent focus:outline-none",
-                            },
-                            input: {
-                                className:
-                                    "text-xs sm:text-sm text-white py-0.5 sm:py-1 px-1.5 sm:px-2 overflow-hidden text-ellipsis whitespace-nowrap max-w-full",
-                            },
-                            trigger: { className: "text-white" },
-                            panel: {
-                                className:
-                                    "bg-background-base border border-gray-700",
-                            },
-                            item: {
-                                className:
-                                    "text-xs sm:text-sm text-white hover:bg-background-elevated px-2 sm:px-3 py-1.5 sm:py-2",
-                            },
-                        }}
                     />
                 </div>
                 {/* Primary navigation actions — create/browse documents, switch workspaces,

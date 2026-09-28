@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { RxAvatar } from "react-icons/rx";
 import { type WorkspaceRole } from "@converge/shared";
-import { Dropdown } from "primereact/dropdown";
-import "primereact/resources/themes/lara-dark-blue/theme.css";
+import Select from "../../../../components/ui/Select";
 import apiClient from "../../../../lib/http";
 import { useAtomValue } from "jotai";
 import { authAtom } from "../../../../atoms/auth";
@@ -159,34 +158,13 @@ const WorkspaceMemberCard = ({
                 </span>
             )}
             {type === "member" && options.length > 0 && (
-                <Dropdown
+                <Select
                     value={role ?? null}
                     options={options}
-                    onChange={(e) => handleChange(e.value)}
+                    onChange={handleChange}
                     disabled={(role !== undefined && !canInteract) || isLoading}
                     placeholder="Select role"
-                    className="shrink-0 text-xs sm:text-sm"
-                    pt={{
-                        root: {
-                            className:
-                                "border-none bg-transparent focus:outline-none",
-                        },
-                        input: {
-                            className:
-                                "text-xs sm:text-sm text-white py-0.5 sm:py-1 px-1.5 sm:px-2",
-                        },
-                        trigger: {
-                            className: !canInteract ? "hidden" : "text-white",
-                        },
-                        panel: {
-                            className:
-                                "bg-background-base border border-gray-700",
-                        },
-                        item: {
-                            className:
-                                "text-xs sm:text-sm text-white hover:bg-background-elevated px-2 sm:px-3 py-1.5 sm:py-2",
-                        },
-                    }}
+                    hideChevron={!canInteract}
                 />
             )}
         </div>

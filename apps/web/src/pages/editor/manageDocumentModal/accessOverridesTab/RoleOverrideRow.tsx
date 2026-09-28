@@ -1,6 +1,5 @@
-import { Dropdown } from "primereact/dropdown";
-import "primereact/resources/themes/lara-dark-blue/theme.css";
 import type { DocumentAccessLevel } from "@converge/shared";
+import Select, { type SelectOption } from "../../../../components/ui/Select";
 
 /** Display labels for each document access level. */
 const ACCESS_LABELS: Record<DocumentAccessLevel, string> = {
@@ -11,25 +10,7 @@ const ACCESS_LABELS: Record<DocumentAccessLevel, string> = {
 };
 
 /** Option shape for the role override dropdown, including the sentinel "__default__" value. */
-interface RoleOverrideOption {
-    label: string;
-    value: DocumentAccessLevel | "__default__";
-}
-
-/** Shared PrimeReact passthrough styling for the override dropdown. */
-const dropdownPt = (disabled: boolean) => ({
-    root: { className: "border-none bg-transparent focus:outline-none" },
-    input: {
-        className:
-            "text-xs sm:text-sm text-white py-0.5 sm:py-1 px-1.5 sm:px-2",
-    },
-    trigger: { className: disabled ? "hidden" : "text-white" },
-    panel: { className: "bg-background-base border border-gray-700" },
-    item: {
-        className:
-            "text-xs sm:text-sm text-white hover:bg-background-elevated px-2 sm:px-3 py-1.5 sm:py-2",
-    },
-});
+type RoleOverrideOption = SelectOption<DocumentAccessLevel | "__default__">;
 
 /**
  * A single row in the role overrides section. Shows a workspace-role label on
@@ -77,13 +58,12 @@ const RoleOverrideRow = ({
     return (
         <div className="flex items-center justify-between py-2.5">
             <span className="text-sm text-text-secondary">{label}</span>
-            <Dropdown
+            <Select
                 value={value ?? "__default__"}
                 options={options}
-                onChange={(e) => handleChange(e.value)}
+                onChange={handleChange}
                 disabled={disabled || isSaving}
-                className="shrink-0 text-xs sm:text-sm"
-                pt={dropdownPt(disabled)}
+                hideChevron={disabled}
             />
         </div>
     );

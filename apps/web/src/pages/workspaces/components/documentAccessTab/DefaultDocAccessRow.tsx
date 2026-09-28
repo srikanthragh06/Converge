@@ -1,36 +1,16 @@
-import { Dropdown } from "primereact/dropdown";
-import "primereact/resources/themes/lara-dark-blue/theme.css";
 import type {
     DocumentAccessLevel,
     GetWorkspaceDocAccessDefaultsResponseDto,
 } from "@converge/shared";
+import Select, { type SelectOption } from "../../../../components/ui/Select";
 
 /** Dropdown options for a document access level field. */
-const ACCESS_OPTIONS: { label: string; value: DocumentAccessLevel }[] = [
+const ACCESS_OPTIONS: SelectOption<DocumentAccessLevel>[] = [
     { label: "Admin", value: "admin" },
     { label: "Editor", value: "editor" },
     { label: "Viewer", value: "viewer" },
     { label: "No Access", value: "noAccess" },
 ];
-
-/** Shared PrimeReact passthrough styling for each access dropdown. */
-const dropdownPt = (disabled: boolean) => ({
-    root: {
-        className: "border-none bg-transparent focus:outline-none",
-    },
-    input: {
-        className:
-            "text-xs sm:text-sm text-white py-0.5 sm:py-1 px-1.5 sm:px-2",
-    },
-    trigger: { className: disabled ? "hidden" : "text-white" },
-    panel: {
-        className: "bg-background-base border border-gray-700",
-    },
-    item: {
-        className:
-            "text-xs sm:text-sm text-white hover:bg-background-elevated px-2 sm:px-3 py-1.5 sm:py-2",
-    },
-});
 
 /** A single row showing a workspace role label and its default document access level dropdown. */
 const DefaultDocAccessRow = ({
@@ -62,13 +42,12 @@ const DefaultDocAccessRow = ({
          border-background-elevated last:border-b-0"
     >
         <span className="text-sm text-text-secondary">{label}</span>
-        <Dropdown
+        <Select
             value={value}
             options={ACCESS_OPTIONS}
-            onChange={(e) => onUpdate(field, e.value as DocumentAccessLevel)}
+            onChange={(v) => onUpdate(field, v)}
             disabled={disabled || isSaving}
-            className="shrink-0 text-xs sm:text-sm"
-            pt={dropdownPt(disabled)}
+            hideChevron={disabled}
         />
     </div>
 );

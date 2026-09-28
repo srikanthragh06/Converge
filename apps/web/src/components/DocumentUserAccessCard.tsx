@@ -4,8 +4,7 @@ import {
     type DocumentAccessLevel,
     type ResolvedDocumentAccessLevel,
 } from "@converge/shared";
-import { Dropdown } from "primereact/dropdown";
-import "primereact/resources/themes/lara-dark-blue/theme.css";
+import Select from "./ui/Select";
 import apiClient from "../lib/http";
 import { useAtomValue } from "jotai";
 import { authAtom } from "../atoms/auth";
@@ -165,33 +164,13 @@ const DocumentUserAccessCard = ({
                     Falls back to: {ACCESS_LABELS[fallbackAccess]}
                 </span>
             </div>
-            <Dropdown
+            <Select
                 value={selectedAccess}
                 options={options}
-                onChange={(e) => handleChange(e.value)}
+                onChange={handleChange}
                 placeholder="Select access"
                 disabled={!canInteract || isLoading || !documentId}
-                className="shrink-0 text-xs sm:text-sm"
-                pt={{
-                    root: {
-                        className:
-                            "border-none bg-transparent focus:outline-none",
-                    },
-                    input: {
-                        className:
-                            "text-xs sm:text-sm text-white py-0.5 sm:py-1 px-1.5 sm:px-2",
-                    },
-                    trigger: {
-                        className: !canInteract ? "hidden" : "text-white",
-                    },
-                    panel: {
-                        className: "bg-background-base border border-gray-700",
-                    },
-                    item: {
-                        className:
-                            "text-xs sm:text-sm text-white hover:bg-background-elevated px-2 sm:px-3 py-1.5 sm:py-2",
-                    },
-                }}
+                hideChevron={!canInteract}
             />
         </div>
     );
