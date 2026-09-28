@@ -85,6 +85,14 @@ type ThemeTokens = {
     overlay: string;
     /** Drop-shadow color for popovers and menus, including its own alpha. */
     shadow: string;
+    /** Initials-avatar fills (navy, rust, blue, green, purple). Same in both themes. */
+    "avatar-1": string;
+    "avatar-2": string;
+    "avatar-3": string;
+    "avatar-4": string;
+    "avatar-5": string;
+    /** Initials text on an avatar fill. */
+    "avatar-fg": string;
 };
 
 /** Text and background color for one BlockNote highlight. */
@@ -132,6 +140,12 @@ export const themes: Record<ThemeMode, Theme> = {
             "tooltip-fg": "#131315",
             overlay: "rgb(0 0 0 / 0.45)",
             shadow: "rgb(0 0 0 / 0.4)",
+            "avatar-1": "#3a4a68",
+            "avatar-2": "#9a5a3e",
+            "avatar-3": "#3e5e85",
+            "avatar-4": "#3d5e57",
+            "avatar-5": "#5b4a77",
+            "avatar-fg": "#ebeceb",
         },
         highlights: {
             gray: { text: "#a3a3a3", background: "#262a33" },
@@ -175,6 +189,12 @@ export const themes: Record<ThemeMode, Theme> = {
             "tooltip-fg": "#efefee",
             overlay: "rgb(24 26 32 / 0.32)",
             shadow: "rgb(24 26 32 / 0.12)",
+            "avatar-1": "#3a4a68",
+            "avatar-2": "#9a5a3e",
+            "avatar-3": "#3e5e85",
+            "avatar-4": "#3d5e57",
+            "avatar-5": "#5b4a77",
+            "avatar-fg": "#ebeceb",
         },
         highlights: {
             gray: { text: "#787774", background: "#ebeced" },
