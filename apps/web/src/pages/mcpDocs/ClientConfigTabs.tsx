@@ -13,15 +13,15 @@ const ClientConfigTabs = () => {
     return (
         <div className="flex flex-col gap-3">
             {/* Tab buttons */}
-            <div className="flex gap-1 border-b border-border/70">
+            <div className="flex gap-1 border-b border-line-strong">
                 {CLIENT_CONFIGS.map((client) => (
                     <button
                         key={client.id}
                         onClick={() => setActiveId(client.id)}
                         className={`px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm rounded-t-md cursor-pointer transition ${
                             client.id === activeId
-                                ? "text-white border-b-2 border-white -mb-px"
-                                : "text-text-disabled hover:text-text-secondary"
+                                ? "text-fg border-b-2 border-fg -mb-px"
+                                : "text-fg-muted hover:text-fg-secondary"
                         }`}
                     >
                         {client.label}
@@ -30,12 +30,12 @@ const ClientConfigTabs = () => {
             </div>
 
             {/* Active tab content */}
-            <p className="text-xs sm:text-sm text-text-secondary">
+            <p className="text-xs sm:text-sm text-fg-secondary">
                 {active.instructions}
             </p>
             <CodeBlock code={active.snippet} />
             {active.note && (
-                <p className="text-[11px] sm:text-xs text-text-disabled">
+                <p className="text-[11px] sm:text-xs text-fg-muted">
                     {active.note}
                 </p>
             )}

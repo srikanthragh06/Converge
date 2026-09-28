@@ -20,18 +20,18 @@ const ApiKeyCard = ({
     return (
         <div
             className={`flex items-start sm:px-4 sm:py-3 py-2 px-3
-            rounded-lg bg-background
+            rounded-lg bg-surface
             transition w-11/12 sm:w-[600px] gap-3
             ${isRevoked ? "opacity-50" : "hover:opacity-85"}`}
         >
             <MdVpnKey className="w-4 h-4 mt-0.5 shrink-0 opacity-40" />
             <div className="flex flex-col space-y-1 min-w-0">
                 <div className="flex items-center gap-2">
-                    <span className="text-white font-medium sm:text-base text-sm truncate">
+                    <span className="text-fg font-medium sm:text-base text-sm truncate">
                         {apiKey.label}
                     </span>
                     {isRevoked && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 font-medium shrink-0">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-danger/15 text-danger font-medium shrink-0">
                             Revoked
                         </span>
                     )}
@@ -50,7 +50,7 @@ const ApiKeyCard = ({
                 {!isRevoked && (
                     <button
                         onClick={() => onRevoke(apiKey.id)}
-                        className="text-xs text-red-400 hover:opacity-80 transition cursor-pointer text-left"
+                        className="text-xs text-danger hover:opacity-80 transition cursor-pointer text-left"
                     >
                         Revoke
                     </button>

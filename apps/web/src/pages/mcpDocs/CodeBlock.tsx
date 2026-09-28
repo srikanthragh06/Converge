@@ -24,7 +24,7 @@ const CodeBlock = ({ code }: { code: string }) => {
             {/* Snippet */}
             <pre
                 className="px-2.5 py-2 pr-8 sm:px-3 sm:py-2.5 sm:pr-10 text-[11px] sm:text-sm rounded-md
-                    bg-background-elevated border border-border/70 text-text-secondary
+                    bg-surface-elevated border border-line-strong text-fg-secondary
                     overflow-x-auto whitespace-pre"
             >
                 <code>{code}</code>
@@ -33,12 +33,12 @@ const CodeBlock = ({ code }: { code: string }) => {
             <button
                 onClick={handleCopy}
                 aria-label="Copy snippet"
-                className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 p-1 sm:p-1.5 rounded-md bg-background-overlay
-                    text-white cursor-pointer hover:opacity-80 active:opacity-70
+                className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 p-1 sm:p-1.5 rounded-md bg-surface-selected
+                    text-fg cursor-pointer hover:opacity-80 active:opacity-70
                     transition shrink-0"
             >
                 {copied ? (
-                    <MdCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-green-400" />
+                    <MdCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-success" />
                 ) : (
                     <MdContentCopy className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 )}

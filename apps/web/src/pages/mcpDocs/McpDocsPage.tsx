@@ -33,18 +33,18 @@ const McpDocsPage = () => {
                     {/* Header — title + copy-as-markdown on one row, description on its own full-width row below */}
                     <div className="flex flex-col gap-2">
                         <div className="flex items-start justify-between gap-4">
-                            <h1 className="sm:text-3xl text-xl font-bold text-text-primary">
+                            <h1 className="sm:text-3xl text-xl font-bold text-fg">
                                 Connect an AI Agent
                             </h1>
                             <button
                                 onClick={handleCopyMarkdown}
                                 aria-label="Copy as Markdown"
                                 className="flex items-center gap-1.5 px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm rounded-md
-                                    bg-background-elevated border border-border/70 text-white
+                                    bg-surface-elevated border border-line-strong text-fg
                                     cursor-pointer hover:opacity-80 active:opacity-70 transition shrink-0"
                             >
                                 {copied ? (
-                                    <MdCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-400" />
+                                    <MdCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-success" />
                                 ) : (
                                     <MdContentCopy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                                 )}
@@ -53,7 +53,7 @@ const McpDocsPage = () => {
                                 </span>
                             </button>
                         </div>
-                        <p className="text-sm sm:text-base text-text-secondary">
+                        <p className="text-sm sm:text-base text-fg-secondary">
                             Converge exposes your documents to AI agents through
                             the Model Context Protocol (MCP) — the same
                             access-control rules that apply to you in the
@@ -66,15 +66,15 @@ const McpDocsPage = () => {
 
                     {/* Step 1 — API key */}
                     <section className="flex flex-col gap-3">
-                        <h2 className="text-lg sm:text-xl font-semibold text-white">
+                        <h2 className="text-lg sm:text-xl font-semibold text-fg">
                             1. Get an API key
                         </h2>
-                        <p className="text-sm text-text-secondary">
+                        <p className="text-sm text-fg-secondary">
                             Agents authenticate with a Converge API key, not
                             your browser session. Go to{" "}
-                            <span className="text-white">API Keys</span> in the
+                            <span className="text-fg">API Keys</span> in the
                             sidebar, click{" "}
-                            <span className="text-white">New Key</span>, and
+                            <span className="text-fg">New Key</span>, and
                             copy the value shown — it's only displayed once.
                             Treat it like a password: anyone with the key can
                             act as you, with your exact permissions.
@@ -83,22 +83,22 @@ const McpDocsPage = () => {
                             <button
                                 onClick={() => navigate("/api-keys")}
                                 className="flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm rounded-md
-                                    bg-white text-black cursor-pointer hover:opacity-90 active:opacity-80 transition"
+                                    bg-gold text-gold-fg cursor-pointer hover:opacity-90 active:opacity-80 transition"
                             >
                                 <MdVpnKey className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                                 Go to API Keys
                             </button>
                         </div>
-                        <div className="flex flex-col gap-1 text-[11px] sm:text-sm text-text-secondary font-mono break-all">
+                        <div className="flex flex-col gap-1 text-[11px] sm:text-sm text-fg-secondary font-mono break-all">
                             <span>
                                 Endpoint:{" "}
-                                <span className="text-white">
+                                <span className="text-fg">
                                     {MCP_ENDPOINT}
                                 </span>
                             </span>
                             <span>
                                 Auth header:{" "}
-                                <span className="text-white">
+                                <span className="text-fg">
                                     Authorization: Bearer &lt;your-api-key&gt;
                                 </span>
                             </span>
@@ -107,11 +107,11 @@ const McpDocsPage = () => {
 
                     {/* Step 2 — client setup */}
                     <section className="flex flex-col gap-3">
-                        <h2 className="text-lg sm:text-xl font-semibold text-white">
+                        <h2 className="text-lg sm:text-xl font-semibold text-fg">
                             2. Connect your client
                         </h2>
                         <ClientConfigTabs />
-                        <p className="text-sm text-text-secondary">
+                        <p className="text-sm text-fg-secondary">
                             Restart your client, then ask it to list your
                             Converge workspaces to confirm the connection.
                         </p>
@@ -119,14 +119,14 @@ const McpDocsPage = () => {
 
                     {/* Capabilities */}
                     <section className="flex flex-col gap-3">
-                        <h2 className="text-lg sm:text-xl font-semibold text-white">
+                        <h2 className="text-lg sm:text-xl font-semibold text-fg">
                             What it can do
                         </h2>
                         <ToolCapabilities />
                     </section>
 
                     {/* Safety net callout */}
-                    <div className="px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-md bg-background-elevated border border-border/70 text-xs sm:text-sm text-text-secondary">
+                    <div className="px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-md bg-surface-elevated border border-line-strong text-xs sm:text-sm text-fg-secondary">
                         Every edit an agent makes is automatically checkpointed
                         right before it lands — so an unwanted AI edit is always
                         one restore away from undone.

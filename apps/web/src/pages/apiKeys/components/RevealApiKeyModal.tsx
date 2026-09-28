@@ -36,14 +36,14 @@ const RevealApiKeyModal = ({
     };
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-overlay">
             {/* Dialog panel */}
-            <div className="bg-background-base rounded-xl px-6 py-5 w-full max-w-md mx-4 flex flex-col gap-4">
-                <h2 className="text-white text-lg font-semibold">
+            <div className="bg-surface rounded-xl px-6 py-5 w-full max-w-md mx-4 flex flex-col gap-4">
+                <h2 className="text-fg text-lg font-semibold">
                     Your new API key
                 </h2>
 
-                <p className="text-sm text-red-400">
+                <p className="text-sm text-danger">
                     Copy this key now — you won't be able to see it again.
                 </p>
 
@@ -51,7 +51,7 @@ const RevealApiKeyModal = ({
                 <div className="flex items-center gap-2">
                     <code
                         className="flex-1 min-w-0 px-3 py-2 text-xs sm:text-sm rounded-md
-                            bg-background-elevated border border-border/70 text-white
+                            bg-surface-elevated border border-line-strong text-fg
                             overflow-x-auto whitespace-nowrap"
                     >
                         {rawKey}
@@ -59,12 +59,12 @@ const RevealApiKeyModal = ({
                     <button
                         onClick={handleCopy}
                         aria-label="Copy API key"
-                        className="p-2 rounded-md bg-background-elevated border border-border/70
-                            text-white cursor-pointer hover:opacity-80 active:opacity-70
+                        className="p-2 rounded-md bg-surface-elevated border border-line-strong
+                            text-fg cursor-pointer hover:opacity-80 active:opacity-70
                             transition shrink-0"
                     >
                         {copied ? (
-                            <MdCheck className="w-4 h-4 text-green-400" />
+                            <MdCheck className="w-4 h-4 text-success" />
                         ) : (
                             <MdContentCopy className="w-4 h-4" />
                         )}
@@ -74,8 +74,8 @@ const RevealApiKeyModal = ({
                 <div className="flex justify-end">
                     <button
                         onClick={onDone}
-                        className="px-3 py-1.5 text-sm rounded-md bg-white
-                            text-black border-none cursor-pointer
+                        className="px-3 py-1.5 text-sm rounded-md bg-gold
+                            text-gold-fg border-none cursor-pointer
                             hover:opacity-80 active:opacity-70 transition"
                     >
                         Done

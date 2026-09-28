@@ -44,16 +44,16 @@ const ApiKeysPage = () => {
     return (
         <Page authRequired haveSidebar>
             {/* Header — title above, create-key button below, does not scroll */}
-            <div className="bg-background-base pb-4 pt-4 sm:pt-8 w-full flex flex-col space-y-4">
+            <div className="bg-surface pb-4 pt-4 sm:pt-8 w-full flex flex-col space-y-4">
                 <div className="flex flex-col items-center w-full px-4 sm:px-0">
                     <div className="w-full sm:max-w-[600px]">
-                        <div className="text-text-primary font-bold flex justify-start sm:mb-4 mb-2">
+                        <div className="text-fg font-bold flex justify-start sm:mb-4 mb-2">
                             <h1 className="sm:text-3xl text-xl">API Keys</h1>
                         </div>
                         <div className="w-full flex flex-row items-center justify-center">
                             <button
                                 onClick={() => setShowCreateModal(true)}
-                                className="w-1/2 px-2 py-1 sm:text-sm text-xs rounded-md bg-white text-black
+                                className="w-1/2 px-2 py-1 sm:text-sm text-xs rounded-md bg-gold text-gold-fg
                                  hover:opacity-90 active:opacity-80 transition
                                 cursor-pointer"
                             >
