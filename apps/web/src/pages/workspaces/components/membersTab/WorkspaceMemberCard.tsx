@@ -141,19 +141,19 @@ const WorkspaceMemberCard = ({
                     className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover shrink-0"
                 />
             ) : (
-                <RxAvatar className="w-7 h-7 sm:w-8 sm:h-8 text-text-secondary shrink-0" />
+                <RxAvatar className="w-7 h-7 sm:w-8 sm:h-8 text-fg-secondary shrink-0" />
             )}
             {/* Name and email stacked vertically */}
             <div className="flex flex-col flex-1 min-w-0">
-                <span className="text-xs sm:text-sm text-text-primary truncate">
+                <span className="text-xs sm:text-sm text-fg truncate">
                     {name}
                 </span>
-                <span className="text-xs text-text-secondary truncate">
+                <span className="text-xs text-fg-secondary truncate">
                     {email}
                 </span>
             </div>
             {type === "owner" && (
-                <span className="shrink-0 text-xs sm:text-sm text-text-secondary opacity-50 px-1.5 sm:px-2 py-0.5 sm:py-1">
+                <span className="shrink-0 text-xs sm:text-sm text-fg-secondary opacity-50 px-1.5 sm:px-2 py-0.5 sm:py-1">
                     Owner
                 </span>
             )}

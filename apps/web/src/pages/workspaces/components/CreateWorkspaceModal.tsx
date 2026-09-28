@@ -31,15 +31,15 @@ const CreateWorkspaceModal = ({
     return (
         // Backdrop — click outside to cancel
         <div
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60"
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-overlay"
             onClick={onCancel}
         >
             {/* Dialog panel */}
             <div
-                className="bg-background-base rounded-xl px-6 py-5 w-full max-w-sm mx-4 flex flex-col gap-4"
+                className="bg-surface rounded-xl px-6 py-5 w-full max-w-sm mx-4 flex flex-col gap-4"
                 onClick={(e) => e.stopPropagation()}
             >
-                <h2 className="text-white text-lg font-semibold">
+                <h2 className="text-fg text-lg font-semibold">
                     New Workspace
                 </h2>
 
@@ -52,12 +52,12 @@ const CreateWorkspaceModal = ({
                         autoFocus
                         maxLength={128}
                         className="w-full px-3 py-1.5 text-sm rounded-md
-                            bg-background-base outline-none text-white border
-                            border-border/70 focus:border-white/30 transition
-                            placeholder:text-text-disabled"
+                            bg-surface outline-none text-fg border
+                            border-line-strong focus:border-gold transition
+                            placeholder:text-fg-muted"
                     />
 
-                    {error && <p className="text-red-400 text-xs">{error}</p>}
+                    {error && <p className="text-danger text-xs">{error}</p>}
 
                     <div className="flex gap-3 justify-end">
                         <button
@@ -65,7 +65,7 @@ const CreateWorkspaceModal = ({
                             onClick={onCancel}
                             disabled={isCreating}
                             className="px-3 py-1.5 text-sm rounded-md bg-transparent
-                                text-text-secondary cursor-pointer hover:opacity-80
+                                text-fg-secondary cursor-pointer hover:opacity-80
                                 active:opacity-70 transition disabled:opacity-40
                                 disabled:cursor-not-allowed border-none"
                         >
@@ -74,8 +74,8 @@ const CreateWorkspaceModal = ({
                         <button
                             type="submit"
                             disabled={isCreating || !name.trim()}
-                            className="px-3 py-1.5 text-sm rounded-md bg-white
-                                text-black border-none cursor-pointer
+                            className="px-3 py-1.5 text-sm rounded-md bg-gold
+                                text-gold-fg border-none cursor-pointer
                                 hover:opacity-80 active:opacity-70 transition
                                 disabled:opacity-40 disabled:cursor-not-allowed"
                         >

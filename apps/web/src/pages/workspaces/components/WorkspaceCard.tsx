@@ -16,18 +16,18 @@ const WorkspaceCard = ({
     return (
         <div
             className="flex items-start sm:px-4 sm:py-3 py-2 px-3
-            rounded-lg bg-background
+            rounded-lg bg-surface
             transition w-11/12 sm:w-[600px] gap-3
             hover:opacity-85"
         >
             <MdOutlineWorkspaces className="w-4 h-4 mt-0.5 shrink-0 opacity-40" />
             <div className="flex flex-col space-y-1 min-w-0">
                 <div className="flex items-center gap-2">
-                    <span className="text-white font-medium sm:text-base text-sm truncate">
+                    <span className="text-fg font-medium sm:text-base text-sm truncate">
                         {workspace.name}
                     </span>
                     {workspace.type === "personal" && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 font-medium shrink-0">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-selected text-fg-secondary font-medium shrink-0">
                             Personal
                         </span>
                     )}
@@ -39,17 +39,17 @@ const WorkspaceCard = ({
                     <div className="flex items-center gap-3">
                         <button
                             onClick={() => onManage(workspace.id)}
-                            className="text-xs text-white hover:opacity-80 transition cursor-pointer"
+                            className="text-xs text-fg hover:opacity-80 transition cursor-pointer"
                         >
                             Manage Workspace
                         </button>{" "}
                         <button
                             disabled={workspace.isSelected}
                             onClick={() => onSelect(workspace.id)}
-                            className={`sm:px-2 px-1 py-1 text-xs transition cursor-pointer text-white ${
+                            className={`sm:px-2 px-1 py-1 text-xs transition cursor-pointer ${
                                 workspace.isSelected
-                                    ? "bg-green-900 rounded-lg cursor-auto"
-                                    : "hover:opacity-80"
+                                    ? "bg-success/15 text-success rounded-lg cursor-auto"
+                                    : "text-fg hover:opacity-80"
                             }`}
                         >
                             {workspace.isSelected

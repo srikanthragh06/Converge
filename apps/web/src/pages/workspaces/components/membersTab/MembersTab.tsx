@@ -51,8 +51,8 @@ const MembersTab = ({ workspaceId }: { workspaceId: number }) => {
                 placeholder={
                     canManage ? "Add member by email" : "Search members"
                 }
-                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-background-elevated
-                text-sm text-white focus:outline-none border-none"
+                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-surface-elevated
+                text-sm text-fg focus:outline-none border-none"
             />
 
             {canManage && isFindNewUserLoading && (
@@ -65,7 +65,7 @@ const MembersTab = ({ workspaceId }: { workspaceId: number }) => {
                 isFindNewUserConflict &&
                 email.trim().length > 0 && (
                     <div
-                        className="opacity-50 w-full bg-background-overlay px-2 py-1
+                        className="opacity-50 w-full bg-surface-selected px-2 py-1
                         rounded-lg text-xs mt-3 sm:mt-4"
                     >
                         {email} is already the owner or a member of this
@@ -78,7 +78,7 @@ const MembersTab = ({ workspaceId }: { workspaceId: number }) => {
                 !foundUser &&
                 email.trim().length > 0 && (
                     <div
-                        className="opacity-50 w-full bg-background-overlay px-2 py-1
+                        className="opacity-50 w-full bg-surface-selected px-2 py-1
                         rounded-lg text-xs mt-3 sm:mt-4"
                     >
                         Enter the exact email address of the person you want to

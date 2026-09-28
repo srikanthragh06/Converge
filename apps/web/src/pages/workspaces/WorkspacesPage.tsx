@@ -45,13 +45,13 @@ const WorkspacesPage = () => {
         <>
         <Page authRequired haveSidebar>
             <div
-                className="bg-background-base pb-4 pt-4 sm:pt-8 w-full
+                className="bg-surface pb-4 pt-4 sm:pt-8 w-full
                     flex flex-col space-y-4"
             >
                 <div className="flex flex-col items-center w-full px-4 sm:px-0">
                     <div className="w-full sm:max-w-[720px]">
                         <div
-                            className="text-text-primary font-bold
+                            className="text-fg font-bold
                                         flex justify-start sm:mb-4 mb-2"
                         >
                             <h1 className="sm:text-3xl text-xl">Workspaces</h1>
@@ -63,12 +63,12 @@ const WorkspacesPage = () => {
                                 onChange={(e) => setSearchText(e.target.value)}
                                 placeholder="Search workspaces..."
                                 className="flex-1 sm:w-[500px] sm:flex-none px-3 py-1 sm:text-base text-sm rounded-md
-                                bg-background-elevated
-                                outline-none text-white border-0"
+                                bg-surface-elevated
+                                outline-none text-fg border-0"
                             />
                             <button
                                 onClick={() => setShowModal(true)}
-                                className="block sm:px-3 sm:py-1 px-2 py-1 sm:text-sm text-xs rounded-md bg-white text-black
+                                className="block sm:px-3 sm:py-1 px-2 py-1 sm:text-sm text-xs rounded-md bg-gold text-gold-fg
                                  hover:opacity-90 active:opacity-80 transition
                                 cursor-pointer"
                             >

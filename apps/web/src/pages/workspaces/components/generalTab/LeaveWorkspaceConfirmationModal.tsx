@@ -26,15 +26,15 @@ const LeaveWorkspaceConfirmationModal = ({
 
     return (
         <div
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60"
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-overlay"
             onClick={onCancel}
         >
             <div
-                className="bg-background-elevated rounded-xl px-6 py-5 w-full max-w-sm mx-4 flex flex-col gap-5"
+                className="bg-surface-elevated rounded-xl px-6 py-5 w-full max-w-sm mx-4 flex flex-col gap-5"
                 onClick={(e) => e.stopPropagation()}
             >
-                <p className="text-text-secondary text-sm">
-                    Leave <span className="text-white">{workspaceName}</span>?
+                <p className="text-fg-secondary text-sm">
+                    Leave <span className="text-fg">{workspaceName}</span>?
                 </p>
 
                 <div className="flex gap-3 justify-end">
@@ -42,7 +42,7 @@ const LeaveWorkspaceConfirmationModal = ({
                         onClick={onCancel}
                         disabled={isLeaving}
                         className="px-3 py-1.5 text-sm rounded-md bg-transparent
-                            text-text-secondary cursor-pointer hover:opacity-80
+                            text-fg-secondary cursor-pointer hover:opacity-80
                             active:opacity-70 transition disabled:opacity-40
                             disabled:cursor-not-allowed border-none"
                     >
@@ -51,7 +51,7 @@ const LeaveWorkspaceConfirmationModal = ({
                     <button
                         onClick={onConfirm}
                         disabled={isLeaving}
-                        className="px-3 py-1.5 text-sm rounded-md bg-red-700 text-white
+                        className="px-3 py-1.5 text-sm rounded-md bg-danger-solid text-danger-solid-fg
                             border-none cursor-pointer hover:opacity-80 active:opacity-70
                             transition disabled:opacity-40 disabled:cursor-not-allowed"
                     >

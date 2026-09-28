@@ -39,9 +39,9 @@ const DefaultDocAccessRow = ({
 }) => (
     <div
         className="flex items-center justify-between py-3
-         border-background-elevated last:border-b-0"
+         border-line last:border-b-0"
     >
-        <span className="text-sm text-text-secondary">{label}</span>
+        <span className="text-sm text-fg-secondary">{label}</span>
         <Select
             value={value}
             options={ACCESS_OPTIONS}

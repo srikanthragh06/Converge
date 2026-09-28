@@ -52,17 +52,17 @@ const OwnerTab = ({ workspaceId }: { workspaceId: number }) => {
                                 className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover shrink-0"
                             />
                         ) : (
-                            <RxAvatar className="w-7 h-7 sm:w-8 sm:h-8 text-text-secondary shrink-0" />
+                            <RxAvatar className="w-7 h-7 sm:w-8 sm:h-8 text-fg-secondary shrink-0" />
                         )}
                         <div className="flex flex-col flex-1 min-w-0">
-                            <span className="text-xs sm:text-sm text-text-primary truncate">
+                            <span className="text-xs sm:text-sm text-fg truncate">
                                 {owner.name}
                             </span>
-                            <span className="text-xs text-text-secondary truncate">
+                            <span className="text-xs text-fg-secondary truncate">
                                 {owner.email}
                             </span>
                         </div>
-                        <span className="shrink-0 text-xs sm:text-sm text-text-secondary opacity-50 px-1.5 sm:px-2 py-0.5 sm:py-1">
+                        <span className="shrink-0 text-xs sm:text-sm text-fg-secondary opacity-50 px-1.5 sm:px-2 py-0.5 sm:py-1">
                             Owner
                         </span>
                     </div>
@@ -84,8 +84,8 @@ const OwnerTab = ({ workspaceId }: { workspaceId: number }) => {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="Transfer ownership by email"
-                        className="w-full mt-3 sm:mt-4 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-background-elevated
-                        text-sm text-white focus:outline-none border-none"
+                        className="w-full mt-3 sm:mt-4 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-surface-elevated
+                        text-sm text-fg focus:outline-none border-none"
                     />
 
                     {isFindLoading && (
@@ -98,7 +98,7 @@ const OwnerTab = ({ workspaceId }: { workspaceId: number }) => {
                         isFindConflict &&
                         email.trim().length > 0 && (
                             <div
-                                className="opacity-50 w-full bg-background-overlay px-2 py-1
+                                className="opacity-50 w-full bg-surface-selected px-2 py-1
                                 rounded-lg text-xs mt-3 sm:mt-4"
                             >
                                 You are already the workspace owner.
@@ -110,7 +110,7 @@ const OwnerTab = ({ workspaceId }: { workspaceId: number }) => {
                         !foundUser &&
                         email.trim().length > 0 && (
                             <div
-                                className="opacity-50 w-full bg-background-overlay px-2 py-1
+                                className="opacity-50 w-full bg-surface-selected px-2 py-1
                                 rounded-lg text-xs mt-3 sm:mt-4"
                             >
                                 Enter the exact email address of the user you
@@ -137,13 +137,13 @@ const OwnerTab = ({ workspaceId }: { workspaceId: number }) => {
                                         className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover shrink-0"
                                     />
                                 ) : (
-                                    <RxAvatar className="w-7 h-7 sm:w-8 sm:h-8 text-text-secondary shrink-0" />
+                                    <RxAvatar className="w-7 h-7 sm:w-8 sm:h-8 text-fg-secondary shrink-0" />
                                 )}
                                 <div className="flex flex-col flex-1 min-w-0">
-                                    <span className="text-xs sm:text-sm text-text-primary truncate">
+                                    <span className="text-xs sm:text-sm text-fg truncate">
                                         {foundUser.name}
                                     </span>
-                                    <span className="text-xs text-text-secondary truncate">
+                                    <span className="text-xs text-fg-secondary truncate">
                                         {foundUser.email}
                                     </span>
                                 </div>

@@ -61,11 +61,11 @@ const GeneralTab = ({
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Workspace name"
                     className="w-64 px-2 py-1 text-xs sm:text-sm rounded-md
-                    bg-gray-950 outline-none text-white border-0"
+                    bg-surface-inset outline-none text-fg border-0"
                 />
                 <button
                     onClick={() => save(name)}
-                    className="px-3 py-1 text-xs sm:text-sm rounded-md bg-white text-black hover:opacity-90 transition cursor-pointer"
+                    className="px-3 py-1 text-xs sm:text-sm rounded-md bg-gold text-gold-fg hover:opacity-90 transition cursor-pointer"
                 >
                     {saveStatus === "saving"
                         ? "Saving..."
@@ -77,7 +77,7 @@ const GeneralTab = ({
             <div className="flex flex-col space-y-1 sm:space-y-2">
                 <div className="text-xs sm:text-sm">
                     <span className="opacity-50">Type: </span>
-                    <span className="text-text-secondary">
+                    <span className="text-fg-secondary">
                         {overview
                             ? overview.type === "personal"
                                 ? "Personal"
@@ -87,19 +87,19 @@ const GeneralTab = ({
                 </div>
                 <div className="text-xs sm:text-sm">
                     <span className="opacity-50">Members: </span>
-                    <span className="text-text-secondary">
+                    <span className="text-fg-secondary">
                         {overview ? overview.membersCount : "—"}
                     </span>
                 </div>
                 <div className="text-xs sm:text-sm">
                     <span className="opacity-50">Documents: </span>
-                    <span className="text-text-secondary">
+                    <span className="text-fg-secondary">
                         {overview ? overview.documentsCount : "—"}
                     </span>
                 </div>
                 <div className="text-xs sm:text-sm">
                     <span className="opacity-50">Owner: </span>
-                    <span className="text-text-secondary">
+                    <span className="text-fg-secondary">
                         {overview
                             ? `${overview.ownerName} (${overview.ownerEmail})`
                             : "—"}
@@ -107,7 +107,7 @@ const GeneralTab = ({
                 </div>
                 <div className="text-xs sm:text-sm">
                     <span className="opacity-50">Created on: </span>
-                    <span className="text-text-secondary">
+                    <span className="text-fg-secondary">
                         {overview
                             ? new Date(overview.createdAt).toLocaleDateString(
                                   "en-US",
@@ -125,7 +125,7 @@ const GeneralTab = ({
             {canLeave && (
                 <button
                     onClick={() => setIsConfirmOpen(true)}
-                    className="border-none bg-red-800 text-white text-xs sm:text-sm
+                    className="border-none bg-danger-solid text-danger-solid-fg text-xs sm:text-sm
             text-center rounded-lg px-3 py-1 mt-8 sm:mt-10 cursor-pointer
             hover:opacity-80 active:opacity-70 transition w-40"
                 >
