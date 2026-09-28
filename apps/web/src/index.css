@@ -1,4 +1,3 @@
-@import "@blocknote/core/fonts/inter.css";
 @import "@blocknote/mantine/style.css";
 
 /* shadcn/ui Neutral theme — dark mode (HSL). */
@@ -28,11 +27,10 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Body reset — preflight handles most resets, but some need explicit overrides. */
+/* Body reset — preflight handles most resets (including the Tailwind sans font), but some need explicit overrides. */
 body {
     margin: 0;
     padding: 0;
-    font-family: "Roboto", sans-serif;
 }
 
 /* Remove the vertical line BlockNote renders on the left of nested block groups */

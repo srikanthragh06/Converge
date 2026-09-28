@@ -21,9 +21,10 @@ export default {
     content: ["./index.html", "./src/**/*.{ts,tsx}"],
     theme: {
         extend: {
+            // UI text is Inter; display text (document title, headings, modal and page titles) is Newsreader.
             fontFamily: {
-                sans: ["'Roboto'", "sans-serif"],
-                montserrat: ["'Montserrat'", "sans-serif"],
+                sans: ["Inter", "sans-serif"],
+                serif: ["Newsreader", "Georgia", "serif"],
             },
             // Mirror src/theme/colors.ts so the same palette is available as Tailwind classes.
             colors: {
