@@ -12,16 +12,16 @@ const AuthCallbackPage = () => {
     return (
         <Page className="items-center justify-center">
             {authStatus === "PENDING" && (
-                <div className="text-text-secondary">
+                <div className="text-fg-secondary">
                     <span>Signing you in</span>
                     <AnimatedDots />
                 </div>
             )}
             {authStatus === "FAILED" && (
-                <div className="text-text-secondary">Sign in failed :(</div>
+                <div className="text-fg-secondary">Sign in failed :(</div>
             )}
             {authStatus === "SUCCESSFUL" && (
-                <div className="text-text-secondary">Sign in successful</div>
+                <div className="text-fg-secondary">Sign in successful</div>
             )}
         </Page>
     );

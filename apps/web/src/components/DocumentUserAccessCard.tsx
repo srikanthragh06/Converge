@@ -151,16 +151,16 @@ const DocumentUserAccessCard = ({
                     className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover shrink-0"
                 />
             ) : (
-                <RxAvatar className="w-7 h-7 sm:w-8 sm:h-8 text-text-secondary shrink-0" />
+                <RxAvatar className="w-7 h-7 sm:w-8 sm:h-8 text-fg-secondary shrink-0" />
             )}
             <div className="flex flex-col flex-1 min-w-0">
-                <span className="text-xs sm:text-sm text-text-primary truncate">
+                <span className="text-xs sm:text-sm text-fg truncate">
                     {name}
                 </span>
-                <span className="text-xs text-text-secondary truncate">
+                <span className="text-xs text-fg-secondary truncate">
                     {email}
                 </span>
-                <span className="text-xs text-text-secondary opacity-40 truncate">
+                <span className="text-xs text-fg-secondary opacity-40 truncate">
                     Falls back to: {ACCESS_LABELS[fallbackAccess]}
                 </span>
             </div>

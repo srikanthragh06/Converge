@@ -27,7 +27,7 @@ const AvatarHeader = () => {
             ) : (
                 <RxAvatar
                     onClick={() => setIsDropdownOpen((prev) => !prev)}
-                    className="sm:w-10 sm:h-10 h-8 w-8 text-text-secondary
+                    className="sm:w-10 sm:h-10 h-8 w-8 text-fg-secondary
                     cursor-pointer hover:opacity-80 transition"
                 />
             )}

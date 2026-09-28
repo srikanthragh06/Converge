@@ -39,7 +39,7 @@ const Page = ({
         return (
             <DelayedRender>
                 <div className="w-screen h-screen flex flex-col items-center justify-center">
-                    <div className="text-text-secondary">
+                    <div className="text-fg-secondary">
                         <span>
                             Authenticating
                             <AnimatedDots />

@@ -20,7 +20,7 @@ function App() {
     useThemeSync(); // keep <html data-theme> in sync with themeAtom
 
     return (
-        <div className="bg-background-base text-text-primary">
+        <div className="bg-surface text-fg">
             <Routes>
                 <Route path="/document/:documentId" element={<EditorPage />} />
                 <Route path="/library" element={<LibraryPage />} />

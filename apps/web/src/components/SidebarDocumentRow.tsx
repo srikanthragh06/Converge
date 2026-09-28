@@ -23,8 +23,8 @@ const SidebarDocumentRow = ({
     <div className="flex items-center gap-1">
         <button
             onClick={onOpen}
-            className="flex-1 min-w-0 flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover
-        rounded-md transition cursor-pointer text-text-primary"
+            className="flex-1 min-w-0 flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-surface-hover
+        rounded-md transition cursor-pointer text-fg"
             aria-label={doc.title}
         >
             <MdDescription
@@ -39,7 +39,7 @@ const SidebarDocumentRow = ({
         <button
             onClick={onTogglePin}
             aria-label={isPinned ? "Unpin document" : "Pin document"}
-            className="shrink-0 p-1 rounded-md hover:bg-background-hover transition cursor-pointer text-white opacity-40 hover:opacity-100"
+            className="shrink-0 p-1 rounded-md hover:bg-surface-hover transition cursor-pointer text-fg opacity-40 hover:opacity-100"
         >
             {isPinned ? (
                 <MdPushPin className="w-3 h-3" />

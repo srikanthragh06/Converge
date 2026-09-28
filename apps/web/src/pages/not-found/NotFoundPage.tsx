@@ -5,7 +5,7 @@ const NotFoundPage = () => {
     return (
         <Page className="items-center justify-center gap-4">
             <h1 className="text-4xl font-bold">404</h1>
-            <p className="text-text-secondary">Page not found</p>
+            <p className="text-fg-secondary">Page not found</p>
         </Page>
     );
 };

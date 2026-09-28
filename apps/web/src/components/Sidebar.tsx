@@ -67,14 +67,14 @@ const Sidebar = ({
     if (isOpen) {
         return (
             <div
-                className="sm:w-[300px] w-screen shrink-0 h-full border-r border-border md:p-2 p-1
+                className="sm:w-[300px] w-screen shrink-0 h-full border-r border-line md:p-2 p-1
             flex flex-col overflow-y-auto"
             >
                 {/* Collapse button — hides the panel down to the slim closed-state column */}
                 <div className="flex items-center justify-end">
                     <button
                         onClick={onToggle}
-                        className="p-1 rounded-md hover:bg-background-hover transition cursor-pointer"
+                        className="p-1 rounded-md hover:bg-surface-hover transition cursor-pointer"
                         aria-label="Close sidebar"
                     >
                         <MdKeyboardDoubleArrowLeft className="md:w-[20px] md:h-[20px] w-[20px] h-[20px]" />
@@ -92,7 +92,7 @@ const Sidebar = ({
                     )}
                     {user && (
                         <div className="flex flex-col items-start min-w-0 ml-2 sm:ml-3 w-full">
-                            <span className="text-text-primary text-sm sm:text-base font-medium truncate">
+                            <span className="text-fg text-sm sm:text-base font-medium truncate">
                                 {user.name}
                             </span>
                             <span className="opacity-40 text-xs sm:text-sm truncate">
@@ -109,7 +109,7 @@ const Sidebar = ({
                         </p>
                         <CiSettings
                             onClick={() => setIsConfigOpen(true)}
-                            className="w-4 h-4 sm:w-5 sm:h-5 text-white hover:opacity-80 transition cursor-pointer shrink-0"
+                            className="w-4 h-4 sm:w-5 sm:h-5 text-fg hover:opacity-80 transition cursor-pointer shrink-0"
                         />
                     </div>
 
@@ -147,7 +147,7 @@ const Sidebar = ({
                             closeOnMobile();
                         }}
                         disabled={isCreating}
-                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-surface-hover rounded-md transition cursor-pointer text-fg disabled:opacity-50 disabled:cursor-not-allowed"
                         aria-label="New Document"
                     >
                         <MdNoteAdd className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
@@ -160,7 +160,7 @@ const Sidebar = ({
                             navigate("/library");
                             closeOnMobile();
                         }}
-                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
+                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-surface-hover rounded-md transition cursor-pointer text-fg"
                         aria-label="Library"
                     >
                         <MdLibraryBooks className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
@@ -171,7 +171,7 @@ const Sidebar = ({
                             navigate("/workspaces");
                             closeOnMobile();
                         }}
-                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
+                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-surface-hover rounded-md transition cursor-pointer text-fg"
                         aria-label="Workspaces"
                     >
                         <MdWorkspaces className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
@@ -182,7 +182,7 @@ const Sidebar = ({
                             navigate("/api-keys");
                             closeOnMobile();
                         }}
-                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
+                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-surface-hover rounded-md transition cursor-pointer text-fg"
                         aria-label="API Keys"
                     >
                         <MdVpnKey className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
@@ -193,7 +193,7 @@ const Sidebar = ({
                             navigate("/mcp-docs");
                             closeOnMobile();
                         }}
-                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
+                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-surface-hover rounded-md transition cursor-pointer text-fg"
                         aria-label="MCP"
                     >
                         <VscMcp className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
@@ -204,7 +204,7 @@ const Sidebar = ({
                             navigate("/agent");
                             closeOnMobile();
                         }}
-                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
+                        className="flex justify-start items-center gap-2 text-left py-1 px-2 hover:bg-surface-hover rounded-md transition cursor-pointer text-fg"
                         aria-label="AI Agent"
                     >
                         <MdSmartToy className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
@@ -212,13 +212,13 @@ const Sidebar = ({
                     </button>
                     {isLogoutConfirming ? (
                         <div className="flex items-center gap-2 py-1 px-2 mt-2">
-                            <span className="text-sm sm:text-base text-text-primary">
+                            <span className="text-sm sm:text-base text-fg">
                                 Log out?
                             </span>
                             <button
                                 onClick={() => setIsLogoutConfirming(false)}
                                 aria-label="Cancel log out"
-                                className="text-xs sm:text-sm px-2 py-0.5 rounded-md hover:bg-background-hover transition cursor-pointer text-text-secondary"
+                                className="text-xs sm:text-sm px-2 py-0.5 rounded-md hover:bg-surface-hover transition cursor-pointer text-fg-secondary"
                             >
                                 Cancel
                             </button>
@@ -228,7 +228,7 @@ const Sidebar = ({
                                     closeOnMobile();
                                 }}
                                 aria-label="Confirm log out"
-                                className="text-xs sm:text-sm px-2 py-0.5 rounded-md bg-red-500/20 hover:bg-red-500/30 transition cursor-pointer text-red-400"
+                                className="text-xs sm:text-sm px-2 py-0.5 rounded-md bg-danger/15 hover:bg-danger/25 transition cursor-pointer text-danger"
                             >
                                 Confirm
                             </button>
@@ -236,7 +236,7 @@ const Sidebar = ({
                     ) : (
                         <button
                             onClick={() => setIsLogoutConfirming(true)}
-                            className="flex justify-start items-center gap-2 text-left py-1 px-2 mt-2 hover:bg-background-hover rounded-md transition cursor-pointer text-text-primary"
+                            className="flex justify-start items-center gap-2 text-left py-1 px-2 mt-2 hover:bg-surface-hover rounded-md transition cursor-pointer text-fg"
                             aria-label="Log out"
                         >
                             <MdLogout className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
@@ -308,11 +308,11 @@ const Sidebar = ({
     }
 
     return (
-        <div className="sm:w-14 w-10 shrink-0 h-full border-r border-border p-2">
+        <div className="sm:w-14 w-10 shrink-0 h-full border-r border-line p-2">
             <div className="flex items-center">
                 <button
                     onClick={onToggle}
-                    className="p-1 rounded-md hover:bg-background-hover transition cursor-pointer"
+                    className="p-1 rounded-md hover:bg-surface-hover transition cursor-pointer"
                     aria-label="Open sidebar"
                 >
                     <IoIosMenu className="md:w-[30px] md:h-[30px] w-[20px] h-[20px]" />

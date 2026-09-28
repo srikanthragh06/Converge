@@ -35,7 +35,7 @@ const AvatarDropdown = ({ onClose }: { onClose: () => void }) => {
         <div
             ref={panelRef}
             className="absolute right-0 top-full mt-2 w-56 sm:w-72 rounded-lg
-             bg-background-overlay z-50 overflow-hidden"
+             bg-surface-elevated z-50 overflow-hidden"
         >
             {/* Header row — avatar left, name and email right */}
             <div className="flex items-center justify-start px-3 sm:px-4 py-2 sm:py-3">
@@ -49,7 +49,7 @@ const AvatarDropdown = ({ onClose }: { onClose: () => void }) => {
                 )}
                 {user && (
                     <div className="flex flex-col items-start min-w-0 ml-2 sm:ml-3 w-full">
-                        <span className="text-text-primary text-sm sm:text-base font-medium truncate">
+                        <span className="text-fg text-sm sm:text-base font-medium truncate">
                             {user.name}
                         </span>
                         <span className="opacity-40 text-xs sm:text-sm truncate">
@@ -65,7 +65,7 @@ const AvatarDropdown = ({ onClose }: { onClose: () => void }) => {
                     navigate("/library");
                     onClose();
                 }}
-                className="w-full flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm transition cursor-pointer bg-transparent text-white border-none
+                className="w-full flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm transition cursor-pointer bg-transparent text-fg border-none
             hover:opacity-80 active:opacity-75"
             >
                 <IoLibraryOutline className="w-4 h-4 shrink-0" />
@@ -73,7 +73,7 @@ const AvatarDropdown = ({ onClose }: { onClose: () => void }) => {
             </button>
             <button
                 onClick={logout}
-                className="w-full flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm transition cursor-pointer bg-transparent text-white border-none
+                className="w-full flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm transition cursor-pointer bg-transparent text-fg border-none
             hover:opacity-80 active:opacity-75"
             >
                 <IoLogOutOutline className="w-4 h-4 shrink-0" />

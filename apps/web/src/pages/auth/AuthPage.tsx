@@ -47,12 +47,12 @@ const AuthPage = () => {
                 alt="Converge"
                 className="w-[360px] sm:w-[720px] ml-[120px] sm:ml-[200px]"
             />
-            <p className="sm:text-lg text-base text-center text-white max-w-[250px] sm:max-w-[800px]">
+            <p className="sm:text-lg text-base text-center text-fg max-w-[250px] sm:max-w-[800px]">
                 Sign in to get started
             </p>
             <button
                 className="flex items-center gap-3 px-5 py-3 rounded-lg cursor-pointer
-                            bg-white text-zinc-700 shadow-sm border border-zinc-200
+                            bg-surface-elevated text-fg shadow-sm border border-line-strong
                             hover:shadow-md transition-shadow duration-150"
                 onClick={handleSignInWithGoogle}
             >
