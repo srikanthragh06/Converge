@@ -36,6 +36,17 @@ export default {
             // Defaults for a bare `border` / `ring`, which otherwise come from the removed default palette.
             borderColor: { DEFAULT: tokenColors.line },
             ringColor: { DEFAULT: tokenColors.gold },
+            // Entrance animations for overlays and popups (components/ui).
+            keyframes: {
+                "fade-in": { from: { opacity: "0" } },
+                "modal-in": {
+                    from: { opacity: "0", transform: "translateY(4px) scale(0.98)" },
+                },
+            },
+            animation: {
+                "fade-in": "fade-in 150ms ease-out",
+                "modal-in": "modal-in 150ms ease-out",
+            },
         },
     },
     corePlugins: {

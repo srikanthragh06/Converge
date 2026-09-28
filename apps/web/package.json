@@ -17,6 +17,7 @@
         "@mantine/core": "^8.3.18",
         "@mantine/hooks": "^8.3.18",
         "@mantine/utils": "^6.0.22",
+        "@radix-ui/react-dialog": "^1.1.23",
         "@radix-ui/react-select": "^2.3.7",
         "@radix-ui/react-tooltip": "^1.2.16",
         "axios": "^1.14.0",
