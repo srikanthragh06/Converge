@@ -14,16 +14,20 @@ export const TooltipProvider = ({ children }: { children: ReactNode }) => (
  * Small inverted chip shown on hover or keyboard focus of its trigger.
  * Rendered in a portal, so it is never clipped by a scrolling parent.
  * @param content - what the tooltip shows (plain text or rich content)
+ * @param shortcut - keyboard hint shown dimmed after the content, e.g.
+ *                   `formatShortcut("J")` from lib/utils
  * @param side - which side of the trigger to open on (default "bottom")
  * @param children - the trigger; must be a single element that accepts a ref
  *                   and event props (a DOM element or a component that forwards them)
  */
 const Tooltip = ({
     content,
+    shortcut,
     side = "bottom",
     children,
 }: {
     content: ReactNode;
+    shortcut?: string;
     side?: "top" | "right" | "bottom" | "left";
     children: ReactElement;
 }) => (
@@ -34,9 +38,14 @@ const Tooltip = ({
                 side={side}
                 sideOffset={6}
                 collisionPadding={8}
-                className="z-[70] max-w-xs rounded-md bg-tooltip px-2 py-1 text-xs text-tooltip-fg shadow-md"
+                className="z-[70] flex max-w-xs animate-fade-in items-center gap-2 rounded-md bg-tooltip px-2 py-1 text-xs font-medium text-tooltip-fg shadow-md shadow-shadow"
             >
-                {content}
+                <span className="min-w-0">{content}</span>
+                {shortcut && (
+                    <kbd className="shrink-0 font-sans font-normal text-tooltip-fg/60">
+                        {shortcut}
+                    </kbd>
+                )}
             </TooltipPrimitive.Content>
         </TooltipPrimitive.Portal>
     </TooltipPrimitive.Root>
