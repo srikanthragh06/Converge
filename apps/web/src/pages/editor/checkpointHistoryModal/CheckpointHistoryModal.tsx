@@ -60,12 +60,12 @@ const CheckpointHistoryModal = ({
         <>
             {/* Backdrop — click outside the panel to close */}
             <div
-                className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+                className="fixed inset-0 z-50 flex items-center justify-center bg-overlay"
                 onClick={onClose}
             >
                 {/* Panel — stop backdrop-click from propagating */}
                 <div
-                    className="bg-background-base w-full sm:max-w-4xl sm:mx-4
+                    className="bg-surface w-full sm:max-w-4xl sm:mx-4
                     rounded-xl
                     h-[80dvh] sm:h-[70vh]
                     flex flex-col overflow-hidden"
@@ -76,11 +76,11 @@ const CheckpointHistoryModal = ({
                             minimized. Reopens the list, same pattern as Sidebar's own
                             collapsed state (a slim column with just a menu button). */}
                         {isListCollapsed && (
-                            <div className="sm:hidden w-10 shrink-0 border-r border-background-elevated p-2">
+                            <div className="sm:hidden w-10 shrink-0 border-r border-line p-2">
                                 <button
                                     onClick={() => setIsListCollapsed(false)}
                                     aria-label="Open checkpoint list"
-                                    className="p-1 rounded-md hover:bg-background-hover transition cursor-pointer border-none bg-transparent text-text-primary"
+                                    className="p-1 rounded-md hover:bg-surface-hover transition cursor-pointer border-none bg-transparent text-fg"
                                 >
                                     <IoIosMenu className="w-5 h-5" />
                                 </button>
@@ -88,17 +88,17 @@ const CheckpointHistoryModal = ({
                         )}
                         {/* Left: checkpoint list — full width and collapsible on mobile, fixed-width and always visible on sm+ */}
                         <div
-                            className={`${isListCollapsed ? "hidden" : "flex w-full"} sm:flex sm:w-[260px] shrink-0 border-r border-background-elevated flex-col min-h-0`}
+                            className={`${isListCollapsed ? "hidden" : "flex w-full"} sm:flex sm:w-[260px] shrink-0 border-r border-line flex-col min-h-0`}
                         >
-                            <div className="flex items-center justify-between px-3 py-2.5 shrink-0 border-b border-background-elevated">
-                                <p className="text-sm font-medium text-text-primary">
+                            <div className="flex items-center justify-between px-3 py-2.5 shrink-0 border-b border-line">
+                                <p className="text-sm font-medium text-fg">
                                     Checkpoints
                                 </p>
                                 {/* Minimize button — mobile only, collapses the list to reveal the right side */}
                                 <button
                                     onClick={() => setIsListCollapsed(true)}
                                     aria-label="Minimize checkpoint list"
-                                    className="sm:hidden p-1 rounded-md hover:bg-background-hover transition cursor-pointer border-none bg-transparent text-text-primary"
+                                    className="sm:hidden p-1 rounded-md hover:bg-surface-hover transition cursor-pointer border-none bg-transparent text-fg"
                                 >
                                     <MdKeyboardDoubleArrowLeft className="w-5 h-5" />
                                 </button>
@@ -121,7 +121,7 @@ const CheckpointHistoryModal = ({
                                     </div>
                                 </DelayedRender>
                             ) : checkpoints.length === 0 ? (
-                                <div className="flex-1 flex items-center justify-center text-text-disabled text-sm">
+                                <div className="flex-1 flex items-center justify-center text-fg-muted text-sm">
                                     No checkpoints
                                 </div>
                             ) : (
@@ -174,7 +174,7 @@ const CheckpointHistoryModal = ({
                             className={`${isListCollapsed ? "flex" : "hidden"} sm:flex flex-1 min-h-0 min-w-0 flex-col`}
                         >
                             {selectedCheckpoint === null ? (
-                                <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">
+                                <div className="flex-1 flex items-center justify-center text-fg-secondary text-sm">
                                     Select a checkpoint to view its diff.
                                 </div>
                             ) : (

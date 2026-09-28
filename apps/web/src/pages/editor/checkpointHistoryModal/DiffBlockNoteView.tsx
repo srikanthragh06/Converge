@@ -2,14 +2,13 @@ import { useMemo } from "react";
 import { BlockNoteEditor } from "@blocknote/core";
 import { BlockNoteView } from "@blocknote/mantine";
 import { convergeTheme } from "../../../theme/editorTheme";
-import { colors } from "../../../theme/colors";
 import { editorSchema } from "@converge/shared";
 import type { UnifiedBlockEntry } from "../../../utils/checkpointDiffUtils";
 
-/** Background tint applied to added/removed rows; unchanged rows get no tint. */
+/** Background tint applied to added/removed rows (theme variables, so it follows the active theme); unchanged rows get no tint. */
 const STATUS_COLORS: Record<"added" | "removed", string> = {
-    added: colors.highlights.green.background,
-    removed: colors.highlights.red.background,
+    added: "rgb(var(--diff-added))",
+    removed: "rgb(var(--diff-removed))",
 };
 
 /**

@@ -33,12 +33,12 @@ const DocumentSwitcherOverlay = ({
     return (
         // Backdrop — click outside the modal to close
         <div
-            className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/50"
+            className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-overlay"
             onClick={onClose}
         >
             {/* Modal panel — stop clicks from bubbling to the backdrop */}
             <div
-                className="bg-background-elevated rounded-lg w-full max-w-xl mx-4 flex flex-col overflow-hidden"
+                className="bg-surface-elevated rounded-lg w-full max-w-xl mx-4 flex flex-col overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Search input */}
@@ -49,8 +49,8 @@ const DocumentSwitcherOverlay = ({
                     onChange={(e) => setSearchText(e.target.value)}
                     placeholder="Search documents..."
                     className="w-full px-3 py-2 sm:text-sm text-xs rounded-md
-                        bg-background-base
-                        outline-none text-white border-0 border-b border-none"
+                        bg-surface
+                        outline-none text-fg border-0 border-b border-none"
                 />
 
                 {/* Results list */}
@@ -68,7 +68,7 @@ const DocumentSwitcherOverlay = ({
                             </div>
                         </DelayedRender>
                     ) : documents.length === 0 ? (
-                        <p className="text-text-disabled text-sm text-center py-4">
+                        <p className="text-fg-muted text-sm text-center py-4">
                             No documents found.
                         </p>
                     ) : (
@@ -76,17 +76,17 @@ const DocumentSwitcherOverlay = ({
                             <div
                                 key={doc.id}
                                 onClick={() => handleDocumentClick(doc.id)}
-                                className="group bg-background-base flex flex-col gap-1 px-4 py-2 cursor-pointer"
+                                className="group bg-surface flex flex-col gap-1 px-4 py-2 cursor-pointer"
                             >
                                 <div
                                     className={`flex flex-col gap-1 transition group-hover:opacity-100 group-active:opacity-60 ${focusedIndex === i ? "opacity-90" : "opacity-50"}`}
                                 >
                                     <span
-                                        className={`text-white text-sm font-medium truncate ${!doc.title && "opacity-20"}`}
+                                        className={`text-fg text-sm font-medium truncate ${!doc.title && "opacity-20"}`}
                                     >
                                         {doc.title || "Untitled"}
                                     </span>
-                                    <span className="text-text-disabled text-xs truncate">
+                                    <span className="text-fg-muted text-xs truncate">
                                         {[
                                             formatAccessLevel(doc.access),
                                             `Last visited ${timeAgo(doc.lastVisitedAt || "")}`,

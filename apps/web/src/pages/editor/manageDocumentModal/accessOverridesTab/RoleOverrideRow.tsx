@@ -57,7 +57,7 @@ const RoleOverrideRow = ({
 
     return (
         <div className="flex items-center justify-between py-2.5">
-            <span className="text-sm text-text-secondary">{label}</span>
+            <span className="text-sm text-fg-secondary">{label}</span>
             <Select
                 value={value ?? "__default__"}
                 options={options}

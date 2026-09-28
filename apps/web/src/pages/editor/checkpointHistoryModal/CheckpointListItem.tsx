@@ -57,19 +57,19 @@ const CheckpointListItem = ({
     return (
         <div
             onClick={onSelect}
-            className={`px-3 py-2.5 border-b border-background-elevated
+            className={`px-3 py-2.5 border-b border-line
         cursor-pointer transition ${
             isSelected
-                ? "bg-background-elevated"
+                ? "bg-surface-selected"
                 : "hover:opacity-80 active:opacity-60"
         }`}
         >
             {/* Row 1: last-edited time (left) and Manual/Auto/"Before AI edit" source label (right) */}
             <div className="flex items-center justify-between text-xs">
-                <span className="text-text-secondary">
+                <span className="text-fg-secondary">
                     {formatDate(checkpoint.lastEditedAt)}
                 </span>
-                <span className="text-text-secondary opacity-60">
+                <span className="text-fg-secondary opacity-60">
                     {checkpoint.source === "manual"
                         ? "Manual"
                         : checkpoint.source === "mcp"
@@ -96,7 +96,7 @@ const CheckpointListItem = ({
                             ))}
                         </AvatarGroup>
                     </Tooltip>
-                    <span className="text-xs text-text-secondary truncate">
+                    <span className="text-xs text-fg-secondary truncate">
                         {formatContributorNames(names)}
                     </span>
                 </div>

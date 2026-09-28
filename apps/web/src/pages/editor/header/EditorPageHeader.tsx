@@ -83,13 +83,13 @@ const EditorPageHeader = ({
 
     return (
         <>
-            <div className="sticky top-0 z-50 bg-background-base flex justify-between items-center gap-4 sm:px-8 px-2 py-2">
+            <div className="sticky top-0 z-50 bg-surface flex justify-between items-center gap-4 sm:px-8 px-2 py-2">
                 {/* Workspace › document breadcrumb — flex-1 min-w-0 so this segment shrinks
                     before the avatar/status/button group on the right. Workspace name and
                     title are each their own truncate min-w-0 span (not flex containers) so
                     they ellipsis independently instead of overflowing the header. */}
                 {workspaceName && (
-                    <span className="hidden sm:flex items-center gap-1.5 text-white sm:text-sm opacity-90 min-w-0 flex-1">
+                    <span className="hidden sm:flex items-center gap-1.5 text-fg sm:text-sm opacity-90 min-w-0 flex-1">
                         <MdOutlineWorkspaces className="shrink-0 opacity-60" />
                         <span className="truncate min-w-0">
                             {workspaceName}
@@ -148,7 +148,7 @@ const EditorPageHeader = ({
                     )}
                     {documentStatus === "ready" && statusLabel && (
                         <span
-                            className="text-text-secondary sm:text-sm text-xs opacity-40
+                            className="text-fg-secondary sm:text-sm text-xs opacity-40
                                         hidden sm:block"
                         >
                             {statusLabel}
@@ -175,7 +175,7 @@ const EditorPageHeader = ({
                                 <button
                                     onClick={onToggleWriteLock}
                                     aria-pressed={isWriteLocked}
-                                    className={`transition cursor-pointer border-none bg-transparent text-white ${
+                                    className={`transition cursor-pointer border-none bg-transparent text-fg ${
                                         isWriteLocked
                                             ? "opacity-100"
                                             : "opacity-70 hover:opacity-100"
@@ -201,7 +201,7 @@ const EditorPageHeader = ({
                                 <button
                                     onClick={createCheckpoint}
                                     disabled={createCheckpointStatus !== "idle"}
-                                    className="text-white opacity-70 hover:opacity-100 transition cursor-pointer border-none bg-transparent disabled:cursor-default disabled:hover:opacity-70"
+                                    className="text-fg opacity-70 hover:opacity-100 transition cursor-pointer border-none bg-transparent disabled:cursor-default disabled:hover:opacity-70"
                                 >
                                     {createCheckpointStatus === "loading" ? (
                                         <AiOutlineLoading3Quarters className="sm:w-4 sm:h-4 w-4 h-4 animate-spin" />
@@ -223,7 +223,7 @@ const EditorPageHeader = ({
                                     onClick={() =>
                                         setIsCheckpointHistoryModalOpen(true)
                                     }
-                                    className="text-white opacity-70 hover:opacity-100 transition cursor-pointer border-none bg-transparent"
+                                    className="text-fg opacity-70 hover:opacity-100 transition cursor-pointer border-none bg-transparent"
                                 >
                                     <FaHistory className="sm:w-4 sm:h-4 w-4 h-4" />
                                 </button>
@@ -234,7 +234,7 @@ const EditorPageHeader = ({
                             <Tooltip content="Document Settings">
                                 <button
                                     onClick={() => setIsManageModalOpen(true)}
-                                    className="text-white opacity-70 hover:opacity-100 transition cursor-pointer border-none bg-transparent"
+                                    className="text-fg opacity-70 hover:opacity-100 transition cursor-pointer border-none bg-transparent"
                                 >
                                     <FaCog className="sm:w-4 sm:h-4 w-4 h-4" />
                                 </button>

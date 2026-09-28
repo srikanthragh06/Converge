@@ -10,7 +10,6 @@ import useCheckpointDiff from "../../../hooks/useCheckpointDiff";
 import useRestoreCheckpoint from "../../../hooks/useRestoreCheckpoint";
 import type { EditorInstance } from "../../../utils/checkpointDiffUtils";
 import DiffBlockNoteView from "./DiffBlockNoteView";
-import { colors } from "../../../theme/colors";
 
 /** Which two document states to diff against each other. */
 type DiffType = "selectedVsCurrent" | "previousVsSelected";
@@ -80,7 +79,7 @@ const CheckpointDiffView = ({
     return (
         <div className="flex flex-col h-full min-h-0">
             {/* Comparison-mode toggle and the current change count */}
-            <div className="flex flex-col gap-1.5 px-3 py-2.5 shrink-0 border-b border-background-elevated">
+            <div className="flex flex-col gap-1.5 px-3 py-2.5 shrink-0 border-b border-line">
                 <div className="flex flex-col sm:flex-row sm:flex-wrap gap-1">
                     <button
                         onClick={() => setDiffType("previousVsSelected")}
@@ -88,8 +87,8 @@ const CheckpointDiffView = ({
                         className={`w-full sm:w-auto px-2 py-1.5 sm:py-1 text-xs rounded-md border-none cursor-pointer transition disabled:cursor-default disabled:opacity-40
                             ${
                                 diffType === "previousVsSelected"
-                                    ? "bg-background-elevated text-text-primary"
-                                    : "bg-transparent text-text-secondary hover:opacity-80"
+                                    ? "bg-surface-selected text-fg"
+                                    : "bg-transparent text-fg-secondary hover:opacity-80"
                             }`}
                     >
                         Prev. Checkpoint vs Curr. Checkpoint
@@ -99,8 +98,8 @@ const CheckpointDiffView = ({
                         className={`w-full sm:w-auto px-2 py-1.5 sm:py-1 text-xs rounded-md border-none cursor-pointer transition
                             ${
                                 diffType === "selectedVsCurrent"
-                                    ? "bg-background-elevated text-text-primary"
-                                    : "bg-transparent text-text-secondary hover:opacity-80"
+                                    ? "bg-surface-selected text-fg"
+                                    : "bg-transparent text-fg-secondary hover:opacity-80"
                             }`}
                     >
                         Curr. Checkpoint vs Curr. Document
@@ -108,10 +107,10 @@ const CheckpointDiffView = ({
                 </div>
                 {!isLoading && (
                     <span className="text-xs self-start sm:self-end shrink-0 whitespace-nowrap">
-                        <span style={{ color: colors.highlights.green.text }}>
+                        <span className="text-diff-added-fg">
                             +{addedCount}
                         </span>{" "}
-                        <span style={{ color: colors.highlights.red.text }}>
+                        <span className="text-diff-removed-fg">
                             -{removedCount}
                         </span>
                     </span>
@@ -119,11 +118,11 @@ const CheckpointDiffView = ({
             </div>
             {/* Diff content — loading state, empty state, or the rendered diff blocks */}
             {isLoading ? (
-                <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">
+                <div className="flex-1 flex items-center justify-center text-fg-secondary text-sm">
                     Loading…
                 </div>
             ) : entries.length === 0 ? (
-                <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">
+                <div className="flex-1 flex items-center justify-center text-fg-secondary text-sm">
                     No changes.
                 </div>
             ) : (
@@ -134,10 +133,10 @@ const CheckpointDiffView = ({
                 inline confirm step, so restoring (which overwrites the live
                 document) always requires a deliberate second click. */}
             {isEditable && (
-                <div className="shrink-0 border-t border-background-elevated px-3 py-2.5">
+                <div className="shrink-0 border-t border-line px-3 py-2.5">
                     {isConfirmingRestore ? (
                         <div className="flex flex-col gap-2">
-                            <p className="text-xs text-text-secondary">
+                            <p className="text-xs text-fg-secondary">
                                 Restore the document to this checkpoint? This
                                 will overwrite the current content.
                             </p>
@@ -150,7 +149,7 @@ const CheckpointDiffView = ({
                                         restoreStatus === "loading" ||
                                         restoreStatus === "success"
                                     }
-                                    className="flex-1 px-2 py-1.5 text-xs rounded-md border-none cursor-pointer transition bg-transparent text-text-secondary hover:opacity-80 disabled:cursor-default disabled:opacity-40"
+                                    className="flex-1 px-2 py-1.5 text-xs rounded-md border-none cursor-pointer transition bg-transparent text-fg-secondary hover:opacity-80 disabled:cursor-default disabled:opacity-40"
                                 >
                                     Cancel
                                 </button>
@@ -161,7 +160,7 @@ const CheckpointDiffView = ({
                                         )
                                     }
                                     disabled={restoreStatus === "loading"}
-                                    className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs rounded-md border-none cursor-pointer transition bg-white text-black hover:opacity-90 active:opacity-80 disabled:cursor-default disabled:opacity-60"
+                                    className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs rounded-md border-none cursor-pointer transition bg-gold text-gold-fg hover:opacity-90 active:opacity-80 disabled:cursor-default disabled:opacity-60"
                                 >
                                     {restoreStatus === "loading" ? (
                                         <AiOutlineLoading3Quarters className="w-3.5 h-3.5 animate-spin" />
@@ -182,7 +181,7 @@ const CheckpointDiffView = ({
                         <button
                             onClick={() => setIsConfirmingRestore(true)}
                             className="sm:w-1/2 w-full m-auto flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs
-                            rounded-md border-none cursor-pointer transition bg-white text-black
+                            rounded-md border-none cursor-pointer transition bg-gold text-gold-fg
                             hover:opacity-90 active:opacity-80"
                         >
                             <MdOutlineRestore className="w-3.5 h-3.5" />

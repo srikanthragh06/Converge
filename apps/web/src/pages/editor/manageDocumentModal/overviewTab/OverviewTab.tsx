@@ -57,14 +57,14 @@ const OverviewTab = ({
                 <div className="text-xs sm:text-sm">
                     <span className="opacity-50">Title: </span>
                     <span
-                        className={`text-text-secondary ${!overview?.title && "opacity-50"}`}
+                        className={`text-fg-secondary ${!overview?.title && "opacity-50"}`}
                     >
                         {overview?.title || "Untitled"}
                     </span>
                 </div>
                 <div className="text-xs sm:text-sm">
                     <span className="opacity-50">Owner: </span>
-                    <span className="text-text-secondary">
+                    <span className="text-fg-secondary">
                         {overview
                             ? `${overview.ownerName} (${overview.ownerEmail})`
                             : "—"}
@@ -72,7 +72,7 @@ const OverviewTab = ({
                 </div>
                 <div className="text-xs sm:text-sm">
                     <span className="opacity-50">Creator: </span>
-                    <span className="text-text-secondary">
+                    <span className="text-fg-secondary">
                         {overview
                             ? `${overview.creatorName} (${overview.creatorEmail})`
                             : "—"}
@@ -80,13 +80,13 @@ const OverviewTab = ({
                 </div>
                 <div className="text-xs sm:text-sm">
                     <span className="opacity-50">Created on: </span>
-                    <span className="text-text-secondary">
+                    <span className="text-fg-secondary">
                         {overview ? formatDate(overview.createdAt) : "—"}
                     </span>
                 </div>
                 <div className="text-xs sm:text-sm">
                     <span className="opacity-50">Search indexing: </span>
-                    <span className="text-text-secondary">
+                    <span className="text-fg-secondary">
                         {overview
                             ? indexingStatusLabel[overview.indexingStatus]
                             : "—"}
@@ -94,7 +94,7 @@ const OverviewTab = ({
                 </div>
                 <div className="text-xs sm:text-sm">
                     <span className="opacity-50">Last indexed: </span>
-                    <span className="text-text-secondary">
+                    <span className="text-fg-secondary">
                         {overview
                             ? overview.lastIndexedAt
                                 ? timeAgo(overview.lastIndexedAt)
@@ -107,7 +107,7 @@ const OverviewTab = ({
             {canDelete && (
                 <button
                     onClick={() => setIsDeleteDocumentConfirmOpen(true)}
-                    className="border-none bg-red-700 text-white w-[150px] text-xs sm:text-sm mt-8 sm:mt-10
+                    className="border-none bg-danger-solid text-danger-solid-fg w-[150px] text-xs sm:text-sm mt-8 sm:mt-10
                                                         text-center rounded-lg px-3 py-1 cursor-pointer hover:opacity-80 active:opacity-70 transition"
                 >
                     Delete Document

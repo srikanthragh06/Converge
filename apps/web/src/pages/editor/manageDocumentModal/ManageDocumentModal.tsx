@@ -21,12 +21,12 @@ const ManageDocumentModal = ({
         <>
             {/* Backdrop — click outside the panel to close */}
             <div
-                className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+                className="fixed inset-0 z-50 flex items-center justify-center bg-overlay"
                 onClick={onClose}
             >
                 {/* Panel — stop backdrop-click from propagating */}
                 <div
-                    className="bg-background-base w-full sm:max-w-4xl sm:mx-4
+                    className="bg-surface w-full sm:max-w-4xl sm:mx-4
                     rounded-xl
                     h-[80dvh] sm:h-[70vh]
                     flex flex-col overflow-hidden"
@@ -42,16 +42,16 @@ const ManageDocumentModal = ({
                                 <button
                                     key={key}
                                     onClick={() => setSelectedTab(key)}
-                                    className={`shrink-0 text-text-secondary text-sm sm:pl-3 sm:pr-6 px-2 py-2 cursor-pointer
+                                    className={`shrink-0 text-fg-secondary text-sm sm:pl-3 sm:pr-6 px-2 py-2 cursor-pointer
                                     border-none text-start rounded-lg transition
-                                    ${selectedTab === key ? "bg-background-elevated" : "bg-transparent hover:opacity-80 active:opacity-75"}`}
+                                    ${selectedTab === key ? "bg-surface-selected" : "bg-transparent hover:opacity-80 active:opacity-75"}`}
                                 >
                                     {label}
                                 </button>
                             ))}
                         </div>
-                        <div className="h-[1px] w-full sm:h-auto sm:w-[1px] bg-background-elevated shrink-0" />
-                        <div className="flex-1 min-h-0 bg-background-base flex flex-col px-4 py-3 sm:px-6 sm:py-5">
+                        <div className="h-[1px] w-full sm:h-auto sm:w-[1px] bg-line shrink-0" />
+                        <div className="flex-1 min-h-0 bg-surface flex flex-col px-4 py-3 sm:px-6 sm:py-5">
                             {selectedTab === "overview" && (
                                 <OverviewTab
                                     documentId={documentId}

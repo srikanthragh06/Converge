@@ -64,7 +64,7 @@ const EditorPage = () => {
             {/* Forbidden state — shown when the user lacks access to this document */}
             {documentStatus === "forbidden" && (
                 <div className="flex-1 w-full flex justify-center items-center">
-                    <p className="text-text-secondary">
+                    <p className="text-fg-secondary">
                         You don&apos;t have access to this document.
                     </p>
                 </div>
@@ -97,8 +97,8 @@ const EditorPage = () => {
                                 disabled={!canWrite}
                                 className={`mx-2 w-full max-w-5xl min-w-0
                                     bg-transparent border-none outline-none
-                                    text-text-primary font-bold sm:text-4xl text-2xl
-                                    placeholder-text-disabled transition-opacity duration-200
+                                    text-fg font-bold sm:text-4xl text-2xl
+                                    placeholder-fg-muted transition-opacity duration-200
                                     disabled:cursor-default
                                     ${isTitlePending ? "opacity-50" : "opacity-100"}`}
                             />

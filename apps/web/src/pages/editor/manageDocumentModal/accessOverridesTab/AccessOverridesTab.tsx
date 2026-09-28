@@ -92,7 +92,7 @@ const AccessOverridesTab = ({
             ) : null}
 
             {/* Divider between role and user sections */}
-            <div className="h-[1px] bg-background-elevated shrink-0 my-3 sm:my-4" />
+            <div className="h-[1px] bg-line shrink-0 my-3 sm:my-4" />
 
             {/* ── Section 2: User Overrides ──────────────────────────── */}
             <input
@@ -100,8 +100,8 @@ const AccessOverridesTab = ({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={canManage ? "Add access by email" : "Search users"}
-                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-background-elevated
-                text-sm text-white focus:outline-none border-none shrink-0"
+                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-surface-elevated
+                text-sm text-fg focus:outline-none border-none shrink-0"
             />
 
             {canManage && isFindNewUserLoading && (
@@ -113,7 +113,7 @@ const AccessOverridesTab = ({
                 !isFindNewUserLoading &&
                 isFindNewUserConflict &&
                 email.trim().length > 0 && (
-                    <div className="opacity-50 w-full bg-background-overlay px-2 py-1 rounded-lg text-xs mt-3 sm:mt-4 shrink-0">
+                    <div className="opacity-50 w-full bg-surface-selected px-2 py-1 rounded-lg text-xs mt-3 sm:mt-4 shrink-0">
                         {email} is already the owner or has access assigned.
                     </div>
                 )}
@@ -122,7 +122,7 @@ const AccessOverridesTab = ({
                 !isFindNewUserConflict &&
                 !foundUser &&
                 email.trim().length > 0 && (
-                    <div className="opacity-50 w-full bg-background-overlay px-2 py-1 rounded-lg text-xs mt-3 sm:mt-4 shrink-0">
+                    <div className="opacity-50 w-full bg-surface-selected px-2 py-1 rounded-lg text-xs mt-3 sm:mt-4 shrink-0">
                         Enter the exact email address of the person you want to
                         share access with.
                     </div>
