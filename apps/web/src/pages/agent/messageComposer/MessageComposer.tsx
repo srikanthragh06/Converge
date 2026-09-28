@@ -32,7 +32,7 @@ const MessageComposer = ({
 
     return (
         // Draft input + send button
-        <div className="shrink-0 flex items-end gap-2 border-t border-border px-3 sm:px-6 py-3">
+        <div className="shrink-0 flex items-end gap-2 border-t border-line px-3 sm:px-6 py-3">
             <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
@@ -52,15 +52,15 @@ const MessageComposer = ({
                 rows={1}
                 placeholder="Message the agent…"
                 className="flex-1 min-w-0 resize-none px-3 py-2 text-sm sm:text-base rounded-md
-                    bg-background-base outline-none text-text-primary border border-border/70
-                    focus:border-white/30 transition placeholder:text-text-disabled
+                    bg-surface outline-none text-fg border border-line-strong
+                    focus:border-gold transition placeholder:text-fg-muted
                     disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <button
                 onClick={handleSend}
                 disabled={disabled || !content.trim()}
                 aria-label="Send message"
-                className="shrink-0 p-2 rounded-md bg-accent-blue text-text-white
+                className="shrink-0 p-2 rounded-md bg-gold text-gold-fg
                     hover:opacity-80 active:opacity-70 transition cursor-pointer
                     disabled:opacity-40 disabled:cursor-not-allowed"
             >

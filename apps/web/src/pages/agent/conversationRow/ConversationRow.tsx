@@ -53,7 +53,7 @@ const ConversationRow = ({
     return (
         <div
             className={`flex items-center rounded-md transition ${
-                isSelected ? "bg-accent-blue" : "hover:bg-background-hover"
+                isSelected ? "bg-surface-selected" : "hover:bg-surface-hover"
             }`}
         >
             {isEditing ? (
@@ -69,8 +69,8 @@ const ConversationRow = ({
                             if (e.key === "Escape") cancelEdit();
                         }}
                         onBlur={cancelEdit}
-                        className="flex-1 min-w-0 text-sm sm:text-base bg-background-hover
-                            text-text-primary rounded-md px-2 py-1 outline-none border-none"
+                        className="flex-1 min-w-0 text-sm sm:text-base bg-surface-hover
+                            text-fg rounded-md px-2 py-1 outline-none border-none"
                     />
                     <button
                         // Keeps the input focused on mousedown so this click never fires the
@@ -79,7 +79,7 @@ const ConversationRow = ({
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => void saveEdit()}
                         aria-label="Save title"
-                        className="shrink-0 p-1 rounded-full bg-background-hover text-highlights-green-text
+                        className="shrink-0 p-1 rounded-full bg-surface-hover text-success
                             hover:opacity-80 cursor-pointer"
                     >
                         <MdCheck className="w-4 h-4" />
@@ -88,8 +88,8 @@ const ConversationRow = ({
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={cancelEdit}
                         aria-label="Cancel rename"
-                        className="shrink-0 p-1 rounded-full bg-background-hover text-text-secondary
-                            hover:text-text-primary cursor-pointer"
+                        className="shrink-0 p-1 rounded-full bg-surface-hover text-fg-secondary
+                            hover:text-fg cursor-pointer"
                     >
                         <MdClose className="w-4 h-4" />
                     </button>
@@ -99,9 +99,7 @@ const ConversationRow = ({
                     {/* Selectable label — title, or the formatted creation date when untitled */}
                     <button
                         onClick={onSelect}
-                        className={`flex-1 min-w-0 text-left px-3 py-2 text-sm sm:text-base truncate cursor-pointer ${
-                            isSelected ? "text-text-white" : "text-text-primary"
-                        }`}
+                        className="flex-1 min-w-0 text-left px-3 py-2 text-sm sm:text-base truncate cursor-pointer text-fg"
                     >
                         {conversation.title ?? formatDate(conversation.createdAt)}
                     </button>
@@ -115,8 +113,8 @@ const ConversationRow = ({
                             aria-label="Rename conversation"
                             className={`p-1 rounded cursor-pointer ${
                                 isSelected
-                                    ? "text-text-white hover:opacity-80"
-                                    : "text-text-secondary hover:text-text-primary"
+                                    ? "text-fg hover:opacity-80"
+                                    : "text-fg-secondary hover:text-fg"
                             }`}
                         >
                             <MdEdit className="w-4 h-4" />
@@ -129,8 +127,8 @@ const ConversationRow = ({
                             aria-label="Delete conversation"
                             className={`p-1 rounded cursor-pointer ${
                                 isSelected
-                                    ? "text-text-white hover:opacity-80"
-                                    : "text-text-secondary hover:text-text-primary"
+                                    ? "text-fg hover:opacity-80"
+                                    : "text-fg-secondary hover:text-fg"
                             }`}
                         >
                             <MdDeleteOutline className="w-4 h-4" />

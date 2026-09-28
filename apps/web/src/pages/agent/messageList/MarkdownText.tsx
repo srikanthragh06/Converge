@@ -20,7 +20,7 @@ const MarkdownText = ({ text }: { text: string }) => (
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-accent-blue underline hover:no-underline break-words"
+                    className="text-gold underline hover:no-underline break-words"
                 >
                     {children}
                 </a>
@@ -33,7 +33,7 @@ const MarkdownText = ({ text }: { text: string }) => (
             ),
             li: ({ children }) => <li className="leading-snug">{children}</li>,
             blockquote: ({ children }) => (
-                <blockquote className="border-l-2 border-border pl-3 text-text-secondary italic">
+                <blockquote className="border-l-2 border-line pl-3 text-fg-secondary italic">
                     {children}
                 </blockquote>
             ),
@@ -46,14 +46,14 @@ const MarkdownText = ({ text }: { text: string }) => (
             h3: ({ children }) => (
                 <h3 className="text-sm font-medium mt-1">{children}</h3>
             ),
-            hr: () => <hr className="border-border" />,
+            hr: () => <hr className="border-line" />,
             code: ({ children }) => (
-                <code className="bg-background-overlay rounded px-1 py-0.5 text-xs font-mono break-words">
+                <code className="bg-surface-track rounded px-1 py-0.5 text-xs font-mono break-words">
                     {children}
                 </code>
             ),
             pre: ({ children }) => (
-                <pre className="bg-background-overlay rounded-md p-2 overflow-x-auto text-xs font-mono">
+                <pre className="bg-surface-track rounded-md p-2 overflow-x-auto text-xs font-mono">
                     {children}
                 </pre>
             ),
@@ -63,12 +63,12 @@ const MarkdownText = ({ text }: { text: string }) => (
                 </div>
             ),
             th: ({ children }) => (
-                <th className="border border-border px-2 py-1 text-left font-medium">
+                <th className="border border-line px-2 py-1 text-left font-medium">
                     {children}
                 </th>
             ),
             td: ({ children }) => (
-                <td className="border border-border px-2 py-1">{children}</td>
+                <td className="border border-line px-2 py-1">{children}</td>
             ),
         }}
     >

@@ -6,7 +6,7 @@ import MarkdownText from "./MarkdownText";
 /** A single user message bubble, right-aligned. Renders plain text — see MarkdownText's doc comment for why user content isn't formatted as Markdown. */
 const UserBubble = ({ content }: { content: string }) => (
     <div className="flex justify-end">
-        <div className="max-w-[80%] min-w-0 rounded-md px-3 py-2 bg-accent-blue text-text-white text-sm sm:text-base whitespace-pre-wrap break-words">
+        <div className="max-w-[80%] min-w-0 rounded-md px-3 py-2 bg-surface-selected text-fg text-sm sm:text-base whitespace-pre-wrap break-words">
             {content}
         </div>
     </div>
@@ -30,12 +30,12 @@ const AssistantBubble = ({
     }[];
 }) => (
     <div className="flex justify-start">
-        <div className="max-w-[80%] min-w-0 rounded-md px-3 py-2 bg-background-elevated text-text-primary text-sm sm:text-base flex flex-col gap-1">
+        <div className="max-w-[80%] min-w-0 rounded-md px-3 py-2 bg-surface-elevated text-fg text-sm sm:text-base flex flex-col gap-1">
             {text && <MarkdownText text={text} />}
             {toolCalls.map((call) => (
                 <p
                     key={call.toolCallId}
-                    className="text-xs sm:text-sm text-text-disabled"
+                    className="text-xs sm:text-sm text-fg-muted"
                 >
                     {call.status === "pending" ? (
                         <>
@@ -50,7 +50,7 @@ const AssistantBubble = ({
                 </p>
             ))}
             {!text && toolCalls.length === 0 && (
-                <p className="text-xs sm:text-sm text-text-disabled">
+                <p className="text-xs sm:text-sm text-fg-muted">
                     <AnimatedDots />
                 </p>
             )}
