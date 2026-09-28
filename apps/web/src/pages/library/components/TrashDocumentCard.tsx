@@ -22,23 +22,23 @@ const TrashDocumentCard = ({
     return (
         <div
             className="flex items-start sm:px-4 sm:py-3 py-2 px-3
-            rounded-lg bg-background w-11/12 sm:w-[600px] gap-3"
+            rounded-lg bg-surface w-11/12 sm:w-[600px] gap-3"
         >
             <MdOutlineDescription className="w-4 h-4 mt-0.5 shrink-0 opacity-40" />
             <div className="flex flex-col space-y-1 min-w-0 flex-1">
                 <span
-                    className={`text-white font-medium sm:text-base text-sm truncate leading-tight ${!document.title && "opacity-20"}`}
+                    className={`text-fg font-medium sm:text-base text-sm truncate leading-tight ${!document.title && "opacity-20"}`}
                 >
                     {document.title || "Untitled"}
                 </span>
                 <div className="flex flex-col space-y-2">
-                    <span className="text-white opacity-50 text-xs truncate">
+                    <span className="text-fg opacity-50 text-xs truncate">
                         Deleted {timeAgo(document.deletedAt)}
                     </span>
                     <button
                         onClick={() => onRestore(document.id)}
                         disabled={isRestoring}
-                        className="text-xs text-white hover:opacity-80 transition cursor-pointer text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="text-xs text-fg hover:opacity-80 transition cursor-pointer text-left disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isRestoring ? "Restoring..." : "Restore"}
                     </button>

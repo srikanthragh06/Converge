@@ -43,10 +43,10 @@ const LibraryPage = () => {
         <>
             <Page authRequired haveSidebar>
                 {/* Header — title, Library/Trash tabs, and (Library only) search bar, does not scroll */}
-                <div className="bg-background-base pb-4 pt-4 sm:pt-8 w-full flex flex-col space-y-4">
+                <div className="bg-surface pb-4 pt-4 sm:pt-8 w-full flex flex-col space-y-4">
                     <div className="flex flex-col items-center w-full px-4 sm:px-0">
                         <div className="w-full sm:max-w-[600px]">
-                            <div className="text-text-primary font-bold flex justify-start sm:mb-4 mb-2">
+                            <div className="text-fg font-bold flex justify-start sm:mb-4 mb-2">
                                 <h1 className="sm:text-3xl text-xl">Library</h1>
                             </div>
                             {/* Tab toggle between the active document list and the trash */}
@@ -55,8 +55,8 @@ const LibraryPage = () => {
                                     onClick={() => setView("library")}
                                     className={`text-sm pb-1 border-b-2 transition cursor-pointer ${
                                         view === "library"
-                                            ? "border-white text-white"
-                                            : "border-transparent text-text-secondary hover:opacity-80"
+                                            ? "border-fg text-fg"
+                                            : "border-transparent text-fg-secondary hover:opacity-80"
                                     }`}
                                 >
                                     Library
@@ -65,8 +65,8 @@ const LibraryPage = () => {
                                     onClick={() => setView("trash")}
                                     className={`text-sm pb-1 border-b-2 transition cursor-pointer ${
                                         view === "trash"
-                                            ? "border-white text-white"
-                                            : "border-transparent text-text-secondary hover:opacity-80"
+                                            ? "border-fg text-fg"
+                                            : "border-transparent text-fg-secondary hover:opacity-80"
                                     }`}
                                 >
                                     Trash
@@ -82,13 +82,13 @@ const LibraryPage = () => {
                                         }
                                         placeholder="Search documents..."
                                         className="flex-1 px-3 py-1 sm:text-base text-sm rounded-md
-                                    bg-background-elevated
-                                    outline-none text-white border-0"
+                                    bg-surface-elevated
+                                    outline-none text-fg border-0"
                                     />
                                     <button
                                         onClick={createDocument}
                                         disabled={isCreating}
-                                        className="sm:px-3 sm:py-1 px-2 py-1 sm:text-sm text-xs rounded-md bg-white text-black
+                                        className="sm:px-3 sm:py-1 px-2 py-1 sm:text-sm text-xs rounded-md bg-gold text-gold-fg
                                      hover:opacity-90 active:opacity-80 transition
                                     cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                     >

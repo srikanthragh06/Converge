@@ -18,11 +18,11 @@ const LibrarySearchBar = ({
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 placeholder="Search docs..."
-                className="flex-1 px-4 py-2 rounded-lg bg-background-elevated border border-border text-text-primary placeholder-text-disabled focus:outline-none focus:border-accent-blue transition-colors"
+                className="flex-1 px-4 py-2 rounded-lg bg-surface-elevated border border-line text-fg placeholder-fg-muted focus:outline-none focus:border-gold transition-colors"
             />
             <button
                 onClick={onNewDocument}
-                className="px-4 py-2 rounded-lg bg-background-elevated border border-border text-text-primary hover:bg-background-hover transition-colors whitespace-nowrap"
+                className="px-4 py-2 rounded-lg bg-surface-elevated border border-line text-fg hover:bg-surface-hover transition-colors whitespace-nowrap"
             >
                 New Document
             </button>
