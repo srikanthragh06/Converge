@@ -5,7 +5,7 @@ import TrashDocumentCard from "./components/TrashDocumentCard";
 import useLibrary from "../../hooks/useLibrary";
 import useTrash from "../../hooks/useTrash";
 import AnimatedDots from "../../components/AnimatedDots";
-import { Skeleton } from "primereact/skeleton";
+import Skeleton from "../../components/ui/Skeleton";
 import DelayedRender from "../../components/DelayedRender";
 import ManageDocumentModal from "../editor/manageDocumentModal/ManageDocumentModal";
 import useDocumentSwitcherShortcut from "../../hooks/useDocumentSwitcherShortcut";

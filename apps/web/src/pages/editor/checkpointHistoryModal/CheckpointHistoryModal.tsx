@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Skeleton } from "primereact/skeleton";
+import Skeleton from "../../../components/ui/Skeleton";
 import { MdKeyboardDoubleArrowLeft } from "react-icons/md";
 import { IoIosMenu } from "react-icons/io";
 import useCheckpointHistory from "../../../hooks/useCheckpointHistory";

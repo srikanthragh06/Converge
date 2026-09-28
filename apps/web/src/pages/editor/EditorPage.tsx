@@ -11,7 +11,7 @@ import useEditorScrollGap from "../../hooks/useEditorScrollGap";
 import useDocumentSwitcherShortcut from "../../hooks/useDocumentSwitcherShortcut";
 import useWriteLock from "../../hooks/useWriteLock";
 import useScrollToBlock from "../../hooks/useScrollToBlock";
-import { Skeleton } from "primereact/skeleton";
+import Skeleton from "../../components/ui/Skeleton";
 import { useAtomValue } from "jotai";
 import DelayedRender from "../../components/DelayedRender";
 import { isSocketReadyAtom, syncStatusAtom } from "@/atoms/socket";

@@ -1,6 +1,6 @@
 import useMembersTab from "../../../../hooks/useMembersTab";
 import WorkspaceMemberCard from "./WorkspaceMemberCard";
-import { Skeleton } from "primereact/skeleton";
+import Skeleton from "../../../../components/ui/Skeleton";
 import DelayedRender from "../../../../components/DelayedRender";
 
 /**

@@ -1,5 +1,5 @@
 import useDocumentSwitcher from "../../../hooks/useDocumentSwitcher";
-import { Skeleton } from "primereact/skeleton";
+import Skeleton from "../../../components/ui/Skeleton";
 import DelayedRender from "../../../components/DelayedRender";
 import { timeAgo, formatAccessLevel } from "../../../utils/utils";
 

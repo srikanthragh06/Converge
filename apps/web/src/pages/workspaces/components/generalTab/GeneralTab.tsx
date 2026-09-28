@@ -1,6 +1,6 @@
 import useWorkspaceOverview from "../../../../hooks/useWorkspaceOverview";
 import LeaveWorkspaceConfirmationModal from "./LeaveWorkspaceConfirmationModal";
-import { Skeleton } from "primereact/skeleton";
+import Skeleton from "../../../../components/ui/Skeleton";
 import DelayedRender from "../../../../components/DelayedRender";
 
 /**

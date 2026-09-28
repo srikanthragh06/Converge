@@ -1,6 +1,6 @@
 import { useState } from "react";
 import Page from "../../components/Page";
-import { Skeleton } from "primereact/skeleton";
+import Skeleton from "../../components/ui/Skeleton";
 import DelayedRender from "../../components/DelayedRender";
 import useCreateWorkspace from "../../hooks/useCreateWorkspace";
 import useWorkspaces from "../../hooks/useWorkspaces";

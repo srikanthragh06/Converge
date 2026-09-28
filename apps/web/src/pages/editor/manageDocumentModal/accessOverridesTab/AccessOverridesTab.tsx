@@ -1,7 +1,7 @@
 import useAccessOverridesTab from "../../../../hooks/useAccessOverridesTab";
 import RoleOverrideRow from "./RoleOverrideRow";
 import DocumentUserAccessCard from "../../../../components/DocumentUserAccessCard";
-import { Skeleton } from "primereact/skeleton";
+import Skeleton from "../../../../components/ui/Skeleton";
 import DelayedRender from "../../../../components/DelayedRender";
 
 /**

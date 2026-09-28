@@ -2,7 +2,7 @@ import type { DocumentIndexingStatus } from "@converge/shared";
 import { formatDate, timeAgo, hasAccess } from "../../../../utils/utils";
 import DeleteDocumentConfirmationModal from "./DeleteDocumentConfirmationModal";
 import useOverviewTab from "../../../../hooks/useOverviewTab";
-import { Skeleton } from "primereact/skeleton";
+import Skeleton from "../../../../components/ui/Skeleton";
 import DelayedRender from "../../../../components/DelayedRender";
 
 /** Friendly label for each RAG indexing lifecycle state. */

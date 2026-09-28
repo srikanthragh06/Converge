@@ -1,7 +1,7 @@
 import { hasWorkspaceRole } from "@converge/shared";
 import useDocumentAccessTab from "../../../../hooks/useDocumentAccessTab";
 import DefaultDocAccessRow from "./DefaultDocAccessRow";
-import { Skeleton } from "primereact/skeleton";
+import Skeleton from "../../../../components/ui/Skeleton";
 import DelayedRender from "../../../../components/DelayedRender";
 
 /** Tab for configuring the document access level for the workspace. */
