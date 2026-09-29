@@ -39,8 +39,13 @@ export const isValidEmail = (email: string): boolean =>
 
 /**
  * Formats a Date as "Sep 5, 1999, 1:25:59 a.m.".
+ * @param date - the date to format
+ * @param options.seconds - include seconds (default true); false gives "Sep 5, 1999, 1:25 a.m."
  */
-export const formatDate = (date: Date | string): string =>
+export const formatDate = (
+    date: Date | string,
+    { seconds = true }: { seconds?: boolean } = {},
+): string =>
     new Date(date)
         .toLocaleString("en-US", {
             month: "short",
@@ -48,7 +53,7 @@ export const formatDate = (date: Date | string): string =>
             year: "numeric",
             hour: "numeric",
             minute: "2-digit",
-            second: "2-digit",
+            second: seconds ? "2-digit" : undefined,
             hour12: true,
         })
         .replace(/\bAM\b/, "a.m.")

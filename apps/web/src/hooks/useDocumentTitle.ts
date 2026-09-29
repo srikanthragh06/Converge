@@ -11,6 +11,7 @@ import {
 import { socket } from "../lib/socket";
 import { socketEmit } from "../lib/socket-emit.util";
 import { refreshSidebarAtom } from "@/atoms/sidebar";
+import { openDocumentTitleAtom } from "@/atoms/document";
 
 /**
  * Manages document title state and sync. Exposes a debounced change handler
@@ -27,6 +28,7 @@ const useDocumentTitle = () => {
     const lastTitleChangeIdRef = useRef<string | null>(null); // changeId of the most recent title emit — used to match acks
 
     const refreshSidebar = useSetAtom(refreshSidebarAtom);
+    const setOpenDocumentTitle = useSetAtom(openDocumentTitleAtom); // shares the title with the app shell (Ask Converge's empty state)
 
     /**
      * Updates local title state and debounces a sync-doc-title-server emit so
@@ -111,14 +113,16 @@ const useDocumentTitle = () => {
         };
     }, []);
 
-    // Keeps the browser tab title in sync with the document title.
-    // Resets to "Converge" on unmount so other pages don't inherit the document name.
+    // Keeps the browser tab title and openDocumentTitleAtom in sync with the document title.
+    // Resets both on unmount so other pages don't inherit the document name.
     useEffect(() => {
         document.title = title ? `${title}` : "Converge";
+        setOpenDocumentTitle(title || null);
         return () => {
             document.title = "Converge";
+            setOpenDocumentTitle(null);
         };
-    }, [title]);
+    }, [title, setOpenDocumentTitle]);
 
     return { handleTitleChange, isTitlePending, setTitle, title };
 };

@@ -1,18 +1,19 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { useSetAtom } from "jotai";
 import { isSearchOpenAtom } from "../atoms/search";
+import { isAgentPanelOpenAtom } from "../atoms/agent";
 import { IS_APPLE } from "../lib/utils";
 
 /**
  * Registers the app-wide keyboard shortcuts shown in the sidebar: ⌘K (Ctrl K
- * off Apple devices) opens document search, and ⌘J opens Ask Converge.
+ * off Apple devices) opens document search, and ⌘J opens or closes the Ask
+ * Converge panel.
  * Ctrl+P also opens search, the switcher's original shortcut.
  * @param enabled - registers the shortcuts only while true, e.g. on pages with the sidebar
  */
 const useAppShortcuts = (enabled: boolean) => {
     const setIsSearchOpen = useSetAtom(isSearchOpenAtom); // opens the search palette
-    const navigate = useNavigate(); // goes to the agent page for ⌘J
+    const setIsAgentPanelOpen = useSetAtom(isAgentPanelOpenAtom); // toggles the Ask Converge panel
 
     // Listens for the shortcuts while enabled; preventDefault stops the browser's
     // own binding for the same keys (address-bar search, downloads, print).
@@ -24,16 +25,16 @@ const useAppShortcuts = (enabled: boolean) => {
             const key = e.key.toLowerCase();
             if ((isMod && key === "k") || (e.ctrlKey && key === "p")) {
                 e.preventDefault();
+                setIsAgentPanelOpen(false); // one overlay at a time
                 setIsSearchOpen(true);
             } else if (isMod && key === "j") {
                 e.preventDefault();
-                // Ask Converge is a page for now; it becomes an overlay in redesign 8.1.
-                navigate("/agent");
+                setIsAgentPanelOpen((open) => !open);
             }
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [enabled, navigate, setIsSearchOpen]);
+    }, [enabled, setIsAgentPanelOpen, setIsSearchOpen]);
 };
 
 export default useAppShortcuts;

@@ -6,6 +6,9 @@ export const documentAccessAtom = atom<ResolvedDocumentAccessLevel | null>(
     null,
 );
 
+/** Title of the document open in the editor, or null on any other page. Lets the app shell (e.g. Ask Converge's empty state) name it. */
+export const openDocumentTitleAtom = atom<string | null>(null);
+
 /** A document dialog that can open from anywhere in the app shell. */
 export type DocumentDialog = {
     kind: "share" | "details";

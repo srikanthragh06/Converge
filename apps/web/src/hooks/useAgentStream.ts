@@ -16,7 +16,12 @@ export type StreamingStep = {
 type StreamChunk =
     | { type: "start-step" }
     | { type: "text-delta"; delta: string }
-    | { type: "tool-input-available"; toolCallId: string; toolName: string; input: unknown }
+    | {
+          type: "tool-input-available";
+          toolCallId: string;
+          toolName: string;
+          input: unknown;
+      }
     | { type: "tool-output-available"; toolCallId: string; output: unknown }
     | { type: "error"; errorText: string };
 
@@ -114,10 +119,11 @@ const useAgentStream = (conversationId: number | null) => {
      * simply await it. No-ops if no conversation is selected.
      *
      * @param content - The message text to send.
+     * @param targetId - The conversation to post into (default: the hook's current one). Lets a caller send into a conversation it just created and selected, before its own closure has caught up.
      */
     const sendMessage = useCallback(
-        async (content: string) => {
-            if (conversationId === null) return;
+        async (content: string, targetId: number | null = conversationId) => {
+            if (targetId === null) return;
 
             // Start a new stream, superseding whatever (if anything) was in flight before.
             const streamId = ++streamIdRef.current;
@@ -137,7 +143,10 @@ const useAgentStream = (conversationId: number | null) => {
                     headers: { "Content-Type": "application/json" },
                     credentials: "include",
                     signal: controller.signal,
-                    body: JSON.stringify({ conversationId, content }),
+                    body: JSON.stringify({
+                        conversationId: targetId,
+                        content,
+                    }),
                 });
                 if (!res.ok || !res.body) throw new Error(`Request failed: ${res.status}`);
 

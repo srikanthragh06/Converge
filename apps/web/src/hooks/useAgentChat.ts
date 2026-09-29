@@ -47,11 +47,12 @@ const useAgentChat = (conversationId: number | null) => {
      * effect.
      *
      * @param content - The message text to send.
+     * @param targetId - The conversation to send into (default: the current one) — e.g. one just created for this message, before this closure has caught up with the new selection.
      */
-    const send = async (content: string) => {
+    const send = async (content: string, targetId: number | null = conversationId) => {
         setPendingUserContent(content);
-        await sendMessage(content);
-        await refetch();
+        await sendMessage(content, targetId);
+        await refetch(targetId);
         clearSteps();
         setPendingUserContent(null);
     };

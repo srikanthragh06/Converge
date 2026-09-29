@@ -73,9 +73,9 @@ const useAgentConversation = (conversationId: number | null) => {
         messages,
         isLoading,
         error,
-        /** Re-pulls the current conversation's history from the server, without surfacing a loading state. No-ops when nothing is selected. */
-        refetch: () =>
-            conversationId === null ? Promise.resolve() : fetchMessages(conversationId, false),
+        /** Re-pulls a conversation's history (default: the current one) from the server, without surfacing a loading state. No-ops when nothing is selected. */
+        refetch: (targetId: number | null = conversationId) =>
+            targetId === null ? Promise.resolve() : fetchMessages(targetId, false),
     };
 };
 

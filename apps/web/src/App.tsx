@@ -10,6 +10,7 @@ import ApiKeysPage from "./pages/apiKeys/ApiKeysPage";
 import McpDocsPage from "./pages/mcpDocs/McpDocsPage";
 import AgentPage from "./pages/agent/AgentPage";
 import useThemeSync from "./hooks/useThemeSync";
+import AgentPanel from "./components/agentPanel/AgentPanel";
 
 /**
  * Root application component. Hydrates auth state, keeps the active color
@@ -41,6 +42,8 @@ function App() {
                 <Route path="/auth/callback" element={<AuthCallbackPage />} />
                 <Route path="*" element={<NotFoundPage />} />
             </Routes>
+            {/* Ask Converge, mounted outside the routes so a conversation survives navigation */}
+            <AgentPanel />
         </div>
     );
 }

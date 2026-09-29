@@ -22,6 +22,7 @@ import {
 import { authAtom } from "../../atoms/auth";
 import { themeAtom } from "../../atoms/theme";
 import { isSearchOpenAtom } from "../../atoms/search";
+import { isAgentPanelOpenAtom } from "../../atoms/agent";
 import { sidebarSectionsAtom } from "../../atoms/sidebar";
 import useSidebar from "../../hooks/useSidebar";
 import useDocumentMenuActions from "../../hooks/useDocumentMenuActions";
@@ -62,6 +63,7 @@ const SidebarPanel = ({ onCollapse }: { onCollapse: () => void }) => {
     const [theme, setTheme] = useAtom(themeAtom); // active color theme, flipped by the theme item
     const [sections, setSections] = useAtom(sidebarSectionsAtom); // which of Pinned / Recent are expanded
     const setIsSearchOpen = useSetAtom(isSearchOpenAtom); // opens the search palette
+    const setIsAgentPanelOpen = useSetAtom(isAgentPanelOpenAtom); // opens the Ask Converge panel
     const {
         togglePin,
         openInNewTab,
@@ -188,8 +190,10 @@ const SidebarPanel = ({ onCollapse }: { onCollapse: () => void }) => {
                     icon={<LuSparkle />}
                     label="Ask Converge"
                     shortcut={formatShortcut("J")}
-                    active={pathname === "/agent"}
-                    onClick={() => go("/agent")}
+                    onClick={() => {
+                        setIsAgentPanelOpen(true);
+                        closeOnMobile();
+                    }}
                 />
                 <SidebarNavItem
                     icon={<LuSearch />}

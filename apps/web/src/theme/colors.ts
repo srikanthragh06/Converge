@@ -83,6 +83,8 @@ type ThemeTokens = {
     "tooltip-fg": string;
     /** Modal backdrop, including its own alpha. */
     overlay: string;
+    /** Backdrop behind the Ask Converge side panel, including its own alpha — lighter than a modal's, since the page behind it is also blurred. */
+    "overlay-panel": string;
     /** Drop-shadow color for popovers and menus, including its own alpha. */
     shadow: string;
     /** Initials-avatar fills (navy, rust, blue, green, purple). Same in both themes. */
@@ -139,6 +141,7 @@ export const themes: Record<ThemeMode, Theme> = {
             tooltip: "#e9e6dd",
             "tooltip-fg": "#131315",
             overlay: "rgb(0 0 0 / 0.45)",
+            "overlay-panel": "rgb(0 0 0 / 0.29)",
             shadow: "rgb(0 0 0 / 0.4)",
             "avatar-1": "#3a4a68",
             "avatar-2": "#9a5a3e",
@@ -188,6 +191,7 @@ export const themes: Record<ThemeMode, Theme> = {
             tooltip: "#1a1d26",
             "tooltip-fg": "#efefee",
             overlay: "rgb(24 26 32 / 0.32)",
+            "overlay-panel": "rgb(24 26 32 / 0.02)",
             shadow: "rgb(24 26 32 / 0.12)",
             "avatar-1": "#3a4a68",
             "avatar-2": "#9a5a3e",

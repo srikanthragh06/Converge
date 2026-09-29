@@ -48,7 +48,9 @@ const CONTENT_CLASSES =
 const renderEntries = (parts: MenuParts, entries: MenuEntry[]) =>
     entries.map((entry, i) => {
         if (entry.type === "separator")
-            return <parts.Separator key={i} className="-mx-1 my-1 h-px bg-line" />;
+            return (
+                <parts.Separator key={i} className="-mx-1 my-1 h-px bg-line" />
+            );
         if (entry.type === "label")
             return (
                 <parts.Label
@@ -106,6 +108,8 @@ const renderEntries = (parts: MenuParts, entries: MenuEntry[]) =>
  * @param align - edge of the trigger the menu lines up with (default "end")
  * @param side - side of the trigger the menu opens on (default "bottom")
  * @param onOpenChange - called when the menu opens or closes, e.g. to keep a row's hover actions visible
+ * @param onCloseAutoFocus - called as focus returns to the trigger on close; preventDefault() keeps it
+ *                           elsewhere, e.g. in a field the chosen item just opened
  * @param className - extra panel classes, e.g. a width
  */
 export const DropdownMenu = ({
@@ -114,6 +118,7 @@ export const DropdownMenu = ({
     align = "end",
     side = "bottom",
     onOpenChange,
+    onCloseAutoFocus,
     className,
 }: {
     trigger: ReactElement;
@@ -121,6 +126,7 @@ export const DropdownMenu = ({
     align?: "start" | "center" | "end";
     side?: "top" | "right" | "bottom" | "left";
     onOpenChange?: (open: boolean) => void;
+    onCloseAutoFocus?: (event: Event) => void;
     className?: string;
 }) => (
     <DropdownMenuPrimitive.Root onOpenChange={onOpenChange}>
@@ -133,6 +139,7 @@ export const DropdownMenu = ({
                 side={side}
                 sideOffset={4}
                 collisionPadding={8}
+                onCloseAutoFocus={onCloseAutoFocus}
                 className={cn(CONTENT_CLASSES, className)}
             >
                 {renderEntries(DropdownMenuPrimitive, items)}

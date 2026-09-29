@@ -23,6 +23,15 @@ const useAgentConversations = () => {
     const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null); // which conversation is highlighted/active; null until one is auto-selected or clicked
     const [isLoading, setIsLoading] = useState(true); // true while the list is being (re)fetched
     const [error, setError] = useState<string | null>(null); // last fetch/create failure message, if any
+    const [prevWorkspaceId, setPrevWorkspaceId] = useState(workspace?.id); // workspace the selection belongs to, to spot a switch during render
+
+    // On a workspace switch, drops the selection during render (rather than
+    // in an effect): a conversation belongs to one workspace, and the fetch
+    // below only auto-selects when nothing is selected.
+    if (workspace?.id !== prevWorkspaceId) {
+        setPrevWorkspaceId(workspace?.id);
+        setSelectedConversationId(null);
+    }
 
     /**
      * Fetches the conversation list for the given workspace and replaces
@@ -58,11 +67,11 @@ const useAgentConversations = () => {
      * immediately, and refetches the list so it appears alongside the
      * others.
      *
-     * @returns A promise that resolves once the new conversation has been created, selected, and the list refetched.
+     * @returns The new conversation's id once it has been created, selected, and the list refetched, or null if it couldn't be created.
      */
-    const createConversation = useCallback(async () => {
+    const createConversation = useCallback(async (): Promise<number | null> => {
         // No workspace selected yet — nothing to create a conversation under.
-        if (!workspace) return;
+        if (!workspace) return null;
         setError(null);
         try {
             // Create the conversation, then select it before the refetch
@@ -74,8 +83,10 @@ const useAgentConversations = () => {
             );
             setSelectedConversationId(data.id);
             await fetchConversations(workspace.id);
+            return data.id;
         } catch {
             setError("Couldn't start a new conversation.");
+            return null;
         }
     }, [workspace, fetchConversations]);
 

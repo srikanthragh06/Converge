@@ -17,6 +17,7 @@ import {
 import { authAtom } from "../../atoms/auth";
 import { themeAtom } from "../../atoms/theme";
 import { isSearchOpenAtom } from "../../atoms/search";
+import { isAgentPanelOpenAtom } from "../../atoms/agent";
 import useSidebar from "../../hooks/useSidebar";
 import { formatShortcut } from "../../lib/utils";
 import Button from "../ui/Button";
@@ -47,6 +48,7 @@ const SidebarRail = ({ onExpand }: { onExpand: () => void }) => {
     } = useSidebar(); // workspace list, pinned docs, and document creation
     const [theme, setTheme] = useAtom(themeAtom); // active color theme, flipped by the theme button
     const setIsSearchOpen = useSetAtom(isSearchOpenAtom); // opens the search palette
+    const setIsAgentPanelOpen = useSetAtom(isAgentPanelOpenAtom); // opens the Ask Converge panel
 
     return (
         <aside className="flex h-full w-14 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-line bg-surface-sidebar py-3">
@@ -81,8 +83,7 @@ const SidebarRail = ({ onExpand }: { onExpand: () => void }) => {
                     label="Ask Converge"
                     shortcut={formatShortcut("J")}
                     icon={<LuSparkle />}
-                    active={pathname === "/agent"}
-                    onClick={() => navigate("/agent")}
+                    onClick={() => setIsAgentPanelOpen(true)}
                 />
                 <RailButton
                     label="Library"

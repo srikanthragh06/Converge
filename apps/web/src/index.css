@@ -136,3 +136,19 @@ input:invalid {
     text-decoration: underline dotted;
     opacity: 0.8;
 }
+
+/*
+ * Ask Converge: the gold cursor after a streaming reply's last text (the
+ * CSS twin of StreamingCursor), placed inside the last paragraph or list
+ * item so it sits on the text's own line.
+ */
+.agent-streaming > :last-child:not(ul, ol)::after,
+.agent-streaming > :is(ul, ol):last-child > li:last-child::after {
+    content: "";
+    display: inline-block;
+    width: 0.5rem;
+    height: 1.1em;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    background: rgb(var(--gold));
+}
