@@ -1,29 +1,36 @@
 import { useState } from "react";
-import { MdCheck, MdContentCopy } from "react-icons/md";
+import { LuArrowRight, LuCheck, LuCopy, LuTriangleAlert } from "react-icons/lu";
+import Modal from "../../../components/ui/Modal";
+import ModalFooter from "../../../components/ui/ModalFooter";
+import Button from "../../../components/ui/Button";
 
 /**
- * Modal shown exactly once, immediately after a new API key is created —
- * the raw key is never retrievable again after this closes, since the
- * server only ever stores its hash. No backdrop-click or Escape dismissal;
- * the user must explicitly confirm via the Done button, so the key can't
- * be lost to an accidental click before it's copied.
+ * Shown once, right after a key is created (pp 35 / 43): the full key with
+ * a Copy button, a warning that it's never shown again (the server keeps
+ * only its hash), a link on to MCP setup, and I've saved it. Escape and
+ * backdrop clicks are ignored, so the key can't be lost to a stray click
+ * before it's copied; the close button counts as I've saved it.
+ * @param label - the new key's name
+ * @param rawKey - the full key
+ * @param onDone - closes the dialog
+ * @param onOpenMcpSetup - closes the dialog and opens MCP setup
  */
 const RevealApiKeyModal = ({
+    label,
     rawKey,
     onDone,
+    onOpenMcpSetup,
 }: {
-    /** The newly created key's raw value, shown once. */
+    label: string;
     rawKey: string;
-    /** Called when the user dismisses the dialog via the Done button. */
     onDone: () => void;
+    onOpenMcpSetup: () => void;
 }) => {
-    const [copied, setCopied] = useState(false); // True briefly after a successful copy, to swap the button's icon/label.
+    const [copied, setCopied] = useState(false); // true briefly after a successful copy
 
     /**
-     * Copies the raw key to the clipboard and shows a brief confirmation.
-     * Fails silently on the button (falls back to console) if the browser
-     * denies clipboard access — the key is still visible and selectable in
-     * the field above either way.
+     * Copies the key to the clipboard and shows Copied for two seconds. If
+     * the browser denies clipboard access the key is still selectable.
      */
     const handleCopy = async () => {
         try {
@@ -36,53 +43,44 @@ const RevealApiKeyModal = ({
     };
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-overlay">
-            {/* Dialog panel */}
-            <div className="bg-surface rounded-xl px-6 py-5 w-full max-w-md mx-4 flex flex-col gap-4">
-                <h2 className="text-fg text-lg font-semibold">
-                    Your new API key
-                </h2>
-
-                <p className="text-sm text-danger">
-                    Copy this key now — you won't be able to see it again.
-                </p>
-
-                {/* Raw key display with copy button */}
-                <div className="flex items-center gap-2">
-                    <code
-                        className="flex-1 min-w-0 px-3 py-2 text-xs sm:text-sm rounded-md
-                            bg-surface-elevated border border-line-strong text-fg
-                            overflow-x-auto whitespace-nowrap"
-                    >
-                        {rawKey}
-                    </code>
-                    <button
-                        onClick={handleCopy}
-                        aria-label="Copy API key"
-                        className="p-2 rounded-md bg-surface-elevated border border-line-strong
-                            text-fg cursor-pointer hover:opacity-80 active:opacity-70
-                            transition shrink-0"
-                    >
-                        {copied ? (
-                            <MdCheck className="w-4 h-4 text-success" />
-                        ) : (
-                            <MdContentCopy className="w-4 h-4" />
-                        )}
-                    </button>
-                </div>
-
-                <div className="flex justify-end">
-                    <button
-                        onClick={onDone}
-                        className="px-3 py-1.5 text-sm rounded-md bg-gold
-                            text-gold-fg border-none cursor-pointer
-                            hover:opacity-80 active:opacity-70 transition"
-                    >
-                        Done
-                    </button>
-                </div>
+        <Modal
+            onClose={onDone}
+            title="Copy your new key"
+            description={`"${label}" is ready.`}
+            dismissible={false}
+            size="md"
+            className="sm:max-w-[34rem]"
+        >
+            <div className="mt-2 flex items-center gap-3 rounded-lg border border-gold bg-surface-inset py-2 pl-4 pr-2">
+                <code className="min-w-0 flex-1 select-all overflow-x-auto whitespace-nowrap font-mono text-sm text-fg">
+                    {rawKey}
+                </code>
+                <Button variant="primary" onClick={handleCopy}>
+                    {copied ? <LuCheck /> : <LuCopy />}
+                    {copied ? "Copied" : "Copy"}
+                </Button>
             </div>
-        </div>
+            <div className="mt-4 flex gap-2.5 rounded-lg bg-surface-selected px-4 py-3 text-sm text-fg-secondary">
+                <LuTriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-danger" />
+                <span>
+                    This is the only time the full key is shown. If you lose it,
+                    revoke it and create a new one.
+                </span>
+            </div>
+            <button
+                type="button"
+                onClick={onOpenMcpSetup}
+                className="mt-5 flex cursor-pointer items-center gap-1.5 self-start rounded-sm text-sm text-gold outline-none hover:underline focus-visible:ring-2 focus-visible:ring-gold/60"
+            >
+                Next: connect your agent in MCP setup
+                <LuArrowRight className="h-4 w-4" />
+            </button>
+            <ModalFooter>
+                <Button variant="primary" onClick={onDone}>
+                    I've saved it
+                </Button>
+            </ModalFooter>
+        </Modal>
     );
 };
 

@@ -1,45 +1,35 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import type { ApiKeyDto } from "@converge/shared";
 import apiClient from "../lib/http";
+import useToast from "./useToast";
 
 /**
- * Manages API key revocation state. Sends the revoke request on confirm,
- * calls onSuccess to let the caller refresh its list and close the dialog,
- * and closes the dialog on Escape via onCancel.
+ * Revokes an API key via DELETE /api-keys/:id, then calls onSuccess so the
+ * caller can close its dialog and refresh the list. Success and failure are
+ * both reported with a toast.
+ * @param apiKey - the key to revoke
+ * @param onSuccess - called after a successful revoke
  */
 const useRevokeApiKey = ({
-    keyId,
-    onCancel,
+    apiKey,
     onSuccess,
 }: {
-    /** ID of the API key to revoke. */
-    keyId: number;
-    /** Called when the user cancels or dismisses the dialog. */
-    onCancel: () => void;
-    /** Called after a successful revoke. */
+    apiKey: ApiKeyDto;
     onSuccess: () => void;
 }) => {
+    const { showToast } = useToast();
     const [isRevoking, setIsRevoking] = useState(false); // true while the revoke request is in flight
 
-    // Close on Escape key, treating it as a cancel.
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") onCancel();
-        };
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [onCancel]);
-
-    /** Sends the revoke request and calls onSuccess on success. */
+    /** Sends the revoke request. */
     const handleConfirm = async () => {
         setIsRevoking(true);
         try {
-            await apiClient.delete(`/api-keys/${keyId}`);
+            await apiClient.delete(`/api-keys/${apiKey.id}`);
+            showToast(`Revoked "${apiKey.label}"`);
             onSuccess();
         } catch (err) {
-            console.error(
-                "RevokeApiKeyConfirmationModal: failed to revoke API key:",
-                err,
-            );
+            console.error("useRevokeApiKey: failed to revoke API key:", err);
+            showToast("Couldn't revoke the key", { tone: "error" });
         } finally {
             setIsRevoking(false);
         }

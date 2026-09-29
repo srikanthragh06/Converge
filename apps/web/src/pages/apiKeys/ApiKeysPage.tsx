@@ -1,95 +1,157 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { LuChevronDown, LuPlus } from "react-icons/lu";
+import type { ApiKeyDto } from "@converge/shared";
+import { cn } from "../../lib/utils";
 import Page from "../../components/Page";
-import Skeleton from "../../components/ui/Skeleton";
-import DelayedRender from "../../components/DelayedRender";
+import TableSkeleton from "../../components/ui/TableSkeleton";
+import { PageContainer, PageHeader } from "../../components/ui/PageHeader";
+import { Table, TableHeadCell, TableHeader } from "../../components/ui/Table";
 import useApiKeys from "../../hooks/useApiKeys";
 import useCreateApiKey from "../../hooks/useCreateApiKey";
-import ApiKeyCard from "./components/ApiKeyCard";
+import ApiKeyRow from "./components/ApiKeyRow";
+import McpSetupBanner from "./components/McpSetupBanner";
 import CreateApiKeyModal from "./components/CreateApiKeyModal";
 import RevealApiKeyModal from "./components/RevealApiKeyModal";
 import RevokeApiKeyConfirmationModal from "./components/RevokeApiKeyConfirmationModal";
 
+/** Column template shared by the Active and Revoked tables. */
+const COLUMNS = "minmax(0,1fr) 9rem 7.5rem 7.5rem 6rem";
+
+/** Column template on phones, where only the name and the action remain. */
+const MOBILE_COLUMNS = "minmax(0,1fr) auto";
+
 /**
- * Full-screen API keys page. Lists the authenticated user's API keys and
- * lets them create new ones or revoke existing ones.
+ * API keys page (pp 33–36 / 41–44): the user's keys for MCP and other
+ * non-browser callers, split into Active (with Revoke) and a collapsible
+ * Revoked section, under a banner pointing to MCP setup. New key opens the
+ * create dialog, then a one-time dialog showing the full key.
  */
 const ApiKeysPage = () => {
+    const navigate = useNavigate();
     const { apiKeys, isLoading, fetchAll } = useApiKeys(); // fetched key list, loading flag, and manual refetch
     const { createApiKey, isCreating, error } = useCreateApiKey(); // key creation handler, in-flight flag, and last error message
     const [showCreateModal, setShowCreateModal] = useState(false); // controls Create Key modal visibility
-    const [revealRawKey, setRevealRawKey] = useState<string | null>(null); // newly created key's raw value, shown once; null when no reveal is pending
-    const [revokingKey, setRevokingKey] = useState<{
-        id: number;
+    const [revealed, setRevealed] = useState<{
         label: string;
-    } | null>(null); // key pending revoke confirmation; null when no revoke dialog is open
+        rawKey: string;
+    } | null>(null); // newly created key, shown once; null when no reveal is pending
+    const [revokingKey, setRevokingKey] = useState<ApiKeyDto | null>(null); // key pending revoke confirmation
+    const [isRevokedOpen, setIsRevokedOpen] = useState(true); // whether the Revoked section is expanded
+
+    const activeKeys = apiKeys.filter((k) => k.revokedAt === null);
+    const revokedKeys = apiKeys.filter((k) => k.revokedAt !== null);
 
     /**
      * Creates a key via useCreateApiKey. On success, closes the create
      * modal and opens the one-time reveal modal with the raw key.
+     * @param label - the new key's name
      */
     const handleCreate = async (label: string) => {
         const created = await createApiKey(label);
         if (created) {
             setShowCreateModal(false);
-            setRevealRawKey(created.rawKey);
+            setRevealed({ label: created.label, rawKey: created.rawKey });
         }
     };
 
     /** Dismisses the reveal modal and refetches the list to show the new key. */
     const handleRevealDone = () => {
-        setRevealRawKey(null);
+        setRevealed(null);
         fetchAll();
     };
 
     return (
         <Page authRequired haveSidebar mobileTitle="API keys">
-            {/* Header — title above, create-key button below, does not scroll */}
-            <div className="bg-surface pb-4 pt-4 sm:pt-8 w-full flex flex-col space-y-4">
-                <div className="flex flex-col items-center w-full px-4 sm:px-0">
-                    <div className="w-full sm:max-w-[600px]">
-                        <div className="text-fg font-bold flex justify-start sm:mb-4 mb-2">
-                            <h1 className="sm:text-3xl text-xl">API Keys</h1>
-                        </div>
-                        <div className="w-full flex flex-row items-center justify-center">
-                            <button
-                                onClick={() => setShowCreateModal(true)}
-                                className="w-1/2 px-2 py-1 sm:text-sm text-xs rounded-md bg-gold text-gold-fg
-                                 hover:opacity-90 active:opacity-80 transition
-                                cursor-pointer"
-                            >
-                                New Key
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Key list — loading skeletons, empty state, or the fetched cards */}
-            <div className="flex-1 overflow-y-auto flex flex-col items-center gap-2 pb-6">
-                {isLoading && apiKeys.length === 0 && (
-                    <DelayedRender>
-                        <div className="w-full sm:max-w-[600px] flex flex-col gap-2 px-4 sm:px-0 mt-2">
-                            <Skeleton height="4.5rem" width="100%" />
-                            <Skeleton height="4.5rem" width="100%" />
-                        </div>
-                    </DelayedRender>
-                )}
-
-                {!isLoading && apiKeys.length === 0 && (
-                    <span className="text-sm opacity-40 mt-8">
-                        No API keys yet
-                    </span>
-                )}
-
-                {apiKeys.map((key) => (
-                    <ApiKeyCard
-                        key={key.id}
-                        apiKey={key}
-                        onRevoke={(id) =>
-                            setRevokingKey({ id, label: key.label })
-                        }
+            <div className="flex-1 overflow-y-auto">
+                <PageContainer>
+                    <PageHeader
+                        title="API keys"
+                        description="Keys let AI agents act as you through MCP, with your exact permissions. Treat them like passwords."
+                        action={{
+                            label: "New key",
+                            icon: <LuPlus />,
+                            onClick: () => setShowCreateModal(true),
+                        }}
                     />
-                ))}
+                    <McpSetupBanner />
+
+                    {isLoading && apiKeys.length === 0 ? (
+                        <TableSkeleton rows={3} />
+                    ) : (
+                        <>
+                            <h2 className="px-3 pb-1 text-[15px] font-semibold text-fg">
+                                Active · {activeKeys.length}
+                            </h2>
+                            <Table
+                                columns={COLUMNS}
+                                mobileColumns={MOBILE_COLUMNS}
+                            >
+                                <TableHeader>
+                                    <TableHeadCell>Name</TableHeadCell>
+                                    <TableHeadCell hideOnMobile>
+                                        Key
+                                    </TableHeadCell>
+                                    <TableHeadCell hideOnMobile>
+                                        Created
+                                    </TableHeadCell>
+                                    <TableHeadCell hideOnMobile>
+                                        Last used
+                                    </TableHeadCell>
+                                    <TableHeadCell />
+                                </TableHeader>
+                                {activeKeys.map((key) => (
+                                    <ApiKeyRow
+                                        key={key.id}
+                                        apiKey={key}
+                                        onRevoke={() => setRevokingKey(key)}
+                                    />
+                                ))}
+                                {activeKeys.length === 0 && (
+                                    <p className="py-8 text-center text-sm text-fg-muted">
+                                        No active keys. Create one to connect an
+                                        agent.
+                                    </p>
+                                )}
+                            </Table>
+
+                            {revokedKeys.length > 0 && (
+                                <section className="mt-8">
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setIsRevokedOpen((open) => !open)
+                                        }
+                                        aria-expanded={isRevokedOpen}
+                                        className="flex cursor-pointer items-center gap-1.5 rounded-sm px-2 pb-2 text-[15px] font-semibold text-fg-secondary outline-none hover:text-fg focus-visible:ring-2 focus-visible:ring-gold/60"
+                                    >
+                                        <LuChevronDown
+                                            className={cn(
+                                                "h-4 w-4 transition-transform",
+                                                !isRevokedOpen && "-rotate-90",
+                                            )}
+                                        />
+                                        Revoked · {revokedKeys.length}
+                                    </button>
+                                    {isRevokedOpen && (
+                                        <Table
+                                            columns={COLUMNS}
+                                            mobileColumns={MOBILE_COLUMNS}
+                                            className="before:mx-3 before:h-px before:bg-line-subtle"
+                                        >
+                                            {revokedKeys.map((key) => (
+                                                <ApiKeyRow
+                                                    key={key.id}
+                                                    apiKey={key}
+                                                />
+                                            ))}
+                                        </Table>
+                                    )}
+                                </section>
+                            )}
+                        </>
+                    )}
+                </PageContainer>
             </div>
 
             {showCreateModal && (
@@ -101,17 +163,21 @@ const ApiKeysPage = () => {
                 />
             )}
 
-            {revealRawKey && (
+            {revealed && (
                 <RevealApiKeyModal
-                    rawKey={revealRawKey}
+                    label={revealed.label}
+                    rawKey={revealed.rawKey}
                     onDone={handleRevealDone}
+                    onOpenMcpSetup={() => {
+                        setRevealed(null);
+                        navigate("/mcp-docs");
+                    }}
                 />
             )}
 
             {revokingKey && (
                 <RevokeApiKeyConfirmationModal
-                    keyId={revokingKey.id}
-                    label={revokingKey.label}
+                    apiKey={revokingKey}
                     onCancel={() => setRevokingKey(null)}
                     onSuccess={() => {
                         setRevokingKey(null);
