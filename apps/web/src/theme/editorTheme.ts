@@ -30,7 +30,12 @@ export const convergeTheme: Partial<{
     fontFamily: string;
 }> = {
     colors: {
-        editor: { text: tokenColor("fg"), background: tokenColor("surface") },
+        // Body text is the softer secondary color, as in the design; headings
+        // switch back to fg in index.css to match the document title.
+        editor: {
+            text: tokenColor("fg-secondary"),
+            background: tokenColor("surface"),
+        },
         menu: {
             text: tokenColor("fg"),
             background: tokenColor("surface-elevated"),
