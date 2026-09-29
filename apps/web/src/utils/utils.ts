@@ -55,6 +55,29 @@ export const formatDate = (date: Date | string): string =>
         .replace(/\bPM\b/, "p.m.");
 
 /**
+ * Splits text into consecutive segments, flagging every case-insensitive
+ * occurrence of query, e.g. ("RAG Discussion", "rag") →
+ * [{ text: "RAG", isMatch: true }, { text: " Discussion", isMatch: false }].
+ * An empty query returns the whole text as one unmatched segment.
+ * @param text - the text to split, e.g. a document title
+ * @param query - the search query to highlight
+ */
+export const splitByMatch = (
+    text: string,
+    query: string,
+): { text: string; isMatch: boolean }[] => {
+    if (!query) return [{ text, isMatch: false }];
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // query as a literal regex pattern
+    return text
+        .split(new RegExp(`(${escaped})`, "i"))
+        .filter((part) => part !== "")
+        .map((part) => ({
+            text: part,
+            isMatch: part.toLowerCase() === query.toLowerCase(),
+        }));
+};
+
+/**
  * Returns a compact relative time string (e.g. "3d ago", "just now") for a given date.
  * Granularity steps: seconds → minutes → hours → days → months → years.
  */

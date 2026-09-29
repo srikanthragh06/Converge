@@ -19,7 +19,7 @@ const SWITCHER_SEARCH_LIMIT = 5;
  * the currently open document so it never appears in the results.
  * No infinite scroll — the overlay shows a fixed short list.
  * @param currentDocumentId - ID of the document currently open in the editor, excluded from results.
- * @param onClose - Called to close the overlay (on Escape or after navigation).
+ * @param onClose - Called to close the overlay after navigating to a document.
  */
 const useDocumentSwitcher = (
     currentDocumentId: number | undefined,
@@ -31,6 +31,7 @@ const useDocumentSwitcher = (
     const [searchText, setSearchText] = useState(""); // current search query string
     const [documents, setDocuments] = useState<LibraryDocumentDto[]>([]); // filtered list of fetched documents
     const [isLoading, setIsLoading] = useState(false); // true while an API request is in flight
+    const [matchQuery, setMatchQuery] = useState(""); // query that produced the current results, for match highlighting; lags searchText during the debounce so highlights always match what's shown
 
     const inputRef = useRef<HTMLInputElement>(null); // ref used to auto-focus the search input on mount
 
@@ -67,6 +68,7 @@ const useDocumentSwitcher = (
                     },
                 );
             setDocuments(filterCurrent(data.documents));
+            setMatchQuery("");
         } catch (err) {
             console.error(err);
         } finally {
@@ -91,6 +93,7 @@ const useDocumentSwitcher = (
                     },
                 );
             setDocuments(filterCurrent(data.documents));
+            setMatchQuery(query);
         } catch (err) {
             console.error(err);
         } finally {
@@ -120,20 +123,12 @@ const useDocumentSwitcher = (
         inputRef.current?.focus();
     }, []);
 
-    // Close the overlay when the user presses Escape.
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") onClose();
-        };
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [onClose]);
-
     return {
         searchText,
         setSearchText,
         documents,
         isLoading,
+        matchQuery,
         inputRef,
         focusedIndex,
         listRef,
