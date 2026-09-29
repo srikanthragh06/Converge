@@ -8,7 +8,6 @@ import AuthCallbackPage from "./pages/authCallback/AuthCallbackPage";
 import WorkspacesPage from "./pages/workspaces/WorkspacesPage";
 import ApiKeysPage from "./pages/apiKeys/ApiKeysPage";
 import McpDocsPage from "./pages/mcpDocs/McpDocsPage";
-import AgentRedirect from "./pages/agent/AgentRedirect";
 import useThemeSync from "./hooks/useThemeSync";
 import AgentPanel from "./components/agentPanel/AgentPanel";
 
@@ -37,8 +36,6 @@ function App() {
                 <Route path="/workspaces" element={<WorkspacesPage />} />
                 <Route path="/api-keys" element={<ApiKeysPage />} />
                 <Route path="/mcp-docs" element={<McpDocsPage />} />
-                {/* Ask Converge is a side panel now; the old URL opens it over Library */}
-                <Route path="/agent" element={<AgentRedirect />} />
                 <Route path="/auth" element={<AuthPage />} />
                 <Route path="/auth/callback" element={<AuthCallbackPage />} />
                 <Route path="*" element={<NotFoundPage />} />
