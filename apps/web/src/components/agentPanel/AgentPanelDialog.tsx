@@ -121,14 +121,8 @@ const AgentPanelDialog = ({
                         onDelete={() => setIsConfirmingDelete(true)}
                     />
 
-                    {/* Conversation, or the empty state for a new one */}
-                    {error ? (
-                        <div className="flex-1 px-[22px] py-6">
-                            <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
-                                {error}
-                            </p>
-                        </div>
-                    ) : isLoadingConversations || isLoadingHistory ? (
+                    {/* Conversation, or the empty state for a new one — kept on screen when an error shows below it */}
+                    {isLoadingConversations || isLoadingHistory ? (
                         <p className="flex-1 px-[22px] py-6 text-sm text-fg-muted">
                             Loading…
                         </p>
@@ -141,8 +135,18 @@ const AgentPanelDialog = ({
                             isStreaming={isStreaming}
                             onFollowLink={onClose}
                         />
+                    ) : error ? (
+                        // Blank rather than the empty state, which would read as "this chat is empty" after a failed load
+                        <div className="flex-1" />
                     ) : (
                         <AgentEmptyState />
+                    )}
+
+                    {/* Error strip (e.g. a rate limit), under the conversation rather than replacing it */}
+                    {error && (
+                        <p className="mx-4 mb-2 shrink-0 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
+                            {error}
+                        </p>
                     )}
 
                     <MessageComposer
