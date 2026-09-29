@@ -1,16 +1,21 @@
 import { useState } from "react";
 
+/** A ManageDocumentModal tab. */
+export type ManageDocumentTab = "overview" | "access-overrides";
+
 /** Sidebar navigation entries for ManageDocumentModal. */
-const TABS: { key: "overview" | "access-overrides"; label: string }[] = [
+const TABS: { key: ManageDocumentTab; label: string }[] = [
     { key: "overview", label: "Overview" },
     { key: "access-overrides", label: "Access Overrides" },
 ];
 
-/** Manages ManageDocumentModal state: the active sidebar tab. */
-const useManageDocumentModal = () => {
-    const [selectedTab, setSelectedTab] = useState<
-        "overview" | "access-overrides"
-    >("overview"); // currently active sidebar tab
+/**
+ * Manages ManageDocumentModal state: the active sidebar tab.
+ * @param initialTab - the tab shown when the modal opens (default "overview")
+ */
+const useManageDocumentModal = (initialTab: ManageDocumentTab = "overview") => {
+    const [selectedTab, setSelectedTab] =
+        useState<ManageDocumentTab>(initialTab); // currently active sidebar tab
 
     return {
         selectedTab,

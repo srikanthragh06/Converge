@@ -1,4 +1,6 @@
-import useManageDocumentModal from "../../../hooks/useManageDocumentModal";
+import useManageDocumentModal, {
+    type ManageDocumentTab,
+} from "../../../hooks/useManageDocumentModal";
 import OverviewTab from "./overviewTab/OverviewTab";
 import AccessOverridesTab from "./accessOverridesTab/AccessOverridesTab";
 
@@ -9,13 +11,17 @@ import AccessOverridesTab from "./accessOverridesTab/AccessOverridesTab";
 const ManageDocumentModal = ({
     onClose,
     documentId,
+    initialTab,
 }: {
     /** Called when the user dismisses the modal. */
     onClose: () => void;
     /** ID of the document being managed. */
     documentId: string | undefined;
+    /** Tab shown when the modal opens, e.g. "access-overrides" from the Share button. */
+    initialTab?: ManageDocumentTab;
 }) => {
-    const { selectedTab, setSelectedTab, TABS } = useManageDocumentModal();
+    const { selectedTab, setSelectedTab, TABS } =
+        useManageDocumentModal(initialTab);
 
     return (
         <>
