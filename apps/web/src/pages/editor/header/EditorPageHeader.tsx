@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAtomValue } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import {
     LuBookmarkPlus,
     LuCheck,
@@ -9,10 +9,12 @@ import {
     LuLoaderCircle,
     LuLock,
     LuLockOpen,
+    LuMenu,
     LuUsers,
 } from "react-icons/lu";
 import { syncStatusAtom, awarenessAtom } from "../../../atoms/socket";
 import { authAtom } from "../../../atoms/auth";
+import { mobileSidebarOpenAtom } from "../../../atoms/sidebar";
 import ManageDocumentModal from "../manageDocumentModal/ManageDocumentModal";
 import CheckpointHistoryModal from "../checkpointHistoryModal/CheckpointHistoryModal";
 import type { EditorInstance } from "../../../utils/checkpointDiffUtils";
@@ -31,11 +33,13 @@ import { getEditorDocumentMenu } from "./editorDocumentMenu";
 const MAX_VISIBLE_AVATARS = 4;
 
 /**
- * Top bar of the editor page. On the left: a workspace / document breadcrumb
- * (desktop only) and the Saved / Syncing / Offline status dot. On the right:
- * collaborators' presence avatars, the lock-editing, save-checkpoint, and
- * version-history icon buttons, the gold Share button, and the ⋯ document
- * menu. Only rendered when documentStatus is "ready".
+ * Top bar of the editor page. On desktop: a workspace / document breadcrumb
+ * with the Saved / Syncing / Offline status dot on the left; collaborators'
+ * presence avatars, the lock-editing, save-checkpoint, and version-history
+ * icon buttons, the gold Share button, and the ⋯ document menu on the right.
+ * On phones: a compact bar with the sidebar drawer button, the document title
+ * and status dot, a Share icon, and the ⋯ menu. Only rendered when
+ * documentStatus is "ready".
  */
 const EditorPageHeader = ({
     documentStatus,
@@ -79,6 +83,7 @@ const EditorPageHeader = ({
     const awareness = useAtomValue(awarenessAtom); // presence list for the current document
     const auth = useAtomValue(authAtom); // current user — used to exclude self from the avatar stack
     const { togglePin, copyLink, moveToTrash } = useDocumentMenuActions(); // ⋯ menu actions, shared with the sidebar's row menu
+    const setIsDrawerOpen = useSetAtom(mobileSidebarOpenAtom); // opens the sidebar drawer from the phone bar
 
     // Filter out the current user so they don't see their own avatar in the stack.
     const otherUsers = awareness.filter(
@@ -97,16 +102,74 @@ const EditorPageHeader = ({
         onMoveToTrash: () => moveToTrash(menuDocument),
     }); // entries of the ⋯ menu
 
+    /**
+     * The ⋯ button and its dropdown of documentMenu.
+     * @param className - extra trigger classes
+     */
+    const renderDocumentMenu = (className?: string) => (
+        <DropdownMenu
+            items={documentMenu}
+            className="w-60"
+            trigger={
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Document menu"
+                    className={`data-[state=open]:bg-surface-selected data-[state=open]:text-fg ${className ?? ""}`}
+                >
+                    <LuEllipsis />
+                </Button>
+            }
+        />
+    );
+
     if (documentStatus !== "ready") return null;
 
     return (
         <>
-            <header className="flex h-[60px] shrink-0 items-center gap-4 border-b border-line-subtle bg-surface pl-4 pr-3 sm:pl-7 sm:pr-4">
+            {/* Phone bar (pp 77 / 83) — Page's generic bar is turned off for the editor */}
+            <header className="flex h-14 shrink-0 items-center gap-1 border-b border-line-subtle bg-surface px-2 sm:hidden">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsDrawerOpen(true)}
+                    aria-label="Open sidebar"
+                    className="[&_svg]:h-5 [&_svg]:w-5"
+                >
+                    <LuMenu />
+                </Button>
+                <div className="flex min-w-0 flex-1 items-center gap-2 pl-1">
+                    <span
+                        className={`truncate text-[15px] font-semibold ${title ? "text-fg" : "text-fg-muted"}`}
+                    >
+                        {title || "Untitled"}
+                    </span>
+                    <StatusDot
+                        tone={status.tone}
+                        aria-label={status.label}
+                        title={status.label}
+                        className="shrink-0"
+                    />
+                </div>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setManageModalTab("access-overrides")}
+                    aria-label="Share"
+                    className="text-gold hover:text-gold [&_svg]:h-5 [&_svg]:w-5"
+                >
+                    <LuUsers />
+                </Button>
+                {renderDocumentMenu()}
+            </header>
+
+            {/* Desktop bar */}
+            <header className="hidden h-[60px] shrink-0 items-center gap-4 border-b border-line-subtle bg-surface pl-7 pr-4 sm:flex">
                 {/* Workspace / document breadcrumb and status — min-w-0 so the
                     names truncate before the buttons on the right shrink. */}
                 <div className="flex min-w-0 flex-1 items-center gap-2 text-[13px]">
                     {workspaceName && (
-                        <span className="hidden min-w-0 items-center gap-2 sm:flex">
+                        <span className="flex min-w-0 items-center gap-2">
                             <span className="truncate text-fg-muted">
                                 {workspaceName}
                             </span>
@@ -121,7 +184,7 @@ const EditorPageHeader = ({
                     <StatusDot
                         tone={status.tone}
                         label={status.label}
-                        className="shrink-0 sm:ml-3"
+                        className="ml-3 shrink-0"
                     />
                 </div>
 
@@ -250,27 +313,14 @@ const EditorPageHeader = ({
                     <Button
                         variant="primary"
                         onClick={() => setManageModalTab("access-overrides")}
-                        className="font-semibold sm:px-4"
+                        className="px-4 font-semibold"
                     >
                         <LuUsers />
                         Share
                     </Button>
 
                     {/* ⋯ — pin, copy link, document details, move to Trash */}
-                    <DropdownMenu
-                        items={documentMenu}
-                        className="w-60"
-                        trigger={
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                aria-label="Document menu"
-                                className="ml-1 data-[state=open]:bg-surface-selected data-[state=open]:text-fg"
-                            >
-                                <LuEllipsis />
-                            </Button>
-                        }
-                    />
+                    {renderDocumentMenu("ml-1")}
                 </div>
             </header>
 

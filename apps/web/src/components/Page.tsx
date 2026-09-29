@@ -16,8 +16,9 @@ import DocumentSwitcherOverlay from "../pages/editor/documentSwitcherOverlay/Doc
  * Full-viewport page shell shared across all top-level routes. When authRequired
  * is true, shows an authenticating screen while loading and redirects to /auth if unauthenticated.
  * When haveSidebar is true, renders a sidebar alongside the page content (on
- * phones: a top bar whose menu button opens the sidebar drawer), and enables
- * the app shortcuts and the ⌘K search palette they open.
+ * phones: a top bar whose menu button opens the sidebar drawer, unless the
+ * page draws its own), and enables the app shortcuts and the ⌘K search
+ * palette they open.
  */
 const Page = ({
     className = "",
@@ -25,12 +26,14 @@ const Page = ({
     authRequired = false,
     haveSidebar = false,
     mobileTitle,
+    mobileTopBar = true,
 }: {
     className?: string;
     children?: ReactNode;
     authRequired?: boolean; // When true, blocks unauthenticated users and waits for auth to resolve.
     haveSidebar?: boolean; // When true, renders a sidebar alongside the page content.
     mobileTitle?: string; // Page name shown in the phone top bar beside the menu button, e.g. "Library".
+    mobileTopBar?: boolean; // When false, skips the phone top bar — for a page that renders its own (e.g. the editor).
 }) => {
     const auth = useAtomValue(authAtom); // Current auth state — drives the loading and redirect logic.
     const navigate = useNavigate();
@@ -68,7 +71,7 @@ const Page = ({
                 className={`flex-1 flex flex-col overflow-x-hidden ${className}`}
             >
                 {/* Phone top bar — the sidebar lives in a drawer there */}
-                {haveSidebar && (
+                {haveSidebar && mobileTopBar && (
                     <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line-subtle px-2 sm:hidden">
                         <Button
                             variant="ghost"

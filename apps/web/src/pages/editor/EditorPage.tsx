@@ -49,7 +49,12 @@ const EditorPage = () => {
 
     return (
         // authRequired redirects unauthenticated users before rendering children
-        <Page authRequired haveSidebar>
+        // The editor header draws its own phone top bar once the document is ready.
+        <Page
+            authRequired
+            haveSidebar
+            mobileTopBar={documentStatus !== "ready"}
+        >
             {documentStatus === "ready" && (
                 <EditorPageHeader
                     documentStatus={documentStatus}
