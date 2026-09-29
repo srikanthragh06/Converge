@@ -1,12 +1,30 @@
 import type { DocumentCheckpointDto } from "@converge/shared";
-import { formatDate } from "../../../utils/utils";
 import { Avatar, AvatarGroup } from "../../../components/ui/Avatar";
 import Tooltip from "../../../components/ui/Tooltip";
+import { Badge } from "../../../components/ui/Badge";
 
 /** Maximum number of contributor avatars shown before the rest are collapsed (still counted in the tooltip). */
 const MAX_VISIBLE_CONTRIBUTOR_AVATARS = 4;
 /** Maximum number of contributor names spelled out inline before collapsing to "and many others". */
 const MAX_NAMED_CONTRIBUTORS = 3;
+
+/**
+ * Formats a checkpoint time as in the mockups: "Sep 28, 2026 · 1:47 a.m.".
+ * @param date - the checkpoint's last-edited time
+ */
+const formatCheckpointTime = (date: Date | string): string => {
+    const d = new Date(date);
+    const day = d.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+    });
+    const time = d
+        .toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+        .replace(/\bAM\b/, "a.m.")
+        .replace(/\bPM\b/, "p.m.");
+    return `${day} · ${time}`;
+};
 
 /**
  * Formats contributor names for inline display: every name joined with
@@ -26,16 +44,17 @@ const formatContributorNames = (names: string[]): string => {
 };
 
 /**
- * One row in the checkpoint history list. First line shows lastEditedAt —
- * the timestamp of the actual last edit folded into this checkpoint, not
- * createdAt (when the checkpoint row itself was inserted, which can lag
- * behind for automatic checkpoints) — and a Manual/Auto/"Before AI edit"
- * label derived from the checkpoint's source. Second line shows a
- * stacked-avatar contributor summary — up to
- * MAX_VISIBLE_CONTRIBUTOR_AVATARS avatars, and inline names
- * capped separately at MAX_NAMED_CONTRIBUTORS. Hovering the avatar stack
- * shows every contributor's name, including ones collapsed out of both caps.
- * Clicking the row selects it; isSelected controls the highlighted style.
+ * One row in the checkpoint history list (pp 50 / 56). First line shows
+ * lastEditedAt — the timestamp of the actual last edit folded into this
+ * checkpoint, not createdAt (when the checkpoint row itself was inserted,
+ * which can lag behind for automatic checkpoints) — and a Manual / Auto /
+ * "Before AI edit" badge derived from the checkpoint's source. Second line
+ * shows a stacked-avatar contributor summary — up to
+ * MAX_VISIBLE_CONTRIBUTOR_AVATARS avatars, and inline names capped
+ * separately at MAX_NAMED_CONTRIBUTORS. Hovering the avatar stack shows every
+ * contributor's name, including ones collapsed out of both caps. Clicking the
+ * row selects it; the selected row gets the selected fill, a gold left bar,
+ * and a bold timestamp.
  */
 const CheckpointListItem = ({
     checkpoint,
@@ -56,47 +75,66 @@ const CheckpointListItem = ({
 
     return (
         <div
+            role="button"
+            tabIndex={0}
             onClick={onSelect}
-            className={`px-3 py-2.5 border-b border-line
-        cursor-pointer transition ${
-            isSelected
-                ? "bg-surface-selected"
-                : "hover:opacity-80 active:opacity-60"
-        }`}
+            onKeyDown={(e) => {
+                if (e.key !== "Enter" && e.key !== " ") return;
+                e.preventDefault();
+                onSelect();
+            }}
+            aria-current={isSelected}
+            className={`relative flex w-full min-w-0 cursor-pointer flex-col gap-2 px-4 py-3.5 outline-none transition-colors focus-visible:bg-surface-hover ${
+                isSelected ? "bg-surface-selected" : "hover:bg-surface-hover"
+            }`}
         >
-            {/* Row 1: last-edited time (left) and Manual/Auto/"Before AI edit" source label (right) */}
-            <div className="flex items-center justify-between text-xs">
-                <span className="text-fg-secondary">
-                    {formatDate(checkpoint.lastEditedAt)}
+            {isSelected && (
+                <span className="absolute inset-y-0 left-0 w-[3px] bg-gold" />
+            )}
+            {/* Row 1: last-edited time (left) and Manual/Auto/"Before AI edit" source badge (right) */}
+            <div className="flex items-center justify-between gap-2">
+                <span
+                    className={`truncate text-sm text-fg ${isSelected ? "font-semibold" : ""}`}
+                >
+                    {formatCheckpointTime(checkpoint.lastEditedAt)}
                 </span>
-                <span className="text-fg-secondary opacity-60">
+                <Badge className={isSelected ? "bg-transparent" : ""}>
                     {checkpoint.source === "manual"
                         ? "Manual"
                         : checkpoint.source === "mcp"
                           ? "Before AI edit"
                           : "Auto"}
-                </span>
+                </Badge>
             </div>
             {/* Row 2: stacked contributor avatars + names, only rendered if there are any contributors */}
             {checkpoint.contributors.length > 0 && (
-                <div className="flex items-center gap-2 mt-1.5 min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
                     <Tooltip
                         side="top"
                         content={checkpoint.contributors.map((c) => (
                             <p key={c.id}>{c.name}</p>
                         ))}
                     >
-                        <AvatarGroup className="shrink-0">
+                        <AvatarGroup
+                            className="shrink-0"
+                            ringClassName={
+                                isSelected
+                                    ? "[&>*]:ring-surface-selected"
+                                    : "[&>*]:ring-surface-elevated"
+                            }
+                        >
                             {visibleContributors.map((c) => (
                                 <Avatar
                                     key={c.id}
                                     name={c.name}
                                     src={c.avatarUrl}
+                                    colorKey={String(c.id)}
+                                    className="h-5 w-5 text-[9px] font-semibold"
                                 />
                             ))}
                         </AvatarGroup>
                     </Tooltip>
-                    <span className="text-xs text-fg-secondary truncate">
+                    <span className="truncate text-[13px] text-fg-secondary">
                         {formatContributorNames(names)}
                     </span>
                 </div>

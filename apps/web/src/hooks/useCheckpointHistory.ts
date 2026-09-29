@@ -11,7 +11,8 @@ const CHECKPOINTS_LIST_LIMIT = 10;
 /**
  * Fetches a document's version-history checkpoints with infinite-scroll
  * keyset pagination, newest first. Fetches the first page whenever
- * documentId changes, resetting any accumulated state from a prior document.
+ * documentId changes or refresh is called, resetting any accumulated state
+ * and selecting the newest checkpoint.
  * @param documentId - the document whose checkpoints to fetch
  */
 const useCheckpointHistory = (documentId: string | undefined) => {
@@ -20,6 +21,7 @@ const useCheckpointHistory = (documentId: string | undefined) => {
     const [isFetchingMore, setIsFetchingMore] = useState(false); // true while a subsequent page fetch is in flight
     const [selectedCheckpoint, setSelectedCheckpoint] =
         useState<DocumentCheckpointDto | null>(null); // checkpoint currently selected for viewing/diffing; auto-set to the newest checkpoint once the first page loads
+    const [reloadCount, setReloadCount] = useState(0); // bumped by refresh to re-run the first-page fetch
 
     const nextCursorRef = useRef<number | null>(null); // keyset cursor for the next page; null when no more pages exist
     const hasMoreRef = useRef(true); // whether another page exists — ref so loadMore reads the latest value without being in its own deps
@@ -64,7 +66,10 @@ const useCheckpointHistory = (documentId: string | undefined) => {
         }
     }, [documentId, isFetchingMore]);
 
-    // Fetches the first page whenever documentId changes, resetting pagination state.
+    /** Reloads the list from the first page, e.g. after a new checkpoint was saved. */
+    const refresh = useCallback(() => setReloadCount((c) => c + 1), []);
+
+    // Fetches the first page whenever documentId changes or refresh is called, resetting pagination state.
     useEffect(() => {
         if (!documentId) return;
 
@@ -91,7 +96,7 @@ const useCheckpointHistory = (documentId: string | undefined) => {
         };
 
         fetchFirstPage();
-    }, [documentId]);
+    }, [documentId, reloadCount]);
 
     // Observes the sentinel element and calls loadMore when it enters the viewport.
     // Depends on sentinelEl so it re-runs once the sentinel actually mounts.
@@ -116,6 +121,7 @@ const useCheckpointHistory = (documentId: string | undefined) => {
         sentinelRef,
         selectedCheckpoint,
         setSelectedCheckpoint,
+        refresh,
     };
 };
 

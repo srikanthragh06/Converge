@@ -28,7 +28,8 @@ const SIZE_CLASSES: Record<ModalSize, string> = {
  * @param headerActions - buttons shown before the close button, e.g. "Save checkpoint now"
  * @param size - panel max width (default "sm")
  * @param dismissible - when false, Escape and backdrop clicks are ignored, e.g. while a request is in flight
- * @param className - extra panel classes, e.g. a fixed height or no body padding
+ * @param className - extra panel classes, e.g. a width or a fixed height
+ * @param bodyClassName - extra body classes, e.g. "p-0 sm:p-0" for a split view that runs edge to edge
  * @param children - the modal body; place a ModalFooter last for the button row
  */
 const Modal = ({
@@ -41,6 +42,7 @@ const Modal = ({
     size = "sm",
     dismissible = true,
     className,
+    bodyClassName,
     children,
 }: {
     open?: boolean;
@@ -52,6 +54,7 @@ const Modal = ({
     size?: ModalSize;
     dismissible?: boolean;
     className?: string;
+    bodyClassName?: string;
     children?: ReactNode;
 }) => (
     <DialogPrimitive.Root open={open} onOpenChange={(o) => !o && onClose()}>
@@ -97,7 +100,12 @@ const Modal = ({
                             <LuX className="h-4 w-4" />
                         </DialogPrimitive.Close>
                     </div>
-                    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-5 sm:px-6 sm:pb-6">
+                    <div
+                        className={cn(
+                            "flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-5 sm:px-6 sm:pb-6",
+                            bodyClassName,
+                        )}
+                    >
                         {children}
                     </div>
                 </DialogPrimitive.Content>

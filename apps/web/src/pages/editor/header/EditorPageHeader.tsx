@@ -411,6 +411,7 @@ const EditorPageHeader = ({
             {isCheckpointHistoryModalOpen && (
                 <CheckpointHistoryModal
                     documentId={documentId}
+                    documentTitle={title}
                     editor={editor}
                     isEditable={isEditable}
                     onClose={() => setIsCheckpointHistoryModalOpen(false)}
