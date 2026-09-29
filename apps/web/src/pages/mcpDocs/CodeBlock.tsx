@@ -1,48 +1,31 @@
-import { useState } from "react";
-import { MdCheck, MdContentCopy } from "react-icons/md";
+import { LuCheck, LuCopy } from "react-icons/lu";
+import useCopyToClipboard from "../../hooks/useCopyToClipboard";
+import Button from "../../components/ui/Button";
 
 /**
- * Monospace code snippet with a copy-to-clipboard button in the corner.
- * Mirrors the copy affordance used for the raw API key in RevealApiKeyModal.
+ * Monospace config snippet on an inset panel, with a Copy button in the
+ * corner that turns into a gold "Copied" for two seconds. Scrolls
+ * sideways rather than wrapping.
+ * @param code - the snippet shown and copied
  */
 const CodeBlock = ({ code }: { code: string }) => {
-    const [copied, setCopied] = useState(false); // True briefly after a successful copy, to swap the button's icon.
-
-    /** Copies the snippet to the clipboard and shows a brief confirmation. */
-    const handleCopy = async () => {
-        try {
-            await navigator.clipboard.writeText(code);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-        } catch (err) {
-            console.error("Failed to copy snippet to clipboard:", err);
-        }
-    };
+    const { copied, copy } = useCopyToClipboard();
 
     return (
         <div className="relative">
-            {/* Snippet */}
-            <pre
-                className="px-2.5 py-2 pr-8 sm:px-3 sm:py-2.5 sm:pr-10 text-[11px] sm:text-sm rounded-md
-                    bg-surface-elevated border border-line-strong text-fg-secondary
-                    overflow-x-auto whitespace-pre"
-            >
+            <pre className="overflow-x-auto whitespace-pre rounded-lg border border-line bg-surface-inset px-4 py-3.5 pr-24 font-mono text-[13px] leading-relaxed text-fg sm:px-5 sm:py-4 sm:text-sm">
                 <code>{code}</code>
             </pre>
-            {/* Copy button — icon swaps to a checkmark briefly after a successful copy */}
-            <button
-                onClick={handleCopy}
+            <Button
+                variant={copied ? "primary" : "secondary"}
+                size="sm"
+                onClick={() => copy(code)}
                 aria-label="Copy snippet"
-                className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 p-1 sm:p-1.5 rounded-md bg-surface-selected
-                    text-fg cursor-pointer hover:opacity-80 active:opacity-70
-                    transition shrink-0"
+                className="absolute right-2.5 top-2.5"
             >
-                {copied ? (
-                    <MdCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-success" />
-                ) : (
-                    <MdContentCopy className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                )}
-            </button>
+                {copied ? <LuCheck /> : <LuCopy />}
+                {copied ? "Copied" : "Copy"}
+            </Button>
         </div>
     );
 };

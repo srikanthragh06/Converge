@@ -15,7 +15,10 @@ export type PageAction = {
  * Centered content column for a top-level page (Library, Trash, Workspaces,
  * API keys, MCP setup), with the page's standard width and padding.
  */
-export const PageContainer = ({ className, ...rest }: ComponentProps<"div">) => (
+export const PageContainer = ({
+    className,
+    ...rest
+}: ComponentProps<"div">) => (
     <div
         className={cn(
             "mx-auto flex w-full max-w-[58rem] flex-col px-4 pb-16 pt-6 sm:px-8 sm:pt-12",
@@ -32,17 +35,20 @@ export const PageContainer = ({ className, ...rest }: ComponentProps<"div">) => 
  * @param title - the page name, e.g. "Library"
  * @param description - one line under the title, e.g. "Every document you can open in X's workspace."
  * @param action - the gold primary button, e.g. New document
+ * @param aside - other content on the right instead of an action, e.g. MCP setup's Copy as Markdown
  * @param children - content under the header row, e.g. a filter Input
  */
 export const PageHeader = ({
     title,
     description,
     action,
+    aside,
     children,
 }: {
     title: ReactNode;
     description?: ReactNode;
     action?: PageAction;
+    aside?: ReactNode;
     children?: ReactNode;
 }) => (
     <header className="mb-4 flex flex-col gap-4 sm:mb-6 sm:gap-5">
@@ -57,6 +63,7 @@ export const PageHeader = ({
                     </p>
                 )}
             </div>
+            {aside}
             {action && (
                 <>
                     <Button

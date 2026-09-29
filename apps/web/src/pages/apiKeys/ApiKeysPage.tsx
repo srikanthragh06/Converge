@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { LuChevronDown, LuPlus } from "react-icons/lu";
 import type { ApiKeyDto } from "@converge/shared";
 import { cn } from "../../lib/utils";
@@ -29,15 +29,36 @@ const MOBILE_COLUMNS = "minmax(0,1fr) auto";
  */
 const ApiKeysPage = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { apiKeys, isLoading, fetchAll } = useApiKeys(); // fetched key list, loading flag, and manual refetch
     const { createApiKey, isCreating, error } = useCreateApiKey(); // key creation handler, in-flight flag, and last error message
     const [showCreateModal, setShowCreateModal] = useState(false); // controls Create Key modal visibility
+    const [handledCreateKey, setHandledCreateKey] = useState<string | null>(
+        null,
+    ); // location key whose createKey request was already acted on
     const [revealed, setRevealed] = useState<{
         label: string;
         rawKey: string;
     } | null>(null); // newly created key, shown once; null when no reveal is pending
     const [revokingKey, setRevokingKey] = useState<ApiKeyDto | null>(null); // key pending revoke confirmation
     const [isRevokedOpen, setIsRevokedOpen] = useState(true); // whether the Revoked section is expanded
+
+    // MCP setup's "Create an API key" navigates here with createKey in the
+    // router state. Opened during render, React's pattern for adjusting
+    // state when a prop changes, once per navigation.
+    const wantsCreateKey =
+        (location.state as { createKey?: boolean } | null)?.createKey === true;
+    if (wantsCreateKey && location.key !== handledCreateKey) {
+        setHandledCreateKey(location.key);
+        setShowCreateModal(true);
+    }
+
+    // Drops the request from the history entry once acted on, so a reload or
+    // Back doesn't reopen the dialog.
+    useEffect(() => {
+        if (wantsCreateKey)
+            navigate(location.pathname, { replace: true, state: null });
+    }, [wantsCreateKey, navigate, location.pathname]);
 
     const activeKeys = apiKeys.filter((k) => k.revokedAt === null);
     const revokedKeys = apiKeys.filter((k) => k.revokedAt !== null);
