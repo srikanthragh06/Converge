@@ -208,7 +208,13 @@ const ShareDialog = ({
             {isInitialLoading ? (
                 <RowsSkeleton count={3} />
             ) : (
-                <div className="flex flex-col">
+                // Desktop: capped at about 5½ rows (48px each) and scrolls on its
+                // own, so General access and Copy link stay in view; the half
+                // row hints there's more. Phones: uncapped, the dialog scrolls.
+                <div
+                    className="flex flex-col sm:max-h-[16.5rem] sm:overflow-y-auto"
+                    style={{ scrollbarWidth: "thin" }}
+                >
                     {owner && (
                         <SharePersonRow
                             name={owner.name}
