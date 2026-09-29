@@ -1,5 +1,6 @@
 import type { DocumentIndexingStatus } from "@converge/shared";
-import Modal, { ModalFooter } from "../../../components/ui/Modal";
+import Modal from "../../../components/ui/Modal";
+import ModalFooter from "../../../components/ui/ModalFooter";
 import Button from "../../../components/ui/Button";
 import Skeleton from "../../../components/ui/Skeleton";
 import { StatusDot, type StatusTone } from "../../../components/ui/Badge";
