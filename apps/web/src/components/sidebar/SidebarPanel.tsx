@@ -3,21 +3,14 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
     LuChevronsLeft,
     LuCode,
-    LuClock,
-    LuExternalLink,
-    LuInfo,
     LuKeyRound,
     LuLibrary,
-    LuLink,
     LuMoon,
-    LuPin,
-    LuPinOff,
     LuPlus,
     LuSearch,
     LuSparkle,
     LuSun,
     LuTrash2,
-    LuUsers,
 } from "react-icons/lu";
 import { authAtom } from "../../atoms/auth";
 import { themeAtom } from "../../atoms/theme";
@@ -25,12 +18,9 @@ import { isSearchOpenAtom } from "../../atoms/search";
 import { isAgentPanelOpenAtom } from "../../atoms/agent";
 import { sidebarSectionsAtom } from "../../atoms/sidebar";
 import useSidebar from "../../hooks/useSidebar";
-import useDocumentMenuActions from "../../hooks/useDocumentMenuActions";
+import useDocumentRowMenu from "../../hooks/useDocumentRowMenu";
 import useIsMobile from "../../hooks/useIsMobile";
 import { formatShortcut } from "../../lib/utils";
-import { hasAccess } from "../../utils/utils";
-import type { MenuEntry } from "../ui/Menu";
-import type { LibraryDocumentDto } from "@converge/shared";
 import Button from "../ui/Button";
 import SidebarNavItem from "./SidebarNavItem";
 import SidebarSection from "./SidebarSection";
@@ -64,21 +54,14 @@ const SidebarPanel = ({ onCollapse }: { onCollapse: () => void }) => {
     const [sections, setSections] = useAtom(sidebarSectionsAtom); // which of Pinned / Recent are expanded
     const setIsSearchOpen = useSetAtom(isSearchOpenAtom); // opens the search palette
     const setIsAgentPanelOpen = useSetAtom(isAgentPanelOpenAtom); // opens the Ask Converge panel
-    const {
-        togglePin,
-        openInNewTab,
-        copyLink,
-        openShare,
-        openDetails,
-        openVersionHistory,
-        moveToTrash,
-    } = useDocumentMenuActions(); // document row menu actions
     const isMobile = useIsMobile(); // on phones the panel is a drawer, closed after navigating
 
     /** Closes the drawer after a navigation choice on phones; the desktop sidebar stays as it is. */
     const closeOnMobile = () => {
         if (isMobile) onCollapse();
     };
+
+    const { documentMenu, togglePin } = useDocumentRowMenu(closeOnMobile); // document row ⋯ / right-click menu
 
     /**
      * Navigates to a route, then closes the sidebar on phones.
@@ -88,71 +71,6 @@ const SidebarPanel = ({ onCollapse }: { onCollapse: () => void }) => {
         navigate(path);
         closeOnMobile();
     };
-
-    /**
-     * The ⋯ / right-click menu of a document row (pp 8 / 14). Version history
-     * opens the document first, since it compares against the live editor.
-     * @param doc - the row's document
-     * @param isPinned - whether the row is in the Pinned section
-     */
-    const documentMenu = (
-        doc: LibraryDocumentDto,
-        isPinned: boolean,
-    ): MenuEntry[] => [
-        {
-            label: isPinned ? "Unpin from sidebar" : "Pin to sidebar",
-            icon: isPinned ? <LuPinOff /> : <LuPin />,
-            onSelect: () => togglePin(doc.id, !isPinned),
-        },
-        { type: "separator" },
-        {
-            label: "Open in new tab",
-            icon: <LuExternalLink />,
-            onSelect: () => openInNewTab(doc),
-        },
-        {
-            label: "Copy link",
-            icon: <LuLink />,
-            onSelect: () => copyLink(doc),
-        },
-        { type: "separator" },
-        {
-            label: "Share…",
-            icon: <LuUsers />,
-            onSelect: () => {
-                openShare(doc);
-                closeOnMobile();
-            },
-        },
-        {
-            label: "Document details",
-            icon: <LuInfo />,
-            onSelect: () => {
-                openDetails(doc);
-                closeOnMobile();
-            },
-        },
-        {
-            label: "Version history",
-            icon: <LuClock />,
-            onSelect: () => {
-                openVersionHistory(doc);
-                closeOnMobile();
-            },
-        },
-        // Trashing needs admin access; hidden rather than failing with a 403.
-        ...(hasAccess(doc.access, "admin")
-            ? ([
-                  { type: "separator" },
-                  {
-                      label: "Move to Trash",
-                      icon: <LuTrash2 />,
-                      destructive: true,
-                      onSelect: () => moveToTrash(doc),
-                  },
-              ] satisfies MenuEntry[])
-            : []),
-    ];
 
     return (
         <aside className="flex h-full w-full shrink-0 flex-col border-r border-line bg-surface-sidebar sm:w-[280px]">

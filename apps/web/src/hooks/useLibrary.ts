@@ -16,19 +16,14 @@ const LIBRARY_SEARCH_PAGE_LIMIT = 5;
  * Manages library page state. Fetches documents from GET /document/library
  * with keyset pagination, debounced search, and an IntersectionObserver on
  * the returned sentinelRef to automatically load the next page on scroll.
- * @param enabled - only fetches while true, so switching to the Library tab
- * (after having been on Trash) is what re-triggers the request rather than
- * relying on a single mount-time fetch. Re-fetches the current page (first
- * page, or a search re-run if searchText is non-empty) each time it flips
- * from false to true.
  */
-const useLibrary = (enabled: boolean) => {
+const useLibrary = () => {
     const { createDocument, isCreating } = useNewDocument(); // creates a new document in the current workspace
     const currentWorkspace = useAtomValue(currentWorkspaceAtom); // active workspace — its ID is required by all library API calls
     const refreshSidebar = useAtomValue(refreshSidebarAtom); // bumped when a menu trashes, restores, or pins a document, so the list re-fetches too
     const [searchText, setSearchText] = useState(""); // current search query string
     const [documents, setDocuments] = useState<LibraryDocumentDto[]>([]); // accumulated list of fetched documents
-    const [isLoadingMore, setIsLoadingMore] = useState(enabled); // true when a library fetch is in flight; starts true only if enabled, so the skeleton doesn't show while the tab is inactive
+    const [isLoadingMore, setIsLoadingMore] = useState(true); // true when a library fetch is in flight; starts true since the first page is fetched on mount
 
     const nextCursor = useRef<{ lastVisitedAt: Date; id: number } | null>(null); // compound keyset cursor for the next page
     const hasMoreRef = useRef(true); // whether another page exists — ref so loadMore always reads the latest value without needing to be in its deps
@@ -152,13 +147,9 @@ const useLibrary = (enabled: boolean) => {
 
     // Debounces searchText and fires the search API 300ms after the user stops typing.
     // When the query is cleared, resets to the first page of the normal library fetch.
-    // No-ops while disabled, so switching to the Library tab is what triggers the
-    // request — including a re-fetch of whatever's currently searched when the tab
-    // is reopened after having been on Trash. Also re-runs when a document menu
-    // bumps refreshSidebarAtom (Move to Trash, its Undo, pin toggles).
+    // Also re-runs when a document menu bumps refreshSidebarAtom (Move to Trash,
+    // its Undo, pin toggles).
     useEffect(() => {
-        if (!enabled) return;
-
         let timeout: number | null = null;
         if (searchText.trim() === "") {
             fetchFirstPage();
@@ -171,7 +162,7 @@ const useLibrary = (enabled: boolean) => {
         return () => {
             if (timeout) clearTimeout(timeout);
         };
-    }, [searchText, currentWorkspace, enabled, refreshSidebar]);
+    }, [searchText, currentWorkspace, refreshSidebar]);
 
     // Observes the sentinel element and calls loadMore when it enters the viewport.
     // Depends on sentinelEl so it re-runs once the element actually mounts.

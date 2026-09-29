@@ -1,13 +1,24 @@
+import { useAtomValue } from "jotai";
+import { LuPlus, LuSearch } from "react-icons/lu";
 import Page from "../../components/Page";
-import LibraryDocumentCard from "./components/LibraryDocumentCard";
+import Input from "../../components/ui/Input";
+import TableSkeleton from "../../components/ui/TableSkeleton";
+import { PageContainer, PageHeader } from "../../components/ui/PageHeader";
+import { Table, TableHeadCell, TableHeader } from "../../components/ui/Table";
+import {
+    currentWorkspaceAtom,
+    pinnedDocumentsAtom,
+    pinOverridesAtom,
+} from "../../atoms/sidebar";
 import useLibrary from "../../hooks/useLibrary";
-import AnimatedDots from "../../components/AnimatedDots";
-import Skeleton from "../../components/ui/Skeleton";
-import DelayedRender from "../../components/DelayedRender";
+import useDocumentRowMenu from "../../hooks/useDocumentRowMenu";
+import LibraryRow from "./components/LibraryRow";
 
 /**
- * Full-screen library page. Lists the authenticated user's documents
- * with debounced search and infinite scroll.
+ * Library page (pp 29 / 30, phones pp 82 / 88): every document the user can
+ * open in the current workspace, most recently visited first, with a title
+ * filter, a New document button, and infinite scroll. Rows carry the same
+ * ⋯ / right-click menu as the sidebar's.
  */
 const LibraryPage = () => {
     const {
@@ -18,78 +29,85 @@ const LibraryPage = () => {
         isLoadingMore,
         isCreating,
         createDocument,
-    } = useLibrary(true); // search state, paginated document list, infinite scroll sentinel, and document creation state
+    } = useLibrary(); // search state, paginated document list, infinite scroll sentinel, and document creation state
+    const currentWorkspace = useAtomValue(currentWorkspaceAtom); // named in the subtitle
+    const pinnedDocuments = useAtomValue(pinnedDocumentsAtom); // every pinned document in the workspace (the sidebar's unpaginated list)
+    const pinOverrides = useAtomValue(pinOverridesAtom); // pin toggles made this session, applied before the pinned list re-fetches
+    const { documentMenu, togglePin } = useDocumentRowMenu(); // row ⋯ / right-click menu and pin toggle
+    const pinnedIds = new Set(pinnedDocuments.map((d) => d.id)); // ids of pinned documents, for each row's pin
+    const isFiltering = searchText.trim() !== ""; // a filter is set, so an empty list means no match
 
     return (
-        <>
-            <Page authRequired haveSidebar mobileTitle="Library">
-                {/* Header — title and search bar, does not scroll */}
-                <div className="bg-surface pb-4 pt-4 sm:pt-8 w-full flex flex-col space-y-4">
-                    <div className="flex flex-col items-center w-full px-4 sm:px-0">
-                        <div className="w-full sm:max-w-[600px]">
-                            <div className="text-fg font-bold flex justify-start sm:mb-4 mb-2">
-                                <h1 className="sm:text-3xl text-xl">Library</h1>
-                            </div>
-                            <div className="w-full flex flex-row items-center justify-start space-x-2 sm:space-x-4">
-                                <input
-                                    type="text"
-                                    value={searchText}
-                                    onChange={(e) =>
-                                        setSearchText(e.target.value)
+        <Page authRequired haveSidebar mobileTitle="Library">
+            <div className="flex-1 overflow-y-auto">
+                <PageContainer>
+                    <PageHeader
+                        title="Library"
+                        description={
+                            currentWorkspace &&
+                            `Every document you can open in ${currentWorkspace.name}.`
+                        }
+                        action={{
+                            label: "New document",
+                            icon: <LuPlus />,
+                            onClick: createDocument,
+                            disabled: isCreating,
+                        }}
+                    >
+                        <Input
+                            inputSize="lg"
+                            icon={<LuSearch />}
+                            value={searchText}
+                            onChange={(e) => setSearchText(e.target.value)}
+                            placeholder="Filter by title"
+                            aria-label="Filter documents by title"
+                        />
+                    </PageHeader>
+                    <Table
+                        columns="minmax(0,1fr) 7.5rem 8.5rem 6.5rem 4rem"
+                        mobileColumns="minmax(0,1fr) auto"
+                    >
+                        <TableHeader>
+                            <TableHeadCell>Title</TableHeadCell>
+                            <TableHeadCell hideOnMobile>
+                                Your access
+                            </TableHeadCell>
+                            <TableHeadCell hideOnMobile>
+                                Last visited
+                            </TableHeadCell>
+                            <TableHeadCell hideOnMobile>Edited</TableHeadCell>
+                            <TableHeadCell />
+                        </TableHeader>
+                        {documents.map((doc) => {
+                            const isPinned =
+                                pinOverrides[doc.id] ?? pinnedIds.has(doc.id);
+                            return (
+                                <LibraryRow
+                                    key={doc.id}
+                                    document={doc}
+                                    isPinned={isPinned}
+                                    menuItems={documentMenu(doc, isPinned)}
+                                    onTogglePin={() =>
+                                        togglePin(doc.id, !isPinned)
                                     }
-                                    placeholder="Search documents..."
-                                    className="flex-1 px-3 py-1 sm:text-base text-sm rounded-md
-                                    bg-surface-elevated
-                                    outline-none text-fg border-0"
                                 />
-                                <button
-                                    onClick={createDocument}
-                                    disabled={isCreating}
-                                    className="sm:px-3 sm:py-1 px-2 py-1 sm:text-sm text-xs rounded-md bg-gold text-gold-fg
-                                     hover:opacity-90 active:opacity-80 transition
-                                    cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    <span className="sm:hidden">+</span>
-                                    <span className="hidden sm:inline">
-                                        {isCreating
-                                            ? "Creating"
-                                            : "New Document"}
-                                        {isCreating && <AnimatedDots />}
-                                    </span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Document list — scrolls independently within the remaining page height */}
-                <div className="flex-1 overflow-y-auto flex flex-col items-center gap-1 pb-6">
-                    {documents.length === 0 && isLoadingMore && (
-                        <DelayedRender>
-                            <div className="w-full sm:max-w-[600px] flex flex-col gap-1 px-4 sm:px-0 mt-1">
-                                <Skeleton height="3.5rem" width="100%" />
-                                <Skeleton height="3.5rem" width="100%" />
-                                <Skeleton height="3.5rem" width="100%" />
-                                <Skeleton height="3.5rem" width="100%" />
-                                <Skeleton height="3.5rem" width="100%" />
-                            </div>
-                        </DelayedRender>
-                    )}
-                    {documents.map((doc) => (
-                        <LibraryDocumentCard key={doc.id} document={doc} />
-                    ))}
-                    {documents.length > 0 && isLoadingMore && (
-                        <DelayedRender>
-                            <div className="w-full sm:max-w-[600px] flex flex-col gap-1 px-4 sm:px-0 mt-1">
-                                <Skeleton height="3.5rem" width="100%" />
-                                <Skeleton height="3.5rem" width="100%" />
-                            </div>
-                        </DelayedRender>
-                    )}
+                            );
+                        })}
+                        {isLoadingMore && (
+                            <TableSkeleton rows={documents.length ? 2 : 6} />
+                        )}
+                        {!isLoadingMore && documents.length === 0 && (
+                            <p className="py-10 text-center text-sm text-fg-muted">
+                                {isFiltering
+                                    ? "No documents match this filter."
+                                    : "No documents yet."}
+                            </p>
+                        )}
+                    </Table>
                     <div ref={sentinelRef} />
-                </div>
-            </Page>
-        </>
+                </PageContainer>
+            </div>
+        </Page>
     );
 };
 
