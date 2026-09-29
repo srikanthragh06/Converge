@@ -152,7 +152,7 @@ const ApiKeysPage = () => {
                                                 !isRevokedOpen && "-rotate-90",
                                             )}
                                         />
-                                        Revoked · {revokedKeys.length}
+                                        Revoked keys ({revokedKeys.length})
                                     </button>
                                     {isRevokedOpen && (
                                         <Table
