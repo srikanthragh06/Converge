@@ -7,7 +7,7 @@ import { isSearchOpenAtom } from "../atoms/search";
 import { mobileSidebarOpenAtom } from "../atoms/sidebar";
 import Button from "./ui/Button";
 import useAppShortcuts from "../hooks/useAppShortcuts";
-import AnimatedDots from "./AnimatedDots";
+import AuthStatus from "./auth/AuthStatus";
 import Sidebar from "./sidebar/Sidebar";
 import DelayedRender from "./DelayedRender";
 import DocumentDialogs from "./DocumentDialogs";
@@ -50,18 +50,11 @@ const Page = ({
         if (auth.status === "unauthenticated") navigate("/auth");
     }, [auth.status, authRequired]);
 
-    // Show a status message while waiting for /auth/me to resolve.
+    // Show the Authenticating screen while waiting for /auth/me to resolve.
     if (authRequired && auth.status === "loading")
         return (
             <DelayedRender>
-                <div className="w-screen h-screen flex flex-col items-center justify-center">
-                    <div className="text-fg-secondary">
-                        <span>
-                            Authenticating
-                            <AnimatedDots />
-                        </span>
-                    </div>
-                </div>
+                <AuthStatus tone="pending" title="Authenticating…" />
             </DelayedRender>
         );
 

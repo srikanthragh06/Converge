@@ -1,30 +1,40 @@
-import AnimatedDots from "../../components/AnimatedDots";
-import Page from "../../components/Page";
+import { useNavigate } from "react-router-dom";
+import AuthStatus from "../../components/auth/AuthStatus";
+import Button from "../../components/ui/Button";
 import useGoogleAuthCallback from "../../hooks/useGoogleAuthCallback";
 
 /**
- * Handles the redirect back from Google's OAuth flow. Renders a status
- * message while the callback hook exchanges the code for a session.
+ * Handles the redirect back from Google's OAuth flow (pp 60–62 / 64–66):
+ * Authenticating… while the callback hook exchanges the code for a session,
+ * then Signed in before it moves on to the library, or Sign in failed with
+ * a way back to the sign-in page.
  */
 const AuthCallbackPage = () => {
-    const { authStatus } = useGoogleAuthCallback(); // Current state of the OAuth exchange: PENDING, SUCCESSFUL, or FAILED
+    const navigate = useNavigate();
+    const { authStatus } = useGoogleAuthCallback(); // current state of the OAuth exchange: PENDING, SUCCESSFUL, or FAILED
 
-    return (
-        <Page className="items-center justify-center">
-            {authStatus === "PENDING" && (
-                <div className="text-fg-secondary">
-                    <span>Signing you in</span>
-                    <AnimatedDots />
-                </div>
-            )}
-            {authStatus === "FAILED" && (
-                <div className="text-fg-secondary">Sign in failed :(</div>
-            )}
-            {authStatus === "SUCCESSFUL" && (
-                <div className="text-fg-secondary">Sign in successful</div>
-            )}
-        </Page>
-    );
+    if (authStatus === "SUCCESSFUL")
+        return (
+            <AuthStatus
+                tone="success"
+                title="Signed in"
+                detail="Taking you to your library…"
+            />
+        );
+    if (authStatus === "FAILED")
+        return (
+            <AuthStatus
+                tone="error"
+                title="Sign in failed"
+                detail="The sign-in didn't go through. Please try again."
+                action={
+                    <Button onClick={() => navigate("/auth")}>
+                        Back to sign in
+                    </Button>
+                }
+            />
+        );
+    return <AuthStatus tone="pending" title="Authenticating…" />;
 };
 
 export default AuthCallbackPage;

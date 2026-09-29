@@ -1,11 +1,12 @@
-import Page from "../../components/Page";
 import { AUTH_CSRF_STATE } from "../../constants/constants";
 import { FcGoogle } from "react-icons/fc";
-import lockupWhite from "/lockup-white.svg";
+import AuthScreen from "../../components/auth/AuthScreen";
+import Logo from "../../components/ui/Logo";
 
 /**
- * Landing page that initiates the Google OAuth flow. Renders a sign-in button
- * and handles the redirect to Google's authorisation endpoint.
+ * Sign-in page (pp 59 / 63): the Converge logo, "Sign in to get started",
+ * and a Sign in with Google button that starts the OAuth flow by
+ * redirecting to Google's authorisation endpoint.
  */
 const AuthPage = () => {
     /**
@@ -41,27 +42,22 @@ const AuthPage = () => {
     };
 
     return (
-        <Page className="space-y-8 items-center justify-center">
-            <img
-                src={lockupWhite}
-                alt="Converge"
-                className="w-[360px] sm:w-[720px] ml-[120px] sm:ml-[200px]"
-            />
-            <p className="sm:text-lg text-base text-center text-fg max-w-[250px] sm:max-w-[800px]">
+        <AuthScreen>
+            <h1 className="sr-only">Sign in to Converge</h1>
+            <Logo size={44} className="sm:hidden" />
+            <Logo size={64} className="hidden sm:inline-flex" />
+            <p className="mt-8 text-base text-fg-secondary sm:mt-10 sm:text-lg">
                 Sign in to get started
             </p>
             <button
-                className="flex items-center gap-3 px-5 py-3 rounded-lg cursor-pointer
-                            bg-surface-elevated text-fg shadow-sm border border-line-strong
-                            hover:shadow-md transition-shadow duration-150"
+                type="button"
                 onClick={handleSignInWithGoogle}
+                className="mt-7 flex cursor-pointer items-center gap-3 rounded-lg border border-line-strong bg-surface-elevated px-6 py-3 text-base font-medium text-fg shadow-sm shadow-shadow outline-none transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-gold/60"
             >
-                <FcGoogle className="sm:w-6 sm:h-6 w-3 h-3 shrink-0" />
-                <span className=" text-sm sm:text-lg font-medium">
-                    Sign in with Google
-                </span>
+                <FcGoogle className="h-5 w-5 shrink-0" />
+                Sign in with Google
             </button>
-        </Page>
+        </AuthScreen>
     );
 };
 
