@@ -29,15 +29,27 @@ const UserSummary = ({ user }: { user: AuthResponseDto }) => (
  * The sidebar footer: the signed-in user, opening a menu above it with
  * their profile and Log out.
  * @param user - the signed-in user
+ * @param compact - shows only the avatar and opens the menu to the right,
+ *                  for the collapsed icon rail
  */
-const UserMenu = ({ user }: { user: AuthResponseDto }) => {
+const UserMenu = ({
+    user,
+    compact = false,
+}: {
+    user: AuthResponseDto;
+    compact?: boolean;
+}) => {
     const logout = useLogout(); // clears the session and redirects to /
 
     return (
         <DropdownMenu
-            side="top"
-            align="start"
-            className="w-[var(--radix-dropdown-menu-trigger-width)] max-w-none"
+            side={compact ? "right" : "top"}
+            align={compact ? "end" : "start"}
+            className={
+                compact
+                    ? "w-64"
+                    : "w-[var(--radix-dropdown-menu-trigger-width)] max-w-none"
+            }
             items={[
                 {
                     type: "label",
@@ -51,13 +63,28 @@ const UserMenu = ({ user }: { user: AuthResponseDto }) => {
                 { label: "Log out", icon: <LuLogOut />, onSelect: logout },
             ]}
             trigger={
-                <button
-                    type="button"
-                    className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg p-1.5 outline-none transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-gold/60 data-[state=open]:bg-surface-hover"
-                >
-                    <UserSummary user={user} />
-                    <LuChevronsUpDown className="h-4 w-4 shrink-0 text-fg-muted" />
-                </button>
+                compact ? (
+                    <button
+                        type="button"
+                        aria-label="Account"
+                        className="flex cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
+                    >
+                        <Avatar
+                            name={user.name}
+                            src={user.avatarUrl}
+                            colorKey={user.id}
+                            className="h-8 w-8 text-[11px]"
+                        />
+                    </button>
+                ) : (
+                    <button
+                        type="button"
+                        className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg p-1.5 outline-none transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-gold/60 data-[state=open]:bg-surface-hover"
+                    >
+                        <UserSummary user={user} />
+                        <LuChevronsUpDown className="h-4 w-4 shrink-0 text-fg-muted" />
+                    </button>
+                )
             }
         />
     );

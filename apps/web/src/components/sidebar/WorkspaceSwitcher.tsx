@@ -26,6 +26,8 @@ import WorkspaceTile from "./WorkspaceTile";
  * @param onSelect - switches to the workspace with the given id
  * @param onOpen - called when the menu opens, e.g. to refetch the workspace list
  * @param onNavigate - called after a menu action that leaves the page, e.g. to close the mobile drawer
+ * @param compact - shows only the tile (with a tooltip) and opens the menu
+ *                  to the right, for the collapsed icon rail
  */
 const WorkspaceSwitcher = ({
     workspaces,
@@ -33,12 +35,14 @@ const WorkspaceSwitcher = ({
     onSelect,
     onOpen,
     onNavigate,
+    compact = false,
 }: {
     workspaces: WorkspaceDto[];
     currentWorkspace: { id: number; name: string } | null;
     onSelect: (id: number) => void;
     onOpen: () => void;
     onNavigate: () => void;
+    compact?: boolean;
 }) => {
     const navigate = useNavigate();
     const refreshSidebar = useSetAtom(refreshSidebarAtom); // bumped after the settings modal closes, to pick up a rename
@@ -102,32 +106,47 @@ const WorkspaceSwitcher = ({
         <>
             <DropdownMenu
                 align="start"
+                side={compact ? "right" : "bottom"}
                 items={items}
                 onOpenChange={(open) => open && onOpen()}
                 className="w-[17.5rem] max-w-[calc(100vw-1rem)]"
                 trigger={
-                    <button
-                        type="button"
-                        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-lg p-1.5 text-left outline-none transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-gold/60 data-[state=open]:bg-surface-hover"
-                    >
-                        <WorkspaceTile
-                            name={currentWorkspace?.name ?? ""}
-                            type={workspace?.type}
-                        />
-                        <span className="flex min-w-0 flex-1 flex-col">
-                            <span className="truncate text-sm font-semibold text-fg">
-                                {currentWorkspace?.name}
-                            </span>
-                            {workspace && (
-                                <span className="truncate text-xs text-fg-muted">
-                                    {workspace.type === "personal"
-                                        ? "Personal"
-                                        : describeWorkspace(workspace)}
+                    compact ? (
+                        <button
+                            type="button"
+                            aria-label={`Workspace: ${currentWorkspace?.name ?? ""}`}
+                            className="flex cursor-pointer rounded-md outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
+                        >
+                            <WorkspaceTile
+                                name={currentWorkspace?.name ?? ""}
+                                type={workspace?.type}
+                                className="h-8 w-8 text-lg"
+                            />
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-lg p-1.5 text-left outline-none transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-gold/60 data-[state=open]:bg-surface-hover"
+                        >
+                            <WorkspaceTile
+                                name={currentWorkspace?.name ?? ""}
+                                type={workspace?.type}
+                            />
+                            <span className="flex min-w-0 flex-1 flex-col">
+                                <span className="truncate text-sm font-semibold text-fg">
+                                    {currentWorkspace?.name}
                                 </span>
-                            )}
-                        </span>
-                        <LuChevronsUpDown className="h-4 w-4 shrink-0 text-fg-muted" />
-                    </button>
+                                {workspace && (
+                                    <span className="truncate text-xs text-fg-muted">
+                                        {workspace.type === "personal"
+                                            ? "Personal"
+                                            : describeWorkspace(workspace)}
+                                    </span>
+                                )}
+                            </span>
+                            <LuChevronsUpDown className="h-4 w-4 shrink-0 text-fg-muted" />
+                        </button>
+                    )
                 }
             />
 

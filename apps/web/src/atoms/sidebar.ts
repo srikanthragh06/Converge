@@ -19,8 +19,18 @@ export const recentDocumentsAtom = atom<LibraryDocumentDto[]>([]);
 /** Documents the user has pinned in the current workspace, most-recently-pinned first. Persisted across sidebar remounts to avoid flicker. */
 export const pinnedDocumentsAtom = atom<LibraryDocumentDto[]>([]);
 
-/** Which collapsible sidebar sections are expanded, remembered across visits. */
+/** Which collapsible sidebar sections are expanded, remembered across visits. Read on init so the first render doesn't flash the defaults. */
 export const sidebarSectionsAtom = atomWithStorage(
     "converge-sidebar-sections",
     { pinned: true, recent: true },
+    undefined,
+    { getOnInit: true },
+);
+
+/** Whether the sidebar is collapsed to its icon rail, remembered across pages and visits. Read on init so the first render doesn't flash the panel. */
+export const sidebarCollapsedAtom = atomWithStorage(
+    "converge-sidebar-collapsed",
+    false,
+    undefined,
+    { getOnInit: true },
 );

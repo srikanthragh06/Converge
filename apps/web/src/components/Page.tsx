@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAtom, useAtomValue } from "jotai";
 import { authAtom } from "../atoms/auth";
@@ -28,9 +28,6 @@ const Page = ({
 }) => {
     const auth = useAtomValue(authAtom); // Current auth state — drives the loading and redirect logic.
     const navigate = useNavigate();
-    const [sidebarOpen, setSidebarOpen] = useState(
-        () => window.innerWidth >= 640,
-    ); // Starts open on desktop (≥640px), closed on mobile — matches the sm breakpoint used in sidebar layout.
     const [isSearchOpen, setIsSearchOpen] = useAtom(isSearchOpenAtom); // ⌘K search palette visibility
     const { documentId } = useParams(); // document open in the editor, if any — the palette leaves it out of its list
 
@@ -59,13 +56,7 @@ const Page = ({
 
     return (
         <div className={`w-screen h-screen flex flex-row overflow-x-hidden`}>
-            {haveSidebar && (
-                <Sidebar
-                    isOpen={sidebarOpen}
-                    onToggle={() => setSidebarOpen(!sidebarOpen)}
-                    closeSidebar={() => setSidebarOpen(false)}
-                />
-            )}
+            {haveSidebar && <Sidebar />}
             <div
                 className={`flex-1 flex flex-col overflow-x-hidden ${className}`}
             >
