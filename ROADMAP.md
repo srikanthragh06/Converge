@@ -904,6 +904,32 @@ An in-app, workspace-scoped chat agent that runs Converge's own MCP tool surface
 
 - `packages/shared/src/http/agent.ts` — HTTP DTOs/Zod schemas for the five `/agent` endpoints (create/list conversations, get messages, rename, delete, send message) plus `AGENT_MESSAGE_MAX_LENGTH`
 
+## Frontend Redesign
+
+> Branch: `redesign` — in progress, not yet merged (remaining: dead-code cleanup and a full browser QA pass against the mockups)
+
+A full visual redesign of `apps/web` from an 88-page mockup PDF (light, dark and phone variants of every screen): a warm palette with a gold accent, Newsreader display serif over Inter UI text, a new X-mark logo, and restyled menus, dialogs and tables — in **light and dark mode**, with a theme toggle, and with phone layouts built into every screen rather than bolted on afterwards. Mostly a reskin, plus a few structural changes: Ask Converge moves from its own page into a slide-over panel, the document settings modal splits into a Share dialog and a Document details modal, and Trash gets its own page. Colors were sampled from the rendered PDF pages at 300 dpi, since no design-tool source exists. Planned and tracked item by item in Converge doc 118.
+
+### Web (React frontend)
+
+- **Theme foundation** — one semantic token set for both themes in `theme/colors.ts`, injected at startup as CSS variables under `:root[data-theme=…]` and read by Tailwind classes, plain CSS, and a single BlockNote theme made entirely of `var()` references, so switching themes is pure CSS with nothing re-rendering. Tailwind's default palette is removed, so a raw color class no longer compiles. `themeAtom` (persisted, default dark) plus an inline script in `index.html` that applies the theme before first paint. Replaced a palette duplicated between `colors.ts` and `tailwind.config.js`, a mostly-dead shadcn HSL variable layer, ~170 raw palette classes, and a PrimeReact theme imported seven times. Code blocks keep a dark background in both themes, since BlockNote always highlights with Shiki's `github-dark`
+- **Fonts** — Inter (UI) and Newsreader (document title, headings, modal and page titles), replacing Roboto, Montserrat and BlockNote's bundled Inter
+- **Shared UI primitives** (`components/ui/`) — Button, Modal, BottomSheet (drag to dismiss), DropdownMenu / ContextMenu / SheetMenu driven by one menu-entry list, Select, Input, Tooltip with shortcut hints, a grid Table that folds into stacked rows below 1024px, Badge / StatusDot, PageHeader, Avatar with stable hashed colors, Toast with an inline action, and Logo. Interactive pieces are built on Radix primitives; PrimeReact is removed entirely
+- **Sidebar** — workspace switcher, New document / Ask Converge / Search / Library / theme toggle, collapsible Pinned and Recent sections, a Developer section (API keys, MCP setup, Trash), a user menu, a right-click / long-press document menu, a collapsible 56px icon rail, and a slide-in drawer on phones
+- **Editor** — new header with breadcrumb, Saved / Syncing / Offline status, presence avatars, lock / checkpoint / version-history buttons, a Share button and a ⋯ menu (pin, copy link, details, Move to Trash); a write-lock banner; a wider serif-headed reading column; and a phone top bar with a bottom-sheet document menu
+- **Share dialog and Document details** replace `ManageDocumentModal`: add people by email (nothing is granted until Add), people with access, per-role general access showing the workspace default versus a per-document override, and Copy link — a bottom sheet on phones. Document details shows ownership, dates and search-indexing status
+- **Version history** — a restyled split view: a checkpoint list with Auto / Manual / Before AI edit badges and contributor avatars, "what changed" vs. "compared to current" tabs with colored added / removed blocks, and Save checkpoint now
+- **Search palette (⌘K)** — restyled with the same functionality: documents only, keyboard navigation
+- **Ask Converge panel** — the `/agent` page becomes a right slide-over panel (⌘J) that keeps its conversation and any in-flight reply across navigation and while closed: conversation picker, rename / delete, an empty state that names the open document, tool-call rows, in-app citation links, a growing composer, and **Stop**, which aborts a streaming reply. Full-screen on phones
+- **Pages** — Library (table with pins and row menus), a new `/trash` page, Workspaces, a two-pane Workspace settings dialog (General / Members / Default access / Ownership, with ownership transfer confirmed by typing the workspace name), API keys, MCP setup, sign-in / auth callback and not-found screens. The favicon uses the new mark
+- Radix packages added (`dialog`, `dropdown-menu`, `context-menu`, `popover`, `select`, `toast`, `tooltip`); `primereact`, `primeicons`, `lucide-react`, `class-variance-authority`, `tailwindcss-animate` and `@radix-ui/react-slot` removed
+
+### Server (NestJS backend)
+
+- `GET /document/id/:id` and the `getDocumentMetadata` MCP tool return `isPinned`, so the editor's ⋯ menu can show Pin or Unpin
+- Agent conversations stay resumable after an interrupted turn — new `agent_conversations.pending_tool_outputs` column (migration `0047`) holds the tool results the last response is still owed, sent ahead of the next message. Previously a turn ending between a tool-calling response and its results (a later step's 429 or stream failure, `MAX_STEPS`, a restart) left the conversation permanently rejected by OpenAI (400 "No tool output found for function call")
+- Stop support in `AgentService.sendMessage` — a closed client connection aborts the in-flight OpenAI call, marks tools that haven't started as cancelled, lets a running tool finish, and only writes a step's tool results while that step's response is still the conversation's latest, so a message sent right after Stop isn't overwritten
+
 ## Upcoming
 
 - Eval harness for the agent feature — 55 hand-authored cases (task success, safety-violation count, injection resistance) were built and iterated on during development, but on a branch that was ultimately abandoned rather than merged into this release; porting or rebuilding it against the shipped code is deferred, not done
