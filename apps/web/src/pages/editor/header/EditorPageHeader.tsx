@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useAtomValue, useSetAtom } from "jotai";
 import {
-    LuBookmarkPlus,
     LuCheck,
     LuCircleAlert,
     LuClock,
@@ -12,6 +11,7 @@ import {
     LuMenu,
     LuUsers,
 } from "react-icons/lu";
+import { FaRegSave } from "react-icons/fa";
 import { syncStatusAtom, awarenessAtom } from "../../../atoms/socket";
 import { authAtom } from "../../../atoms/auth";
 import { mobileSidebarOpenAtom } from "../../../atoms/sidebar";
@@ -138,7 +138,7 @@ const EditorPageHeader = ({
                   },
                   {
                       label: "Save checkpoint",
-                      icon: <LuBookmarkPlus />,
+                      icon: <FaRegSave />,
                       disabled: createCheckpointStatus !== "idle",
                       onSelect: saveCheckpointFromSheet,
                   },
@@ -323,7 +323,7 @@ const EditorPageHeader = ({
                                 ) : createCheckpointStatus === "error" ? (
                                     <LuCircleAlert className="text-danger" />
                                 ) : (
-                                    <LuBookmarkPlus />
+                                    <FaRegSave />
                                 )}
                             </Button>
                         </Tooltip>
