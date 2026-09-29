@@ -1,181 +1,178 @@
+import { useAtomValue } from "jotai";
+import { LuUserPlus } from "react-icons/lu";
+import type { WorkspaceRole } from "@converge/shared";
+import { authAtom } from "../../../../atoms/auth";
 import useMembersTab from "../../../../hooks/useMembersTab";
-import WorkspaceMemberCard from "./WorkspaceMemberCard";
+import Input from "../../../../components/ui/Input";
 import Skeleton from "../../../../components/ui/Skeleton";
 import DelayedRender from "../../../../components/DelayedRender";
+import type { SelectOption } from "../../../../components/ui/Select";
+import AddPersonCard from "../../../../components/people/AddPersonCard";
+import EmailNotice from "../../../../components/people/EmailNotice";
+import WorkspaceMemberRow from "./WorkspaceMemberRow";
 
 /**
- * Members tab content for WorkspaceConfigModal. Displays and manages
- * workspace members. Members can view the list. Admins can add and remove
- * members. Owners can change roles and remove anyone.
+ * Members tab of workspace settings (pp 19 / 26). Admins and the owner add
+ * people by full email: the person found shows in a card with a role
+ * dropdown and Add. Everyone can filter the list with the same field. The
+ * list pages in as it scrolls.
+ * @param workspaceId - the workspace being configured
+ * @param role - the caller's role, or null while it loads
+ * @param membersCount - total member count for the list header, or null while loading
+ * @param onMembersChanged - called after a member is added or removed
  */
-const MembersTab = ({ workspaceId }: { workspaceId: number }) => {
+const MembersTab = ({
+    workspaceId,
+    role,
+    membersCount,
+    onMembersChanged,
+}: {
+    workspaceId: number;
+    role: WorkspaceRole | null;
+    membersCount: number | null;
+    onMembersChanged: () => void;
+}) => {
     const {
         email,
         setEmail,
         members,
-        setMembers,
-        foundUser,
-        setFoundUser,
+        lookup,
         isMembersLoading,
         isFetchingMore,
-        isFindNewUserLoading,
-        isFindNewUserConflict,
-        isRoleLoading,
+        isAdding,
+        pendingUserId,
         sentinelRef,
-        currentUserRole,
         canManage,
-    } = useMembersTab({ workspaceId });
+        addMember,
+        changeRole,
+        removeMember,
+    } = useMembersTab({ workspaceId, role, onMembersChanged });
+    const userEmail = useAtomValue(authAtom).user?.email; // marks the caller's own row
 
-    if (isRoleLoading || currentUserRole === null) {
+    if (role === null)
         return (
             <DelayedRender>
                 <div className="flex flex-col gap-3">
-                    <Skeleton height="2.5rem" width="100%" />
-                    <div className="mt-3 sm:mt-4 flex flex-col gap-2">
-                        <Skeleton height="0.75rem" width="30%" className="mb-1" />
-                        <Skeleton height="3rem" width="100%" />
-                        <Skeleton height="3rem" width="100%" />
-                        <Skeleton height="3rem" width="100%" />
-                    </div>
+                    <Skeleton height="2.75rem" />
+                    <Skeleton height="1rem" width="30%" className="mt-4" />
+                    <Skeleton height="2.5rem" />
+                    <Skeleton height="2.5rem" />
+                    <Skeleton height="2.5rem" />
                 </div>
             </DelayedRender>
         );
-    }
+
+    // Roles the caller may give a new member: admins can't make admins.
+    const addOptions: SelectOption<WorkspaceRole>[] =
+        role === "owner"
+            ? [
+                  { label: "Member", value: "member" },
+                  { label: "Admin", value: "admin" },
+              ]
+            : [{ label: "Member", value: "member" }];
 
     return (
-        <div className="h-full flex flex-col">
-            <input
+        <div className="flex flex-col">
+            <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={
-                    canManage ? "Add member by email" : "Search members"
+                    canManage
+                        ? "Add people by email"
+                        : "Filter members by email"
                 }
-                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-surface-elevated
-                text-sm text-fg focus:outline-none border-none"
+                aria-label={
+                    canManage
+                        ? "Add people by email"
+                        : "Filter members by email"
+                }
+                icon={<LuUserPlus />}
+                inputSize="lg"
             />
-
-            {canManage && isFindNewUserLoading && (
+            {lookup.status === "loading" && (
                 <DelayedRender>
-                    <Skeleton height="3rem" width="100%" className="mt-3 sm:mt-4" />
+                    <Skeleton height="3.75rem" className="mt-2" />
                 </DelayedRender>
             )}
-            {canManage &&
-                !isFindNewUserLoading &&
-                isFindNewUserConflict &&
-                email.trim().length > 0 && (
-                    <div
-                        className="opacity-50 w-full bg-surface-selected px-2 py-1
-                        rounded-lg text-xs mt-3 sm:mt-4"
-                    >
-                        {email} is already the owner or a member of this
-                        workspace.
+            {lookup.status === "found" && (
+                <>
+                    <div className="mt-2">
+                        <AddPersonCard
+                            key={lookup.user.id}
+                            user={lookup.user}
+                            subtitle={`${lookup.user.email} · not in this workspace yet`}
+                            options={addOptions}
+                            defaultValue="member"
+                            isAdding={isAdding}
+                            onAdd={addMember}
+                        />
                     </div>
-                )}
-            {canManage &&
-                !isFindNewUserLoading &&
-                !isFindNewUserConflict &&
-                !foundUser &&
-                email.trim().length > 0 && (
-                    <div
-                        className="opacity-50 w-full bg-surface-selected px-2 py-1
-                        rounded-lg text-xs mt-3 sm:mt-4"
-                    >
-                        Enter the exact email address of the person you want to
-                        invite.
-                    </div>
-                )}
-            {canManage && !isFindNewUserLoading && foundUser && (
-                <div className="mt-3 sm:mt-4 shrink-0">
-                    <p className="text-xs opacity-50 mb-2">Add Member</p>
-                    {/* Found user card — posting a role creates the membership and moves this user to the existing list */}
-                    <WorkspaceMemberCard
-                        avatarUrl={foundUser.avatarUrl}
-                        workspaceId={workspaceId}
-                        userId={foundUser.id}
-                        email={foundUser.email}
-                        name={foundUser.name}
-                        currentUserRole={currentUserRole}
-                        onRoleChanged={(newRole) => {
-                            setFoundUser(null);
-                            setMembers((prev) => [
-                                {
-                                    id: foundUser.id,
-                                    name: foundUser.name,
-                                    email: foundUser.email,
-                                    avatarUrl: foundUser.avatarUrl,
-                                    role: newRole,
-                                },
-                                ...prev,
-                            ]);
-                        }}
-                    />
-                </div>
+                    <p className="mt-2 text-xs text-fg-muted">
+                        Choose their role, then Add. It applies immediately.
+                    </p>
+                </>
+            )}
+            {lookup.status === "notFound" && (
+                <EmailNotice title="No Converge account with this email">
+                    Check the spelling. They need to sign in to Converge once
+                    before you can add them.
+                </EmailNotice>
+            )}
+            {lookup.status === "isMember" && (
+                <EmailNotice title="Already in this workspace">
+                    They're in the list below.
+                </EmailNotice>
             )}
 
-            {/* Existing members — flex-1 + min-h-0 lets this section shrink and activate overflow-y-auto */}
-            <div className="mt-3 sm:mt-4 flex flex-col flex-1 min-h-0">
-                <p className="text-xs opacity-50 mb-2 shrink-0">
-                    Existing Members
-                </p>
-                {isMembersLoading ? (
-                    <DelayedRender>
-                        <div className="flex flex-col gap-2 mt-2">
-                            <Skeleton height="3rem" width="100%" />
-                            <Skeleton height="3rem" width="100%" />
-                            <Skeleton height="3rem" width="100%" />
-                        </div>
-                    </DelayedRender>
-                ) : (
-                    <div
-                        className="flex flex-col flex-1 min-h-0 overflow-y-auto"
-                        style={{ scrollbarWidth: "thin" }}
-                    >
-                        {members.map((member) => (
-                            <WorkspaceMemberCard
-                                key={member.id}
-                                avatarUrl={member.avatarUrl}
-                                workspaceId={workspaceId}
-                                userId={member.id}
-                                email={member.email}
-                                name={member.name}
-                                role={member.role}
-                                currentUserRole={currentUserRole}
-                                type={
-                                    member.role === "owner" ? "owner" : "member"
-                                }
-                                onRoleChanged={(newRole) => {
-                                    setMembers((prev) =>
-                                        prev.map((m) =>
-                                            m.id === member.id
-                                                ? { ...m, role: newRole }
-                                                : m,
-                                        ),
-                                    );
-                                }}
-                                onMemberRemoved={() => {
-                                    setMembers((prev) =>
-                                        prev.filter((m) => m.id !== member.id),
-                                    );
-                                }}
-                            />
-                        ))}
-                        {/* Sentinel observed by IntersectionObserver to trigger the next page load */}
-                        <div
-                            ref={sentinelRef}
-                            className="border-2 border-solid border-transparent"
-                        />
-                        {isFetchingMore && (
-                            <DelayedRender>
-                                <div className="flex flex-col gap-2 mt-2">
-                                    <Skeleton height="3rem" width="100%" />
-                                    <Skeleton height="3rem" width="100%" />
-                                </div>
-                            </DelayedRender>
-                        )}
-                    </div>
-                )}
+            <div className="mb-1 mt-6 flex items-baseline justify-between gap-3">
+                <span className="text-sm font-semibold text-fg">
+                    {membersCount !== null &&
+                        `${membersCount} ${membersCount === 1 ? "member" : "members"}`}
+                </span>
+                <span className="hidden text-xs text-fg-muted sm:block">
+                    Roles: Owner, Admin, Member
+                </span>
             </div>
+            {isMembersLoading ? (
+                <DelayedRender>
+                    <div className="flex flex-col gap-3 py-1.5">
+                        <Skeleton height="2.5rem" />
+                        <Skeleton height="2.5rem" />
+                        <Skeleton height="2.5rem" />
+                    </div>
+                </DelayedRender>
+            ) : (
+                <div className="flex flex-col divide-y divide-line-subtle">
+                    {members.map((member) => (
+                        <div key={member.id} className="py-1.5">
+                            <WorkspaceMemberRow
+                                member={member}
+                                isSelf={member.email === userEmail}
+                                callerRole={role}
+                                isPending={pendingUserId === member.id}
+                                onChangeRole={(r) => changeRole(member, r)}
+                                onRemove={() => removeMember(member)}
+                            />
+                        </div>
+                    ))}
+                    {members.length === 0 && (
+                        <p className="py-6 text-center text-sm text-fg-muted">
+                            No members match this email.
+                        </p>
+                    )}
+                </div>
+            )}
+            {/* Observed to load the next page of members */}
+            <div ref={sentinelRef} className="h-px" />
+            {isFetchingMore && (
+                <DelayedRender>
+                    <div className="flex flex-col gap-3 py-1.5">
+                        <Skeleton height="2.5rem" />
+                        <Skeleton height="2.5rem" />
+                    </div>
+                </DelayedRender>
+            )}
         </div>
     );
 };

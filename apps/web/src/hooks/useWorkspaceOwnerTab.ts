@@ -1,48 +1,76 @@
 import { useEffect, useState } from "react";
+import { isAxiosError } from "axios";
 import apiClient from "../lib/http";
+import useToast from "./useToast";
 import type {
     GetWorkspaceOwnerResponseDto,
     FindWorkspaceOwnerCandidateResponseDto,
     TransferWorkspaceOwnerResponseDto,
-    WorkspaceRole,
-    WorkspaceType,
 } from "@converge/shared";
 import { isValidEmail } from "../utils/utils";
 
 /**
- * Manages OwnerTab state for WorkspaceConfigModal. Fetches the workspace owner
- * and the caller's role on mount. When a valid email is typed (debounced 300 ms),
- * calls the owner-find endpoint to resolve a transfer candidate. Only the workspace
- * owner sees the transfer UI.
+ * Result of looking up the new owner's email: nothing to show yet, in
+ * flight, a user who can take over, no account with that email (404), or
+ * the caller's own address (409).
  */
-const useWorkspaceOwnerTab = ({ workspaceId }: { workspaceId: number }) => {
+export type OwnerCandidateLookup =
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "found"; user: FindWorkspaceOwnerCandidateResponseDto }
+    | { status: "notFound" }
+    | { status: "isOwner" };
+
+/**
+ * State and actions for the workspace settings Ownership tab. Fetches the
+ * current owner on mount. For the owner of a team workspace, typing a full
+ * email looks up the new owner (debounced 300 ms), and the transfer runs
+ * once the workspace name is typed to confirm.
+ * @param workspaceId - the workspace being configured
+ * @param workspaceName - the name that must be typed to confirm a transfer
+ * @param canTransfer - whether the caller may transfer (owner of a team workspace)
+ * @param onTransferred - called after a successful transfer, e.g. to reload the caller's role
+ */
+const useWorkspaceOwnerTab = ({
+    workspaceId,
+    workspaceName,
+    canTransfer,
+    onTransferred,
+}: {
+    workspaceId: number;
+    workspaceName: string;
+    canTransfer: boolean;
+    onTransferred?: () => void;
+}) => {
+    const { showToast } = useToast();
     const [owner, setOwner] = useState<GetWorkspaceOwnerResponseDto | null>(
         null,
     ); // current workspace owner; null while loading or on error
-    const [isOwnerLoading, setIsOwnerLoading] = useState(true); // true while the GET /owner fetch is in flight
+    const [email, setEmail] = useState(""); // new owner's email
+    const [lookupResult, setLookupResult] = useState<{
+        email: string;
+        lookup: OwnerCandidateLookup;
+    } | null>(null); // latest settled lookup and the email it was for
+    const [confirmText, setConfirmText] = useState(""); // workspace name typed to confirm
+    const [isTransferring, setIsTransferring] = useState(false); // true while the transfer POST is in flight
 
-    const [role, setRole] = useState<WorkspaceRole | null>(null); // caller's role in this workspace; null until loaded
-    const [isRoleLoading, setIsRoleLoading] = useState(true); // true while the GET /my-role fetch is in flight
+    const trimmedEmail = email.trim();
+    const canLookUp = canTransfer && isValidEmail(trimmedEmail); // a lookup runs only for the owner, once the address is complete
+    // Derived: idle until the address is complete, loading until the lookup
+    // for exactly this address settles.
+    const lookup: OwnerCandidateLookup = !canLookUp
+        ? { status: "idle" }
+        : lookupResult?.email === trimmedEmail
+          ? lookupResult.lookup
+          : { status: "loading" };
+    const isConfirmed = confirmText.trim() === workspaceName; // the typed name must match exactly
+    const canSubmit =
+        lookup.status === "found" && isConfirmed && !isTransferring;
 
-    const [workspaceType, setWorkspaceType] = useState<WorkspaceType | null>(
-        null,
-    ); // workspace type (personal vs custom); null until loaded
-    const [isTypeLoading, setIsTypeLoading] = useState(true); // true while the GET /overview fetch is in flight
-
-    const [email, setEmail] = useState(""); // email search query for the ownership transfer
-    const [foundUser, setFoundUser] =
-        useState<FindWorkspaceOwnerCandidateResponseDto | null>(null); // resolved transfer candidate; null when not found
-    const [isFindLoading, setIsFindLoading] = useState(false); // true while the owner-find fetch is in flight
-    const [isFindConflict, setIsFindConflict] = useState(false); // true when find returns 409 (email belongs to current owner)
-
-    const [isTransferConfirmOpen, setIsTransferConfirmOpen] = useState(false); // true while the confirmation modal is open
-    const [isTransferring, setIsTransferring] = useState(false); // true while the POST /transfer-owner request is in flight
-
-    // Fetch the current owner on mount.
+    // Fetches the current owner on mount.
     useEffect(() => {
-        const fetch = async () => {
+        const fetchOwner = async () => {
             try {
-                setIsOwnerLoading(true);
                 const { data } =
                     await apiClient.get<GetWorkspaceOwnerResponseDto>(
                         `/workspaces/${workspaceId}/owner`,
@@ -53,133 +81,79 @@ const useWorkspaceOwnerTab = ({ workspaceId }: { workspaceId: number }) => {
                     "useWorkspaceOwnerTab: failed to fetch owner:",
                     err,
                 );
-            } finally {
-                setIsOwnerLoading(false);
             }
         };
-        fetch();
+        fetchOwner();
     }, [workspaceId]);
 
-    // Fetch the caller's role and workspace type on mount.
+    // Looks up the typed email 300 ms after typing stops, once it's a full
+    // address. Results are stored with their email, so a stale response
+    // never shows for a newer one.
     useEffect(() => {
-        const fetchRole = async () => {
+        if (!canLookUp) return;
+
+        const timeout = setTimeout(async () => {
+            /** Stores the lookup's outcome for the email it was made for. */
+            const settle = (lookup: OwnerCandidateLookup) =>
+                setLookupResult({ email: trimmedEmail, lookup });
             try {
-                const { data } = await apiClient.get<{ role: WorkspaceRole }>(
-                    `/workspaces/${workspaceId}/my-role`,
-                );
-                setRole(data.role);
+                const { data } =
+                    await apiClient.get<FindWorkspaceOwnerCandidateResponseDto>(
+                        `/workspaces/${workspaceId}/owner/find`,
+                        { params: { email: trimmedEmail } },
+                    );
+                settle({ status: "found", user: data });
             } catch (err) {
-                console.error(
-                    "useWorkspaceOwnerTab: failed to fetch role:",
-                    err,
-                );
-            } finally {
-                setIsRoleLoading(false);
+                const status = isAxiosError(err)
+                    ? err.response?.status
+                    : undefined;
+                if (status === 404) settle({ status: "notFound" });
+                else if (status === 409) settle({ status: "isOwner" });
+                else {
+                    console.error("useWorkspaceOwnerTab: lookup failed:", err);
+                    settle({ status: "idle" });
+                }
             }
-        };
-
-        const fetchType = async () => {
-            try {
-                const { data } = await apiClient.get<{ type: WorkspaceType }>(
-                    `/workspaces/${workspaceId}/overview`,
-                );
-                setWorkspaceType(data.type);
-            } catch (err) {
-                console.error(
-                    "useWorkspaceOwnerTab: failed to fetch workspace type:",
-                    err,
-                );
-            } finally {
-                setIsTypeLoading(false);
-            }
-        };
-
-        fetchRole();
-        fetchType();
-    }, [workspaceId]);
-
-    /** Calls GET /workspaces/:id/owner/find to resolve a transfer candidate by exact email. */
-    const fetchFindCandidate = async (query: string) => {
-        try {
-            setIsFindLoading(true);
-            setIsFindConflict(false);
-            const { data } =
-                await apiClient.get<FindWorkspaceOwnerCandidateResponseDto>(
-                    `/workspaces/${workspaceId}/owner/find`,
-                    { params: { email: query } },
-                );
-            setFoundUser(data);
-        } catch (err: any) {
-            setFoundUser(null);
-            // 409 means the email belongs to the current owner.
-            setIsFindConflict(err?.response?.status === 409);
-        } finally {
-            setIsFindLoading(false);
-        }
-    };
+        }, 300);
+        return () => clearTimeout(timeout);
+    }, [workspaceId, trimmedEmail, canLookUp]);
 
     /**
-     * Transfers ownership to foundUser via POST /workspaces/:id/transfer-owner.
-     * On success, updates the displayed owner and clears all search state.
+     * Transfers ownership to the looked-up user via POST
+     * /workspaces/:id/transfer-owner, then shows the new owner, clears the
+     * form, and calls onTransferred. Failures are reported with a toast.
      */
     const transferOwner = async () => {
-        if (!foundUser) return;
-
+        if (!canSubmit || lookup.status !== "found") return;
         try {
             setIsTransferring(true);
             const { data } =
                 await apiClient.post<TransferWorkspaceOwnerResponseDto>(
                     `/workspaces/${workspaceId}/transfer-owner`,
-                    { newOwnerId: foundUser.id },
+                    { newOwnerId: lookup.user.id },
                 );
             setOwner(data);
-            setFoundUser(null);
             setEmail("");
-            setIsTransferConfirmOpen(false);
+            setConfirmText("");
+            setLookupResult(null);
+            showToast(`${data.name} now owns ${workspaceName}`);
+            onTransferred?.();
         } catch (err) {
-            console.error(
-                "useWorkspaceOwnerTab: failed to transfer ownership:",
-                err,
-            );
+            console.error("useWorkspaceOwnerTab: transfer failed:", err);
+            showToast("Couldn't transfer ownership", { tone: "error" });
         } finally {
             setIsTransferring(false);
         }
     };
 
-    // Resets find state when email is cleared; debounces 300 ms then fires the
-    // find endpoint when a valid email address is entered.
-    useEffect(() => {
-        if (email.trim() === "") {
-            setFoundUser(null);
-            setIsFindConflict(false);
-            return;
-        }
-
-        const timeout = setTimeout(() => {
-            setIsFindConflict(false);
-            if (isValidEmail(email.trim())) fetchFindCandidate(email.trim());
-        }, 300);
-
-        return () => clearTimeout(timeout);
-    }, [email]);
-
-    const isOwner = role === "owner"; // true when the caller may initiate a transfer
-    const isPersonal = workspaceType === "personal"; // true for personal workspaces where transfer is blocked
-
     return {
         owner,
-        isOwnerLoading,
-        isRoleLoading,
-        isTypeLoading,
-        isOwner,
-        isPersonal,
         email,
         setEmail,
-        foundUser,
-        isFindLoading,
-        isFindConflict,
-        isTransferConfirmOpen,
-        setIsTransferConfirmOpen,
+        lookup,
+        confirmText,
+        setConfirmText,
+        canSubmit,
         isTransferring,
         transferOwner,
     };

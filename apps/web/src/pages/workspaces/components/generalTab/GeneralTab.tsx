@@ -1,147 +1,175 @@
+import { useAtomValue } from "jotai";
+import { authAtom } from "../../../../atoms/auth";
 import useWorkspaceOverview from "../../../../hooks/useWorkspaceOverview";
-import LeaveWorkspaceConfirmationModal from "./LeaveWorkspaceConfirmationModal";
+import { hasWorkspaceRole } from "@converge/shared";
+import Button from "../../../../components/ui/Button";
+import Input from "../../../../components/ui/Input";
 import Skeleton from "../../../../components/ui/Skeleton";
 import DelayedRender from "../../../../components/DelayedRender";
+import DetailItem from "./DetailItem";
+import LeaveWorkspaceConfirmationModal from "./LeaveWorkspaceConfirmationModal";
+
+/** Classes for the inline gold links that jump to another tab. */
+const TAB_LINK_CLASSES =
+    "cursor-pointer rounded-sm text-gold outline-none hover:underline focus-visible:ring-2 focus-visible:ring-gold/60";
 
 /**
- * General workspace settings tab. Displays workspace name, type, member
- * and document counts, owner info, and creation date. Fetches its own data
- * and role via useWorkspaceOverview.
+ * General tab of workspace settings (pp 18 / 25): the workspace name (Save
+ * appears once it changes; admins and the owner only), a details card, and
+ * a Leave workspace card explaining why leaving is blocked when it is.
+ * @param settings - the modal's shared useWorkspaceOverview state
+ * @param onGoToTab - switches the modal to another tab, e.g. "members"
  */
 const GeneralTab = ({
-    workspaceId,
-    onLeave,
+    settings,
+    onGoToTab,
 }: {
-    workspaceId: number;
-    /** Called after a successful leave so the parent can close and refetch. */
-    onLeave?: () => void;
+    settings: ReturnType<typeof useWorkspaceOverview>;
+    onGoToTab: (tab: "members" | "owner") => void;
 }) => {
     const {
         overview,
-        saveStatus,
-        save,
+        role,
         name,
         setName,
+        isNameChanged,
+        isSaving,
+        save,
+        isOwner,
+        isSelected,
+        canLeave,
         isConfirmOpen,
         setIsConfirmOpen,
-        isInitialLoading,
-        canLeave,
-        handleLeave,
         isLeaving,
-    } = useWorkspaceOverview(workspaceId, onLeave);
+        handleLeave,
+    } = settings;
+    const userEmail = useAtomValue(authAtom).user?.email; // marks the owner as "(you)"
 
-    if (isInitialLoading) {
+    if (!overview || !role)
         return (
             <DelayedRender>
                 <div className="flex flex-col gap-3">
-                    <Skeleton height="1.25rem" width="8rem" className="mb-1" />
-                    <div className="flex items-center gap-2 mb-2">
-                        <Skeleton height="2rem" width="16rem" />
-                        <Skeleton height="2rem" width="4rem" />
-                    </div>
-                    <Skeleton height="1rem" width="40%" />
-                    <Skeleton height="1rem" width="35%" />
-                    <Skeleton height="1rem" width="55%" />
-                    <Skeleton height="1rem" width="60%" />
-                    <Skeleton height="1rem" width="45%" />
+                    <Skeleton height="1rem" width="8rem" />
+                    <Skeleton height="2.5rem" />
+                    <Skeleton height="8rem" className="mt-3" />
+                    <Skeleton height="5rem" className="mt-2" />
                 </div>
             </DelayedRender>
         );
-    }
+
+    const canRename = hasWorkspaceRole(role, "admin"); // the server only lets admins and the owner rename
+    const isPersonal = overview.type === "personal";
 
     return (
         <>
-            <label className="text-xs sm:text-sm opacity-50 mb-1 block">
-                Workspace Name
-            </label>
-            <div className="flex items-center gap-2 mb-4">
-                <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Workspace name"
-                    className="w-64 px-2 py-1 text-xs sm:text-sm rounded-md
-                    bg-surface-inset outline-none text-fg border-0"
-                />
-                <button
-                    onClick={() => save(name)}
-                    className="px-3 py-1 text-xs sm:text-sm rounded-md bg-gold text-gold-fg hover:opacity-90 transition cursor-pointer"
+            <form
+                onSubmit={(e) => {
+                    e.preventDefault();
+                    save();
+                }}
+                className="flex flex-col"
+            >
+                <label
+                    htmlFor="workspace-name"
+                    className="mb-1.5 text-[13px] font-medium text-fg-secondary"
                 >
-                    {saveStatus === "saving"
-                        ? "Saving..."
-                        : saveStatus === "saved"
-                          ? "Saved!"
-                          : "Save"}
-                </button>
-            </div>
-            <div className="flex flex-col space-y-1 sm:space-y-2">
-                <div className="text-xs sm:text-sm">
-                    <span className="opacity-50">Type: </span>
-                    <span className="text-fg-secondary">
-                        {overview
-                            ? overview.type === "personal"
-                                ? "Personal"
-                                : "Custom"
-                            : "—"}
-                    </span>
+                    Workspace name
+                </label>
+                <div className="flex items-center gap-2">
+                    <Input
+                        id="workspace-name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        maxLength={128}
+                        disabled={!canRename || isSaving}
+                        inputSize="lg"
+                    />
+                    {isNameChanged && canRename && (
+                        <Button
+                            type="submit"
+                            variant="primary"
+                            disabled={isSaving}
+                            className="h-10 px-4 font-semibold sm:h-11"
+                        >
+                            {isSaving ? "Saving…" : "Save"}
+                        </Button>
+                    )}
                 </div>
-                <div className="text-xs sm:text-sm">
-                    <span className="opacity-50">Members: </span>
-                    <span className="text-fg-secondary">
-                        {overview ? overview.membersCount : "—"}
-                    </span>
-                </div>
-                <div className="text-xs sm:text-sm">
-                    <span className="opacity-50">Documents: </span>
-                    <span className="text-fg-secondary">
-                        {overview ? overview.documentsCount : "—"}
-                    </span>
-                </div>
-                <div className="text-xs sm:text-sm">
-                    <span className="opacity-50">Owner: </span>
-                    <span className="text-fg-secondary">
-                        {overview
-                            ? `${overview.ownerName} (${overview.ownerEmail})`
-                            : "—"}
-                    </span>
-                </div>
-                <div className="text-xs sm:text-sm">
-                    <span className="opacity-50">Created on: </span>
-                    <span className="text-fg-secondary">
-                        {overview
-                            ? new Date(overview.createdAt).toLocaleDateString(
-                                  "en-US",
-                                  {
-                                      year: "numeric",
-                                      month: "long",
-                                      day: "numeric",
-                                  },
-                              )
-                            : "—"}
-                    </span>
-                </div>
+            </form>
+
+            {/* Details card */}
+            <div className="mt-6 grid grid-cols-2 gap-x-6 gap-y-5 rounded-xl border border-line bg-surface-inset p-5 sm:grid-cols-3">
+                <DetailItem label="Type">
+                    {isPersonal ? "Personal workspace" : "Team workspace"}
+                </DetailItem>
+                <DetailItem label="Owner">
+                    {overview.ownerName}
+                    {overview.ownerEmail === userEmail && " (you)"}
+                </DetailItem>
+                <DetailItem label="Created">
+                    {new Date(overview.createdAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                    })}
+                </DetailItem>
+                <DetailItem label="Members">
+                    {overview.membersCount} ·{" "}
+                    <button
+                        type="button"
+                        onClick={() => onGoToTab("members")}
+                        className={TAB_LINK_CLASSES}
+                    >
+                        Manage
+                    </button>
+                </DetailItem>
+                <DetailItem label="Documents">
+                    {overview.documentsCount}
+                </DetailItem>
+                <DetailItem label="Your role">
+                    {role.charAt(0).toUpperCase() + role.slice(1)}
+                </DetailItem>
             </div>
 
-            {canLeave && (
-                <button
+            {/* Leave card */}
+            <div className="mt-5 flex items-center gap-4 rounded-xl border border-line p-5">
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="text-sm font-semibold text-fg">
+                        Leave workspace
+                    </span>
+                    <span className="text-sm text-fg-muted">
+                        {isOwner && isPersonal ? (
+                            "You can't leave your personal workspace."
+                        ) : isOwner ? (
+                            <>
+                                Owners can't leave.{" "}
+                                <button
+                                    type="button"
+                                    onClick={() => onGoToTab("owner")}
+                                    className={TAB_LINK_CLASSES}
+                                >
+                                    Transfer ownership
+                                </button>{" "}
+                                first.
+                            </>
+                        ) : isSelected ? (
+                            "Switch to another workspace before leaving this one."
+                        ) : (
+                            "You'll lose access to its documents until someone adds you again."
+                        )}
+                    </span>
+                </div>
+                <Button
                     onClick={() => setIsConfirmOpen(true)}
-                    className="border-none bg-danger-solid text-danger-solid-fg text-xs sm:text-sm
-            text-center rounded-lg px-3 py-1 mt-8 sm:mt-10 cursor-pointer
-            hover:opacity-80 active:opacity-70 transition w-40"
+                    disabled={!canLeave}
                 >
-                    Leave Workspace
-                </button>
-            )}
-            {!isInitialLoading && !canLeave && (
-                <p className="text-xs opacity-40 mt-8 sm:mt-10">
-                    To leave this workspace, you must not be the owner and this
-                    workspace must not be your selected workspace.
-                </p>
-            )}
+                    Leave
+                </Button>
+            </div>
 
             {isConfirmOpen && (
                 <LeaveWorkspaceConfirmationModal
-                    workspaceName={overview?.name ?? "this workspace"}
+                    workspaceName={overview.name}
                     onCancel={() => setIsConfirmOpen(false)}
                     onConfirm={handleLeave}
                     isLeaving={isLeaving}

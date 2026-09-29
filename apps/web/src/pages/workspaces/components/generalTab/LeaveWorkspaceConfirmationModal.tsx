@@ -1,66 +1,44 @@
-import { useEffect } from "react";
+import Modal from "../../../../components/ui/Modal";
+import ModalFooter from "../../../../components/ui/ModalFooter";
+import Button from "../../../../components/ui/Button";
 
 /**
- * Confirmation modal for leaving a workspace. Shows the workspace name,
- * a warning about needing a new invitation, and Cancel / Leave buttons.
- * Pressing Escape dismisses the modal.
+ * Confirmation before leaving a workspace, with Cancel and a red Leave.
+ * @param workspaceName - shown in the title
+ * @param onCancel - closes the confirmation
+ * @param onConfirm - leaves the workspace
+ * @param isLeaving - true while the leave request is in flight; blocks dismissing
  */
 const LeaveWorkspaceConfirmationModal = ({
-    workspaceName, // display name shown in the prompt
-    onCancel, // closes the modal
-    onConfirm, // triggers the leave-workspace POST
-    isLeaving, // true while the leave request is in flight
+    workspaceName,
+    onCancel,
+    onConfirm,
+    isLeaving,
 }: {
     workspaceName: string;
     onCancel: () => void;
     onConfirm: () => void;
     isLeaving: boolean;
-}) => {
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") onCancel();
-        };
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [onCancel]);
-
-    return (
-        <div
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-overlay"
-            onClick={onCancel}
-        >
-            <div
-                className="bg-surface-elevated rounded-xl px-6 py-5 w-full max-w-sm mx-4 flex flex-col gap-5"
-                onClick={(e) => e.stopPropagation()}
+}) => (
+    <Modal
+        onClose={onCancel}
+        title={`Leave ${workspaceName}?`}
+        description="You'll lose access to its documents until someone adds you again."
+        dismissible={!isLeaving}
+    >
+        <ModalFooter className="mt-3">
+            <Button onClick={onCancel} disabled={isLeaving}>
+                Cancel
+            </Button>
+            <Button
+                variant="destructive"
+                onClick={onConfirm}
+                disabled={isLeaving}
             >
-                <p className="text-fg-secondary text-sm">
-                    Leave <span className="text-fg">{workspaceName}</span>?
-                </p>
-
-                <div className="flex gap-3 justify-end">
-                    <button
-                        onClick={onCancel}
-                        disabled={isLeaving}
-                        className="px-3 py-1.5 text-sm rounded-md bg-transparent
-                            text-fg-secondary cursor-pointer hover:opacity-80
-                            active:opacity-70 transition disabled:opacity-40
-                            disabled:cursor-not-allowed border-none"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={onConfirm}
-                        disabled={isLeaving}
-                        className="px-3 py-1.5 text-sm rounded-md bg-danger-solid text-danger-solid-fg
-                            border-none cursor-pointer hover:opacity-80 active:opacity-70
-                            transition disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                        {isLeaving ? "Leaving..." : "Leave"}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
+                {isLeaving ? "Leaving…" : "Leave"}
+            </Button>
+        </ModalFooter>
+    </Modal>
+);
 
 export default LeaveWorkspaceConfirmationModal;

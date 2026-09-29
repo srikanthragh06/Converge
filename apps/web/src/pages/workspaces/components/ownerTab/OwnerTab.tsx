@@ -1,167 +1,195 @@
-import { RxAvatar } from "react-icons/rx";
+import { useAtomValue } from "jotai";
+import { LuCrown, LuUserPlus } from "react-icons/lu";
+import { authAtom } from "../../../../atoms/auth";
 import useWorkspaceOwnerTab from "../../../../hooks/useWorkspaceOwnerTab";
-import TransferOwnerConfirmationModal from "./TransferOwnerConfirmationModal";
+import { Avatar } from "../../../../components/ui/Avatar";
+import Button from "../../../../components/ui/Button";
+import Input from "../../../../components/ui/Input";
 import Skeleton from "../../../../components/ui/Skeleton";
 import DelayedRender from "../../../../components/DelayedRender";
+import EmailNotice from "../../../../components/people/EmailNotice";
 
 /**
- * Owner tab content for WorkspaceConfigModal. Displays the current workspace
- * owner and, for the owner only, allows transferring ownership to any user by
- * exact email address. The target need not be an existing workspace member.
+ * Ownership tab of workspace settings (pp 21 / 28): the current owner, and
+ * for the owner of a team workspace a Transfer ownership card — the new
+ * owner's email, the person found, and the workspace name typed to confirm
+ * before the red Transfer ownership button enables. Any Converge account
+ * can become the owner.
+ * @param workspaceId - the workspace being configured
+ * @param workspaceName - must be typed to confirm a transfer
+ * @param isOwner - whether the caller owns the workspace
+ * @param isPersonal - personal workspaces can't be transferred
+ * @param onTransferred - called after a successful transfer
  */
-const OwnerTab = ({ workspaceId }: { workspaceId: number }) => {
+const OwnerTab = ({
+    workspaceId,
+    workspaceName,
+    isOwner,
+    isPersonal,
+    onTransferred,
+}: {
+    workspaceId: number;
+    workspaceName: string;
+    isOwner: boolean;
+    isPersonal: boolean;
+    onTransferred: () => void;
+}) => {
+    const canTransfer = isOwner && !isPersonal;
     const {
         owner,
-        isOwnerLoading,
-        isRoleLoading,
-        isTypeLoading,
-        isOwner,
-        isPersonal,
         email,
         setEmail,
-        foundUser,
-        isFindLoading,
-        isFindConflict,
-        isTransferConfirmOpen,
-        setIsTransferConfirmOpen,
+        lookup,
+        confirmText,
+        setConfirmText,
+        canSubmit,
         isTransferring,
         transferOwner,
-    } = useWorkspaceOwnerTab({ workspaceId });
+    } = useWorkspaceOwnerTab({
+        workspaceId,
+        workspaceName,
+        canTransfer,
+        onTransferred,
+    });
+    const userEmail = useAtomValue(authAtom).user?.email; // marks the owner as "(you)"
 
     return (
-        <>
-            {/* Current owner card */}
-            {isOwnerLoading ? (
-                <DelayedRender>
-                    <div className="flex items-center gap-2 sm:gap-3 py-1.5 sm:py-2">
-                        <Skeleton shape="circle" size="2rem" />
-                        <div className="flex flex-col gap-1.5 flex-1">
-                            <Skeleton height="0.875rem" width="45%" />
-                            <Skeleton height="0.75rem" width="60%" />
-                        </div>
-                    </div>
-                </DelayedRender>
-            ) : (
-                owner && (
-                    <div className="flex items-center gap-2 sm:gap-3 py-1.5 sm:py-2">
-                        {owner.avatarUrl ? (
-                            <img
-                                referrerPolicy="no-referrer"
-                                src={owner.avatarUrl}
-                                alt={owner.name}
-                                className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover shrink-0"
-                            />
-                        ) : (
-                            <RxAvatar className="w-7 h-7 sm:w-8 sm:h-8 text-fg-secondary shrink-0" />
-                        )}
-                        <div className="flex flex-col flex-1 min-w-0">
-                            <span className="text-xs sm:text-sm text-fg truncate">
-                                {owner.name}
-                            </span>
-                            <span className="text-xs text-fg-secondary truncate">
-                                {owner.email}
-                            </span>
-                        </div>
-                        <span className="shrink-0 text-xs sm:text-sm text-fg-secondary opacity-50 px-1.5 sm:px-2 py-0.5 sm:py-1">
-                            Owner
+        <div className="flex flex-col">
+            {/* Current owner */}
+            {owner ? (
+                <div className="flex items-center gap-3 rounded-xl border border-line bg-surface-inset px-4 py-3">
+                    <Avatar
+                        name={owner.name}
+                        src={owner.avatarUrl}
+                        colorKey={owner.email}
+                        className="h-8 w-8 text-xs"
+                    />
+                    <div className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-sm text-fg">
+                            {owner.name}
+                            {owner.email === userEmail && " (you)"}
+                        </span>
+                        <span className="text-xs text-fg-muted">
+                            Current owner
                         </span>
                     </div>
-                )
+                    <LuCrown
+                        aria-hidden
+                        className="h-4 w-4 shrink-0 text-gold"
+                    />
+                </div>
+            ) : (
+                <DelayedRender>
+                    <Skeleton height="3.75rem" />
+                </DelayedRender>
             )}
 
-            {/* Personal workspace notice — transfer is not available */}
-            {!isRoleLoading && !isTypeLoading && isOwner && isPersonal && (
-                <p className="text-xs opacity-50 mt-3 sm:mt-4">
-                    Ownership cannot be transferred for personal workspaces.
+            {isOwner && isPersonal && (
+                <p className="mt-4 text-sm text-fg-muted">
+                    Personal workspaces can't be transferred.
                 </p>
             )}
 
-            {/* Transfer ownership section — only visible to the owner of a custom workspace */}
-            {!isRoleLoading && !isTypeLoading && isOwner && !isPersonal && (
-                <>
-                    <input
+            {canTransfer && (
+                <form
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        transferOwner();
+                    }}
+                    className="mt-6 flex flex-col rounded-xl border border-danger/60 p-5"
+                >
+                    <span className="text-sm font-semibold text-fg">
+                        Transfer ownership
+                    </span>
+                    <span className="mt-1 text-sm text-fg-muted">
+                        The new owner gets full control. You'll become an admin
+                        and can't undo this yourself.
+                    </span>
+
+                    <label
+                        htmlFor="new-owner-email"
+                        className="mb-1.5 mt-4 text-[13px] font-medium text-fg-secondary"
+                    >
+                        New owner's email
+                    </label>
+                    <Input
+                        id="new-owner-email"
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="Transfer ownership by email"
-                        className="w-full mt-3 sm:mt-4 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-surface-elevated
-                        text-sm text-fg focus:outline-none border-none"
+                        icon={<LuUserPlus />}
+                        inputSize="lg"
+                        disabled={isTransferring}
                     />
-
-                    {isFindLoading && (
+                    {lookup.status === "loading" && (
                         <DelayedRender>
-                            <Skeleton height="3rem" width="100%" className="mt-3 sm:mt-4" />
+                            <Skeleton height="3.75rem" className="mt-2" />
                         </DelayedRender>
                     )}
-
-                    {!isFindLoading &&
-                        isFindConflict &&
-                        email.trim().length > 0 && (
-                            <div
-                                className="opacity-50 w-full bg-surface-selected px-2 py-1
-                                rounded-lg text-xs mt-3 sm:mt-4"
-                            >
-                                You are already the workspace owner.
+                    {lookup.status === "found" && (
+                        <div className="mt-2 flex items-center gap-3 rounded-lg border border-line bg-surface-inset p-3">
+                            <Avatar
+                                name={lookup.user.name}
+                                src={lookup.user.avatarUrl}
+                                colorKey={lookup.user.email}
+                                className="h-8 w-8 text-xs"
+                            />
+                            <div className="flex min-w-0 flex-1 flex-col">
+                                <span className="truncate text-sm text-fg">
+                                    {lookup.user.name}
+                                </span>
+                                <span className="truncate text-xs text-fg-muted">
+                                    {lookup.user.email}
+                                </span>
                             </div>
-                        )}
-
-                    {!isFindLoading &&
-                        !isFindConflict &&
-                        !foundUser &&
-                        email.trim().length > 0 && (
-                            <div
-                                className="opacity-50 w-full bg-surface-selected px-2 py-1
-                                rounded-lg text-xs mt-3 sm:mt-4"
-                            >
-                                Enter the exact email address of the user you
-                                want to transfer ownership to.
-                            </div>
-                        )}
-
-                    {/* Transfer candidate card — clicking opens the confirmation modal */}
-                    {!isFindLoading && foundUser && (
-                        <div className="mt-3 sm:mt-4">
-                            <p className="text-xs opacity-50 mb-2">
-                                Transfer To
-                            </p>
-                            <div
-                                className="flex items-center gap-2 sm:gap-3 py-1.5 sm:py-2 cursor-pointer
-                                hover:opacity-90 transition"
-                                onClick={() => setIsTransferConfirmOpen(true)}
-                            >
-                                {foundUser.avatarUrl ? (
-                                    <img
-                                        referrerPolicy="no-referrer"
-                                        src={foundUser.avatarUrl}
-                                        alt={foundUser.name}
-                                        className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover shrink-0"
-                                    />
-                                ) : (
-                                    <RxAvatar className="w-7 h-7 sm:w-8 sm:h-8 text-fg-secondary shrink-0" />
-                                )}
-                                <div className="flex flex-col flex-1 min-w-0">
-                                    <span className="text-xs sm:text-sm text-fg truncate">
-                                        {foundUser.name}
-                                    </span>
-                                    <span className="text-xs text-fg-secondary truncate">
-                                        {foundUser.email}
-                                    </span>
-                                </div>
-                            </div>
+                            <span className="shrink-0 text-sm font-medium text-gold">
+                                New owner
+                            </span>
                         </div>
                     )}
-
-                    {isTransferConfirmOpen && foundUser && (
-                        <TransferOwnerConfirmationModal
-                            newOwnerName={foundUser.name}
-                            onCancel={() => setIsTransferConfirmOpen(false)}
-                            onConfirm={transferOwner}
-                            isTransferring={isTransferring}
-                        />
+                    {lookup.status === "notFound" && (
+                        <EmailNotice title="No Converge account with this email">
+                            Check the spelling. They need to sign in to Converge
+                            once before they can own a workspace.
+                        </EmailNotice>
                     )}
-                </>
+                    {lookup.status === "isOwner" && (
+                        <EmailNotice title="That's you">
+                            You already own this workspace.
+                        </EmailNotice>
+                    )}
+
+                    <label
+                        htmlFor="transfer-confirm"
+                        className="mb-1.5 mt-5 text-[13px] text-fg-secondary"
+                    >
+                        Type{" "}
+                        <span className="font-semibold text-fg">
+                            {workspaceName}
+                        </span>{" "}
+                        to confirm
+                    </label>
+                    <Input
+                        id="transfer-confirm"
+                        value={confirmText}
+                        onChange={(e) => setConfirmText(e.target.value)}
+                        autoComplete="off"
+                        disabled={isTransferring}
+                        className="sm:max-w-[23rem]"
+                    />
+                    <Button
+                        type="submit"
+                        variant="destructive-outline"
+                        disabled={!canSubmit}
+                        className="mt-4 self-start"
+                    >
+                        {isTransferring
+                            ? "Transferring…"
+                            : "Transfer ownership"}
+                    </Button>
+                </form>
             )}
-        </>
+        </div>
     );
 };
 

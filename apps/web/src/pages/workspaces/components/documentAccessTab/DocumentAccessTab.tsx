@@ -1,10 +1,16 @@
 import { hasWorkspaceRole } from "@converge/shared";
 import useDocumentAccessTab from "../../../../hooks/useDocumentAccessTab";
 import DefaultDocAccessRow from "./DefaultDocAccessRow";
+import AccessRulesCard from "./AccessRulesCard";
 import Skeleton from "../../../../components/ui/Skeleton";
 import DelayedRender from "../../../../components/DelayedRender";
 
-/** Tab for configuring the document access level for the workspace. */
+/**
+ * Default access tab of workspace settings (pp 20 / 27): each workspace
+ * role's default access to documents, and how access is decided. Only the
+ * owner can change the Admins default; admins can change the other two.
+ * @param workspaceId - the workspace being configured
+ */
 const DocumentAccessTab = ({ workspaceId }: { workspaceId: number }) => {
     const { role, defaults, isLoading, isSaving, updateDefault } =
         useDocumentAccessTab({ workspaceId });
@@ -13,25 +19,20 @@ const DocumentAccessTab = ({ workspaceId }: { workspaceId: number }) => {
     const isOwner = role === "owner"; // true if the caller can also edit the admin default
 
     return (
-        <div>
-            <p className="text-xs opacity-50">
-                Controls the default access level workspace members have on
-                documents based on their workspace role. For per-document
-                permissions, configure access within the document itself.
-            </p>
-
+        <div className="flex flex-col">
             {isLoading || !defaults ? (
                 <DelayedRender>
-                    <div className="flex flex-col gap-2 mt-4">
-                        <Skeleton height="2rem" width="100%" />
-                        <Skeleton height="2rem" width="100%" />
-                        <Skeleton height="2rem" width="100%" />
+                    <div className="flex flex-col gap-3">
+                        <Skeleton height="3rem" />
+                        <Skeleton height="3rem" />
+                        <Skeleton height="3rem" />
                     </div>
                 </DelayedRender>
             ) : (
-                <div className="mt-4">
+                <div className="flex flex-col divide-y divide-line-subtle">
                     <DefaultDocAccessRow
-                        label="Admin"
+                        label="Admins"
+                        description="Workspace admins"
                         field="adminDocAccess"
                         value={defaults.adminDocAccess}
                         disabled={!isOwner}
@@ -39,7 +40,8 @@ const DocumentAccessTab = ({ workspaceId }: { workspaceId: number }) => {
                         onUpdate={updateDefault}
                     />
                     <DefaultDocAccessRow
-                        label="Member"
+                        label="Members"
+                        description="Everyone else in the workspace"
                         field="memberDocAccess"
                         value={defaults.memberDocAccess}
                         disabled={!isAdmin}
@@ -47,7 +49,8 @@ const DocumentAccessTab = ({ workspaceId }: { workspaceId: number }) => {
                         onUpdate={updateDefault}
                     />
                     <DefaultDocAccessRow
-                        label="Non-member"
+                        label="Non-members"
+                        description="People outside this workspace"
                         field="nonMemberDocAccess"
                         value={defaults.nonMemberDocAccess}
                         disabled={!isAdmin}
@@ -56,6 +59,7 @@ const DocumentAccessTab = ({ workspaceId }: { workspaceId: number }) => {
                     />
                 </div>
             )}
+            <AccessRulesCard />
         </div>
     );
 };
