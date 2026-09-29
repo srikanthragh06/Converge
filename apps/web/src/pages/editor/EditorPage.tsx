@@ -84,11 +84,11 @@ const EditorPage = () => {
             {/* Loading/ready state — unified scroll container so title and editor scroll together */}
             {(documentStatus === "loading" || documentStatus === "ready") && (
                 <div ref={scrollRef} className="flex-1 overflow-y-auto">
-                    {/* Centered document column: 720px of text, plus BlockNote's
+                    {/* Centered document column: 880px of text, plus BlockNote's
                         side gutters (54px, where its drag handle sits; 20px on
                         phones), which the title and banner repeat so everything
                         lines up with the first character of the body. */}
-                    <div className="mx-auto w-full max-w-[828px]">
+                    <div className="mx-auto w-full max-w-[988px]">
                         <div className="px-5 pt-5 sm:px-[54px] sm:pt-[54px]">
                             {/* Write-lock notice — editor+ only, since locking needs write access */}
                             {documentStatus === "ready" &&
