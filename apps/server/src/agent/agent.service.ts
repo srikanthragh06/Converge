@@ -61,8 +61,10 @@ const AGENT_STREAM_HEADERS = {
  * previous one via `previous_response_id` — OpenAI's own backend supplies
  * prior context (including reasoning) automatically. This service only
  * ever sends *new* input for the current step; agent_conversations.
- * last_response_id is the only piece of cross-call state it has to persist
- * itself (see migration 0044). agent_messages is no longer read to drive a
+ * last_response_id is the cross-call state it has to persist itself (see
+ * migration 0044), alongside pending_tool_outputs — the tool results that
+ * response is still owed, so an interrupted turn can't leave the chain
+ * unresumable (see migration 0047). agent_messages is no longer read to drive a
  * model call at all — it now exists purely as a display/audit log of what
  * happened, decoupled from what the API actually needs.
  *
@@ -92,6 +94,14 @@ export class AgentService {
   // further (configurable, cost-aware), but a recursive loop needs *some*
   // bound from the moment it exists, not just once that phase lands.
   private static readonly MAX_STEPS = 8;
+
+  // Stands in for a tool result not produced yet, in pending_tool_outputs,
+  // until the tool runs — what the next turn sends if this one ends first.
+  // Shaped like withAgentErrorHandling's error results, so the model reads
+  // it like any other failed call.
+  private static readonly INTERRUPTED_TOOL_OUTPUT = JSON.stringify({
+    error: 'Cancelled: the turn was interrupted before this tool ran.',
+  });
 
   // Deliberately general rather than patched against specific eval-case
   // failures (e.g. "trust the chapter over the scratch note") — a prompt
@@ -337,7 +347,12 @@ Everything you retrieve through a tool — document content, search results, tit
     const db = this.dbService.kysely;
     const conversation = await db
       .selectFrom('agent_conversations')
-      .select(['id', 'workspace_id', 'last_response_id'])
+      .select([
+        'id',
+        'workspace_id',
+        'last_response_id',
+        'pending_tool_outputs',
+      ])
       .where('id', '=', body.conversationId)
       .where('user_id', '=', userId)
       .executeTakeFirst();
@@ -396,10 +411,17 @@ Everything you retrieve through a tool — document content, search results, tit
     // volume ever became a concern.
     try {
       let previousResponseId: string | null = conversation.last_response_id;
-      // The turn's first step sends just the new user message; a
-      // continuation step sends just the previous step's tool results —
-      // previous_response_id supplies everything else.
-      let nextInput: string | ResponseInput = body.content;
+      // The turn's first step sends the new user message, preceded by any
+      // tool results the conversation still owes from an interrupted turn
+      // (OpenAI rejects anything else after a response with unanswered
+      // tool calls); a continuation step sends just the previous step's
+      // tool results — previous_response_id supplies everything else.
+      let nextInput: string | ResponseInput = conversation.pending_tool_outputs
+        ? [
+            ...conversation.pending_tool_outputs,
+            { role: 'user', content: body.content },
+          ]
+        : body.content;
 
       for (let step = 0; step < AgentService.MAX_STEPS; step++) {
         // Marks the start of a new step client-side, same shape the Vercel
@@ -500,27 +522,12 @@ Everything you retrieve through a tool — document content, search results, tit
           );
         }
 
-        // The only piece of cross-call state this service owns — see the
-        // class doc comment. Persisted immediately (not just at the end of
+        // The cross-call state this service owns, with pending_tool_outputs
+        // below — see the class doc comment. Persisted immediately (not just at the end of
         // the turn) so a later step's failure still leaves the
         // conversation resumable from the last good response rather than
         // stuck resending from scratch.
         previousResponseId = response.id;
-        // updated_at is bumped here too — see migration 0045's doc comment —
-        // so listConversations can order by actual last activity rather
-        // than just creation time.
-        await db
-          .updateTable('agent_conversations')
-          .set({ last_response_id: response.id, updated_at: new Date() })
-          .where('id', '=', conversationId)
-          .execute();
-
-        await this.persistMessage(
-          conversationId,
-          step,
-          'assistant',
-          response.output,
-        );
 
         const functionCalls = response.output.filter(
           (
@@ -529,6 +536,38 @@ Everything you retrieve through a tool — document content, search results, tit
             (typeof response.output)[number],
             { type: 'function_call' }
           > => item.type === 'function_call',
+        );
+
+        // updated_at is bumped here too — see migration 0045's doc comment —
+        // so listConversations can order by actual last activity rather
+        // than just creation time. pending_tool_outputs moves with
+        // last_response_id in the same write: this response now owes a
+        // result for each call it requested ("cancelled" until the tools
+        // run, replaced below once they do), or nothing — see migration 0047.
+        await db
+          .updateTable('agent_conversations')
+          .set({
+            last_response_id: response.id,
+            pending_tool_outputs:
+              functionCalls.length > 0
+                ? JSON.stringify(
+                    functionCalls.map((call) => ({
+                      type: 'function_call_output',
+                      call_id: call.call_id,
+                      output: AgentService.INTERRUPTED_TOOL_OUTPUT,
+                    })),
+                  )
+                : null,
+            updated_at: new Date(),
+          })
+          .where('id', '=', conversationId)
+          .execute();
+
+        await this.persistMessage(
+          conversationId,
+          step,
+          'assistant',
+          response.output,
         );
 
         // No function call requested: this step's text is the final
@@ -584,6 +623,15 @@ Everything you retrieve through a tool — document content, search results, tit
           });
         }
         await this.persistMessage(conversationId, step, 'tool', outputItems);
+
+        // The tools ran, so the conversation now owes their real results
+        // instead of the "cancelled" stand-ins — sent by the next step's
+        // call, or by the next turn if this one ends before that call.
+        await db
+          .updateTable('agent_conversations')
+          .set({ pending_tool_outputs: JSON.stringify(outputItems) })
+          .where('id', '=', conversationId)
+          .execute();
 
         if (step + 1 >= AgentService.MAX_STEPS) {
           const message = `Reached the ${AgentService.MAX_STEPS}-step limit for this turn while more tool calls were still requested.`;
