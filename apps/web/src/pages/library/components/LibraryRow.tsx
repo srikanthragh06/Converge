@@ -21,12 +21,12 @@ const capitalizedTimeAgo = (date: Date | string) => {
 };
 
 /**
- * One row of the Library table (pp 29 / 30): title with a gold pin when
- * pinned, your access, last visited, and last edited. Clicking the row opens
- * the document; hovering reveals a pin toggle and a ⋯ menu, and a
- * right-click opens the same menu. Below 1024px (phones as in pp 82 / 88,
- * and tablets) the three columns collapse into one line under the title and
- * ⋯ is always shown.
+ * One row of the Library table (pp 29 / 30): title, your access, last
+ * visited, and last edited. Clicking the row opens the document. At the
+ * right edge a pin toggle is always shown — gold when pinned, muted grey
+ * when not — followed by a ⋯ menu revealed on hover; a right-click opens the
+ * same menu. Below 1024px (phones as in pp 82 / 88, and tablets) the three
+ * columns collapse into one line under the title and ⋯ is always shown.
  * @param document - the row's document
  * @param isPinned - whether the user has pinned it to the sidebar
  * @param menuItems - entries of the ⋯ / right-click menu
@@ -63,28 +63,17 @@ const LibraryRow = ({
                 <TableCell>
                     <LuFile className="h-4 w-4 shrink-0 text-fg-muted" />
                     <div className="flex min-w-0 flex-col">
-                        <div className="flex min-w-0 items-center gap-2">
-                            {/* A real link, so the row is reachable by keyboard and opens in a new tab on modified clicks */}
-                            <Link
-                                to={href}
-                                onClick={(e) => e.stopPropagation()}
-                                className={cn(
-                                    "truncate rounded-sm text-[15px] outline-none focus-visible:ring-2 focus-visible:ring-gold/60",
-                                    document.title
-                                        ? "text-fg"
-                                        : "text-fg-muted",
-                                )}
-                            >
-                                {document.title || "Untitled"}
-                            </Link>
-                            {/* Hidden on hover, where the pin button in the actions takes over */}
-                            {isPinned && (
-                                <LuPin
-                                    aria-label="Pinned"
-                                    className="h-3.5 w-3.5 shrink-0 text-gold lg:group-hover/row:hidden"
-                                />
+                        {/* A real link, so the row is reachable by keyboard and opens in a new tab on modified clicks */}
+                        <Link
+                            to={href}
+                            onClick={(e) => e.stopPropagation()}
+                            className={cn(
+                                "truncate rounded-sm text-[15px] outline-none focus-visible:ring-2 focus-visible:ring-gold/60",
+                                document.title ? "text-fg" : "text-fg-muted",
                             )}
-                        </div>
+                        >
+                            {document.title || "Untitled"}
+                        </Link>
                         <span className="truncate text-xs text-fg-muted lg:hidden">
                             {mobileMeta}
                         </span>
@@ -103,7 +92,11 @@ const LibraryRow = ({
                         ? capitalizedTimeAgo(document.lastEditedAt)
                         : "—"}
                 </TableCell>
-                <RowActions className="gap-0.5 [@media(max-width:1023px)]:opacity-100">
+                {/* Clicks here don't reach the row, which opens the document */}
+                <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center justify-end gap-0.5"
+                >
                     <Button
                         variant="ghost"
                         size="icon-sm"
@@ -111,27 +104,31 @@ const LibraryRow = ({
                         aria-label={
                             isPinned ? "Unpin document" : "Pin document"
                         }
+                        aria-pressed={isPinned}
                         className={cn(
-                            "hidden lg:inline-flex",
-                            isPinned && "text-gold hover:text-gold",
+                            isPinned
+                                ? "text-gold hover:text-gold"
+                                : "text-fg-muted hover:text-fg",
                         )}
                     >
                         <LuPin />
                     </Button>
-                    <DropdownMenu
-                        items={menuItems}
-                        trigger={
-                            <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label="Document actions"
-                                className="data-[state=open]:bg-surface-selected"
-                            >
-                                <LuEllipsis />
-                            </Button>
-                        }
-                    />
-                </RowActions>
+                    <RowActions className="[@media(max-width:1023px)]:opacity-100">
+                        <DropdownMenu
+                            items={menuItems}
+                            trigger={
+                                <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label="Document actions"
+                                    className="data-[state=open]:bg-surface-selected"
+                                >
+                                    <LuEllipsis />
+                                </Button>
+                            }
+                        />
+                    </RowActions>
+                </div>
             </TableRow>
         </ContextMenu>
     );
