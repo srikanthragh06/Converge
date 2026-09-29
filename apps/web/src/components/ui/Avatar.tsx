@@ -1,14 +1,5 @@
 import type { ComponentProps } from "react";
-import { cn } from "../../lib/utils";
-
-/** Initials-avatar fill classes, one per avatar color token. */
-const AVATAR_COLORS = [
-    "bg-avatar-1",
-    "bg-avatar-2",
-    "bg-avatar-3",
-    "bg-avatar-4",
-    "bg-avatar-5",
-];
+import { cn, getAvatarColor } from "../../lib/utils";
 
 /**
  * Up to two initials from a name: first and last word ("Priya Kumar" → "PK"),
@@ -21,16 +12,6 @@ const getInitials = (name: string) => {
     const first = words[0][0];
     const last = words.length > 1 ? words[words.length - 1][0] : "";
     return (first + last).toUpperCase();
-};
-
-/**
- * Picks a stable avatar color for a key, so the same person always gets the same color.
- * @param key - any stable identifier, e.g. a user id or name
- */
-const getAvatarColor = (key: string) => {
-    let hash = 0;
-    for (const char of key) hash = (hash * 31 + char.charCodeAt(0)) | 0;
-    return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 };
 
 /**

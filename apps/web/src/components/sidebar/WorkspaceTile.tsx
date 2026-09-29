@@ -1,9 +1,10 @@
 import type { WorkspaceType } from "@converge/shared";
-import { cn } from "../../lib/utils";
+import { cn, getAvatarColor, WORKSPACE_TILE_COLORS } from "../../lib/utils";
 
 /**
  * Rounded square showing a workspace's first letter in the display serif:
- * gold for the user's personal workspace, blue for shared (custom) ones.
+ * gold for the user's personal workspace; shared (custom) ones get a stable
+ * color picked from the name, so each is told apart at a glance.
  * @param name - the workspace name; its first character is shown
  * @param type - "personal" or "custom", which picks the fill
  * @param className - size overrides (default 28px)
@@ -22,7 +23,10 @@ const WorkspaceTile = ({
         className={cn(
             "flex h-7 w-7 shrink-0 select-none items-center justify-center rounded-md font-serif text-base font-medium",
             type === "custom"
-                ? "bg-avatar-3 text-avatar-fg"
+                ? cn(
+                      getAvatarColor(name, WORKSPACE_TILE_COLORS),
+                      "text-avatar-fg",
+                  )
                 : "bg-gold text-gold-fg",
             className,
         )}
