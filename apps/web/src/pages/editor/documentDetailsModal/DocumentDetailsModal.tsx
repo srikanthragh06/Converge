@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import type { DocumentIndexingStatus } from "@converge/shared";
 import Modal, { ModalFooter } from "../../../components/ui/Modal";
 import Button from "../../../components/ui/Button";
@@ -6,6 +5,7 @@ import Skeleton from "../../../components/ui/Skeleton";
 import { StatusDot, type StatusTone } from "../../../components/ui/Badge";
 import DelayedRender from "../../../components/DelayedRender";
 import useDocumentDetails from "../../../hooks/useDocumentDetails";
+import DetailRow from "./DetailRow";
 import { formatAccessLevel, formatDate, timeAgo } from "../../../utils/utils";
 
 /** Dot tone and label for each search indexing state. */
@@ -17,24 +17,6 @@ const INDEXING_STATUS: Record<
     pending: { tone: "pending", label: "Pending" },
     indexing: { tone: "pending", label: "Indexing…" },
 };
-
-/**
- * One label / value row of the details list, with a separator below.
- * @param label - muted label on the left, e.g. "Owner"
- * @param children - the value
- */
-const DetailRow = ({
-    label,
-    children,
-}: {
-    label: string;
-    children: ReactNode;
-}) => (
-    <div className="flex items-center gap-4 border-b border-line py-3 text-sm">
-        <dt className="w-28 shrink-0 text-fg-muted sm:w-40">{label}</dt>
-        <dd className="min-w-0 flex-1 truncate text-fg">{children}</dd>
-    </div>
-);
 
 /**
  * Document details modal (pp 49 / 55): title, workspace, the caller's

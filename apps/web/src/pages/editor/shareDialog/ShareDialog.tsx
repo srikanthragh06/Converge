@@ -1,23 +1,23 @@
-import type { ReactNode } from "react";
 import { useAtomValue } from "jotai";
 import type {
     DocumentAccessLevel,
     DocumentAccessUserDto,
 } from "@converge/shared";
-import { LuLink, LuLock, LuSearch, LuUserPlus } from "react-icons/lu";
+import { LuLink, LuLock, LuUserPlus } from "react-icons/lu";
 import { authAtom } from "../../../atoms/auth";
 import Modal from "../../../components/ui/Modal";
 import BottomSheet from "../../../components/ui/BottomSheet";
 import Input from "../../../components/ui/Input";
 import Button from "../../../components/ui/Button";
 import Select, { type SelectOption } from "../../../components/ui/Select";
-import Skeleton from "../../../components/ui/Skeleton";
-import DelayedRender from "../../../components/DelayedRender";
 import useShareDialog from "../../../hooks/useShareDialog";
 import useIsMobile from "../../../hooks/useIsMobile";
 import useDocumentMenuActions from "../../../hooks/useDocumentMenuActions";
 import { formatAccessLevel } from "../../../utils/utils";
-import SharePersonRow, { ReadOnlyAccess } from "./SharePersonRow";
+import SharePersonRow from "./SharePersonRow";
+import ReadOnlyAccess from "./ReadOnlyAccess";
+import EmailNotice from "./EmailNotice";
+import ShareRowsSkeleton from "./ShareRowsSkeleton";
 import GeneralAccessRow from "./GeneralAccessRow";
 import AddPersonCard from "./AddPersonCard";
 
@@ -25,44 +25,6 @@ import AddPersonCard from "./AddPersonCard";
 const LEVEL_OPTIONS: SelectOption<DocumentAccessLevel>[] = (
     ["admin", "editor", "viewer", "noAccess"] as const
 ).map((value) => ({ value, label: formatAccessLevel(value) }));
-
-/**
- * Dashed notice under the email field when the typed address can't be
- * added: no account with that email, or they already have access.
- * @param title - the notice's first line
- * @param children - the muted explanation
- */
-const EmailNotice = ({
-    title,
-    children,
-}: {
-    title: string;
-    children: ReactNode;
-}) => (
-    <div className="mt-2 flex items-center gap-3 rounded-lg border border-dashed border-line-strong p-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed border-line-strong text-fg-muted">
-            <LuSearch className="h-3.5 w-3.5" />
-        </span>
-        <div className="flex min-w-0 flex-col">
-            <span className="text-sm text-fg">{title}</span>
-            <span className="text-xs text-fg-muted">{children}</span>
-        </div>
-    </div>
-);
-
-/** Placeholder rows shown while the dialog's data loads. */
-const RowsSkeleton = ({ count }: { count: number }) => (
-    <DelayedRender>
-        <div className="flex flex-col gap-3 py-1.5">
-            {Array.from({ length: count }, (_, i) => (
-                <div key={i} className="flex items-center gap-3">
-                    <Skeleton shape="circle" size="2rem" />
-                    <Skeleton height="2rem" />
-                </div>
-            ))}
-        </div>
-    </DelayedRender>
-);
 
 /**
  * Share dialog (pp 15–17 / 22–24): add people by email, the people with
@@ -206,7 +168,7 @@ const ShareDialog = ({
                 People with access
             </h3>
             {isInitialLoading ? (
-                <RowsSkeleton count={3} />
+                <ShareRowsSkeleton count={3} />
             ) : (
                 // Desktop: capped at about 5½ rows (48px each) and scrolls on its
                 // own, so General access and Copy link stay in view; the half
@@ -256,7 +218,7 @@ const ShareDialog = ({
                     })}
                     {/* Observed to load the next page of people */}
                     <div ref={sentinelRef} className="h-px" />
-                    {isFetchingMore && <RowsSkeleton count={2} />}
+                    {isFetchingMore && <ShareRowsSkeleton count={2} />}
                 </div>
             )}
 
@@ -270,7 +232,7 @@ const ShareDialog = ({
                     above.
                 </p>
                 {isInitialLoading ? (
-                    <RowsSkeleton count={3} />
+                    <ShareRowsSkeleton count={3} />
                 ) : (
                     roleOverrides && (
                         <div className="flex flex-col">

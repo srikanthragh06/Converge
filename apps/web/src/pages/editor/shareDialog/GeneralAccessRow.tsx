@@ -1,7 +1,7 @@
 import type { DocumentAccessLevel } from "@converge/shared";
 import Select, { type SelectOption } from "../../../components/ui/Select";
 import { formatAccessLevel } from "../../../utils/utils";
-import { ReadOnlyAccess } from "./SharePersonRow";
+import ReadOnlyAccess from "./ReadOnlyAccess";
 
 /** The four levels a role can be given, in dropdown order. */
 const LEVEL_OPTIONS: SelectOption<DocumentAccessLevel>[] = (
