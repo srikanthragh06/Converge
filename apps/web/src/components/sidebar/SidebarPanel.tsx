@@ -22,6 +22,7 @@ import { isSearchOpenAtom } from "../../atoms/search";
 import { sidebarSectionsAtom } from "../../atoms/sidebar";
 import useSidebar from "../../hooks/useSidebar";
 import useDocumentMenuActions from "../../hooks/useDocumentMenuActions";
+import useIsMobile from "../../hooks/useIsMobile";
 import { formatShortcut } from "../../lib/utils";
 import { hasAccess } from "../../utils/utils";
 import type { MenuEntry } from "../ui/Menu";
@@ -34,10 +35,10 @@ import WorkspaceSwitcher from "./WorkspaceSwitcher";
 import UserMenu from "./UserMenu";
 
 /**
- * The expanded sidebar (280px desktop / full-width mobile): workspace
- * switcher, primary navigation, pinned and recent documents, developer
- * links, and the signed-in user.
- * @param onCollapse - collapses the sidebar to the icon rail
+ * The expanded sidebar (280px on desktop, filling the drawer on phones):
+ * workspace switcher, primary navigation, pinned and recent documents,
+ * developer links, and the signed-in user.
+ * @param onCollapse - collapses the sidebar to the icon rail, or closes the drawer on phones
  */
 const SidebarPanel = ({ onCollapse }: { onCollapse: () => void }) => {
     const navigate = useNavigate();
@@ -60,10 +61,11 @@ const SidebarPanel = ({ onCollapse }: { onCollapse: () => void }) => {
     const [sections, setSections] = useAtom(sidebarSectionsAtom); // which of Pinned / Recent are expanded
     const setIsSearchOpen = useSetAtom(isSearchOpenAtom); // opens the search palette
     const { openInNewTab, copyLink, moveToTrash } = useDocumentMenuActions(); // document row menu actions
+    const isMobile = useIsMobile(); // on phones the panel is a drawer, closed after navigating
 
-    /** Closes the sidebar when called on a viewport narrower than 640px (Tailwind sm breakpoint). */
+    /** Closes the drawer after a navigation choice on phones; the desktop sidebar stays as it is. */
     const closeOnMobile = () => {
-        if (window.innerWidth < 640) onCollapse();
+        if (isMobile) onCollapse();
     };
 
     /**
@@ -117,7 +119,7 @@ const SidebarPanel = ({ onCollapse }: { onCollapse: () => void }) => {
     ];
 
     return (
-        <aside className="flex h-full w-screen shrink-0 flex-col border-r border-line bg-surface-sidebar sm:w-[280px]">
+        <aside className="flex h-full w-full shrink-0 flex-col border-r border-line bg-surface-sidebar sm:w-[280px]">
             {/* Header — current workspace, and the button that collapses the sidebar */}
             <div className="flex items-center gap-1 px-2.5 pb-1 pt-2.5">
                 <WorkspaceSwitcher
@@ -131,7 +133,7 @@ const SidebarPanel = ({ onCollapse }: { onCollapse: () => void }) => {
                     variant="ghost"
                     size="icon-sm"
                     onClick={onCollapse}
-                    aria-label="Collapse sidebar"
+                    aria-label={isMobile ? "Close sidebar" : "Collapse sidebar"}
                 >
                     <LuChevronsLeft />
                 </Button>

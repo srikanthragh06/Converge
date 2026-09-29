@@ -34,3 +34,6 @@ export const sidebarCollapsedAtom = atomWithStorage(
     undefined,
     { getOnInit: true },
 );
+
+/** Whether the sidebar drawer is open on phones, where it overlays the page instead of sitting beside it. */
+export const mobileSidebarOpenAtom = atom(false);

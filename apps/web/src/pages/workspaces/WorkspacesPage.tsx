@@ -40,7 +40,7 @@ const WorkspacesPage = () => {
 
     return (
         <>
-        <Page authRequired haveSidebar>
+        <Page authRequired haveSidebar mobileTitle="Workspaces">
             <div
                 className="bg-surface pb-4 pt-4 sm:pt-8 w-full
                     flex flex-col space-y-4"

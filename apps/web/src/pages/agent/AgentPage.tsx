@@ -33,7 +33,7 @@ const AgentPage = () => {
     } = useAgentChat(selectedConversationId);
 
     return (
-        <Page authRequired haveSidebar>
+        <Page authRequired haveSidebar mobileTitle="Ask Converge">
             <div className="w-full h-full flex flex-col sm:flex-row overflow-hidden">
                 {/* Left pane: conversation list */}
                 <div className="w-full sm:w-64 shrink-0 h-1/3 sm:h-full flex flex-col px-3 sm:px-4 border-b sm:border-b-0 sm:border-r border-line">

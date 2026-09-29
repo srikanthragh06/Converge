@@ -27,7 +27,7 @@ const McpDocsPage = () => {
     };
 
     return (
-        <Page authRequired haveSidebar>
+        <Page authRequired haveSidebar mobileTitle="MCP setup">
             <div className="flex-1 overflow-y-auto flex flex-col items-center pb-16">
                 <div className="w-full sm:max-w-[1080px] flex flex-col gap-6 sm:gap-8 px-3 sm:px-8 pt-3 sm:pt-8">
                     {/* Header — title + copy-as-markdown on one row, description on its own full-width row below */}

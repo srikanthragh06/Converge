@@ -42,7 +42,7 @@ const ApiKeysPage = () => {
     };
 
     return (
-        <Page authRequired haveSidebar>
+        <Page authRequired haveSidebar mobileTitle="API keys">
             {/* Header — title above, create-key button below, does not scroll */}
             <div className="bg-surface pb-4 pt-4 sm:pt-8 w-full flex flex-col space-y-4">
                 <div className="flex flex-col items-center w-full px-4 sm:px-0">
