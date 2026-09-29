@@ -16,6 +16,7 @@ import { syncStatusAtom, awarenessAtom } from "../../../atoms/socket";
 import { authAtom } from "../../../atoms/auth";
 import { mobileSidebarOpenAtom } from "../../../atoms/sidebar";
 import ManageDocumentModal from "../manageDocumentModal/ManageDocumentModal";
+import ShareDialog from "../shareDialog/ShareDialog";
 import CheckpointHistoryModal from "../checkpointHistoryModal/CheckpointHistoryModal";
 import type { EditorInstance } from "../../../utils/checkpointDiffUtils";
 import type { ManageDocumentTab } from "../../../hooks/useManageDocumentModal";
@@ -78,6 +79,7 @@ const EditorPageHeader = ({
 }) => {
     const [manageModalTab, setManageModalTab] =
         useState<ManageDocumentTab | null>(null); // tab ManageDocumentModal opens on; null while it's closed
+    const [isShareOpen, setIsShareOpen] = useState(false); // controls the Share dialog
     const [isCheckpointHistoryModalOpen, setIsCheckpointHistoryModalOpen] =
         useState(false); // controls CheckpointHistoryModal visibility
     const [isSheetOpen, setIsSheetOpen] = useState(false); // phones: whether the ⋯ document sheet is open
@@ -184,7 +186,7 @@ const EditorPageHeader = ({
                 <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => setManageModalTab("access-overrides")}
+                    onClick={() => setIsShareOpen(true)}
                     aria-label="Share"
                     className="text-gold hover:text-gold [&_svg]:h-5 [&_svg]:w-5"
                 >
@@ -345,11 +347,10 @@ const EditorPageHeader = ({
 
                     <div className="mx-2 h-5 w-px bg-line" />
 
-                    {/* Share — opens the access settings until the Share dialog
-                        replaces ManageDocumentModal (redesign 5.1). */}
+                    {/* Share — opens the Share dialog */}
                     <Button
                         variant="primary"
-                        onClick={() => setManageModalTab("access-overrides")}
+                        onClick={() => setIsShareOpen(true)}
                         className="px-4 font-semibold"
                     >
                         <LuUsers />
@@ -392,6 +393,15 @@ const EditorPageHeader = ({
                     onClose={() => setManageModalTab(null)}
                     documentId={documentId}
                     initialTab={manageModalTab}
+                />
+            )}
+
+            {/* Share dialog — mounted only while open. */}
+            {isShareOpen && (
+                <ShareDialog
+                    documentId={documentId}
+                    title={title}
+                    onClose={() => setIsShareOpen(false)}
                 />
             )}
 
