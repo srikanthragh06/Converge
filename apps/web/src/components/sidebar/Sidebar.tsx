@@ -2,7 +2,6 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
     LuChevronsLeft,
-    LuChevronsUpDown,
     LuCode,
     LuKeyRound,
     LuLibrary,
@@ -21,11 +20,11 @@ import { sidebarSectionsAtom } from "../../atoms/sidebar";
 import useSidebar from "../../hooks/useSidebar";
 import { formatShortcut } from "../../lib/utils";
 import Button from "../ui/Button";
-import { Avatar } from "../ui/Avatar";
 import SidebarNavItem from "./SidebarNavItem";
 import SidebarSection from "./SidebarSection";
 import SidebarDocumentRow from "./SidebarDocumentRow";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
+import UserMenu from "./UserMenu";
 
 /**
  * The app's left sidebar: workspace switcher, primary navigation, pinned and
@@ -231,23 +230,7 @@ const Sidebar = ({
             {/* Signed-in user */}
             {user && (
                 <div className="border-t border-line p-2.5">
-                    <div className="flex items-center gap-2.5 rounded-lg p-1.5">
-                        <Avatar
-                            name={user.name}
-                            src={user.avatarUrl}
-                            colorKey={user.id}
-                            className="h-7 w-7 text-[11px]"
-                        />
-                        <div className="flex min-w-0 flex-1 flex-col">
-                            <span className="truncate text-[13px] font-medium text-fg">
-                                {user.name}
-                            </span>
-                            <span className="truncate text-xs text-fg-muted">
-                                {user.email}
-                            </span>
-                        </div>
-                        <LuChevronsUpDown className="h-4 w-4 shrink-0 text-fg-muted" />
-                    </div>
+                    <UserMenu user={user} />
                 </div>
             )}
         </aside>
