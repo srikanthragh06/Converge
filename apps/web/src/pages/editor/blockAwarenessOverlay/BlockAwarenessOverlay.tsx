@@ -37,13 +37,10 @@ function getOffsetTopRelativeTo(
 }
 
 /**
- * Marks each block another user is focused on: a faint tint of their presence
- * color behind the block's text (all widths), and their avatar in the right
- * gutter (desktop only — phones have no gutter). The tint is the presence
- * color at low opacity, so the same server-assigned color reads on both the
- * light and dark page. Everything is absolutely positioned inside the editor
- * wrapper so it scrolls with the content and needs no scroll listeners —
- * offsetTop is scroll-independent.
+ * Renders small avatar indicators in the right gutter next to each block that
+ * another user is focused on (desktop only — phones have no gutter). Avatars
+ * are absolutely positioned inside the editor wrapper so they scroll with
+ * content and require no scroll listeners — offsetTop is scroll-independent.
  * @param editorWrapperRef - ref to the position:relative div wrapping BlockNoteView
  */
 const BlockAwarenessOverlay = ({
@@ -97,25 +94,12 @@ const BlockAwarenessOverlay = ({
 
     return (
         // Covers the wrapper exactly; pointer-events:none so clicks pass through to the editor.
-        <div className="pointer-events-none absolute inset-0">
-            {/* Block tints, in the first focused user's color. Inset to the text
-                column (BlockNote's 54px / 20px gutters) plus a little breathing room. */}
-            {blockPositions.map(({ blockId, top, height, users }) => (
-                <div
-                    key={`tint-${blockId}`}
-                    className="absolute inset-x-3 rounded-md sm:inset-x-[46px]"
-                    style={{
-                        top,
-                        height,
-                        backgroundColor: `color-mix(in srgb, ${users[0].color} 12%, transparent)`,
-                    }}
-                />
-            ))}
+        <div className="pointer-events-none absolute inset-0 hidden sm:block">
             {blockPositions.map(({ blockId, top, height, users }) => (
                 // Vertically centred on the block, in the right gutter.
                 <div
                     key={blockId}
-                    className="absolute right-3 hidden flex-col gap-1 sm:flex"
+                    className="absolute right-3 flex flex-col gap-1"
                     style={{ top: top + height / 2 - 12 }}
                 >
                     {users.map((user) => (
