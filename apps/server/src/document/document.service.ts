@@ -60,7 +60,7 @@ export class DocumentService {
    * requesting user has less than viewer access.
    * @param documentId - the ID of the document to fetch
    * @param userId - the ID of the authenticated requesting user
-   * @returns the document's id, title, and createdAt
+   * @returns the document's id, title, createdAt, workspace, the caller's resolved access, and whether the caller has pinned it
    */
   async getDocumentOfUser(
     documentId: number,
@@ -76,16 +76,24 @@ export class DocumentService {
     if (!hasAccess(access, 'viewer'))
       throw new ForbiddenException('You do not have access to this document.');
 
-    // Fetch the document fields and its workspace name in a single join.
+    // Fetch the document fields, its workspace name, and the caller's pin in
+    // a single query — left join, since a never-visited document has no
+    // document_user_metadata row yet.
     const row = await db
       .selectFrom('documents as d')
       .innerJoin('workspaces as w', 'w.id', 'd.workspace_id')
+      .leftJoin('document_user_metadata as dum', (join) =>
+        join
+          .onRef('dum.document_id', '=', 'd.id')
+          .on('dum.user_id', '=', userId),
+      )
       .select([
         'd.id',
         'd.title',
         'd.created_at',
         'w.id as workspaceId',
         'w.name as workspaceName',
+        'dum.pinned_at as pinnedAt',
       ])
       .where('d.id', '=', documentId)
       .where('d.is_deleted', '=', false)
@@ -99,6 +107,7 @@ export class DocumentService {
       createdAt: row.created_at,
       workspace: { id: row.workspaceId, name: row.workspaceName },
       resolvedAccess: access,
+      isPinned: row.pinnedAt !== null,
     };
   }
 

@@ -27,6 +27,7 @@ const useDocumentFetch = (
         id: number;
         name: string;
     } | null>(null); // workspace the document belongs to; null while loading or on error
+    const [isPinned, setIsPinned] = useState(false); // whether the user had pinned the document when it was fetched
 
     // Fetches the document whenever documentId changes — resets to loading first so stale content is hidden.
     useEffect(() => {
@@ -39,6 +40,7 @@ const useDocumentFetch = (
                 setTitle(data.title);
                 setDocumentAccess(data.resolvedAccess);
                 setDocWorkspace(data.workspace);
+                setIsPinned(data.isPinned);
                 setDocumentStatus("ready");
             } catch (err) {
                 if (axios.isAxiosError(err)) {
@@ -66,7 +68,7 @@ const useDocumentFetch = (
         };
     }, [documentId]);
 
-    return { documentStatus, documentAccess, docWorkspace };
+    return { documentStatus, documentAccess, docWorkspace, isPinned };
 };
 
 export default useDocumentFetch;

@@ -5,6 +5,7 @@ import {
     LuCheck,
     LuCircleAlert,
     LuClock,
+    LuEllipsis,
     LuLoaderCircle,
     LuLock,
     LuLockOpen,
@@ -20,8 +21,11 @@ import { Avatar, AvatarGroup } from "../../../components/ui/Avatar";
 import { StatusDot } from "../../../components/ui/Badge";
 import Button from "../../../components/ui/Button";
 import Tooltip from "../../../components/ui/Tooltip";
+import { DropdownMenu } from "../../../components/ui/Menu";
 import useCreateCheckpoint from "../../../hooks/useCreateCheckpoint";
+import useDocumentMenuActions from "../../../hooks/useDocumentMenuActions";
 import { getSyncStatusDisplay } from "./syncStatusDisplay";
+import { getEditorDocumentMenu } from "./editorDocumentMenu";
 
 /** Maximum number of avatars shown before collapsing the rest into a +N label. */
 const MAX_VISIBLE_AVATARS = 4;
@@ -30,8 +34,8 @@ const MAX_VISIBLE_AVATARS = 4;
  * Top bar of the editor page. On the left: a workspace / document breadcrumb
  * (desktop only) and the Saved / Syncing / Offline status dot. On the right:
  * collaborators' presence avatars, the lock-editing, save-checkpoint, and
- * version-history icon buttons, and the gold Share button. Only rendered when
- * documentStatus is "ready".
+ * version-history icon buttons, the gold Share button, and the ⋯ document
+ * menu. Only rendered when documentStatus is "ready".
  */
 const EditorPageHeader = ({
     documentStatus,
@@ -40,6 +44,8 @@ const EditorPageHeader = ({
     title,
     editor,
     isEditable,
+    isPinned,
+    canTrash,
     isWriteLocked,
     onToggleWriteLock,
 }: {
@@ -54,6 +60,10 @@ const EditorPageHeader = ({
     editor: EditorInstance | null;
     /** Whether the requesting user has editor+ resolved access, forwarded to CheckpointHistoryModal to gate the restore action. */
     isEditable: boolean;
+    /** Whether the user has pinned the document to the sidebar, for the ⋯ menu's Pin / Unpin entry. */
+    isPinned: boolean;
+    /** Whether the user may move the document to Trash (admin access). */
+    canTrash: boolean;
     /** Whether this user has locally locked writes on this document, for the lock button's icon/tooltip. */
     isWriteLocked: boolean;
     /** Flips the local write lock for this document. */
@@ -68,6 +78,7 @@ const EditorPageHeader = ({
     const syncStatus = useAtomValue(syncStatusAtom); // current sync state from useYjsSync
     const awareness = useAtomValue(awarenessAtom); // presence list for the current document
     const auth = useAtomValue(authAtom); // current user — used to exclude self from the avatar stack
+    const { togglePin, copyLink, moveToTrash } = useDocumentMenuActions(); // ⋯ menu actions, shared with the sidebar's row menu
 
     // Filter out the current user so they don't see their own avatar in the stack.
     const otherUsers = awareness.filter(
@@ -76,6 +87,15 @@ const EditorPageHeader = ({
     const visibleUsers = otherUsers.slice(0, MAX_VISIBLE_AVATARS); // avatars rendered explicitly
     const overflowCount = otherUsers.length - visibleUsers.length; // users collapsed into +N label
     const status = getSyncStatusDisplay(syncStatus); // dot tone + label beside the breadcrumb
+    const menuDocument = { id: Number(documentId), title }; // the open document, as the menu actions take it
+    const documentMenu = getEditorDocumentMenu({
+        isPinned,
+        canTrash,
+        onTogglePin: () => togglePin(menuDocument.id, !isPinned),
+        onCopyLink: () => copyLink(menuDocument),
+        onOpenDetails: () => setManageModalTab("overview"),
+        onMoveToTrash: () => moveToTrash(menuDocument),
+    }); // entries of the ⋯ menu
 
     if (documentStatus !== "ready") return null;
 
@@ -235,6 +255,22 @@ const EditorPageHeader = ({
                         <LuUsers />
                         Share
                     </Button>
+
+                    {/* ⋯ — pin, copy link, document details, move to Trash */}
+                    <DropdownMenu
+                        items={documentMenu}
+                        className="w-60"
+                        trigger={
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label="Document menu"
+                                className="ml-1 data-[state=open]:bg-surface-selected data-[state=open]:text-fg"
+                            >
+                                <LuEllipsis />
+                            </Button>
+                        }
+                    />
                 </div>
             </header>
 

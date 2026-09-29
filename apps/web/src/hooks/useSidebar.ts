@@ -4,20 +4,17 @@ import {
     currentWorkspaceAtom,
     pinnedDocumentsAtom,
     recentDocumentsAtom,
-    refreshSidebarAtom,
     workspacesAtom,
 } from "../atoms/sidebar";
 import apiClient from "../lib/http";
 import useNewDocument from "./useNewDocument";
-import type {
-    GetWorkspacesResponseDto,
-    SetDocumentPinnedResponseDto,
-} from "@converge/shared";
+import type { GetWorkspacesResponseDto } from "@converge/shared";
 
 /**
  * Sidebar state and actions: the workspace list, selected workspace, pinned +
  * recent documents for the current workspace (all kept fresh by
- * useSidebarSync), plus selectWorkspace, document creation, and pin toggling.
+ * useSidebarSync), plus selectWorkspace and document creation. Pin toggling
+ * lives in useDocumentMenuActions, shared with the editor's ⋯ menu.
  */
 const useSidebar = () => {
     const { createDocument, isCreating } = useNewDocument(); // creates a new document in the current workspace
@@ -25,7 +22,6 @@ const useSidebar = () => {
     const setWorkspaces = useSetAtom(workspacesAtom); // replaced by refetchWorkspaces
     const currentWorkspace = useAtomValue(currentWorkspaceAtom); // currently selected workspace
     const setCurrentWorkspace = useSetAtom(currentWorkspaceAtom); // updated by selectWorkspace
-    const setRefreshSidebar = useSetAtom(refreshSidebarAtom); // bump to trigger a refetch of workspaces, pinned documents, and recent documents
     const recentDocuments = useAtomValue(recentDocumentsAtom); // most recent, non-pinned documents in the current workspace, shown below the pinned section
     const pinnedDocuments = useAtomValue(pinnedDocumentsAtom); // documents the user has pinned in the current workspace, shown above recentDocuments
 
@@ -59,30 +55,6 @@ const useSidebar = () => {
         }
     }, [setWorkspaces]);
 
-    /**
-     * Pins or unpins the given document via PUT /document/:id/pin, then bumps
-     * refreshSidebarAtom to re-fetch both pinnedDocuments and recentDocuments
-     * from the server — the two lists are complements of each other
-     * (ignorePinnedDocs), so a toggle in either direction needs both
-     * re-fetched to move the document across without duplicating or losing it.
-     * @param documentId - the document being pinned or unpinned
-     * @param pinned - true to pin, false to unpin
-     */
-    const togglePin = useCallback(
-        async (documentId: number, pinned: boolean) => {
-            try {
-                await apiClient.put<SetDocumentPinnedResponseDto>(
-                    `/document/${documentId}/pin`,
-                    { pinned },
-                );
-                setRefreshSidebar((prev) => prev + 1);
-            } catch (err) {
-                console.error("useSidebar: failed to toggle pin", err);
-            }
-        },
-        [setRefreshSidebar],
-    );
-
     return {
         workspaces,
         currentWorkspace,
@@ -92,7 +64,6 @@ const useSidebar = () => {
         selectWorkspace,
         createDocument,
         refetchWorkspaces,
-        togglePin,
     };
 };
 

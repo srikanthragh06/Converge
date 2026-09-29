@@ -13,6 +13,7 @@ import Skeleton from "../../components/ui/Skeleton";
 import { useAtomValue } from "jotai";
 import DelayedRender from "../../components/DelayedRender";
 import { isSocketReadyAtom, syncStatusAtom } from "@/atoms/socket";
+import { pinOverridesAtom } from "@/atoms/sidebar";
 
 /**
  * Full-screen editor page. Fetches the document by ID from the URL, redirects
@@ -26,6 +27,7 @@ const EditorPage = () => {
         documentStatus,
         documentAccess,
         docWorkspace,
+        isPinned: fetchedIsPinned,
         title,
         handleTitleChange,
         isTitlePending,
@@ -38,6 +40,8 @@ const EditorPage = () => {
     const isEditable =
         documentAccess !== null && hasAccess(documentAccess, "editor"); // editor+ may write; viewers get a read-only instance
     const canWrite = isEditable && !isWriteLocked; // combines resolved access with the local write lock to gate actual editing
+    const pinOverrides = useAtomValue(pinOverridesAtom); // pins toggled this session, from the ⋯ menu or the sidebar
+    const isPinned = pinOverrides[Number(documentId)] ?? fetchedIsPinned; // latest known pin state of this document
 
     const syncStatus = useAtomValue(syncStatusAtom); // current Yjs sync state — drives skeleton vs. editor rendering
     useScrollToBlock(documentId); // scrolls to a ?blockId= deep link once the editor's content first becomes visible
@@ -53,6 +57,11 @@ const EditorPage = () => {
                     title={title}
                     editor={editor}
                     isEditable={isEditable}
+                    isPinned={isPinned}
+                    canTrash={
+                        documentAccess !== null &&
+                        hasAccess(documentAccess, "admin")
+                    }
                     isWriteLocked={isWriteLocked}
                     onToggleWriteLock={toggleWriteLock}
                 />

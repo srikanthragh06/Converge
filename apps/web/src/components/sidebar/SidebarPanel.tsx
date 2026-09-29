@@ -55,12 +55,12 @@ const SidebarPanel = ({ onCollapse }: { onCollapse: () => void }) => {
         selectWorkspace,
         createDocument,
         refetchWorkspaces,
-        togglePin,
-    } = useSidebar(); // workspace list, pinned + recent docs, and document actions
+    } = useSidebar(); // workspace list, pinned + recent docs, and document creation
     const [theme, setTheme] = useAtom(themeAtom); // active color theme, flipped by the theme item
     const [sections, setSections] = useAtom(sidebarSectionsAtom); // which of Pinned / Recent are expanded
     const setIsSearchOpen = useSetAtom(isSearchOpenAtom); // opens the search palette
-    const { openInNewTab, copyLink, moveToTrash } = useDocumentMenuActions(); // document row menu actions
+    const { togglePin, openInNewTab, copyLink, moveToTrash } =
+        useDocumentMenuActions(); // document row menu actions
     const isMobile = useIsMobile(); // on phones the panel is a drawer, closed after navigating
 
     /** Closes the drawer after a navigation choice on phones; the desktop sidebar stays as it is. */
