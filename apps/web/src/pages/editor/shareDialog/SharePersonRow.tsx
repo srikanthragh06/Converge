@@ -5,7 +5,7 @@ import { Avatar } from "../../../components/ui/Avatar";
  * One person in the Share dialog: avatar, name, and a muted subtitle on the
  * left, with their access control (or a read-only label) on the right.
  * @param name - display name, e.g. "Priya K."
- * @param isSelf - appends "(you)" to the name, for the caller's own row
+ * @param isSelf - the caller's own row: "Name (you)", or just "You" on phones (pp 80 / 86)
  * @param avatarUrl - profile image URL, or null for initials
  * @param colorKey - stable key for the initials color, e.g. the email
  * @param subtitle - muted second line, e.g. "priya@example.com · direct access"
@@ -35,7 +35,14 @@ const SharePersonRow = ({
         />
         <div className="flex min-w-0 flex-1 flex-col">
             <span className="truncate text-sm text-fg">
-                {isSelf ? `${name} (you)` : name}
+                {isSelf ? (
+                    <>
+                        <span className="sm:hidden">You</span>
+                        <span className="hidden sm:inline">{name} (you)</span>
+                    </>
+                ) : (
+                    name
+                )}
             </span>
             <span className="truncate text-xs text-fg-muted">{subtitle}</span>
         </div>

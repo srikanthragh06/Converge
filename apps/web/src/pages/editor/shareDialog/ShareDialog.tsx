@@ -7,12 +7,14 @@ import type {
 import { LuLink, LuLock, LuSearch, LuUserPlus } from "react-icons/lu";
 import { authAtom } from "../../../atoms/auth";
 import Modal from "../../../components/ui/Modal";
+import BottomSheet from "../../../components/ui/BottomSheet";
 import Input from "../../../components/ui/Input";
 import Button from "../../../components/ui/Button";
 import Select, { type SelectOption } from "../../../components/ui/Select";
 import Skeleton from "../../../components/ui/Skeleton";
 import DelayedRender from "../../../components/DelayedRender";
 import useShareDialog from "../../../hooks/useShareDialog";
+import useIsMobile from "../../../hooks/useIsMobile";
 import useDocumentMenuActions from "../../../hooks/useDocumentMenuActions";
 import { formatAccessLevel } from "../../../utils/utils";
 import SharePersonRow, { ReadOnlyAccess } from "./SharePersonRow";
@@ -67,7 +69,9 @@ const RowsSkeleton = ({ count }: { count: number }) => (
  * access (the owner first, then everyone with direct access, each with a
  * level dropdown), the per-role General access with workspace-default
  * overrides, and Copy link. Every change applies immediately. Viewers and
- * editors see the same lists read-only, without the email field.
+ * editors see the same lists read-only, without the email field. On phones
+ * it's a bottom sheet (pp 80 / 86) with shorter labels, no emails in the
+ * rows, and no Copy link footer (the phone ⋯ sheet has Copy link).
  * @param documentId - the document being shared
  * @param title - its title, shown in the dialog's heading
  * @param onClose - closes the dialog
@@ -103,6 +107,7 @@ const ShareDialog = ({
     } = useShareDialog(documentId);
     const auth = useAtomValue(authAtom); // current user, for the "(you)" labels
     const { copyLink } = useDocumentMenuActions(); // Copy link, shared with the ⋯ menus
+    const isMobile = useIsMobile(); // phones get a bottom sheet instead of a centered dialog
 
     const isOwner = callerAccess === "owner";
     // Only the owner may grant or change Admin.
@@ -142,18 +147,13 @@ const ShareDialog = ({
                     label: "Remove access",
                     onSelect: () => removePerson(person.id),
                 }}
-                className="w-[7.5rem]"
+                className="w-[6.5rem] sm:w-[7.5rem]"
             />
         );
     };
 
-    return (
-        <Modal
-            onClose={onClose}
-            title={`Share “${title || "Untitled"}”`}
-            description={canManage ? "Changes apply immediately." : undefined}
-            size="md"
-        >
+    const body = (
+        <>
             {/* Add people — admins only */}
             {canManage && (
                 <div className="mb-5">
@@ -241,7 +241,14 @@ const ShareDialog = ({
                                 isSelf={isSelf}
                                 avatarUrl={person.avatarUrl}
                                 colorKey={person.email}
-                                subtitle={`${person.email} · direct access`}
+                                subtitle={
+                                    <>
+                                        <span className="hidden sm:inline">
+                                            {person.email} ·{" "}
+                                        </span>
+                                        direct access
+                                    </>
+                                }
                             >
                                 {renderPersonAccess(person, isSelf)}
                             </SharePersonRow>
@@ -255,10 +262,10 @@ const ShareDialog = ({
 
             {/* General access — per-role overrides of the workspace defaults */}
             <div className="mt-4 border-t border-line pt-5">
-                <h3 className="text-sm font-semibold text-fg">
+                <h3 className="mb-1 text-sm font-semibold text-fg sm:mb-0">
                     General access
                 </h3>
-                <p className="mb-2 text-xs text-fg-muted sm:text-sm">
+                <p className="mb-2 hidden text-sm text-fg-muted sm:block">
                     Applies to everyone in a role who has no direct access
                     above.
                 </p>
@@ -269,6 +276,7 @@ const ShareDialog = ({
                         <div className="flex flex-col">
                             <GeneralAccessRow
                                 label="Workspace admins"
+                                shortLabel="Admins"
                                 override={roleOverrides.adminDocAccess}
                                 workspaceDefault={
                                     roleOverrides.workspaceAdminDocAccess
@@ -281,6 +289,7 @@ const ShareDialog = ({
                             />
                             <GeneralAccessRow
                                 label="Workspace members"
+                                shortLabel="Members"
                                 override={roleOverrides.memberDocAccess}
                                 workspaceDefault={
                                     roleOverrides.workspaceMemberDocAccess
@@ -293,6 +302,7 @@ const ShareDialog = ({
                             />
                             <GeneralAccessRow
                                 label="Non-members"
+                                shortLabel="Non-members"
                                 override={roleOverrides.nonMemberDocAccess}
                                 workspaceDefault={
                                     roleOverrides.workspaceNonMemberDocAccess
@@ -308,8 +318,8 @@ const ShareDialog = ({
                 )}
             </div>
 
-            {/* Footer */}
-            <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-5">
+            {/* Footer — desktop only; the phone ⋯ sheet has Copy link */}
+            <div className="mt-4 hidden items-center justify-between gap-3 border-t border-line pt-5 sm:flex">
                 <Button
                     onClick={() => copyLink({ id: Number(documentId), title })}
                     disabled={!documentId}
@@ -321,6 +331,21 @@ const ShareDialog = ({
                     Only people with access can open the link.
                 </span>
             </div>
+        </>
+    );
+
+    return isMobile ? (
+        <BottomSheet onClose={onClose} title="Share" className="h-[92dvh]">
+            {body}
+        </BottomSheet>
+    ) : (
+        <Modal
+            onClose={onClose}
+            title={`Share “${title || "Untitled"}”`}
+            description={canManage ? "Changes apply immediately." : undefined}
+            size="md"
+        >
+            {body}
         </Modal>
     );
 };

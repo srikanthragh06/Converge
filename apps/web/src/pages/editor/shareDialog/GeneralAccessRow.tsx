@@ -15,6 +15,7 @@ const LEVEL_OPTIONS: SelectOption<DocumentAccessLevel>[] = (
  * default", or a gold "Overridden for this document · default is X" note
  * with a "Reset to workspace default" action in the dropdown.
  * @param label - the role, e.g. "Workspace members"
+ * @param shortLabel - the role on phones, e.g. "Members" (pp 80 / 86)
  * @param override - the document's override for the role, or null
  * @param workspaceDefault - the workspace's level for the role
  * @param canManage - whether the caller may change it; otherwise a read-only label
@@ -23,6 +24,7 @@ const LEVEL_OPTIONS: SelectOption<DocumentAccessLevel>[] = (
  */
 const GeneralAccessRow = ({
     label,
+    shortLabel,
     override,
     workspaceDefault,
     canManage,
@@ -30,6 +32,7 @@ const GeneralAccessRow = ({
     onChange,
 }: {
     label: string;
+    shortLabel: string;
     override: DocumentAccessLevel | null;
     workspaceDefault: DocumentAccessLevel;
     canManage: boolean;
@@ -42,14 +45,24 @@ const GeneralAccessRow = ({
     return (
         <div className="flex items-center gap-3 py-1.5">
             <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm text-fg">{label}</span>
+                <span className="truncate text-sm text-fg">
+                    <span className="sm:hidden">{shortLabel}</span>
+                    <span className="hidden sm:inline">{label}</span>
+                </span>
                 {override === null ? (
                     <span className="truncate text-xs text-fg-muted">
                         Workspace default
                     </span>
                 ) : (
                     <span className="truncate text-xs text-gold">
-                        Overridden for this document · default is {defaultLabel}
+                        Overridden
+                        <span className="hidden sm:inline">
+                            {" "}
+                            for this document
+                        </span>{" "}
+                        · default
+                        <span className="hidden sm:inline"> is</span>{" "}
+                        {defaultLabel}
                     </span>
                 )}
             </div>
@@ -69,7 +82,7 @@ const GeneralAccessRow = ({
                                   onSelect: () => onChange(null),
                               }
                     }
-                    className={`w-[7.5rem] ${override === null ? "" : "border-gold/70"}`}
+                    className={`w-[6.5rem] sm:w-[7.5rem] ${override === null ? "" : "border-gold/70"}`}
                 />
             ) : (
                 <ReadOnlyAccess>{formatAccessLevel(effective)}</ReadOnlyAccess>

@@ -48,7 +48,7 @@ const AddPersonCard = ({
                 options={options}
                 onChange={setAccess}
                 disabled={isAdding}
-                className="w-[7.5rem] bg-surface-elevated"
+                className="w-[6.5rem] bg-surface-elevated sm:w-[7.5rem]"
             />
             <Button
                 variant="primary"
