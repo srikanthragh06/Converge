@@ -15,11 +15,10 @@ import { FaRegSave } from "react-icons/fa";
 import { syncStatusAtom, awarenessAtom } from "../../../atoms/socket";
 import { authAtom } from "../../../atoms/auth";
 import { mobileSidebarOpenAtom } from "../../../atoms/sidebar";
-import ManageDocumentModal from "../manageDocumentModal/ManageDocumentModal";
+import DocumentDetailsModal from "../documentDetailsModal/DocumentDetailsModal";
 import ShareDialog from "../shareDialog/ShareDialog";
 import CheckpointHistoryModal from "../checkpointHistoryModal/CheckpointHistoryModal";
 import type { EditorInstance } from "../../../utils/checkpointDiffUtils";
-import type { ManageDocumentTab } from "../../../hooks/useManageDocumentModal";
 import { Avatar, AvatarGroup } from "../../../components/ui/Avatar";
 import { StatusDot } from "../../../components/ui/Badge";
 import Button from "../../../components/ui/Button";
@@ -58,7 +57,7 @@ const EditorPageHeader = ({
     onToggleWriteLock,
 }: {
     documentStatus: "loading" | "ready" | "forbidden" | "notFound";
-    /** ID of the currently open document, forwarded to ManageDocumentModal. */
+    /** ID of the currently open document, forwarded to the Share, Document details, and version-history modals. */
     documentId: string | undefined;
     /** Name of the workspace the document belongs to, shown as a breadcrumb label. */
     workspaceName: string | null;
@@ -77,8 +76,7 @@ const EditorPageHeader = ({
     /** Flips the local write lock for this document. */
     onToggleWriteLock: () => void;
 }) => {
-    const [manageModalTab, setManageModalTab] =
-        useState<ManageDocumentTab | null>(null); // tab ManageDocumentModal opens on; null while it's closed
+    const [isDetailsOpen, setIsDetailsOpen] = useState(false); // controls the Document details modal
     const [isShareOpen, setIsShareOpen] = useState(false); // controls the Share dialog
     const [isCheckpointHistoryModalOpen, setIsCheckpointHistoryModalOpen] =
         useState(false); // controls CheckpointHistoryModal visibility
@@ -105,7 +103,7 @@ const EditorPageHeader = ({
         canTrash,
         onTogglePin: () => togglePin(menuDocument.id, !isPinned),
         onCopyLink: () => copyLink(menuDocument),
-        onOpenDetails: () => setManageModalTab("overview"),
+        onOpenDetails: () => setIsDetailsOpen(true),
         onMoveToTrash: () => moveToTrash(menuDocument),
     }); // entries of the ⋯ menu
 
@@ -387,12 +385,11 @@ const EditorPageHeader = ({
                 />
             </BottomSheet>
 
-            {/* Manage Document modal — mounted only while open. */}
-            {manageModalTab && (
-                <ManageDocumentModal
-                    onClose={() => setManageModalTab(null)}
+            {/* Document details modal — mounted only while open. */}
+            {isDetailsOpen && (
+                <DocumentDetailsModal
                     documentId={documentId}
-                    initialTab={manageModalTab}
+                    onClose={() => setIsDetailsOpen(false)}
                 />
             )}
 
