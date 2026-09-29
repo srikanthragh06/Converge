@@ -14,12 +14,12 @@ import useShareDialog from "../../../hooks/useShareDialog";
 import useIsMobile from "../../../hooks/useIsMobile";
 import useDocumentMenuActions from "../../../hooks/useDocumentMenuActions";
 import { formatAccessLevel } from "../../../utils/utils";
-import SharePersonRow from "./SharePersonRow";
+import PersonRow from "../../../components/people/PersonRow";
 import ReadOnlyAccess from "./ReadOnlyAccess";
-import EmailNotice from "./EmailNotice";
+import EmailNotice from "../../../components/people/EmailNotice";
 import ShareRowsSkeleton from "./ShareRowsSkeleton";
 import GeneralAccessRow from "./GeneralAccessRow";
-import AddPersonCard from "./AddPersonCard";
+import AddPersonCard from "../../../components/people/AddPersonCard";
 
 /** The four direct-access levels, in dropdown order. */
 const LEVEL_OPTIONS: SelectOption<DocumentAccessLevel>[] = (
@@ -135,6 +135,7 @@ const ShareDialog = ({
                                     key={lookup.user.id}
                                     user={lookup.user}
                                     options={grantableOptions}
+                                    defaultValue="editor"
                                     isAdding={isAdding}
                                     onAdd={addPerson}
                                 />
@@ -178,7 +179,7 @@ const ShareDialog = ({
                     style={{ scrollbarWidth: "thin" }}
                 >
                     {owner && (
-                        <SharePersonRow
+                        <PersonRow
                             name={owner.name}
                             isSelf={owner.email === auth.user?.email}
                             avatarUrl={
@@ -192,12 +193,12 @@ const ShareDialog = ({
                             <ReadOnlyAccess icon={<LuLock />}>
                                 Owner
                             </ReadOnlyAccess>
-                        </SharePersonRow>
+                        </PersonRow>
                     )}
                     {people.map((person) => {
                         const isSelf = Number(auth.user?.id) === person.id;
                         return (
-                            <SharePersonRow
+                            <PersonRow
                                 key={person.id}
                                 name={person.name}
                                 isSelf={isSelf}
@@ -213,7 +214,7 @@ const ShareDialog = ({
                                 }
                             >
                                 {renderPersonAccess(person, isSelf)}
-                            </SharePersonRow>
+                            </PersonRow>
                         );
                     })}
                     {/* Observed to load the next page of people */}

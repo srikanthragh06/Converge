@@ -1,32 +1,36 @@
 import { useState } from "react";
-import type {
-    DocumentAccessLevel,
-    FindNewDocumentAccessUserResponseDto,
-} from "@converge/shared";
-import { Avatar } from "../../../components/ui/Avatar";
-import Button from "../../../components/ui/Button";
-import Select, { type SelectOption } from "../../../components/ui/Select";
+import { Avatar } from "../ui/Avatar";
+import Button from "../ui/Button";
+import Select, { type SelectOption } from "../ui/Select";
 
 /**
- * The person found for the typed email, with a level dropdown (Editor by
- * default) and an Add button. Nothing is granted until Add is pressed.
+ * The person found for a typed email, with a level or role dropdown and an
+ * Add button — used by the Share dialog and the workspace Members tab.
+ * Nothing changes until Add is pressed.
  * @param user - the person found by exact email
- * @param options - levels the caller may grant (admins can't grant Admin)
+ * @param subtitle - muted line under the name (default: their email), e.g.
+ *                   "rahul@example.com · not in this workspace yet"
+ * @param options - the levels or roles the caller may give
+ * @param defaultValue - the option selected at first
  * @param isAdding - disables the controls while the add request is in flight
- * @param onAdd - called with the chosen level
+ * @param onAdd - called with the chosen option
  */
-const AddPersonCard = ({
+const AddPersonCard = <T extends string>({
     user,
+    subtitle,
     options,
+    defaultValue,
     isAdding,
     onAdd,
 }: {
-    user: FindNewDocumentAccessUserResponseDto;
-    options: SelectOption<DocumentAccessLevel>[];
+    user: { name: string; email: string; avatarUrl: string | null };
+    subtitle?: string;
+    options: SelectOption<T>[];
+    defaultValue: T;
     isAdding: boolean;
-    onAdd: (access: DocumentAccessLevel) => void;
+    onAdd: (value: T) => void;
 }) => {
-    const [access, setAccess] = useState<DocumentAccessLevel>("editor"); // level to grant on Add
+    const [value, setValue] = useState<T>(defaultValue); // option to give on Add
 
     return (
         <div className="flex items-center gap-3 rounded-lg border border-line bg-surface-inset p-3">
@@ -39,20 +43,20 @@ const AddPersonCard = ({
             <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-sm text-fg">{user.name}</span>
                 <span className="truncate text-xs text-fg-muted">
-                    {user.email}
+                    {subtitle ?? user.email}
                 </span>
             </div>
             <Select
                 variant="outline"
-                value={access}
+                value={value}
                 options={options}
-                onChange={setAccess}
+                onChange={setValue}
                 disabled={isAdding}
                 className="w-[6.5rem] bg-surface-elevated sm:w-[7.5rem]"
             />
             <Button
                 variant="primary"
-                onClick={() => onAdd(access)}
+                onClick={() => onAdd(value)}
                 disabled={isAdding}
                 className="px-4 font-semibold"
             >

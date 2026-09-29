@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
-import { Avatar } from "../../../components/ui/Avatar";
+import { Avatar } from "../ui/Avatar";
 
 /**
- * One person in the Share dialog: avatar, name, and a muted subtitle on the
- * left, with their access control (or a read-only label) on the right.
+ * One person in a people list (Share dialog, workspace Members): avatar,
+ * name, and a muted subtitle on the left, with their access or role control
+ * (or a read-only label) on the right.
  * @param name - display name, e.g. "Priya K."
  * @param isSelf - the caller's own row: "Name (you)", or just "You" on phones (pp 80 / 86)
  * @param avatarUrl - profile image URL, or null for initials
@@ -11,7 +12,7 @@ import { Avatar } from "../../../components/ui/Avatar";
  * @param subtitle - muted second line, e.g. "priya@example.com · direct access"
  * @param children - the access control on the right
  */
-const SharePersonRow = ({
+const PersonRow = ({
     name,
     isSelf = false,
     avatarUrl,
@@ -50,4 +51,4 @@ const SharePersonRow = ({
     </div>
 );
 
-export default SharePersonRow;
+export default PersonRow;

@@ -2,8 +2,9 @@ import type { ReactNode } from "react";
 import { LuSearch } from "react-icons/lu";
 
 /**
- * Dashed notice under the Share dialog's email field when the typed address
- * can't be added: no account with that email, or they already have access.
+ * Dashed notice under an add-by-email field (Share dialog, workspace Members
+ * and Ownership) when the typed address can't be used: no account with that
+ * email, or they already have access.
  * @param title - the notice's first line
  * @param children - the muted explanation
  */
