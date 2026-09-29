@@ -3,10 +3,14 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
     LuChevronsLeft,
     LuCode,
+    LuExternalLink,
     LuKeyRound,
     LuLibrary,
+    LuLink,
     LuMenu,
     LuMoon,
+    LuPin,
+    LuPinOff,
     LuPlus,
     LuSearch,
     LuSparkle,
@@ -18,7 +22,11 @@ import { themeAtom } from "../../atoms/theme";
 import { isSearchOpenAtom } from "../../atoms/search";
 import { sidebarSectionsAtom } from "../../atoms/sidebar";
 import useSidebar from "../../hooks/useSidebar";
+import useDocumentMenuActions from "../../hooks/useDocumentMenuActions";
 import { formatShortcut } from "../../lib/utils";
+import { hasAccess } from "../../utils/utils";
+import type { MenuEntry } from "../ui/Menu";
+import type { LibraryDocumentDto } from "@converge/shared";
 import Button from "../ui/Button";
 import SidebarNavItem from "./SidebarNavItem";
 import SidebarSection from "./SidebarSection";
@@ -60,6 +68,7 @@ const Sidebar = ({
     const [theme, setTheme] = useAtom(themeAtom); // active color theme, flipped by the theme item
     const [sections, setSections] = useAtom(sidebarSectionsAtom); // which of Pinned / Recent are expanded
     const setIsSearchOpen = useSetAtom(isSearchOpenAtom); // opens the search palette
+    const { openInNewTab, copyLink, moveToTrash } = useDocumentMenuActions(); // document row menu actions
 
     /** Closes the sidebar when called on a viewport narrower than 640px (Tailwind sm breakpoint). */
     const closeOnMobile = () => {
@@ -74,6 +83,47 @@ const Sidebar = ({
         navigate(path);
         closeOnMobile();
     };
+
+    /**
+     * The ⋯ / right-click menu of a document row. Share…, Document details,
+     * and Version history join once their dialogs can open outside the editor
+     * (redesign 5.5).
+     * @param doc - the row's document
+     * @param isPinned - whether the row is in the Pinned section
+     */
+    const documentMenu = (
+        doc: LibraryDocumentDto,
+        isPinned: boolean,
+    ): MenuEntry[] => [
+        {
+            label: isPinned ? "Unpin from sidebar" : "Pin to sidebar",
+            icon: isPinned ? <LuPinOff /> : <LuPin />,
+            onSelect: () => togglePin(doc.id, !isPinned),
+        },
+        { type: "separator" },
+        {
+            label: "Open in new tab",
+            icon: <LuExternalLink />,
+            onSelect: () => openInNewTab(doc),
+        },
+        {
+            label: "Copy link",
+            icon: <LuLink />,
+            onSelect: () => copyLink(doc),
+        },
+        // Trashing needs admin access; hidden rather than failing with a 403.
+        ...(hasAccess(doc.access, "admin")
+            ? ([
+                  { type: "separator" },
+                  {
+                      label: "Move to Trash",
+                      icon: <LuTrash2 />,
+                      destructive: true,
+                      onSelect: () => moveToTrash(doc),
+                  },
+              ] satisfies MenuEntry[])
+            : []),
+    ];
 
     if (!isOpen) {
         return (
@@ -171,6 +221,7 @@ const Sidebar = ({
                                 doc={doc}
                                 isPinned
                                 isActive={String(doc.id) === documentId}
+                                menuItems={documentMenu(doc, true)}
                                 onOpen={() => go(`/document/${doc.id}`)}
                                 onTogglePin={() => togglePin(doc.id, false)}
                             />
@@ -195,6 +246,7 @@ const Sidebar = ({
                             doc={doc}
                             isPinned={false}
                             isActive={String(doc.id) === documentId}
+                            menuItems={documentMenu(doc, false)}
                             onOpen={() => go(`/document/${doc.id}`)}
                             onTogglePin={() => togglePin(doc.id, true)}
                         />
