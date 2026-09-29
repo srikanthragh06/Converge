@@ -6,7 +6,9 @@ import { cn } from "../../lib/utils";
  * grid rather than a <table>, so a hovered row can be one rounded block.
  * Every TableHeader and TableRow inside shares the column template set here.
  * @param columns - CSS grid-template-columns, e.g. "minmax(0,1fr) 7rem 7rem 4rem"
- * @param mobileColumns - template below the sm breakpoint, where cells marked
+ * @param mobileColumns - template below the lg breakpoint (1024px) — phones and
+ *                        tablets, where the sidebar leaves too little room for
+ *                        every column — where cells marked
  *                        hideOnMobile are dropped (defaults to `columns`)
  */
 export const Table = ({
@@ -35,7 +37,7 @@ export const Table = ({
 
 /** Grid classes shared by the header and every row. */
 const GRID_CLASSES =
-    "grid grid-cols-[var(--table-cols-mobile)] items-center gap-x-3 px-3 sm:grid-cols-[var(--table-cols)] sm:gap-x-4";
+    "grid grid-cols-[var(--table-cols-mobile)] items-center gap-x-3 px-3 lg:grid-cols-[var(--table-cols)] lg:gap-x-4";
 
 /** The muted column-label row at the top of a Table. Children are TableHeadCells. */
 export const TableHeader = ({ className, ...rest }: ComponentProps<"div">) => (
@@ -52,7 +54,7 @@ export const TableHeader = ({ className, ...rest }: ComponentProps<"div">) => (
 
 /**
  * One column label in a TableHeader.
- * @param hideOnMobile - drops the label below the sm breakpoint; match it on the column's cells
+ * @param hideOnMobile - drops the label below the lg breakpoint; match it on the column's cells
  */
 export const TableHeadCell = ({
     hideOnMobile,
@@ -61,7 +63,7 @@ export const TableHeadCell = ({
 }: { hideOnMobile?: boolean } & ComponentProps<"div">) => (
     <div
         role="columnheader"
-        className={cn("truncate", hideOnMobile && "hidden sm:block", className)}
+        className={cn("truncate", hideOnMobile && "hidden lg:block", className)}
         {...rest}
     />
 );
@@ -93,7 +95,7 @@ export const TableRow = ({
 
 /**
  * One cell in a TableRow. Content is truncated rather than wrapped.
- * @param hideOnMobile - drops the cell below the sm breakpoint (pair with Table's mobileColumns)
+ * @param hideOnMobile - drops the cell below the lg breakpoint (pair with Table's mobileColumns)
  */
 export const TableCell = ({
     hideOnMobile,
@@ -104,7 +106,7 @@ export const TableCell = ({
         role="cell"
         className={cn(
             "flex min-w-0 items-center gap-2.5",
-            hideOnMobile && "hidden sm:flex",
+            hideOnMobile && "hidden lg:flex",
             className,
         )}
         {...rest}

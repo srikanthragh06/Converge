@@ -24,8 +24,9 @@ const capitalizedTimeAgo = (date: Date | string) => {
  * One row of the Library table (pp 29 / 30): title with a gold pin when
  * pinned, your access, last visited, and last edited. Clicking the row opens
  * the document; hovering reveals a pin toggle and a ⋯ menu, and a
- * right-click opens the same menu. On phones (pp 82 / 88) the three columns
- * collapse into one line under the title and ⋯ is always shown.
+ * right-click opens the same menu. Below 1024px (phones as in pp 82 / 88,
+ * and tablets) the three columns collapse into one line under the title and
+ * ⋯ is always shown.
  * @param document - the row's document
  * @param isPinned - whether the user has pinned it to the sidebar
  * @param menuItems - entries of the ⋯ / right-click menu
@@ -80,11 +81,11 @@ const LibraryRow = ({
                             {isPinned && (
                                 <LuPin
                                     aria-label="Pinned"
-                                    className="h-3.5 w-3.5 shrink-0 text-gold sm:group-hover/row:hidden"
+                                    className="h-3.5 w-3.5 shrink-0 text-gold lg:group-hover/row:hidden"
                                 />
                             )}
                         </div>
-                        <span className="truncate text-xs text-fg-muted sm:hidden">
+                        <span className="truncate text-xs text-fg-muted lg:hidden">
                             {mobileMeta}
                         </span>
                     </div>
@@ -102,7 +103,7 @@ const LibraryRow = ({
                         ? capitalizedTimeAgo(document.lastEditedAt)
                         : "—"}
                 </TableCell>
-                <RowActions className="gap-0.5 [@media(max-width:639px)]:opacity-100">
+                <RowActions className="gap-0.5 [@media(max-width:1023px)]:opacity-100">
                     <Button
                         variant="ghost"
                         size="icon-sm"
@@ -111,7 +112,7 @@ const LibraryRow = ({
                             isPinned ? "Unpin document" : "Pin document"
                         }
                         className={cn(
-                            "hidden sm:inline-flex",
+                            "hidden lg:inline-flex",
                             isPinned && "text-gold hover:text-gold",
                         )}
                     >

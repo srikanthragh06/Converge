@@ -64,7 +64,7 @@ const LibraryPage = () => {
                         />
                     </PageHeader>
                     <Table
-                        columns="minmax(0,1fr) 7.5rem 8.5rem 6.5rem 4rem"
+                        columns="minmax(0,1fr) 7rem 8rem 6rem 3.5rem"
                         mobileColumns="minmax(0,1fr) auto"
                     >
                         <TableHeader>

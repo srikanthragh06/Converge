@@ -9,7 +9,7 @@ import { RowActions, TableCell, TableRow } from "../../components/ui/Table";
  * One row of the Trash table: document title, when it was deleted, and a
  * Restore button revealed on hover (always shown on touch screens). The row
  * itself isn't clickable — a deleted document can't be opened, only restored.
- * On phones the deleted time moves under the title.
+ * Below 1024px (phones, tablets) the deleted time moves under the title.
  * @param document - the trashed document
  * @param isRestoring - whether this document's restore request is in flight
  * @param onRestore - restores the document
@@ -35,7 +35,7 @@ const TrashRow = ({
                 >
                     {document.title || "Untitled"}
                 </span>
-                <span className="truncate text-xs text-fg-muted sm:hidden">
+                <span className="truncate text-xs text-fg-muted lg:hidden">
                     Deleted {timeAgo(document.deletedAt)}
                 </span>
             </div>

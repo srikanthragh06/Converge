@@ -18,7 +18,7 @@ const formatRole = (role: string) =>
  * One row of the Workspaces table (pp 31 / 39): tile, name with Personal and
  * Current badges, and the user's role. Hovering reveals Switch to this (not
  * on the current workspace) and a settings gear; the current workspace's
- * gear is always shown. On phones the role moves under the name.
+ * gear is always shown. Below 1024px (phones, tablets) the role moves under the name.
  * @param workspace - the row's workspace
  * @param onSwitch - makes it the current workspace
  * @param onOpenSettings - opens its settings
@@ -49,7 +49,7 @@ const WorkspaceRow = ({
                         <Badge variant="gold">Current</Badge>
                     )}
                 </div>
-                <span className="text-xs text-fg-muted sm:hidden">
+                <span className="text-xs text-fg-muted lg:hidden">
                     {formatRole(workspace.role)}
                 </span>
             </div>

@@ -20,7 +20,7 @@ const formatWhen = (date: Date | null) => {
  * One row of an API keys table (pp 33 / 41): name with a key icon, key
  * prefix in mono, created, and last used. An active key reveals a red
  * Revoke button on hover (always shown on touch screens); a revoked key is
- * dimmed and struck through, with a Revoked badge. On phones the prefix and
+ * dimmed and struck through, with a Revoked badge. Below 1024px (phones, tablets) the prefix and
  * last use move under the name.
  * @param apiKey - the key
  * @param onRevoke - opens the revoke confirmation; omitted for revoked keys
@@ -54,7 +54,7 @@ const ApiKeyRow = ({
                     >
                         {apiKey.label}
                     </span>
-                    <span className="truncate font-mono text-xs text-fg-muted sm:hidden">
+                    <span className="truncate font-mono text-xs text-fg-muted lg:hidden">
                         {apiKey.keyPrefix}… · used{" "}
                         {formatWhen(apiKey.lastUsedAt).toLowerCase()}
                     </span>
