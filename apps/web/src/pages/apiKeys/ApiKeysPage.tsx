@@ -102,7 +102,7 @@ const ApiKeysPage = () => {
                     ) : (
                         <>
                             <h2 className="px-3 pb-1 text-[15px] font-semibold text-fg">
-                                Active · {activeKeys.length}
+                                Active keys ({activeKeys.length})
                             </h2>
                             <Table
                                 columns={COLUMNS}
