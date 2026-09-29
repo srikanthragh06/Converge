@@ -37,9 +37,13 @@ function getOffsetTopRelativeTo(
 }
 
 /**
- * Renders small avatar indicators next to each block that another user is focused on.
- * Avatars are absolutely positioned inside the editor wrapper so they scroll with content
- * and require no scroll listeners — offsetTop is scroll-independent.
+ * Marks each block another user is focused on: a faint tint of their presence
+ * color behind the block's text (all widths), and their avatar in the right
+ * gutter (desktop only — phones have no gutter). The tint is the presence
+ * color at low opacity, so the same server-assigned color reads on both the
+ * light and dark page. Everything is absolutely positioned inside the editor
+ * wrapper so it scrolls with the content and needs no scroll listeners —
+ * offsetTop is scroll-independent.
  * @param editorWrapperRef - ref to the position:relative div wrapping BlockNoteView
  */
 const BlockAwarenessOverlay = ({
@@ -93,12 +97,25 @@ const BlockAwarenessOverlay = ({
 
     return (
         // Covers the wrapper exactly; pointer-events:none so clicks pass through to the editor.
-        <div className="hidden sm:block absolute inset-0 pointer-events-none">
+        <div className="pointer-events-none absolute inset-0">
+            {/* Block tints, in the first focused user's color. Inset to the text
+                column (BlockNote's 54px / 20px gutters) plus a little breathing room. */}
             {blockPositions.map(({ blockId, top, height, users }) => (
-                // Vertically centred on the block, pinned to the right margin.
+                <div
+                    key={`tint-${blockId}`}
+                    className="absolute inset-x-3 rounded-md sm:inset-x-[46px]"
+                    style={{
+                        top,
+                        height,
+                        backgroundColor: `color-mix(in srgb, ${users[0].color} 12%, transparent)`,
+                    }}
+                />
+            ))}
+            {blockPositions.map(({ blockId, top, height, users }) => (
+                // Vertically centred on the block, in the right gutter.
                 <div
                     key={blockId}
-                    className="absolute right-2 flex flex-col gap-1"
+                    className="absolute right-3 hidden flex-col gap-1 sm:flex"
                     style={{ top: top + height / 2 - 12 }}
                 >
                     {users.map((user) => (
@@ -120,8 +137,9 @@ const BlockAwarenessOverlay = ({
                             <Avatar
                                 name={user.name}
                                 src={user.avatarUrl}
+                                colorKey={String(user.userId)}
                                 ringColor={user.color}
-                                className="pointer-events-auto"
+                                className="pointer-events-auto ring-2 ring-surface"
                             />
                         </Tooltip>
                     ))}
