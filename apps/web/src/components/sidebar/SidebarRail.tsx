@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
@@ -20,48 +19,11 @@ import { themeAtom } from "../../atoms/theme";
 import { isSearchOpenAtom } from "../../atoms/search";
 import useSidebar from "../../hooks/useSidebar";
 import { formatShortcut } from "../../lib/utils";
-import Button, { type ButtonVariant } from "../ui/Button";
-import Tooltip from "../ui/Tooltip";
+import Button from "../ui/Button";
 import { DropdownMenu } from "../ui/Menu";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
 import UserMenu from "./UserMenu";
-
-/**
- * One icon button in the rail, labelled by a tooltip on its right.
- * @param label - tooltip text and accessible name
- * @param icon - the icon shown
- * @param onClick - the action
- * @param shortcut - keyboard hint shown in the tooltip
- * @param active - shows the selected fill, for the page currently open
- * @param variant - button style (default "ghost"); "primary" for New document
- */
-const RailButton = ({
-    label,
-    icon,
-    onClick,
-    shortcut,
-    active,
-    variant = "ghost",
-}: {
-    label: string;
-    icon: ReactNode;
-    onClick: () => void;
-    shortcut?: string;
-    active?: boolean;
-    variant?: ButtonVariant;
-}) => (
-    <Tooltip content={label} shortcut={shortcut} side="right">
-        <Button
-            variant={variant}
-            size="icon"
-            pressed={active}
-            aria-label={label}
-            onClick={onClick}
-        >
-            {icon}
-        </Button>
-    </Tooltip>
-);
+import RailButton from "./RailButton";
 
 /**
  * The collapsed sidebar: a narrow column of icon buttons for the same
