@@ -8,6 +8,7 @@ import AuthCallbackPage from "./pages/authCallback/AuthCallbackPage";
 import WorkspacesPage from "./pages/workspaces/WorkspacesPage";
 import ApiKeysPage from "./pages/apiKeys/ApiKeysPage";
 import McpDocsPage from "./pages/mcpDocs/McpDocsPage";
+import TrashPage from "./pages/trash/TrashPage";
 import useThemeSync from "./hooks/useThemeSync";
 import AgentPanel from "./components/agentPanel/AgentPanel";
 
@@ -23,15 +24,8 @@ function App() {
         <div className="bg-surface text-fg">
             <Routes>
                 <Route path="/document/:documentId" element={<EditorPage />} />
-                <Route
-                    path="/library"
-                    element={<LibraryPage key="library" />}
-                />
-                {/* Interim: Library's Trash tab, until Trash gets its own page (redesign 9.2) */}
-                <Route
-                    path="/trash"
-                    element={<LibraryPage key="trash" initialView="trash" />}
-                />
+                <Route path="/library" element={<LibraryPage />} />
+                <Route path="/trash" element={<TrashPage />} />
                 <Route path="/" element={<Navigate to="/library" replace />} />
                 <Route path="/workspaces" element={<WorkspacesPage />} />
                 <Route path="/api-keys" element={<ApiKeysPage />} />

@@ -1,31 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAtomValue } from "jotai";
+import { useNavigate } from "react-router-dom";
+import { useAtom, useAtomValue } from "jotai";
 import apiClient from "../lib/http";
+import useToast from "./useToast";
 import type {
     GetTrashDocumentsResponseDto,
     TrashDocumentDto,
 } from "@converge/shared";
-import { currentWorkspaceAtom } from "../atoms/sidebar";
+import { currentWorkspaceAtom, refreshSidebarAtom } from "../atoms/sidebar";
 
 const TRASH_PAGE_LIMIT = 12;
 
 /**
- * Manages the Trash tab's state. Fetches soft-deleted documents from
+ * Manages the Trash page's state. Fetches soft-deleted documents from
  * GET /document/trash with keyset pagination and an IntersectionObserver on
  * the returned sentinelRef to automatically load the next page on scroll —
- * mirrors useLibrary's pagination pattern, minus search. Also exposes
- * restoreDocument, which calls POST /document/:id/restore and removes the
- * restored document from the local list on success.
- * @param enabled - only fetches while true, so switching to the Trash tab
- * is what actually triggers the request rather than every Library page
- * mount fetching a list most users will never look at. Re-fetches the
- * first page each time it flips from false to true, so reopening the tab
- * shows the current state rather than a stale snapshot.
+ * mirrors useLibrary's pagination pattern. Also exposes restoreDocument,
+ * which calls POST /document/:id/restore, removes the restored document from
+ * the local list, and shows a toast with an Open action.
+ * @param filterText - filters the list by title. The server has no trash
+ * search, so this filters on the client — and while a filter is set, the
+ * remaining pages are loaded one after another so no match is missed.
  */
-const useTrash = (enabled: boolean) => {
+const useTrash = (filterText: string) => {
+    const navigate = useNavigate();
+    const { showToast } = useToast();
     const currentWorkspace = useAtomValue(currentWorkspaceAtom); // active workspace — its ID is required by all trash API calls
+    const [refreshSidebar, setRefreshSidebar] = useAtom(refreshSidebarAtom); // bumped when a document is trashed or restored anywhere, so the list re-fetches; bumped here on restore so the sidebar regains the document
     const [documents, setDocuments] = useState<TrashDocumentDto[]>([]); // accumulated list of fetched trashed documents
-    const [isLoadingMore, setIsLoadingMore] = useState(false); // true when a trash fetch is in flight; starts false since enabled starts false
+    const [isLoadingMore, setIsLoadingMore] = useState(true); // true when a trash fetch is in flight; starts true since the first page is fetched on mount
     const [restoringId, setRestoringId] = useState<number | null>(null); // ID of the document currently being restored, if any
 
     const nextCursor = useRef<{ deletedAt: Date; id: number } | null>(null); // compound keyset cursor for the next page
@@ -115,29 +118,54 @@ const useTrash = (enabled: boolean) => {
     };
 
     /**
-     * Restores a trashed document via POST /document/:id/restore and drops
-     * it from the local list on success, so it disappears from the Trash
-     * tab without needing a refetch.
-     * @param documentId - the document to restore
+     * Restores a trashed document via POST /document/:id/restore, drops it
+     * from the local list so it disappears at once, refreshes the sidebar,
+     * and shows a toast whose Open action opens the restored document.
+     * Failures are reported with a toast.
+     * @param doc - the document to restore
      */
-    const restoreDocument = async (documentId: number) => {
-        setRestoringId(documentId);
+    const restoreDocument = async (doc: TrashDocumentDto) => {
+        setRestoringId(doc.id);
         try {
-            await apiClient.post(`/document/${documentId}/restore`);
-            setDocuments((prev) => prev.filter((d) => d.id !== documentId));
+            await apiClient.post(`/document/${doc.id}/restore`);
+            setDocuments((prev) => prev.filter((d) => d.id !== doc.id));
+            setRefreshSidebar((prev) => prev + 1);
+            showToast(`Restored "${doc.title || "Untitled"}"`, {
+                action: {
+                    label: "Open",
+                    onClick: () => navigate(`/document/${doc.id}`),
+                },
+            });
         } catch (err) {
             console.error("useTrash: failed to restore document:", err);
+            showToast("Couldn't restore the document", { tone: "error" });
         } finally {
             setRestoringId(null);
         }
     };
 
-    // Fetches the first page whenever the tab becomes enabled, or the current
-    // workspace changes while it's already enabled. No-ops while disabled, so
-    // switching to the Trash tab is what triggers the request.
+    // Fetches the first page on mount, when the current workspace changes,
+    // and when a document menu bumps refreshSidebarAtom (a document was
+    // trashed or restored elsewhere).
     useEffect(() => {
-        if (enabled) fetchFirstPage();
-    }, [enabled, currentWorkspace]);
+        fetchFirstPage();
+    }, [currentWorkspace, refreshSidebar]);
+
+    const query = filterText.trim().toLowerCase(); // normalized filter; empty means no filter
+
+    // While a filter is set, keeps loading pages until none are left, so
+    // the client-side filter sees the whole trash. Re-runs after each page,
+    // since isLoadingMore flips back to false.
+    useEffect(() => {
+        if (query && !isLoadingMore && hasMoreRef.current) loadMore();
+    }, [query, isLoadingMore]);
+
+    // The loaded documents whose title contains the filter.
+    const visibleDocuments = query
+        ? documents.filter((d) =>
+              (d.title || "Untitled").toLowerCase().includes(query),
+          )
+        : documents;
 
     // Observes the sentinel element and calls loadMore when it enters the viewport.
     // Depends on sentinelEl so it re-runs once the element actually mounts.
@@ -156,7 +184,7 @@ const useTrash = (enabled: boolean) => {
     }, [sentinelEl, loadMore]);
 
     return {
-        documents,
+        documents: visibleDocuments,
         isLoadingMore,
         sentinelRef,
         restoringId,
