@@ -7,7 +7,7 @@ import type {
     LibraryDocumentDto,
     SearchLibraryDocumentsResponseDto,
 } from "@converge/shared";
-import { currentWorkspaceAtom } from "../atoms/sidebar";
+import { currentWorkspaceAtom, refreshSidebarAtom } from "../atoms/sidebar";
 
 const LIBRARY_PAGE_LIMIT = 12;
 const LIBRARY_SEARCH_PAGE_LIMIT = 5;
@@ -25,6 +25,7 @@ const LIBRARY_SEARCH_PAGE_LIMIT = 5;
 const useLibrary = (enabled: boolean) => {
     const { createDocument, isCreating } = useNewDocument(); // creates a new document in the current workspace
     const currentWorkspace = useAtomValue(currentWorkspaceAtom); // active workspace — its ID is required by all library API calls
+    const refreshSidebar = useAtomValue(refreshSidebarAtom); // bumped when a menu trashes, restores, or pins a document, so the list re-fetches too
     const [searchText, setSearchText] = useState(""); // current search query string
     const [documents, setDocuments] = useState<LibraryDocumentDto[]>([]); // accumulated list of fetched documents
     const [isLoadingMore, setIsLoadingMore] = useState(enabled); // true when a library fetch is in flight; starts true only if enabled, so the skeleton doesn't show while the tab is inactive
@@ -62,9 +63,7 @@ const useLibrary = (enabled: boolean) => {
             nextCursor.current = data.nextCursor
                 ? {
                       id: data.nextCursor.id,
-                      lastVisitedAt: new Date(
-                          data.nextCursor.lastVisitedAt!,
-                      ),
+                      lastVisitedAt: new Date(data.nextCursor.lastVisitedAt!),
                   }
                 : null;
             hasMoreRef.current = data.nextCursor !== null;
@@ -112,7 +111,13 @@ const useLibrary = (enabled: boolean) => {
      * No-ops if a fetch is already in flight or there are no more pages.
      */
     const loadMore = async () => {
-        if (!currentWorkspace || isLoadingMore || !hasMoreRef.current || !nextCursor.current) return;
+        if (
+            !currentWorkspace ||
+            isLoadingMore ||
+            !hasMoreRef.current ||
+            !nextCursor.current
+        )
+            return;
 
         try {
             setIsLoadingMore(true);
@@ -134,9 +139,7 @@ const useLibrary = (enabled: boolean) => {
             nextCursor.current = data.nextCursor
                 ? {
                       id: data.nextCursor.id,
-                      lastVisitedAt: new Date(
-                          data.nextCursor.lastVisitedAt!,
-                      ),
+                      lastVisitedAt: new Date(data.nextCursor.lastVisitedAt!),
                   }
                 : null;
             hasMoreRef.current = data.nextCursor !== null;
@@ -151,7 +154,8 @@ const useLibrary = (enabled: boolean) => {
     // When the query is cleared, resets to the first page of the normal library fetch.
     // No-ops while disabled, so switching to the Library tab is what triggers the
     // request — including a re-fetch of whatever's currently searched when the tab
-    // is reopened after having been on Trash.
+    // is reopened after having been on Trash. Also re-runs when a document menu
+    // bumps refreshSidebarAtom (Move to Trash, its Undo, pin toggles).
     useEffect(() => {
         if (!enabled) return;
 
@@ -167,7 +171,7 @@ const useLibrary = (enabled: boolean) => {
         return () => {
             if (timeout) clearTimeout(timeout);
         };
-    }, [searchText, currentWorkspace, enabled]);
+    }, [searchText, currentWorkspace, enabled, refreshSidebar]);
 
     // Observes the sentinel element and calls loadMore when it enters the viewport.
     // Depends on sentinelEl so it re-runs once the element actually mounts.

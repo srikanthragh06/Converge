@@ -14,8 +14,7 @@ const TABS: { key: string; label: string }[] = [
 ];
 
 /**
- * Workspace configuration modal with tabbed sidebar. Matches the
- * ManageDocumentModal layout pattern.
+ * Workspace configuration modal with tabbed sidebar.
  * @param initialTab - key of the tab shown first (default "general"), e.g.
  *                     "members" for the sidebar's "Members & access"
  */

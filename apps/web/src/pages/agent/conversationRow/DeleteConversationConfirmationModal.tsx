@@ -2,9 +2,8 @@ import { useState } from "react";
 
 /**
  * Confirmation dialog shown before a conversation is hard-deleted (no
- * trash/restore for conversations, unlike documents). Same
- * backdrop/panel/button shape as DeleteDocumentConfirmationModal. Closes on
- * Escape or backdrop click, both of which call onCancel.
+ * trash/restore for conversations, unlike documents). Closes on Escape or
+ * backdrop click, both of which call onCancel.
  */
 const DeleteConversationConfirmationModal = ({
     onConfirm,

@@ -7,7 +7,6 @@ import useTrash from "../../hooks/useTrash";
 import AnimatedDots from "../../components/AnimatedDots";
 import Skeleton from "../../components/ui/Skeleton";
 import DelayedRender from "../../components/DelayedRender";
-import ManageDocumentModal from "../editor/manageDocumentModal/ManageDocumentModal";
 
 /**
  * Full-screen library page. Lists the authenticated user's documents
@@ -38,9 +37,6 @@ const LibraryPage = ({
         restoringId,
         restoreDocument,
     } = useTrash(view === "trash"); // paginated trashed-document list, infinite scroll sentinel, and restore state — only fetches while the Trash tab is active
-    const [managingDocumentId, setManagingDocumentId] = useState<number | null>(
-        null,
-    ); // ID of the document whose manage modal is open; null when closed
 
     return (
         <>
@@ -128,11 +124,7 @@ const LibraryPage = ({
                             </DelayedRender>
                         )}
                         {documents.map((doc) => (
-                            <LibraryDocumentCard
-                                key={doc.id}
-                                document={doc}
-                                onManage={setManagingDocumentId}
-                            />
+                            <LibraryDocumentCard key={doc.id} document={doc} />
                         ))}
                         {documents.length > 0 && isLoadingMore && (
                             <DelayedRender>
@@ -194,12 +186,6 @@ const LibraryPage = ({
                     </div>
                 )}
             </Page>
-            {managingDocumentId !== null && (
-                <ManageDocumentModal
-                    documentId={String(managingDocumentId)}
-                    onClose={() => setManagingDocumentId(null)}
-                />
-            )}
         </>
     );
 };
