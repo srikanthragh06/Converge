@@ -23,9 +23,11 @@ import { Avatar, AvatarGroup } from "../../../components/ui/Avatar";
 import { StatusDot } from "../../../components/ui/Badge";
 import Button from "../../../components/ui/Button";
 import Tooltip from "../../../components/ui/Tooltip";
-import { DropdownMenu } from "../../../components/ui/Menu";
+import { DropdownMenu, type MenuEntry } from "../../../components/ui/Menu";
+import BottomSheet, { SheetMenu } from "../../../components/ui/BottomSheet";
 import useCreateCheckpoint from "../../../hooks/useCreateCheckpoint";
 import useDocumentMenuActions from "../../../hooks/useDocumentMenuActions";
+import useToast from "../../../hooks/useToast";
 import { getSyncStatusDisplay } from "./syncStatusDisplay";
 import { getEditorDocumentMenu } from "./editorDocumentMenu";
 
@@ -38,7 +40,8 @@ const MAX_VISIBLE_AVATARS = 4;
  * presence avatars, the lock-editing, save-checkpoint, and version-history
  * icon buttons, the gold Share button, and the ⋯ document menu on the right.
  * On phones: a compact bar with the sidebar drawer button, the document title
- * and status dot, a Share icon, and the ⋯ menu. Only rendered when
+ * and status dot, a Share icon, and a ⋯ button opening a bottom sheet that
+ * also holds the lock / checkpoint / history actions. Only rendered when
  * documentStatus is "ready".
  */
 const EditorPageHeader = ({
@@ -77,6 +80,7 @@ const EditorPageHeader = ({
         useState<ManageDocumentTab | null>(null); // tab ManageDocumentModal opens on; null while it's closed
     const [isCheckpointHistoryModalOpen, setIsCheckpointHistoryModalOpen] =
         useState(false); // controls CheckpointHistoryModal visibility
+    const [isSheetOpen, setIsSheetOpen] = useState(false); // phones: whether the ⋯ document sheet is open
     const { createCheckpoint, status: createCheckpointStatus } =
         useCreateCheckpoint(documentId); // manual "save checkpoint" request + its idle/loading/success/error status
     const syncStatus = useAtomValue(syncStatusAtom); // current sync state from useYjsSync
@@ -84,6 +88,7 @@ const EditorPageHeader = ({
     const auth = useAtomValue(authAtom); // current user — used to exclude self from the avatar stack
     const { togglePin, copyLink, moveToTrash } = useDocumentMenuActions(); // ⋯ menu actions, shared with the sidebar's row menu
     const setIsDrawerOpen = useSetAtom(mobileSidebarOpenAtom); // opens the sidebar drawer from the phone bar
+    const { showToast } = useToast(); // reports the sheet's Save checkpoint result, since the sheet closes on tap
 
     // Filter out the current user so they don't see their own avatar in the stack.
     const otherUsers = awareness.filter(
@@ -103,25 +108,50 @@ const EditorPageHeader = ({
     }); // entries of the ⋯ menu
 
     /**
-     * The ⋯ button and its dropdown of documentMenu.
-     * @param className - extra trigger classes
+     * Saves a checkpoint from the phone sheet and reports the outcome with a
+     * toast — the sheet has closed, so the desktop button's status icon
+     * isn't there to show it.
      */
-    const renderDocumentMenu = (className?: string) => (
-        <DropdownMenu
-            items={documentMenu}
-            className="w-60"
-            trigger={
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Document menu"
-                    className={`data-[state=open]:bg-surface-selected data-[state=open]:text-fg ${className ?? ""}`}
-                >
-                    <LuEllipsis />
-                </Button>
-            }
-        />
-    );
+    const saveCheckpointFromSheet = async () => {
+        const result = await createCheckpoint();
+        if (!result) showToast("Couldn't save a checkpoint", { tone: "error" });
+        else
+            showToast(
+                result.created
+                    ? "Checkpoint saved"
+                    : "No changes since the last checkpoint",
+            );
+    };
+
+    // Phone sheet (pp 79 / 85): the header's icon-button actions, then the ⋯ menu.
+    // Lock and checkpoint are editor+ only, as in the desktop bar.
+    const sheetMenu: MenuEntry[] = [
+        ...(isEditable
+            ? ([
+                  {
+                      label: isWriteLocked ? "Unlock editing" : "Lock editing",
+                      description: isWriteLocked
+                          ? "Allows edits on this device again"
+                          : "Stops accidental edits on this device",
+                      icon: isWriteLocked ? <LuLock /> : <LuLockOpen />,
+                      onSelect: onToggleWriteLock,
+                  },
+                  {
+                      label: "Save checkpoint",
+                      icon: <LuBookmarkPlus />,
+                      disabled: createCheckpointStatus !== "idle",
+                      onSelect: saveCheckpointFromSheet,
+                  },
+              ] satisfies MenuEntry[])
+            : []),
+        {
+            label: "Version history",
+            icon: <LuClock />,
+            onSelect: () => setIsCheckpointHistoryModalOpen(true),
+        },
+        { type: "separator" },
+        ...documentMenu,
+    ];
 
     if (documentStatus !== "ready") return null;
 
@@ -160,7 +190,14 @@ const EditorPageHeader = ({
                 >
                     <LuUsers />
                 </Button>
-                {renderDocumentMenu()}
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsSheetOpen(true)}
+                    aria-label="Document menu"
+                >
+                    <LuEllipsis />
+                </Button>
             </header>
 
             {/* Desktop bar */}
@@ -320,9 +357,34 @@ const EditorPageHeader = ({
                     </Button>
 
                     {/* ⋯ — pin, copy link, document details, move to Trash */}
-                    {renderDocumentMenu("ml-1")}
+                    <DropdownMenu
+                        items={documentMenu}
+                        className="w-60"
+                        trigger={
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label="Document menu"
+                                className="ml-1 data-[state=open]:bg-surface-selected data-[state=open]:text-fg"
+                            >
+                                <LuEllipsis />
+                            </Button>
+                        }
+                    />
                 </div>
             </header>
+
+            {/* Phone document sheet */}
+            <BottomSheet
+                open={isSheetOpen}
+                onClose={() => setIsSheetOpen(false)}
+                title={title || "Untitled"}
+            >
+                <SheetMenu
+                    items={sheetMenu}
+                    onClose={() => setIsSheetOpen(false)}
+                />
+            </BottomSheet>
 
             {/* Manage Document modal — mounted only while open. */}
             {manageModalTab && (

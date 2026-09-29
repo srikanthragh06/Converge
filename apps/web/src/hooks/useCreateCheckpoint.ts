@@ -34,23 +34,33 @@ const useCreateCheckpoint = (documentId: string | undefined) => {
         return () => clearTimeout(timeoutId);
     }, [status]);
 
-    /** Sends the checkpoint request and updates status based on the outcome. */
-    const createCheckpoint = useCallback(async () => {
-        if (status !== "idle" || !documentId) return;
-        try {
-            setStatus("loading");
-            await apiClient.post<CreateCheckpointResponseDto>(
-                `/document/${documentId}/checkpoint`,
-            );
-            setStatus("success");
-        } catch (err) {
-            console.error(
-                "useCreateCheckpoint: failed to create checkpoint",
-                err,
-            );
-            setStatus("error");
-        }
-    }, [status, documentId]);
+    /**
+     * Sends the checkpoint request and updates status based on the outcome.
+     * @returns the server's response (created is false when nothing changed
+     *          since the last checkpoint), or null if the request failed or
+     *          was skipped — for a caller that reports the result itself, e.g.
+     *          with a toast from a menu that closes on tap
+     */
+    const createCheckpoint =
+        useCallback(async (): Promise<CreateCheckpointResponseDto | null> => {
+            if (status !== "idle" || !documentId) return null;
+            try {
+                setStatus("loading");
+                const { data } =
+                    await apiClient.post<CreateCheckpointResponseDto>(
+                        `/document/${documentId}/checkpoint`,
+                    );
+                setStatus("success");
+                return data;
+            } catch (err) {
+                console.error(
+                    "useCreateCheckpoint: failed to create checkpoint",
+                    err,
+                );
+                setStatus("error");
+                return null;
+            }
+        }, [status, documentId]);
 
     return { createCheckpoint, status };
 };
