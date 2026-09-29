@@ -16,15 +16,19 @@ const TABS: { key: string; label: string }[] = [
 /**
  * Workspace configuration modal with tabbed sidebar. Matches the
  * ManageDocumentModal layout pattern.
+ * @param initialTab - key of the tab shown first (default "general"), e.g.
+ *                     "members" for the sidebar's "Members & access"
  */
 const WorkspaceConfigModal = ({
     workspaceId,
     onClose,
+    initialTab = "general",
 }: {
     workspaceId: number;
     onClose: () => void;
+    initialTab?: string;
 }) => {
-    const [selectedTab, setSelectedTab] = useState("general"); // Currently active tab key.
+    const [selectedTab, setSelectedTab] = useState(initialTab); // Currently active tab key.
 
     return (
         <div

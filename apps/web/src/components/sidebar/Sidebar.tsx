@@ -20,16 +20,15 @@ import { isSearchOpenAtom } from "../../atoms/search";
 import { sidebarSectionsAtom } from "../../atoms/sidebar";
 import useSidebar from "../../hooks/useSidebar";
 import { formatShortcut } from "../../lib/utils";
-import { describeWorkspace } from "../../utils/utils";
 import Button from "../ui/Button";
 import { Avatar } from "../ui/Avatar";
 import SidebarNavItem from "./SidebarNavItem";
 import SidebarSection from "./SidebarSection";
 import SidebarDocumentRow from "./SidebarDocumentRow";
-import WorkspaceTile from "./WorkspaceTile";
+import WorkspaceSwitcher from "./WorkspaceSwitcher";
 
 /**
- * The app's left sidebar: workspace header, primary navigation, pinned and
+ * The app's left sidebar: workspace switcher, primary navigation, pinned and
  * recent documents, developer links, and the signed-in user. Shows the full
  * panel when open (280px desktop / full-width mobile) and a slim column with
  * just the open button when closed.
@@ -54,16 +53,14 @@ const Sidebar = ({
         recentDocuments,
         pinnedDocuments,
         isCreating,
+        selectWorkspace,
         createDocument,
+        refetchWorkspaces,
         togglePin,
     } = useSidebar(); // workspace list, pinned + recent docs, and document actions
     const [theme, setTheme] = useAtom(themeAtom); // active color theme, flipped by the theme item
     const [sections, setSections] = useAtom(sidebarSectionsAtom); // which of Pinned / Recent are expanded
     const setIsSearchOpen = useSetAtom(isSearchOpenAtom); // opens the search palette
-
-    // Full workspace record for the header (type and role); falls back to the
-    // atom's id/name until the workspace list has loaded.
-    const workspace = workspaces.find((w) => w.id === currentWorkspace?.id);
 
     /** Closes the sidebar when called on a viewport narrower than 640px (Tailwind sm breakpoint). */
     const closeOnMobile = () => {
@@ -98,25 +95,13 @@ const Sidebar = ({
         <aside className="flex h-full w-screen shrink-0 flex-col border-r border-line bg-surface-sidebar sm:w-[280px]">
             {/* Header — current workspace, and the button that collapses the sidebar */}
             <div className="flex items-center gap-1 px-2.5 pb-1 pt-2.5">
-                <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg p-1.5">
-                    <WorkspaceTile
-                        name={currentWorkspace?.name ?? ""}
-                        type={workspace?.type}
-                    />
-                    <div className="flex min-w-0 flex-1 flex-col">
-                        <span className="truncate text-sm font-semibold text-fg">
-                            {currentWorkspace?.name}
-                        </span>
-                        {workspace && (
-                            <span className="truncate text-xs text-fg-muted">
-                                {workspace.type === "personal"
-                                    ? "Personal"
-                                    : describeWorkspace(workspace)}
-                            </span>
-                        )}
-                    </div>
-                    <LuChevronsUpDown className="h-4 w-4 shrink-0 text-fg-muted" />
-                </div>
+                <WorkspaceSwitcher
+                    workspaces={workspaces}
+                    currentWorkspace={currentWorkspace}
+                    onSelect={selectWorkspace}
+                    onOpen={refetchWorkspaces}
+                    onNavigate={closeOnMobile}
+                />
                 <Button
                     variant="ghost"
                     size="icon-sm"
