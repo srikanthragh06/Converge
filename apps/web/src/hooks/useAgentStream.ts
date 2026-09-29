@@ -204,6 +204,8 @@ const useAgentStream = (conversationId: number | null) => {
         sendMessage,
         /** Discards the in-progress steps — call once the turn's persisted history has been refetched, so the live bubble isn't shown twice. */
         clearSteps: () => setSteps([]),
+        /** Stops the reply in flight (the Stop button): aborting the request closes the connection, which the server takes as a stop. sendMessage then resolves quietly, as for any intentional abort. */
+        stop: () => abortControllerRef.current?.abort(),
     };
 };
 

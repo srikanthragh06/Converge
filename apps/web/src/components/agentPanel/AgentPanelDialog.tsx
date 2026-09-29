@@ -43,6 +43,7 @@ const AgentPanelDialog = ({
         isStreaming,
         error: chatError,
         send,
+        stop,
     } = useAgentChat(selectedConversationId);
     const [isStarting, setIsStarting] = useState(false); // true while a first message waits for its new conversation to be created
     const [isConfirmingDelete, setIsConfirmingDelete] = useState(false); // true while the delete confirmation is open
@@ -151,6 +152,8 @@ const AgentPanelDialog = ({
 
                     <MessageComposer
                         onSend={(content) => void handleSend(content)}
+                        onStop={stop}
+                        isStreaming={isStreaming}
                         disabled={isStreaming || isStarting}
                     />
 

@@ -26,6 +26,7 @@ const useAgentChat = (conversationId: number | null) => {
         error: streamError,
         sendMessage,
         clearSteps,
+        stop,
     } = useAgentStream(conversationId);
 
     // The user's just-sent content, shown immediately rather than waiting
@@ -65,6 +66,8 @@ const useAgentChat = (conversationId: number | null) => {
         isStreaming,
         error: historyError ?? streamError,
         send,
+        /** Stops the reply in flight; send() then refetches what the server saved, as after any turn. */
+        stop,
     };
 };
 

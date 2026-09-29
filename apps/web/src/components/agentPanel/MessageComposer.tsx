@@ -11,16 +11,23 @@ const MAX_HEIGHT = 200;
  * Message field at the bottom of the Ask Converge panel (pp 67 / 81): a
  * bordered box that grows with the text, a gold send button, and (desktop
  * only) the note that edits save a checkpoint first. Enter sends and
- * Shift+Enter adds a line. Sending is blocked while a reply streams, since
- * the agent runs one turn at a time per conversation.
+ * Shift+Enter adds a line. While a reply streams, the send button becomes
+ * Stop (p68) and sending is blocked, since the agent runs one turn at a
+ * time per conversation.
  * @param onSend - called with the trimmed message
- * @param disabled - true while a reply streams or a new conversation is being created
+ * @param onStop - stops the reply in flight
+ * @param isStreaming - true while a reply streams: shows Stop instead of send
+ * @param disabled - true while sending isn't possible (a reply streaming, or a new conversation being created)
  */
 const MessageComposer = ({
     onSend,
+    onStop,
+    isStreaming,
     disabled,
 }: {
     onSend: (content: string) => void;
+    onStop: () => void;
+    isStreaming: boolean;
     disabled: boolean;
 }) => {
     const [content, setContent] = useState(""); // the draft
@@ -71,15 +78,26 @@ const MessageComposer = ({
                             : "Ask about your documents, or tell Converge what to change…"
                     }
                 />
-                <Button
-                    variant="primary"
-                    onClick={handleSend}
-                    disabled={disabled || !content.trim()}
-                    aria-label="Send message"
-                    className="h-9 w-9 rounded-lg px-0 [&_svg]:h-[18px] [&_svg]:w-[18px]"
-                >
-                    <LuArrowUp />
-                </Button>
+                {isStreaming ? (
+                    <Button
+                        variant="primary"
+                        onClick={onStop}
+                        aria-label="Stop reply"
+                        className="h-9 w-9 rounded-lg px-0"
+                    >
+                        <span className="h-3 w-3 shrink-0 rounded-[2px] bg-current" />
+                    </Button>
+                ) : (
+                    <Button
+                        variant="primary"
+                        onClick={handleSend}
+                        disabled={disabled || !content.trim()}
+                        aria-label="Send message"
+                        className="h-9 w-9 rounded-lg px-0 [&_svg]:h-[18px] [&_svg]:w-[18px]"
+                    >
+                        <LuArrowUp />
+                    </Button>
+                )}
             </div>
             <p className="mt-2 hidden px-1 text-xs text-fg-muted sm:block">
                 Edits save a checkpoint first, so you can always restore.
