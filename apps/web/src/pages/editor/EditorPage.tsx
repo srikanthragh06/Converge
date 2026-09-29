@@ -5,6 +5,7 @@ import useEditor from "../../hooks/useEditor";
 import Page from "../../components/Page";
 import EditorPageHeader from "./header/EditorPageHeader";
 import BlockAwarenessOverlay from "./blockAwarenessOverlay/BlockAwarenessOverlay";
+import WriteLockBanner from "./writeLockBanner/WriteLockBanner";
 import { hasAccess } from "../../utils/utils";
 import useEditorScrollGap from "../../hooks/useEditorScrollGap";
 import useWriteLock from "../../hooks/useWriteLock";
@@ -78,6 +79,17 @@ const EditorPage = () => {
             {/* Loading/ready state — unified scroll container so title and editor scroll together */}
             {(documentStatus === "loading" || documentStatus === "ready") && (
                 <div ref={scrollRef} className="flex-1 overflow-y-auto">
+                    {/* Write-lock notice — editor+ only, since locking needs write access */}
+                    {documentStatus === "ready" &&
+                        isEditable &&
+                        isWriteLocked && (
+                            <div className="sm:pl-8 pl-4 pr-2 sm:mt-6 mt-3">
+                                <WriteLockBanner
+                                    onUnlock={toggleWriteLock}
+                                    className="mx-2 max-w-3xl"
+                                />
+                            </div>
+                        )}
                     {/* Title: skeleton while loading, real input when ready */}
                     <div className="w-full flex justify-start sm:pl-8 pl-4 pr-2 py-2 sm:mt-4 mt-2">
                         {documentStatus === "loading" ? (
