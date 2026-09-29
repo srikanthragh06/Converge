@@ -3,7 +3,9 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
     LuChevronsLeft,
     LuCode,
+    LuClock,
     LuExternalLink,
+    LuInfo,
     LuKeyRound,
     LuLibrary,
     LuLink,
@@ -15,6 +17,7 @@ import {
     LuSparkle,
     LuSun,
     LuTrash2,
+    LuUsers,
 } from "react-icons/lu";
 import { authAtom } from "../../atoms/auth";
 import { themeAtom } from "../../atoms/theme";
@@ -59,8 +62,15 @@ const SidebarPanel = ({ onCollapse }: { onCollapse: () => void }) => {
     const [theme, setTheme] = useAtom(themeAtom); // active color theme, flipped by the theme item
     const [sections, setSections] = useAtom(sidebarSectionsAtom); // which of Pinned / Recent are expanded
     const setIsSearchOpen = useSetAtom(isSearchOpenAtom); // opens the search palette
-    const { togglePin, openInNewTab, copyLink, moveToTrash } =
-        useDocumentMenuActions(); // document row menu actions
+    const {
+        togglePin,
+        openInNewTab,
+        copyLink,
+        openShare,
+        openDetails,
+        openVersionHistory,
+        moveToTrash,
+    } = useDocumentMenuActions(); // document row menu actions
     const isMobile = useIsMobile(); // on phones the panel is a drawer, closed after navigating
 
     /** Closes the drawer after a navigation choice on phones; the desktop sidebar stays as it is. */
@@ -78,9 +88,8 @@ const SidebarPanel = ({ onCollapse }: { onCollapse: () => void }) => {
     };
 
     /**
-     * The ⋯ / right-click menu of a document row. Share…, Document details,
-     * and Version history join once their dialogs can open outside the editor
-     * (redesign 5.5).
+     * The ⋯ / right-click menu of a document row (pp 8 / 14). Version history
+     * opens the document first, since it compares against the live editor.
      * @param doc - the row's document
      * @param isPinned - whether the row is in the Pinned section
      */
@@ -103,6 +112,31 @@ const SidebarPanel = ({ onCollapse }: { onCollapse: () => void }) => {
             label: "Copy link",
             icon: <LuLink />,
             onSelect: () => copyLink(doc),
+        },
+        { type: "separator" },
+        {
+            label: "Share…",
+            icon: <LuUsers />,
+            onSelect: () => {
+                openShare(doc);
+                closeOnMobile();
+            },
+        },
+        {
+            label: "Document details",
+            icon: <LuInfo />,
+            onSelect: () => {
+                openDetails(doc);
+                closeOnMobile();
+            },
+        },
+        {
+            label: "Version history",
+            icon: <LuClock />,
+            onSelect: () => {
+                openVersionHistory(doc);
+                closeOnMobile();
+            },
         },
         // Trashing needs admin access; hidden rather than failing with a 403.
         ...(hasAccess(doc.access, "admin")

@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSetAtom } from "jotai";
 import { pinOverridesAtom, refreshSidebarAtom } from "../atoms/sidebar";
+import { documentDialogAtom } from "../atoms/document";
 import apiClient from "../lib/http";
 import useToast from "./useToast";
 import type { SetDocumentPinnedResponseDto } from "@converge/shared";
@@ -17,8 +18,9 @@ const displayTitle = (doc: MenuDocument) => doc.title || "Untitled";
 
 /**
  * Actions shared by the document menus (sidebar rows and the editor's ⋯
- * menu): pin or unpin, open in a new tab, copy the link, and move to Trash
- * with an Undo toast. Failures are reported with a toast, and actions that
+ * menu): pin or unpin, open in a new tab, copy the link, open the Share /
+ * Document details / Version history dialogs, and move to Trash with an
+ * Undo toast. Failures are reported with a toast, and actions that
  * change a document's place in the sidebar refresh its lists.
  */
 const useDocumentMenuActions = () => {
@@ -26,6 +28,7 @@ const useDocumentMenuActions = () => {
     const { documentId: openDocumentId } = useParams(); // document open in the editor, if any
     const setRefreshSidebar = useSetAtom(refreshSidebarAtom); // bumped so Pinned / Recent drop or regain a document
     const setPinOverrides = useSetAtom(pinOverridesAtom); // records each toggle, so the editor's ⋯ menu follows it
+    const setDocumentDialog = useSetAtom(documentDialogAtom); // opens Share / Document details
     const { showToast } = useToast();
 
     /**
@@ -131,7 +134,59 @@ const useDocumentMenuActions = () => {
         [navigate, openDocumentId, restore, setRefreshSidebar, showToast],
     );
 
-    return { togglePin, openInNewTab, copyLink, moveToTrash };
+    /**
+     * Opens the Share dialog for the document.
+     * @param doc - the document to share
+     */
+    const openShare = useCallback(
+        (doc: MenuDocument) =>
+            setDocumentDialog({
+                kind: "share",
+                documentId: doc.id,
+                title: doc.title,
+            }),
+        [setDocumentDialog],
+    );
+
+    /**
+     * Opens the Document details modal for the document.
+     * @param doc - the document to describe
+     */
+    const openDetails = useCallback(
+        (doc: MenuDocument) =>
+            setDocumentDialog({
+                kind: "details",
+                documentId: doc.id,
+                title: doc.title,
+            }),
+        [setDocumentDialog],
+    );
+
+    /**
+     * Opens Version history for the document. It needs the live editor, so
+     * this navigates to the document with `openVersionHistory` in the
+     * router state, which EditorPageHeader picks up and then clears — also
+     * when the document is already open, since navigating to the same
+     * route just updates the state.
+     * @param doc - the document whose history to show
+     */
+    const openVersionHistory = useCallback(
+        (doc: MenuDocument) =>
+            navigate(`/document/${doc.id}`, {
+                state: { openVersionHistory: true },
+            }),
+        [navigate],
+    );
+
+    return {
+        togglePin,
+        openInNewTab,
+        copyLink,
+        openShare,
+        openDetails,
+        openVersionHistory,
+        moveToTrash,
+    };
 };
 
 export default useDocumentMenuActions;

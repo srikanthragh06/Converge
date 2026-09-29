@@ -10,6 +10,7 @@ import useAppShortcuts from "../hooks/useAppShortcuts";
 import AnimatedDots from "./AnimatedDots";
 import Sidebar from "./sidebar/Sidebar";
 import DelayedRender from "./DelayedRender";
+import DocumentDialogs from "./DocumentDialogs";
 import DocumentSwitcherOverlay from "../pages/editor/documentSwitcherOverlay/DocumentSwitcherOverlay";
 
 /**
@@ -97,6 +98,8 @@ const Page = ({
                     documentId={documentId}
                 />
             )}
+            {/* Share / Document details, opened from the editor or a sidebar row */}
+            {haveSidebar && <DocumentDialogs />}
         </div>
     );
 };

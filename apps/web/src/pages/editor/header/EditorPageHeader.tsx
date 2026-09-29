@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAtomValue, useSetAtom } from "jotai";
 import {
     LuCheck,
@@ -15,8 +16,6 @@ import { FaRegSave } from "react-icons/fa";
 import { syncStatusAtom, awarenessAtom } from "../../../atoms/socket";
 import { authAtom } from "../../../atoms/auth";
 import { mobileSidebarOpenAtom } from "../../../atoms/sidebar";
-import DocumentDetailsModal from "../documentDetailsModal/DocumentDetailsModal";
-import ShareDialog from "../shareDialog/ShareDialog";
 import CheckpointHistoryModal from "../checkpointHistoryModal/CheckpointHistoryModal";
 import type { EditorInstance } from "../../../utils/checkpointDiffUtils";
 import { Avatar, AvatarGroup } from "../../../components/ui/Avatar";
@@ -76,17 +75,40 @@ const EditorPageHeader = ({
     /** Flips the local write lock for this document. */
     onToggleWriteLock: () => void;
 }) => {
-    const [isDetailsOpen, setIsDetailsOpen] = useState(false); // controls the Document details modal
-    const [isShareOpen, setIsShareOpen] = useState(false); // controls the Share dialog
     const [isCheckpointHistoryModalOpen, setIsCheckpointHistoryModalOpen] =
         useState(false); // controls CheckpointHistoryModal visibility
     const [isSheetOpen, setIsSheetOpen] = useState(false); // phones: whether the ⋯ document sheet is open
+    const location = useLocation();
+    const navigate = useNavigate();
+    const [handledHistoryKey, setHandledHistoryKey] = useState<string | null>(
+        null,
+    ); // location key whose openVersionHistory request was already acted on
+
+    // A sidebar row's Version history navigates here with openVersionHistory
+    // in the router state (see useDocumentMenuActions). Opened during render,
+    // React's pattern for adjusting state when a prop changes, once per
+    // navigation.
+    const wantsVersionHistory =
+        (location.state as { openVersionHistory?: boolean } | null)
+            ?.openVersionHistory === true;
+    if (wantsVersionHistory && location.key !== handledHistoryKey) {
+        setHandledHistoryKey(location.key);
+        setIsCheckpointHistoryModalOpen(true);
+    }
+
+    // Drops the request from the history entry once acted on, so a reload or
+    // Back doesn't reopen Version history.
+    useEffect(() => {
+        if (wantsVersionHistory)
+            navigate(location.pathname, { replace: true, state: null });
+    }, [wantsVersionHistory, navigate, location.pathname]);
     const { createCheckpoint, status: createCheckpointStatus } =
         useCreateCheckpoint(documentId); // manual "save checkpoint" request + its idle/loading/success/error status
     const syncStatus = useAtomValue(syncStatusAtom); // current sync state from useYjsSync
     const awareness = useAtomValue(awarenessAtom); // presence list for the current document
     const auth = useAtomValue(authAtom); // current user — used to exclude self from the avatar stack
-    const { togglePin, copyLink, moveToTrash } = useDocumentMenuActions(); // ⋯ menu actions, shared with the sidebar's row menu
+    const { togglePin, copyLink, openShare, openDetails, moveToTrash } =
+        useDocumentMenuActions(); // ⋯ menu actions, shared with the sidebar's row menu
     const setIsDrawerOpen = useSetAtom(mobileSidebarOpenAtom); // opens the sidebar drawer from the phone bar
     const { showToast } = useToast(); // reports the sheet's Save checkpoint result, since the sheet closes on tap
 
@@ -103,7 +125,7 @@ const EditorPageHeader = ({
         canTrash,
         onTogglePin: () => togglePin(menuDocument.id, !isPinned),
         onCopyLink: () => copyLink(menuDocument),
-        onOpenDetails: () => setIsDetailsOpen(true),
+        onOpenDetails: () => openDetails(menuDocument),
         onMoveToTrash: () => moveToTrash(menuDocument),
     }); // entries of the ⋯ menu
 
@@ -184,7 +206,7 @@ const EditorPageHeader = ({
                 <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => setIsShareOpen(true)}
+                    onClick={() => openShare(menuDocument)}
                     aria-label="Share"
                     className="text-gold hover:text-gold [&_svg]:h-5 [&_svg]:w-5"
                 >
@@ -348,7 +370,7 @@ const EditorPageHeader = ({
                     {/* Share — opens the Share dialog */}
                     <Button
                         variant="primary"
-                        onClick={() => setIsShareOpen(true)}
+                        onClick={() => openShare(menuDocument)}
                         className="px-4 font-semibold"
                     >
                         <LuUsers />
@@ -384,23 +406,6 @@ const EditorPageHeader = ({
                     onClose={() => setIsSheetOpen(false)}
                 />
             </BottomSheet>
-
-            {/* Document details modal — mounted only while open. */}
-            {isDetailsOpen && (
-                <DocumentDetailsModal
-                    documentId={documentId}
-                    onClose={() => setIsDetailsOpen(false)}
-                />
-            )}
-
-            {/* Share dialog — mounted only while open. */}
-            {isShareOpen && (
-                <ShareDialog
-                    documentId={documentId}
-                    title={title}
-                    onClose={() => setIsShareOpen(false)}
-                />
-            )}
 
             {/* Checkpoint History modal — mounted only while open. */}
             {isCheckpointHistoryModalOpen && (
