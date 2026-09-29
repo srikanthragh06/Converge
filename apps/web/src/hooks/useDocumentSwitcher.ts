@@ -31,7 +31,6 @@ const useDocumentSwitcher = (
     const [searchText, setSearchText] = useState(""); // current search query string
     const [documents, setDocuments] = useState<LibraryDocumentDto[]>([]); // filtered list of fetched documents
     const [isLoading, setIsLoading] = useState(false); // true while an API request is in flight
-    const [matchQuery, setMatchQuery] = useState(""); // query that produced the current results, for match highlighting; lags searchText during the debounce so highlights always match what's shown
 
     const inputRef = useRef<HTMLInputElement>(null); // ref used to auto-focus the search input on mount
 
@@ -68,7 +67,6 @@ const useDocumentSwitcher = (
                     },
                 );
             setDocuments(filterCurrent(data.documents));
-            setMatchQuery("");
         } catch (err) {
             console.error(err);
         } finally {
@@ -93,7 +91,6 @@ const useDocumentSwitcher = (
                     },
                 );
             setDocuments(filterCurrent(data.documents));
-            setMatchQuery(query);
         } catch (err) {
             console.error(err);
         } finally {
@@ -128,7 +125,6 @@ const useDocumentSwitcher = (
         setSearchText,
         documents,
         isLoading,
-        matchQuery,
         inputRef,
         focusedIndex,
         listRef,

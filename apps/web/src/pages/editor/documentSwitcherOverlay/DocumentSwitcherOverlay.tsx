@@ -7,8 +7,8 @@ import DocumentSwitcherRow from "./DocumentSwitcherRow";
 
 /**
  * The ⌘K search palette for quickly switching between documents. Shows the
- * user's library on open and supports debounced title search, with matches
- * highlighted in gold. Arrow keys move the focused row and Enter opens it.
+ * user's library on open and supports debounced title search. Arrow keys
+ * move the focused row and Enter opens it.
  * Built on Radix Dialog, so focus stays inside while open and Escape or a
  * backdrop click closes it.
  */
@@ -25,7 +25,6 @@ const DocumentSwitcherOverlay = ({
         setSearchText,
         documents,
         isLoading,
-        matchQuery,
         inputRef,
         listRef,
         handleDocumentClick,
@@ -33,7 +32,7 @@ const DocumentSwitcherOverlay = ({
     } = useDocumentSwitcher(
         documentId ? Number(documentId) : undefined,
         onClose,
-    ); // palette state: search query, results, the query they matched, and keyboard focus
+    ); // palette state: search query, results, and keyboard focus
 
     return (
         <DialogPrimitive.Root open onOpenChange={(o) => !o && onClose()}>
@@ -92,7 +91,6 @@ const DocumentSwitcherOverlay = ({
                                         <DocumentSwitcherRow
                                             key={doc.id}
                                             title={doc.title}
-                                            matchQuery={matchQuery}
                                             isFocused={focusedIndex === i}
                                             onClick={() =>
                                                 handleDocumentClick(doc.id)
