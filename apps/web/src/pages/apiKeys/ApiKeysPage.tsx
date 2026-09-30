@@ -31,23 +31,26 @@ const MOBILE_COLUMNS = "minmax(0,1fr) auto";
 const ApiKeysPage = () => {
     const navigate = useNavigate();
     const { apiKeys, isLoading } = useApiKeys(); // fetched key list and loading flag
-    // On success, closes the create modal and opens the one-time reveal modal with the raw key.
-    const { createApiKey, isCreating } = useCreateApiKey({
-        onSuccess: (created) => {
-            setShowCreateModal(false);
-            setRevealed({ label: created.label, rawKey: created.rawKey });
-        },
-    });
-    const [showCreateModal, setShowCreateModal] = useState(false); // controls Create Key modal visibility
-    const [revealed, setRevealed] = useState<{
-        label: string;
-        rawKey: string;
-    } | null>(null); // newly created key, shown once; null when no reveal is pending
-    const [revokingKey, setRevokingKey] = useState<ApiKeyDto | null>(null); // key pending revoke confirmation
+    const [modalData, setModalData] = useState<
+        | { type: "create" }
+        | { type: "reveal"; label: string; rawKey: string }
+        | { type: "revoke"; apiKey: ApiKeyDto }
+        | null
+    >(null); // the open modal and what it needs; null when none is open
     const [isRevokedOpen, setIsRevokedOpen] = useState(true); // whether the Revoked section is expanded
 
+    // Closes the create modal and shows the new key once, in the reveal modal.
+    const { createApiKey, isCreating } = useCreateApiKey({
+        onSuccess: (created) =>
+            setModalData({
+                type: "reveal",
+                label: created.label,
+                rawKey: created.rawKey,
+            }),
+    });
+
     // MCP setup's "Create an API key" arrives with createKey in the router state.
-    useOpenOnNavigate("createKey", () => setShowCreateModal(true));
+    useOpenOnNavigate("createKey", () => setModalData({ type: "create" }));
 
     const activeKeys = apiKeys.filter((k) => k.revokedAt === null);
     const revokedKeys = apiKeys.filter((k) => k.revokedAt !== null);
@@ -62,7 +65,7 @@ const ApiKeysPage = () => {
                         action={{
                             label: "New key",
                             icon: <LuPlus />,
-                            onClick: () => setShowCreateModal(true),
+                            onClick: () => setModalData({ type: "create" }),
                         }}
                     />
                     <McpSetupBanner />
@@ -95,7 +98,12 @@ const ApiKeysPage = () => {
                                     <ApiKeyRow
                                         key={key.id}
                                         apiKey={key}
-                                        onRevoke={() => setRevokingKey(key)}
+                                        onRevoke={() =>
+                                            setModalData({
+                                                type: "revoke",
+                                                apiKey: key,
+                                            })
+                                        }
                                     />
                                 ))}
                                 {activeKeys.length === 0 && (
@@ -145,31 +153,31 @@ const ApiKeysPage = () => {
                 </PageContainer>
             </div>
 
-            {showCreateModal && (
+            {modalData?.type === "create" && (
                 <CreateApiKeyModal
                     onCreate={createApiKey}
-                    onCancel={() => setShowCreateModal(false)}
+                    onCancel={() => setModalData(null)}
                     isCreating={isCreating}
                 />
             )}
 
-            {revealed && (
+            {modalData?.type === "reveal" && (
                 <RevealApiKeyModal
-                    label={revealed.label}
-                    rawKey={revealed.rawKey}
-                    onDone={() => setRevealed(null)}
+                    label={modalData.label}
+                    rawKey={modalData.rawKey}
+                    onDone={() => setModalData(null)}
                     onOpenMcpSetup={() => {
-                        setRevealed(null);
+                        setModalData(null);
                         navigate("/mcp-docs");
                     }}
                 />
             )}
 
-            {revokingKey && (
+            {modalData?.type === "revoke" && (
                 <RevokeApiKeyConfirmationModal
-                    apiKey={revokingKey}
-                    onCancel={() => setRevokingKey(null)}
-                    onSuccess={() => setRevokingKey(null)}
+                    apiKey={modalData.apiKey}
+                    onCancel={() => setModalData(null)}
+                    onSuccess={() => setModalData(null)}
                 />
             )}
         </Page>
