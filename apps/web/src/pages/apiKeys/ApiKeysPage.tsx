@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { LuChevronDown, LuPlus } from "react-icons/lu";
 import type { ApiKeyDto } from "@converge/shared";
 import { cn } from "../../lib/utils";
@@ -9,6 +9,7 @@ import { PageContainer, PageHeader } from "../../components/ui/PageHeader";
 import { Table, TableHeadCell, TableHeader } from "../../components/ui/Table";
 import useApiKeys from "../../hooks/useApiKeys";
 import useCreateApiKey from "../../hooks/useCreateApiKey";
+import useOpenOnNavigate from "../../hooks/useOpenOnNavigate";
 import ApiKeyRow from "./components/ApiKeyRow";
 import McpSetupBanner from "./components/McpSetupBanner";
 import CreateApiKeyModal from "./components/CreateApiKeyModal";
@@ -29,7 +30,6 @@ const MOBILE_COLUMNS = "minmax(0,1fr) auto";
  */
 const ApiKeysPage = () => {
     const navigate = useNavigate();
-    const location = useLocation();
     const { apiKeys, isLoading } = useApiKeys(); // fetched key list and loading flag
     // On success, closes the create modal and opens the one-time reveal modal with the raw key.
     const { createApiKey, isCreating } = useCreateApiKey({
@@ -39,9 +39,6 @@ const ApiKeysPage = () => {
         },
     });
     const [showCreateModal, setShowCreateModal] = useState(false); // controls Create Key modal visibility
-    const [handledCreateKey, setHandledCreateKey] = useState<string | null>(
-        null,
-    ); // location key whose createKey request was already acted on
     const [revealed, setRevealed] = useState<{
         label: string;
         rawKey: string;
@@ -49,22 +46,8 @@ const ApiKeysPage = () => {
     const [revokingKey, setRevokingKey] = useState<ApiKeyDto | null>(null); // key pending revoke confirmation
     const [isRevokedOpen, setIsRevokedOpen] = useState(true); // whether the Revoked section is expanded
 
-    // MCP setup's "Create an API key" navigates here with createKey in the
-    // router state. Opened during render, React's pattern for adjusting
-    // state when a prop changes, once per navigation.
-    const wantsCreateKey =
-        (location.state as { createKey?: boolean } | null)?.createKey === true;
-    if (wantsCreateKey && location.key !== handledCreateKey) {
-        setHandledCreateKey(location.key);
-        setShowCreateModal(true);
-    }
-
-    // Drops the request from the history entry once acted on, so a reload or
-    // Back doesn't reopen the dialog.
-    useEffect(() => {
-        if (wantsCreateKey)
-            navigate(location.pathname, { replace: true, state: null });
-    }, [wantsCreateKey, navigate, location.pathname]);
+    // MCP setup's "Create an API key" arrives with createKey in the router state.
+    useOpenOnNavigate("createKey", () => setShowCreateModal(true));
 
     const activeKeys = apiKeys.filter((k) => k.revokedAt === null);
     const revokedKeys = apiKeys.filter((k) => k.revokedAt !== null);
