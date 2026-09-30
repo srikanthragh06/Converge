@@ -1,16 +1,18 @@
 import { useSetAtom } from "jotai";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { authAtom } from "../atoms/auth";
 import apiClient from "../lib/http";
 
 /**
  * Returns a logout function that calls POST /auth/logout to clear the
- * server-side httpOnly cookie, resets the auth atom to unauthenticated,
- * and redirects the user to the root route.
+ * server-side httpOnly cookie, empties the query cache, resets the auth atom
+ * to unauthenticated, and redirects the user to the root route.
  */
 const useLogout = () => {
     const setAuth = useSetAtom(authAtom); // writes the cleared auth state after logout
     const navigate = useNavigate(); // redirects to / after the session is ended
+    const queryClient = useQueryClient(); // cleared so the next user never sees this user's cached data
 
     /**
      * Calls the logout endpoint, clears client auth state, and navigates away.
@@ -22,6 +24,7 @@ const useLogout = () => {
             await apiClient.post("/auth/logout");
         } finally {
             // Always clear local state regardless of server response.
+            queryClient.clear();
             setAuth({ status: "unauthenticated", user: null });
             navigate("/");
         }
