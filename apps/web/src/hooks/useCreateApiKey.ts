@@ -1,37 +1,41 @@
-import { useCallback, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import apiClient from "../lib/http";
+import { apiKeyKeys } from "../queries/apiKeys";
 import type { CreateApiKeyResponseDto } from "@converge/shared";
 
 /**
- * Returns a createApiKey function that POSTs /api-keys with the given
- * label and resolves to the full response, including the raw key — the
- * only time it is ever returned, so the caller must show it to the user
- * immediately rather than persisting it anywhere.
+ * Creates an API key via POST /api-keys. On success it refreshes the key list
+ * and calls onSuccess with the full response, including the raw key, which is
+ * returned only once, so the caller must show it to the user immediately. A
+ * failure shows the global error toast.
+ * @param onSuccess - called with the created key after a successful create
  */
-const useCreateApiKey = () => {
-    const [isCreating, setIsCreating] = useState(false); // True while the create request is in flight.
-    const [error, setError] = useState<string | null>(null); // Last create error message, if any.
+const useCreateApiKey = ({
+    onSuccess,
+}: {
+    onSuccess: (created: CreateApiKeyResponseDto) => void;
+}) => {
+    const queryClient = useQueryClient();
 
-    const createApiKey = useCallback(async (label: string) => {
-        setIsCreating(true);
-        setError(null);
-        try {
-            const { data } =
-                await apiClient.post<CreateApiKeyResponseDto>("/api-keys", {
-                    label,
-                });
+    const { mutate, isPending } = useMutation({
+        mutationFn: async (label: string) => {
+            const { data } = await apiClient.post<CreateApiKeyResponseDto>(
+                "/api-keys",
+                { label },
+            );
             return data;
-        } catch (err) {
-            const message =
-                err instanceof Error ? err.message : "Failed to create API key";
-            setError(message);
-            return null;
-        } finally {
-            setIsCreating(false);
-        }
-    }, []);
+        },
+        meta: { errorMessage: "Couldn't create the key" },
+        onSuccess: (created) => {
+            queryClient.invalidateQueries({ queryKey: apiKeyKeys.list() });
+            onSuccess(created);
+        },
+    });
 
-    return { createApiKey, isCreating, error };
+    return {
+        createApiKey: (label: string) => mutate(label), // sends the create request
+        isCreating: isPending, // true while the create request is in flight
+    };
 };
 
 export default useCreateApiKey;

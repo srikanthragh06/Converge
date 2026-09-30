@@ -14,7 +14,6 @@ const CreateApiKeyModal = ({
     onCreate,
     onCancel,
     isCreating,
-    error,
 }: {
     /** Called with the trimmed label when the user confirms. */
     onCreate: (label: string) => void;
@@ -22,8 +21,6 @@ const CreateApiKeyModal = ({
     onCancel: () => void;
     /** True while the create request is in flight. */
     isCreating: boolean;
-    /** Optional server error message shown below the input. */
-    error: string | null;
 }) => {
     const [label, setLabel] = useState(""); // key name typed so far
 
@@ -60,9 +57,7 @@ const CreateApiKeyModal = ({
                     placeholder="e.g. Claude Code - laptop"
                     autoFocus
                     maxLength={64}
-                    invalid={!!error}
                 />
-                {error && <p className="mt-1.5 text-xs text-danger">{error}</p>}
                 <ModalFooter>
                     <Button onClick={onCancel} disabled={isCreating}>
                         Cancel

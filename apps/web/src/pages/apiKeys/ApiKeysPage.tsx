@@ -30,8 +30,14 @@ const MOBILE_COLUMNS = "minmax(0,1fr) auto";
 const ApiKeysPage = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { apiKeys, isLoading, fetchAll } = useApiKeys(); // fetched key list, loading flag, and manual refetch
-    const { createApiKey, isCreating, error } = useCreateApiKey(); // key creation handler, in-flight flag, and last error message
+    const { apiKeys, isLoading } = useApiKeys(); // fetched key list and loading flag
+    // On success, closes the create modal and opens the one-time reveal modal with the raw key.
+    const { createApiKey, isCreating } = useCreateApiKey({
+        onSuccess: (created) => {
+            setShowCreateModal(false);
+            setRevealed({ label: created.label, rawKey: created.rawKey });
+        },
+    });
     const [showCreateModal, setShowCreateModal] = useState(false); // controls Create Key modal visibility
     const [handledCreateKey, setHandledCreateKey] = useState<string | null>(
         null,
@@ -62,25 +68,6 @@ const ApiKeysPage = () => {
 
     const activeKeys = apiKeys.filter((k) => k.revokedAt === null);
     const revokedKeys = apiKeys.filter((k) => k.revokedAt !== null);
-
-    /**
-     * Creates a key via useCreateApiKey. On success, closes the create
-     * modal and opens the one-time reveal modal with the raw key.
-     * @param label - the new key's name
-     */
-    const handleCreate = async (label: string) => {
-        const created = await createApiKey(label);
-        if (created) {
-            setShowCreateModal(false);
-            setRevealed({ label: created.label, rawKey: created.rawKey });
-        }
-    };
-
-    /** Dismisses the reveal modal and refetches the list to show the new key. */
-    const handleRevealDone = () => {
-        setRevealed(null);
-        fetchAll();
-    };
 
     return (
         <Page authRequired haveSidebar mobileTitle="API keys">
@@ -177,10 +164,9 @@ const ApiKeysPage = () => {
 
             {showCreateModal && (
                 <CreateApiKeyModal
-                    onCreate={handleCreate}
+                    onCreate={createApiKey}
                     onCancel={() => setShowCreateModal(false)}
                     isCreating={isCreating}
-                    error={error}
                 />
             )}
 
@@ -188,7 +174,7 @@ const ApiKeysPage = () => {
                 <RevealApiKeyModal
                     label={revealed.label}
                     rawKey={revealed.rawKey}
-                    onDone={handleRevealDone}
+                    onDone={() => setRevealed(null)}
                     onOpenMcpSetup={() => {
                         setRevealed(null);
                         navigate("/mcp-docs");
@@ -200,10 +186,7 @@ const ApiKeysPage = () => {
                 <RevokeApiKeyConfirmationModal
                     apiKey={revokingKey}
                     onCancel={() => setRevokingKey(null)}
-                    onSuccess={() => {
-                        setRevokingKey(null);
-                        fetchAll();
-                    }}
+                    onSuccess={() => setRevokingKey(null)}
                 />
             )}
         </Page>

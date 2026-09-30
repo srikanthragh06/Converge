@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ApiKeyDto } from "@converge/shared";
 import apiClient from "../lib/http";
+import { apiKeyKeys } from "../queries/apiKeys";
 import useToast from "./useToast";
 
 /**
- * Revokes an API key via DELETE /api-keys/:id, then calls onSuccess so the
- * caller can close its dialog and refresh the list. Success and failure are
- * both reported with a toast.
+ * Revokes an API key via DELETE /api-keys/:id. On success it refreshes the
+ * key list, shows a toast and calls onSuccess so the caller can close its
+ * dialog; a failure shows the global error toast.
  * @param apiKey - the key to revoke
  * @param onSuccess - called after a successful revoke
  */
@@ -18,24 +19,22 @@ const useRevokeApiKey = ({
     onSuccess: () => void;
 }) => {
     const { showToast } = useToast();
-    const [isRevoking, setIsRevoking] = useState(false); // true while the revoke request is in flight
+    const queryClient = useQueryClient();
 
-    /** Sends the revoke request. */
-    const handleConfirm = async () => {
-        setIsRevoking(true);
-        try {
-            await apiClient.delete(`/api-keys/${apiKey.id}`);
+    const { mutate, isPending } = useMutation({
+        mutationFn: () => apiClient.delete(`/api-keys/${apiKey.id}`),
+        meta: { errorMessage: "Couldn't revoke the key" },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: apiKeyKeys.list() });
             showToast(`Revoked "${apiKey.label}"`);
             onSuccess();
-        } catch (err) {
-            console.error("useRevokeApiKey: failed to revoke API key:", err);
-            showToast("Couldn't revoke the key", { tone: "error" });
-        } finally {
-            setIsRevoking(false);
-        }
-    };
+        },
+    });
 
-    return { isRevoking, handleConfirm };
+    return {
+        isRevoking: isPending, // true while the revoke request is in flight
+        handleConfirm: () => mutate(), // sends the revoke request
+    };
 };
 
 export default useRevokeApiKey;
