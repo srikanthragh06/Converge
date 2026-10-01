@@ -27,7 +27,7 @@ import { conversationLabel } from "./conversationLabel";
  *                            fresh, empty, untitled conversation (or none yet)
  * @param onSelect - opens another conversation
  * @param onNewChat - starts a new conversation
- * @param onRename - renames the open conversation; resolves once saved
+ * @param onRename - renames the open conversation
  * @param onDelete - asks to delete the open conversation
  */
 const AgentPanelHeader = ({
@@ -44,7 +44,7 @@ const AgentPanelHeader = ({
     isNewConversation: boolean;
     onSelect: (conversationId: number) => void;
     onNewChat: () => void;
-    onRename: (title: string) => Promise<void>;
+    onRename: (title: string) => void;
     onDelete: () => void;
 }) => {
     const [isRenaming, setIsRenaming] = useState(false); // true while the picker is swapped for the rename field
@@ -82,7 +82,7 @@ const AgentPanelHeader = ({
                         onSave={(title) => {
                             setIsRenaming(false);
                             if (title !== selectedConversation.title)
-                                void onRename(title);
+                                onRename(title);
                         }}
                         onCancel={() => setIsRenaming(false)}
                     />

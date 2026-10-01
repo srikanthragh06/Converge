@@ -2,6 +2,9 @@ import { useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import useAgentConversations from "../../hooks/useAgentConversations";
 import useAgentChat from "../../hooks/useAgentChat";
+import useCreateConversation from "../../hooks/useCreateConversation";
+import useRenameConversation from "../../hooks/useRenameConversation";
+import useDeleteConversation from "../../hooks/useDeleteConversation";
 import AgentPanelHeader from "./AgentPanelHeader";
 import AgentEmptyState from "./AgentEmptyState";
 import MessageList from "./MessageList";
@@ -29,9 +32,6 @@ const AgentPanelDialog = ({
         conversations,
         selectedConversationId,
         selectConversation,
-        createConversation,
-        renameConversation,
-        deleteConversation,
         isLoading: isLoadingConversations,
         error: conversationsError,
     } = useAgentConversations();
@@ -45,8 +45,19 @@ const AgentPanelDialog = ({
         send,
         stop,
     } = useAgentChat(selectedConversationId);
-    const [isStarting, setIsStarting] = useState(false); // true while a first message waits for its new conversation to be created
     const [isConfirmingDelete, setIsConfirmingDelete] = useState(false); // true while the delete confirmation is open
+    const { createConversation, isCreating } = useCreateConversation({
+        onSuccess: (conversation) => selectConversation(conversation.id),
+    });
+    const { renameConversation } = useRenameConversation();
+    const { deleteConversation, isDeleting } = useDeleteConversation({
+        onSuccess: (conversationId) => {
+            // A deleted selection falls back to the most recent conversation.
+            if (conversationId === selectedConversationId)
+                selectConversation(null);
+            setIsConfirmingDelete(false);
+        },
+    });
 
     const selectedConversation = conversations.find(
         (c) => c.id === selectedConversationId,
@@ -63,15 +74,9 @@ const AgentPanelDialog = ({
      * the composer always works.
      * @param content - the trimmed message text
      */
-    const handleSend = async (content: string) => {
-        if (selectedConversationId !== null) {
-            await send(content);
-            return;
-        }
-        setIsStarting(true);
-        const newId = await createConversation();
-        setIsStarting(false);
-        if (newId !== null) await send(content, newId);
+    const handleSend = (content: string) => {
+        if (selectedConversationId !== null) void send(content);
+        else createConversation((newId) => void send(content, newId));
     };
 
     return (
@@ -110,14 +115,10 @@ const AgentPanelDialog = ({
                                 !isLoadingHistory)
                         }
                         onSelect={selectConversation}
-                        onNewChat={() => void createConversation()}
+                        onNewChat={() => createConversation()}
                         onRename={(title) =>
-                            selectedConversation
-                                ? renameConversation(
-                                      selectedConversation.id,
-                                      title,
-                                  )
-                                : Promise.resolve()
+                            selectedConversation &&
+                            renameConversation(selectedConversation.id, title)
                         }
                         onDelete={() => setIsConfirmingDelete(true)}
                     />
@@ -151,21 +152,19 @@ const AgentPanelDialog = ({
                     )}
 
                     <MessageComposer
-                        onSend={(content) => void handleSend(content)}
+                        onSend={handleSend}
                         onStop={stop}
                         isStreaming={isStreaming}
-                        disabled={isStreaming || isStarting}
+                        disabled={isStreaming || isCreating}
                     />
 
                     {/* Inside Content, so Radix treats it as a nested layer rather than an outside click */}
                     {isConfirmingDelete && selectedConversation && (
                         <DeleteConversationModal
-                            onConfirm={async () => {
-                                await deleteConversation(
-                                    selectedConversation.id,
-                                );
-                                setIsConfirmingDelete(false);
-                            }}
+                            onConfirm={() =>
+                                deleteConversation(selectedConversation.id)
+                            }
+                            isDeleting={isDeleting}
                             onCancel={() => setIsConfirmingDelete(false)}
                         />
                     )}

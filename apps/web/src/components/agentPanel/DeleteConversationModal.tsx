@@ -1,4 +1,3 @@
-import { useState } from "react";
 import Modal from "../ui/Modal";
 import ModalFooter from "../ui/ModalFooter";
 import Button from "../ui/Button";
@@ -7,24 +6,19 @@ import Button from "../ui/Button";
  * Confirmation before a conversation is hard-deleted (conversations have no
  * trash or restore, unlike documents). Escape, the backdrop, and Cancel all
  * call onCancel, except while the delete is in flight.
- * @param onConfirm - deletes the conversation; the modal stays open until it settles
+ * @param onConfirm - deletes the conversation; the caller closes the modal once it succeeds
  * @param onCancel - closes the modal without deleting
+ * @param isDeleting - the delete is in flight, so the buttons are disabled
  */
 const DeleteConversationModal = ({
     onConfirm,
     onCancel,
+    isDeleting,
 }: {
-    onConfirm: () => Promise<void>;
+    onConfirm: () => void;
     onCancel: () => void;
+    isDeleting: boolean;
 }) => {
-    const [isDeleting, setIsDeleting] = useState(false); // true while the delete request is in flight, to block a double submit
-
-    /** Runs the delete, keeping the modal open (and its buttons disabled) until it settles. */
-    const handleConfirm = async () => {
-        setIsDeleting(true);
-        await onConfirm();
-    };
-
     return (
         <Modal onClose={onCancel} title="Delete chat" dismissible={!isDeleting}>
             <p className="text-sm text-fg-secondary">
@@ -36,7 +30,7 @@ const DeleteConversationModal = ({
                 </Button>
                 <Button
                     variant="destructive"
-                    onClick={() => void handleConfirm()}
+                    onClick={onConfirm}
                     disabled={isDeleting}
                 >
                     {isDeleting ? "Deleting…" : "Delete"}
