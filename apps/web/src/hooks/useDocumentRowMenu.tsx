@@ -47,7 +47,7 @@ const useDocumentRowMenu = (onDialogOpen?: () => void) => {
         {
             label: isPinned ? "Unpin from sidebar" : "Pin to sidebar",
             icon: isPinned ? <LuPinOff /> : <LuPin />,
-            onSelect: () => togglePin(doc.id, !isPinned),
+            onSelect: () => togglePin(doc, !isPinned),
         },
         { type: "separator" },
         {

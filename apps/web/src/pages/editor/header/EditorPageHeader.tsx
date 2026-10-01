@@ -123,7 +123,7 @@ const EditorPageHeader = ({
     const documentMenu = getEditorDocumentMenu({
         isPinned,
         canTrash,
-        onTogglePin: () => togglePin(menuDocument.id, !isPinned),
+        onTogglePin: () => togglePin(menuDocument, !isPinned),
         onCopyLink: () => copyLink(menuDocument),
         onOpenDetails: () => openDetails(menuDocument),
         onMoveToTrash: () => moveToTrash(menuDocument),

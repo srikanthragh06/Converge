@@ -6,7 +6,7 @@ import Input from "../../components/ui/Input";
 import TableSkeleton from "../../components/ui/TableSkeleton";
 import { PageContainer, PageHeader } from "../../components/ui/PageHeader";
 import { Table, TableHeadCell, TableHeader } from "../../components/ui/Table";
-import { currentWorkspaceAtom, pinOverridesAtom } from "../../atoms/sidebar";
+import { currentWorkspaceAtom } from "../../atoms/sidebar";
 import useLibrary from "../../hooks/useLibrary";
 import useNewDocument from "../../hooks/useNewDocument";
 import usePinnedDocuments from "../../hooks/usePinnedDocuments";
@@ -26,7 +26,6 @@ const LibraryPage = () => {
     const { createDocument, isCreating } = useNewDocument();
     const currentWorkspace = useAtomValue(currentWorkspaceAtom); // named in the subtitle
     const { pinnedDocuments } = usePinnedDocuments(); // every pinned document in the workspace (the sidebar's unpaginated list)
-    const pinOverrides = useAtomValue(pinOverridesAtom); // pin toggles made this session, applied before the pinned list re-fetches
     const { documentMenu, togglePin } = useDocumentRowMenu(); // row ⋯ / right-click menu and pin toggle
     const pinnedIds = new Set(pinnedDocuments.map((d) => d.id)); // ids of pinned documents, for each row's pin
     const isFiltering = searchText.trim() !== ""; // a filter is set, so an empty list means no match
@@ -73,8 +72,7 @@ const LibraryPage = () => {
                             <TableHeadCell />
                         </TableHeader>
                         {documents.map((doc) => {
-                            const isPinned =
-                                pinOverrides[doc.id] ?? pinnedIds.has(doc.id);
+                            const isPinned = pinnedIds.has(doc.id);
                             return (
                                 <LibraryRow
                                     key={doc.id}
@@ -82,7 +80,7 @@ const LibraryPage = () => {
                                     isPinned={isPinned}
                                     menuItems={documentMenu(doc, isPinned)}
                                     onTogglePin={() =>
-                                        togglePin(doc.id, !isPinned)
+                                        togglePin(doc, !isPinned)
                                     }
                                 />
                             );

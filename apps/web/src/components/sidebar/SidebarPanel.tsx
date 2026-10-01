@@ -157,7 +157,7 @@ const SidebarPanel = ({ onCollapse }: { onCollapse: () => void }) => {
                                 isActive={String(doc.id) === documentId}
                                 menuItems={documentMenu(doc, true)}
                                 onOpen={() => go(`/document/${doc.id}`)}
-                                onTogglePin={() => togglePin(doc.id, false)}
+                                onTogglePin={() => togglePin(doc, false)}
                             />
                         ))}
                     </SidebarSection>
@@ -182,7 +182,7 @@ const SidebarPanel = ({ onCollapse }: { onCollapse: () => void }) => {
                             isActive={String(doc.id) === documentId}
                             menuItems={documentMenu(doc, false)}
                             onOpen={() => go(`/document/${doc.id}`)}
-                            onTogglePin={() => togglePin(doc.id, true)}
+                            onTogglePin={() => togglePin(doc, true)}
                         />
                     ))}
                 </SidebarSection>
