@@ -1,5 +1,7 @@
 import { hasWorkspaceRole } from "@converge/shared";
-import useDocumentAccessTab from "../../../../hooks/useDocumentAccessTab";
+import useDocAccessDefaults from "../../../../hooks/useDocAccessDefaults";
+import useMyWorkspaceRole from "../../../../hooks/useMyWorkspaceRole";
+import useUpdateDocAccessDefault from "../../../../hooks/useUpdateDocAccessDefault";
 import DefaultDocAccessRow from "./DefaultDocAccessRow";
 import AccessRulesCard from "./AccessRulesCard";
 import Skeleton from "../../../../components/ui/Skeleton";
@@ -12,15 +14,16 @@ import DelayedRender from "../../../../components/DelayedRender";
  * @param workspaceId - the workspace being configured
  */
 const DocumentAccessTab = ({ workspaceId }: { workspaceId: number }) => {
-    const { role, defaults, isLoading, isSaving, updateDefault } =
-        useDocumentAccessTab({ workspaceId });
+    const { role } = useMyWorkspaceRole(workspaceId);
+    const { defaults } = useDocAccessDefaults(workspaceId);
+    const { updateDefault, isSaving } = useUpdateDocAccessDefault(workspaceId);
 
     const isAdmin = role !== null && hasWorkspaceRole(role, "admin"); // true if the caller can edit member/non-member defaults
     const isOwner = role === "owner"; // true if the caller can also edit the admin default
 
     return (
         <div className="flex flex-col">
-            {isLoading || !defaults ? (
+            {!defaults ? (
                 <DelayedRender>
                     <div className="flex flex-col gap-3">
                         <Skeleton height="3rem" />
