@@ -20,9 +20,15 @@ export const workspaceKeys = {
     /** One workspace's member list (paginated). */
     members: (workspaceId: number) =>
         ["workspaces", "members", workspaceId] as const,
+    /** Every member search within one workspace, whatever was typed. */
+    memberSearches: (workspaceId: number) =>
+        ["workspaces", "member-search", workspaceId] as const,
     /** Member search by email within one workspace. */
     memberSearch: (workspaceId: number, email: string) =>
         ["workspaces", "member-search", workspaceId, email] as const,
+    /** Every "Add member" lookup in one workspace, whatever was typed. */
+    newMemberLookups: (workspaceId: number) =>
+        ["workspaces", "find-new-member", workspaceId] as const,
     /** "Add member" lookup: is this email a user, and already a member? */
     findNewMember: (workspaceId: number, email: string) =>
         ["workspaces", "find-new-member", workspaceId, email] as const,

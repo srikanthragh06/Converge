@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { LuPlus, LuSearch } from "react-icons/lu";
 import Page from "../../components/Page";
 import Input from "../../components/ui/Input";
@@ -9,7 +8,6 @@ import { Table, TableHeadCell, TableHeader } from "../../components/ui/Table";
 import useCreateWorkspace from "../../hooks/useCreateWorkspace";
 import useSelectWorkspace from "../../hooks/useSelectWorkspace";
 import useWorkspaces from "../../hooks/useWorkspaces";
-import { workspaceKeys } from "../../queries/workspaces";
 import WorkspaceRow from "./components/WorkspaceRow";
 import WorkspaceConfigModal from "./components/WorkspaceConfigModal";
 import CreateWorkspaceModal from "./components/CreateWorkspaceModal";
@@ -20,7 +18,6 @@ import CreateWorkspaceModal from "./components/CreateWorkspaceModal";
  * this and a settings gear that opens the workspace settings.
  */
 const WorkspacesPage = () => {
-    const queryClient = useQueryClient();
     const [searchText, setSearchText] = useState(""); // the filter box's text
     const { workspaces, isLoading } = useWorkspaces(searchText); // the full list, or the matches for searchText
     const { selectWorkspace } = useSelectWorkspace();
@@ -31,12 +28,6 @@ const WorkspacesPage = () => {
     const { createWorkspace, isCreating } = useCreateWorkspace({
         onSuccess: () => setShowModal(false),
     });
-
-    /** Closes the settings modal and re-fetches the list, which a rename, leave, or transfer may have changed. */
-    const closeSettings = () => {
-        setConfigWorkspaceId(null);
-        queryClient.invalidateQueries({ queryKey: workspaceKeys.all });
-    };
 
     return (
         <Page authRequired haveSidebar mobileTitle="Workspaces">
@@ -104,7 +95,7 @@ const WorkspacesPage = () => {
             {configWorkspaceId !== null && (
                 <WorkspaceConfigModal
                     workspaceId={configWorkspaceId}
-                    onClose={closeSettings}
+                    onClose={() => setConfigWorkspaceId(null)}
                 />
             )}
         </Page>

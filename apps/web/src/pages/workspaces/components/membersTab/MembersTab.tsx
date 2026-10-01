@@ -1,8 +1,13 @@
+import { useState } from "react";
 import { useAtomValue } from "jotai";
 import { LuUserPlus } from "react-icons/lu";
-import type { WorkspaceRole } from "@converge/shared";
+import { hasWorkspaceRole, type WorkspaceRole } from "@converge/shared";
 import { authAtom } from "../../../../atoms/auth";
-import useMembersTab from "../../../../hooks/useMembersTab";
+import useAddWorkspaceMember from "../../../../hooks/useAddWorkspaceMember";
+import useChangeMemberRole from "../../../../hooks/useChangeMemberRole";
+import useNewMemberLookup from "../../../../hooks/useNewMemberLookup";
+import useRemoveWorkspaceMember from "../../../../hooks/useRemoveWorkspaceMember";
+import useWorkspaceMembers from "../../../../hooks/useWorkspaceMembers";
 import Input from "../../../../components/ui/Input";
 import Skeleton from "../../../../components/ui/Skeleton";
 import DelayedRender from "../../../../components/DelayedRender";
@@ -19,34 +24,31 @@ import WorkspaceMemberRow from "./WorkspaceMemberRow";
  * @param workspaceId - the workspace being configured
  * @param role - the caller's role, or null while it loads
  * @param membersCount - total member count for the list header, or null while loading
- * @param onMembersChanged - called after a member is added or removed
  */
 const MembersTab = ({
     workspaceId,
     role,
     membersCount,
-    onMembersChanged,
 }: {
     workspaceId: number;
     role: WorkspaceRole | null;
     membersCount: number | null;
-    onMembersChanged: () => void;
 }) => {
+    const [email, setEmail] = useState(""); // filters the list and, for managers, looks up who to add
+    const canManage = role !== null && hasWorkspaceRole(role, "admin"); // admins and the owner may add and remove members
     const {
-        email,
-        setEmail,
         members,
-        lookup,
-        isMembersLoading,
+        isLoading: isMembersLoading,
         isFetchingMore,
-        isAdding,
-        pendingUserId,
         sentinelRef,
-        canManage,
-        addMember,
-        changeRole,
-        removeMember,
-    } = useMembersTab({ workspaceId, role, onMembersChanged });
+    } = useWorkspaceMembers(workspaceId, email, role !== null);
+    const lookup = useNewMemberLookup(workspaceId, email, canManage);
+    const { addMember, isAdding } = useAddWorkspaceMember(workspaceId, {
+        onSuccess: () => setEmail(""),
+    });
+    const { changeRole, changingUserId } = useChangeMemberRole(workspaceId);
+    const { removeMember, removingUserId } =
+        useRemoveWorkspaceMember(workspaceId);
     const userEmail = useAtomValue(authAtom).user?.email; // marks the caller's own row
 
     if (role === null)
@@ -105,7 +107,7 @@ const MembersTab = ({
                             options={addOptions}
                             defaultValue="member"
                             isAdding={isAdding}
-                            onAdd={addMember}
+                            onAdd={(newRole) => addMember(lookup.user, newRole)}
                         />
                     </div>
                     <p className="mt-2 text-xs text-fg-muted">
@@ -150,7 +152,10 @@ const MembersTab = ({
                                 member={member}
                                 isSelf={member.email === userEmail}
                                 callerRole={role}
-                                isPending={pendingUserId === member.id}
+                                isPending={
+                                    changingUserId === member.id ||
+                                    removingUserId === member.id
+                                }
                                 onChangeRole={(r) => changeRole(member, r)}
                                 onRemove={() => removeMember(member)}
                             />

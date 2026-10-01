@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
 import {
     LuChevronsUpDown,
     LuLayoutGrid,
@@ -9,7 +8,6 @@ import {
     LuUsers,
 } from "react-icons/lu";
 import type { WorkspaceDto } from "@converge/shared";
-import { workspaceKeys } from "../../queries/workspaces";
 import useCreateWorkspace from "../../hooks/useCreateWorkspace";
 import { describeWorkspace } from "../../utils/utils";
 import { DropdownMenu, type MenuEntry } from "../ui/Menu";
@@ -45,7 +43,6 @@ const WorkspaceSwitcher = ({
     compact?: boolean;
 }) => {
     const navigate = useNavigate();
-    const queryClient = useQueryClient();
     const [configTab, setConfigTab] = useState<string | null>(null); // tab the workspace settings modal is open on; null when closed
     const [isCreateOpen, setIsCreateOpen] = useState(false); // whether the Create workspace modal is open
     const { createWorkspace, isCreating } = useCreateWorkspace({
@@ -159,13 +156,7 @@ const WorkspaceSwitcher = ({
                 <WorkspaceConfigModal
                     workspaceId={currentWorkspace.id}
                     initialTab={configTab}
-                    onClose={() => {
-                        setConfigTab(null);
-                        // Pick up a rename or role change made in settings.
-                        queryClient.invalidateQueries({
-                            queryKey: workspaceKeys.list(),
-                        });
-                    }}
+                    onClose={() => setConfigTab(null)}
                 />
             )}
             {isCreateOpen && (

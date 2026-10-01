@@ -1,11 +1,9 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { LuX } from "react-icons/lu";
 import { cn } from "../../../lib/utils";
 import useMyWorkspaceRole from "../../../hooks/useMyWorkspaceRole";
 import useWorkspaceOverview from "../../../hooks/useWorkspaceOverview";
-import { workspaceKeys } from "../../../queries/workspaces";
 import WorkspaceTile from "../../../components/sidebar/WorkspaceTile";
 import DocumentAccessTab from "./documentAccessTab/DocumentAccessTab";
 import GeneralTab from "./generalTab/GeneralTab";
@@ -45,9 +43,7 @@ const TABS: { key: TabKey; label: string; description: string }[] = [
 /**
  * Workspace settings (pp 18–21 / 25–28): a two-pane dialog with the
  * workspace and tab list on the left and the active tab on the right — on
- * phones it fills the screen with the tabs in a scrolling row on top. The
- * overview and the caller's role are loaded once here and shared by the tabs.
- * Built on Radix Dialog, so focus is trapped and Escape or a backdrop click
+ * phones it fills the screen with the tabs in a scrolling row on top. Built on Radix Dialog, so focus is trapped and Escape or a backdrop click
  * closes it.
  * @param workspaceId - the workspace to configure
  * @param onClose - called when the dialog closes, or after the user leaves the workspace
@@ -68,20 +64,9 @@ const WorkspaceConfigModal = ({
             ? (initialTab as TabKey)
             : "general",
     ); // currently shown tab
-    const queryClient = useQueryClient();
     const { overview } = useWorkspaceOverview(workspaceId);
     const { role } = useMyWorkspaceRole(workspaceId);
     const isOwner = role === "owner";
-
-    /** Reloads the overview and the user's role, which member changes alter. */
-    const refetch = () => {
-        queryClient.invalidateQueries({
-            queryKey: workspaceKeys.overview(workspaceId),
-        });
-        queryClient.invalidateQueries({
-            queryKey: workspaceKeys.myRole(workspaceId),
-        });
-    };
     const tab = TABS.find((t) => t.key === selectedTab)!;
     // Plain members can't add anyone, so their Members subtitle just describes the list.
     const description =
@@ -159,7 +144,6 @@ const WorkspaceConfigModal = ({
                                     membersCount={
                                         overview?.membersCount ?? null
                                     }
-                                    onMembersChanged={refetch}
                                 />
                             )}
                             {selectedTab === "document-access" && (
