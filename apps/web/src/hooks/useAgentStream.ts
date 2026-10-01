@@ -95,20 +95,25 @@ const useAgentStream = (conversationId: number | null) => {
     // Holds the in-flight request's AbortController, if any, so switching
     // conversations mid-stream (see the effect below) can cancel it.
     const abortControllerRef = useRef<AbortController | null>(null);
+    const streamConversationRef = useRef<number | null>(null); // conversation the in-flight stream posts into, if any
 
     // Switching conversations aborts whatever was in flight for the
     // previous one and clears its partial state — a stream belongs to the
     // conversation it was sent into, not to whichever one happens to be
-    // selected when its chunks arrive.
+    // selected when its chunks arrive. Switching *to* the stream's own
+    // conversation (a new one, sent its first message as it was created)
+    // keeps it.
     useEffect(() => {
+        if (streamConversationRef.current === conversationId) return;
+        abortControllerRef.current?.abort();
         streamIdRef.current++;
         setSteps([]);
         setError(null);
         setIsStreaming(false);
-        return () => {
-            abortControllerRef.current?.abort();
-        };
     }, [conversationId]);
+
+    // Aborts whatever is still in flight on unmount.
+    useEffect(() => () => abortControllerRef.current?.abort(), []);
 
     /**
      * Posts `content` as the next message in the conversation and streams
@@ -129,6 +134,7 @@ const useAgentStream = (conversationId: number | null) => {
             const streamId = ++streamIdRef.current;
             const controller = new AbortController();
             abortControllerRef.current = controller;
+            streamConversationRef.current = targetId;
 
             setSteps([]);
             setError(null);
@@ -191,7 +197,10 @@ const useAgentStream = (conversationId: number | null) => {
                     setError("Something went wrong sending that message.");
                 }
             } finally {
-                if (isCurrent()) setIsStreaming(false);
+                if (isCurrent()) {
+                    setIsStreaming(false);
+                    streamConversationRef.current = null;
+                }
             }
         },
         [conversationId],
