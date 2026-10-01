@@ -6,8 +6,6 @@ import { LuCheck, LuCircleAlert, LuLoaderCircle } from "react-icons/lu";
 import Skeleton from "../../../components/ui/Skeleton";
 import Modal from "../../../components/ui/Modal";
 import Button from "../../../components/ui/Button";
-import { useQueryClient } from "@tanstack/react-query";
-import { checkpointKeys } from "../../../queries/checkpoints";
 import useCheckpointHistory from "../../../hooks/useCheckpointHistory";
 import useCreateCheckpoint from "../../../hooks/useCreateCheckpoint";
 import useToast from "../../../hooks/useToast";
@@ -56,7 +54,6 @@ const CheckpointHistoryModal = ({
         selectedCheckpoint,
         setSelectedCheckpoint,
     } = useCheckpointHistory(documentId);
-    const queryClient = useQueryClient();
     const { createCheckpoint, status: createCheckpointStatus } =
         useCreateCheckpoint(documentId); // "Save checkpoint now" request + its idle/loading/success/error status
     const { showToast } = useToast(); // reports when there was nothing new to checkpoint
@@ -71,20 +68,15 @@ const CheckpointHistoryModal = ({
         selectedIndex === -1 ? null : (checkpoints[selectedIndex + 1] ?? null);
 
     /**
-     * Takes a manual checkpoint, then reloads the list and selects the newest
-     * so it shows up selected at the top, or says so when nothing changed
-     * since the last one.
+     * Takes a manual checkpoint and selects the newest, so it shows up
+     * selected at the top once the list re-fetches, or says so when nothing
+     * changed since the last one.
      */
-    const saveCheckpoint = async () => {
-        const result = await createCheckpoint();
-        if (!result) return; // the button's alert icon reports the failure
-        if (result.created) {
-            setSelectedCheckpoint(null);
-            queryClient.invalidateQueries({
-                queryKey: checkpointKeys.list(Number(documentId)),
-            });
-        } else showToast("No changes since the last checkpoint");
-    };
+    const saveCheckpoint = () =>
+        createCheckpoint((result) => {
+            if (result.created) setSelectedCheckpoint(null);
+            else showToast("No changes since the last checkpoint");
+        });
 
     return (
         <Modal

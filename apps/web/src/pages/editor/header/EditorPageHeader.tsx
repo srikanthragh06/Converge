@@ -132,18 +132,16 @@ const EditorPageHeader = ({
     /**
      * Saves a checkpoint from the phone sheet and reports the outcome with a
      * toast — the sheet has closed, so the desktop button's status icon
-     * isn't there to show it.
+     * isn't there to show it. A failure toasts globally.
      */
-    const saveCheckpointFromSheet = async () => {
-        const result = await createCheckpoint();
-        if (!result) showToast("Couldn't save a checkpoint", { tone: "error" });
-        else
+    const saveCheckpointFromSheet = () =>
+        createCheckpoint((result) =>
             showToast(
                 result.created
                     ? "Checkpoint saved"
                     : "No changes since the last checkpoint",
-            );
-    };
+            ),
+        );
 
     // Phone sheet (pp 79 / 85): the header's icon-button actions, then the ⋯ menu.
     // Lock and checkpoint are editor+ only, as in the desktop bar.
@@ -333,7 +331,7 @@ const EditorPageHeader = ({
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={createCheckpoint}
+                                onClick={() => createCheckpoint()}
                                 disabled={createCheckpointStatus !== "idle"}
                                 aria-label="Save checkpoint"
                                 className="disabled:opacity-100"

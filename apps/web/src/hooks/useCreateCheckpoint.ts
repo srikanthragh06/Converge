@@ -1,68 +1,61 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import apiClient from "../lib/http";
+import { checkpointKeys } from "../queries/checkpoints";
 import type { CreateCheckpointResponseDto } from "@converge/shared";
 
 /** How long the success/error status stays before automatically reverting to idle. */
 const TRANSIENT_STATUS_DISPLAY_MS = 2000;
 
 /**
- * Returns a createCheckpoint function that POSTs /document/:id/checkpoint to
- * take a manual version-history checkpoint, and the status of the most
- * recent attempt so the caller can render a loading/success/error icon.
- * No-ops if a request is already in flight, currently showing a
- * success/error result, or documentId is not yet available. A success or
- * error status automatically reverts to idle after
- * TRANSIENT_STATUS_DISPLAY_MS, so the button becomes clickable again without
- * requiring the user to do anything first.
+ * Takes a manual version-history checkpoint via POST
+ * /document/:id/checkpoint. When one was created, the checkpoint list
+ * re-fetches. `status` drives the button's loading/success/error icon; a
+ * success or error reverts to idle after TRANSIENT_STATUS_DISPLAY_MS, so the
+ * button becomes clickable again. A failure shows the global error toast.
  * @param documentId - the document to checkpoint
  */
 const useCreateCheckpoint = (documentId: string | undefined) => {
-    const [status, setStatus] = useState<
-        "idle" | "loading" | "success" | "error"
-    >("idle"); // status of the most recent checkpoint creation attempt
+    const queryClient = useQueryClient();
 
-    // Auto-reverts a success/error status back to idle after
-    // TRANSIENT_STATUS_DISPLAY_MS. Cleared if status changes again (a new
-    // attempt) or the component unmounts before the timeout fires, so it
-    // never fires a stale revert.
+    const { mutate, status, reset } = useMutation({
+        mutationFn: async () => {
+            const { data } = await apiClient.post<CreateCheckpointResponseDto>(
+                `/document/${documentId}/checkpoint`,
+            );
+            return data;
+        },
+        meta: { errorMessage: "Couldn't save a checkpoint" },
+        onSuccess: (data) => {
+            if (data.created)
+                queryClient.invalidateQueries({
+                    queryKey: checkpointKeys.list(Number(documentId)),
+                });
+        },
+    });
+
+    // Reverts a success/error status to idle after a moment.
     useEffect(() => {
         if (status !== "success" && status !== "error") return;
-        const timeoutId = setTimeout(
-            () => setStatus("idle"),
-            TRANSIENT_STATUS_DISPLAY_MS,
-        );
+        const timeoutId = setTimeout(reset, TRANSIENT_STATUS_DISPLAY_MS);
         return () => clearTimeout(timeoutId);
-    }, [status]);
+    }, [status, reset]);
 
-    /**
-     * Sends the checkpoint request and updates status based on the outcome.
-     * @returns the server's response (created is false when nothing changed
-     *          since the last checkpoint), or null if the request failed or
-     *          was skipped — for a caller that reports the result itself, e.g.
-     *          with a toast from a menu that closes on tap
-     */
-    const createCheckpoint =
-        useCallback(async (): Promise<CreateCheckpointResponseDto | null> => {
-            if (status !== "idle" || !documentId) return null;
-            try {
-                setStatus("loading");
-                const { data } =
-                    await apiClient.post<CreateCheckpointResponseDto>(
-                        `/document/${documentId}/checkpoint`,
-                    );
-                setStatus("success");
-                return data;
-            } catch (err) {
-                console.error(
-                    "useCreateCheckpoint: failed to create checkpoint",
-                    err,
-                );
-                setStatus("error");
-                return null;
-            }
-        }, [status, documentId]);
-
-    return { createCheckpoint, status };
+    return {
+        /**
+         * Sends the request, unless one is in flight or a result is showing.
+         * @param onSaved - called with the server's response (created is
+         *                  false when nothing changed since the last
+         *                  checkpoint), e.g. to report it with a toast
+         */
+        createCheckpoint: (
+            onSaved?: (result: CreateCheckpointResponseDto) => void,
+        ) => {
+            if (status === "idle" && documentId)
+                mutate(undefined, { onSuccess: onSaved });
+        },
+        status: status === "pending" ? ("loading" as const) : status, // idle, loading, success or error
+    };
 };
 
 export default useCreateCheckpoint;
