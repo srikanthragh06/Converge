@@ -305,6 +305,7 @@ One row per AI agent chat thread. `workspace_id` is fixed at creation time — i
 | `last_response_id` | `text` | nullable | The OpenAI Responses API's `response.id` from this conversation's most recently completed step, passed back as `previous_response_id` so OpenAI's own backend supplies prior turns' context (reasoning included). Null until the first step completes |
 | `updated_at` | `timestamptz` | NOT NULL, default `now()` | Bumped alongside `last_response_id` after every completed step — tracks actual activity, not just creation time. `listConversations` orders by this so a caller resumes the conversation they last used |
 | `title` | `text` | nullable | User-set display name. Null means untitled — the frontend falls back to a formatted creation date |
+| `pending_tool_outputs` | `jsonb` | nullable (migration `0047`, no backfill) | The `function_call_output` items `last_response_id`'s response is still owed, sent ahead of the next turn's message — OpenAI rejects any other input after a response with unanswered tool calls (400 "No tool output found for function call"). Written in the same update as `last_response_id`: "cancelled" stand-ins when a response requests tools, the real results once they run (only `WHERE last_response_id` still matches that step, so a Stop followed by a new turn isn't overwritten), `null` once a response requests none. Null means nothing is owed |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 
 #### Indexes
