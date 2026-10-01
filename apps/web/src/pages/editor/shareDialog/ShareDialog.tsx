@@ -11,11 +11,16 @@ import Input from "../../../components/ui/Input";
 import Button from "../../../components/ui/Button";
 import Select, { type SelectOption } from "../../../components/ui/Select";
 import useShareDialog from "../../../hooks/useShareDialog";
+import useDocument from "../../../hooks/useDocument";
+import useDocumentOverview from "../../../hooks/useDocumentOverview";
+import useDocumentAccessList from "../../../hooks/useDocumentAccessList";
+import useChangeDocumentAccess from "../../../hooks/useChangeDocumentAccess";
+import useRemoveDocumentAccess from "../../../hooks/useRemoveDocumentAccess";
 import useDocumentRoleOverrides from "../../../hooks/useDocumentRoleOverrides";
 import useUpdateRoleOverride from "../../../hooks/useUpdateRoleOverride";
 import useIsMobile from "../../../hooks/useIsMobile";
 import useDocumentMenuActions from "../../../hooks/useDocumentMenuActions";
-import { formatAccessLevel } from "../../../utils/utils";
+import { formatAccessLevel, hasAccess } from "../../../utils/utils";
 import PersonRow from "../../../components/people/PersonRow";
 import ReadOnlyAccess from "./ReadOnlyAccess";
 import EmailNotice from "../../../components/people/EmailNotice";
@@ -49,23 +54,23 @@ const ShareDialog = ({
     title: string;
     onClose: () => void;
 }) => {
+    const id = Number(documentId);
+    const { document } = useDocument(id);
+    const callerAccess = document?.resolvedAccess ?? null; // gates every control
+    const canManage = callerAccess !== null && hasAccess(callerAccess, "admin"); // admins and above may add people and change access
+    const { overview, isLoading: isOverviewLoading } = useDocumentOverview(id); // the owner, shown first (they never have an access row)
     const {
-        callerAccess,
-        canManage,
-        owner,
         people,
-        pendingUserId,
-        changePersonAccess,
-        removePerson,
-        isInitialLoading,
+        isLoading: isPeopleLoading,
         isFetchingMore,
         sentinelRef,
-        email,
-        setEmail,
-        lookup,
-        isAdding,
-        addPerson,
-    } = useShareDialog(documentId);
+    } = useDocumentAccessList(id);
+    const { changeAccess, changingUserId } = useChangeDocumentAccess(id);
+    const { removeAccess, removingUserId } = useRemoveDocumentAccess(id);
+    const { email, setEmail, lookup, isAdding, addPerson } = useShareDialog(
+        documentId,
+        canManage,
+    );
     const { roleOverrides, isLoading: isRoleOverridesLoading } =
         useDocumentRoleOverrides(Number(documentId)); // General access
     const { updateRoleOverride, savingRole } = useUpdateRoleOverride(
@@ -106,12 +111,14 @@ const ShareDialog = ({
                 variant="outline"
                 value={person.access}
                 options={grantableOptions}
-                onChange={(access) => changePersonAccess(person.id, access)}
-                disabled={pendingUserId === person.id}
+                onChange={(access) => changeAccess(person.id, access)}
+                disabled={
+                    changingUserId === person.id || removingUserId === person.id
+                }
                 label={`Without direct access: ${formatAccessLevel(person.fallbackAccess)}`}
                 action={{
                     label: "Remove access",
-                    onSelect: () => removePerson(person.id),
+                    onSelect: () => removeAccess(person.id),
                 }}
                 className="w-[6.5rem] sm:w-[7.5rem]"
             />
@@ -172,7 +179,7 @@ const ShareDialog = ({
             <h3 className="mb-1.5 text-sm font-semibold text-fg">
                 People with access
             </h3>
-            {isInitialLoading ? (
+            {isOverviewLoading || isPeopleLoading ? (
                 <ShareRowsSkeleton count={3} />
             ) : (
                 // Desktop: capped at about 5½ rows (48px each) and scrolls on its
@@ -182,16 +189,16 @@ const ShareDialog = ({
                     className="flex flex-col sm:max-h-[16.5rem] sm:overflow-y-auto"
                     style={{ scrollbarWidth: "thin" }}
                 >
-                    {owner && (
+                    {overview && (
                         <PersonRow
-                            name={owner.name}
-                            isSelf={owner.email === auth.user?.email}
+                            name={overview.ownerName}
+                            isSelf={overview.ownerEmail === auth.user?.email}
                             avatarUrl={
-                                owner.email === auth.user?.email
+                                overview.ownerEmail === auth.user?.email
                                     ? auth.user.avatarUrl
                                     : null
                             }
-                            colorKey={owner.email}
+                            colorKey={overview.ownerEmail}
                             subtitle="Workspace owner"
                         >
                             <ReadOnlyAccess icon={<LuLock />}>

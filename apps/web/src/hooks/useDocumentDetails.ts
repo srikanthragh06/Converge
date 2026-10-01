@@ -1,8 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import apiClient from "../lib/http";
-import { documentKeys } from "../queries/documents";
 import useDocument from "./useDocument";
-import type { GetDocumentOverviewResponseDto } from "@converge/shared";
+import useDocumentOverview from "./useDocumentOverview";
 
 /** How often the overview is re-fetched while the modal is open, so indexing status stays live. */
 const POLL_INTERVAL_MS = 5000;
@@ -18,23 +15,15 @@ const POLL_INTERVAL_MS = 5000;
 const useDocumentDetails = (documentId: string | undefined) => {
     const id = Number(documentId);
     const { document, isLoading: isDocumentLoading } = useDocument(id);
-
-    const overview = useQuery({
-        queryKey: documentKeys.overview(id),
-        queryFn: async () => {
-            const { data } =
-                await apiClient.get<GetDocumentOverviewResponseDto>(
-                    `/document/${id}/overview`,
-                );
-            return data;
-        },
-        refetchInterval: POLL_INTERVAL_MS,
-    });
+    const { overview, isLoading: isOverviewLoading } = useDocumentOverview(
+        id,
+        POLL_INTERVAL_MS,
+    );
 
     return {
-        overview: overview.data ?? null, // null while loading or on error
+        overview, // null while loading or on error
         document, // workspace and resolved access; null while loading or on error
-        isLoading: overview.isPending || isDocumentLoading, // true until both loads settle
+        isLoading: isOverviewLoading || isDocumentLoading, // true until both loads settle
     };
 };
 
