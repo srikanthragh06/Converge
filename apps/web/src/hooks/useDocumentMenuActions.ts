@@ -2,12 +2,11 @@ import { useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSetAtom } from "jotai";
 import { useQueryClient } from "@tanstack/react-query";
-import { pinOverridesAtom } from "../atoms/sidebar";
 import { documentDialogAtom } from "../atoms/document";
 import apiClient from "../lib/http";
 import { documentKeys } from "../queries/documents";
+import useTogglePin from "./useTogglePin";
 import useToast from "./useToast";
-import type { SetDocumentPinnedResponseDto } from "@converge/shared";
 
 /** The parts of a document the menu actions need. */
 type MenuDocument = { id: number; title: string };
@@ -28,43 +27,10 @@ const displayTitle = (doc: MenuDocument) => doc.title || "Untitled";
 const useDocumentMenuActions = () => {
     const navigate = useNavigate();
     const { documentId: openDocumentId } = useParams(); // document open in the editor, if any
-    const setPinOverrides = useSetAtom(pinOverridesAtom); // records each toggle, so the editor's ⋯ menu follows it
     const setDocumentDialog = useSetAtom(documentDialogAtom); // opens Share / Document details
     const queryClient = useQueryClient();
     const { showToast } = useToast();
-
-    /**
-     * Pins or unpins the document via PUT /document/:id/pin, then refreshes
-     * the document lists, including both pinned and recent — the
-     * two are complements of each other (ignorePinnedDocs), so a toggle in
-     * either direction needs both re-fetched to move the document across
-     * without duplicating or losing it.
-     * @param documentId - the document being pinned or unpinned
-     * @param pinned - true to pin, false to unpin
-     */
-    const togglePin = useCallback(
-        async (documentId: number, pinned: boolean) => {
-            try {
-                await apiClient.put<SetDocumentPinnedResponseDto>(
-                    `/document/${documentId}/pin`,
-                    { pinned },
-                );
-                setPinOverrides((prev) => ({ ...prev, [documentId]: pinned }));
-                queryClient.invalidateQueries({
-                    queryKey: documentKeys.lists(),
-                });
-            } catch (err) {
-                console.error("useDocumentMenuActions: pin failed", err);
-                showToast(
-                    pinned
-                        ? "Couldn't pin the document"
-                        : "Couldn't unpin the document",
-                    { tone: "error" },
-                );
-            }
-        },
-        [queryClient, setPinOverrides, showToast],
-    );
+    const { togglePin } = useTogglePin();
 
     /**
      * Opens the document in a new browser tab.
