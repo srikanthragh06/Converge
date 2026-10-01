@@ -1,94 +1,40 @@
-import { useEffect, useState } from "react";
-import { useSetAtom } from "jotai";
-import { currentWorkspaceAtom } from "../atoms/sidebar";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import apiClient from "../lib/http";
-import type {
-    GetWorkspacesResponseDto,
-    SearchWorkspacesResponseDto,
-    WorkspaceDto,
-} from "@converge/shared";
+import { workspaceKeys } from "../queries/workspaces";
+import useDebouncedValue from "./useDebouncedValue";
+import useWorkspaceList from "./useWorkspaceList";
+import type { SearchWorkspacesResponseDto } from "@converge/shared";
 
 /**
- * Manages workspaces page state. Fetches workspaces from GET /workspaces
- * and switches to the search endpoint with debounce when the user types.
+ * The Workspaces page's list: every workspace while `search` is empty,
+ * otherwise GET /workspaces/search results, 300ms after the user stops typing.
+ * @param search - the filter text as typed
  */
-const useWorkspaces = () => {
-    const setCurrentWorkspace = useSetAtom(currentWorkspaceAtom); // Sets the sidebar's selected workspace.
-    const [searchText, setSearchText] = useState(""); // Current search query text.
-    const [workspaces, setWorkspaces] = useState<WorkspaceDto[]>([]); // Fetched workspace list.
-    const [isLoading, setIsLoading] = useState(false); // Whether a fetch is in progress.
+const useWorkspaces = (search: string) => {
+    const debouncedSearch = useDebouncedValue(search.trim(), 300);
+    // Clearing the box shows the full list at once, without the debounce.
+    const query = search.trim() === "" ? "" : debouncedSearch;
+    const list = useWorkspaceList();
 
-    const fetchAll = async () => {
-        setIsLoading(true);
-        try {
-            const { data } =
-                await apiClient.get<GetWorkspacesResponseDto>("/workspaces");
-            setWorkspaces(data.workspaces);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const fetchSearch = async (query: string) => {
-        setIsLoading(true);
-        try {
+    const results = useQuery({
+        queryKey: workspaceKeys.search(query),
+        queryFn: async () => {
             const { data } = await apiClient.get<SearchWorkspacesResponseDto>(
                 "/workspaces/search",
                 { params: { q: query } },
             );
-            setWorkspaces(data.workspaces);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+            return data.workspaces;
+        },
+        enabled: query !== "",
+        // Keep the previous results on screen while the next search loads.
+        placeholderData: keepPreviousData,
+    });
 
-    // Debounced search — fires 300ms after the user stops typing.
-    // Resets to the full list when the query is cleared.
-    useEffect(() => {
-        if (searchText.trim() === "") {
-            fetchAll();
-        } else {
-            const timeout = setTimeout(
-                () => fetchSearch(searchText.trim()),
-                300,
-            );
-            return () => clearTimeout(timeout);
-        }
-    }, [searchText]);
-
-    /**
-     * Selects a workspace via PUT /workspaces/:id/select, updates the sidebar
-     * current workspace, and flips the isSelected flag locally so all cards
-     * reflect the change without refetching.
-     */
-    const selectWorkspace = async (id: number) => {
-        try {
-            const { data } = await apiClient.put<{ id: number; name: string }>(
-                `/workspaces/${id}/select`,
-            );
-            setCurrentWorkspace(data);
-            // Toggle selection locally — the server response bumps last_visited_at
-            // so a refetch would reorder cards.
-            setWorkspaces((prev) =>
-                prev.map((w) => ({ ...w, isSelected: w.id === id })),
-            );
-        } catch (err) {
-            console.error("Failed to select workspace", err);
-        }
-    };
-
+    if (query === "")
+        return { workspaces: list.workspaces, isLoading: list.isLoading };
     return {
-        searchText,
-        setSearchText,
-        workspaces,
-        isLoading,
-        fetchAll,
-        fetchSearch,
-        selectWorkspace,
+        workspaces: results.data ?? list.workspaces, // the matches; the full list until the first search returns
+        isLoading: results.isPending,
     };
 };
 

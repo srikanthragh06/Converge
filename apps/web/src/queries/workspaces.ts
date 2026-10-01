@@ -7,6 +7,8 @@ export const workspaceKeys = {
     all: ["workspaces"] as const,
     /** The user's workspaces (with which one is selected). */
     list: () => ["workspaces", "list"] as const,
+    /** Every workspace search, whatever was typed. */
+    searches: () => ["workspaces", "search"] as const,
     /** Workspace search on the Workspaces page; `search` is the typed text. */
     search: (search: string) => ["workspaces", "search", search] as const,
     /** One workspace's settings overview. */

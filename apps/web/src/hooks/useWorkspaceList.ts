@@ -8,7 +8,7 @@ import type { GetWorkspacesResponseDto } from "@converge/shared";
  * `workspaceKeys.list()`. Creating or renaming a workspace refreshes it.
  */
 const useWorkspaceList = () => {
-    const { data, refetch } = useQuery({
+    const { data, isPending, refetch } = useQuery({
         queryKey: workspaceKeys.list(),
         queryFn: async () => {
             const { data } =
@@ -19,6 +19,7 @@ const useWorkspaceList = () => {
 
     return {
         workspaces: data ?? [], // the workspace list; empty until the first load finishes
+        isLoading: isPending, // true until the first load finishes
         refetch, // reloads the list, e.g. when the workspace dropdown opens
     };
 };

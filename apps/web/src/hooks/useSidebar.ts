@@ -1,12 +1,11 @@
-import { useCallback } from "react";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import {
     currentWorkspaceAtom,
     pinnedDocumentsAtom,
     recentDocumentsAtom,
 } from "../atoms/sidebar";
-import apiClient from "../lib/http";
 import useNewDocument from "./useNewDocument";
+import useSelectWorkspace from "./useSelectWorkspace";
 import useWorkspaceList from "./useWorkspaceList";
 
 /**
@@ -18,29 +17,10 @@ import useWorkspaceList from "./useWorkspaceList";
 const useSidebar = () => {
     const { createDocument, isCreating } = useNewDocument(); // creates a new document in the current workspace
     const { workspaces, refetch: refetchWorkspaces } = useWorkspaceList(); // all workspaces the user belongs to
+    const { selectWorkspace } = useSelectWorkspace(); // switches the selected workspace
     const currentWorkspace = useAtomValue(currentWorkspaceAtom); // currently selected workspace
-    const setCurrentWorkspace = useSetAtom(currentWorkspaceAtom); // updated by selectWorkspace
     const recentDocuments = useAtomValue(recentDocumentsAtom); // most recent, non-pinned documents in the current workspace, shown below the pinned section
     const pinnedDocuments = useAtomValue(pinnedDocumentsAtom); // documents the user has pinned in the current workspace, shown above recentDocuments
-
-    /**
-     * Switches the user's selected workspace via PUT /workspaces/:id/select
-     * and updates the atom on success.
-     */
-    const selectWorkspace = useCallback(
-        async (id: number) => {
-            try {
-                const { data } = await apiClient.put<{
-                    id: number;
-                    name: string;
-                }>(`/workspaces/${id}/select`);
-                setCurrentWorkspace(data);
-            } catch (err) {
-                console.error("useSidebar: failed to select workspace", err);
-            }
-        },
-        [setCurrentWorkspace],
-    );
 
     return {
         workspaces,
