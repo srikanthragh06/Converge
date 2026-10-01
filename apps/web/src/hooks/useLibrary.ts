@@ -35,7 +35,7 @@ const useLibrary = (search: string) => {
     const { ref: sentinelRef, inView } = useInView();
 
     const list = useInfiniteQuery({
-        queryKey: documentKeys.library(workspaceId, ""),
+        queryKey: documentKeys.library(workspaceId),
         queryFn: async ({ pageParam }) => {
             const { data } =
                 await apiClient.get<GetLibraryDocumentsResponseDto>(
@@ -61,7 +61,7 @@ const useLibrary = (search: string) => {
     });
 
     const results = useQuery({
-        queryKey: documentKeys.library(workspaceId, query),
+        queryKey: documentKeys.librarySearch(workspaceId, query),
         queryFn: async () => {
             const { data } =
                 await apiClient.get<SearchLibraryDocumentsResponseDto>(

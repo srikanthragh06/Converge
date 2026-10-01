@@ -15,9 +15,12 @@ export const documentKeys = {
     /** Sidebar "Pinned". */
     pinned: (workspaceId: number) =>
         ["documents", "list", "pinned", workspaceId] as const,
-    /** Library page; `search` is the typed title text, "" when not searching. */
-    library: (workspaceId: number, search: string) =>
-        ["documents", "list", "library", workspaceId, search] as const,
+    /** Library page, the full list (paginated). */
+    library: (workspaceId: number) =>
+        ["documents", "list", "library", workspaceId] as const,
+    /** Library title search; `search` is the typed text. Kept apart from `library` so the two never share a cache entry. */
+    librarySearch: (workspaceId: number, search: string) =>
+        ["documents", "list", "library-search", workspaceId, search] as const,
     /** Trash page. */
     trash: (workspaceId: number) =>
         ["documents", "list", "trash", workspaceId] as const,
