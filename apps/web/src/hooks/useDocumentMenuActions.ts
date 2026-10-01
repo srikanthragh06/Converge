@@ -1,10 +1,9 @@
 import { useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSetAtom } from "jotai";
-import { useQueryClient } from "@tanstack/react-query";
 import { documentDialogAtom } from "../atoms/document";
-import apiClient from "../lib/http";
-import { documentKeys } from "../queries/documents";
+import useMoveToTrash from "./useMoveToTrash";
+import useRestoreDocument from "./useRestoreDocument";
 import useTogglePin from "./useTogglePin";
 import useToast from "./useToast";
 
@@ -28,7 +27,6 @@ const useDocumentMenuActions = () => {
     const navigate = useNavigate();
     const { documentId: openDocumentId } = useParams(); // document open in the editor, if any
     const setDocumentDialog = useSetAtom(documentDialogAtom); // opens Share / Document details
-    const queryClient = useQueryClient();
     const { showToast } = useToast();
     const { togglePin } = useTogglePin();
 
@@ -59,52 +57,21 @@ const useDocumentMenuActions = () => {
         [showToast],
     );
 
-    /**
-     * Restores a document from Trash via POST /document/:id/restore — the
-     * Undo action of the Move to Trash toast.
-     * @param doc - the trashed document
-     */
-    const restore = useCallback(
-        async (doc: MenuDocument) => {
-            try {
-                await apiClient.post(`/document/${doc.id}/restore`);
-                queryClient.invalidateQueries({
-                    queryKey: documentKeys.lists(),
-                });
-                showToast(`Restored "${displayTitle(doc)}"`);
-            } catch (err) {
-                console.error("useDocumentMenuActions: restore failed", err);
-                showToast("Couldn't restore the document", { tone: "error" });
-            }
-        },
-        [queryClient, showToast],
-    );
+    // The Undo action of the Move to Trash toast.
+    const { restoreDocument } = useRestoreDocument({
+        onSuccess: (doc) => showToast(`Restored "${displayTitle(doc)}"`),
+    });
 
-    /**
-     * Soft-deletes the document via DELETE /document/:id (admin access
-     * required), leaving the editor if it was the open document, and shows a
-     * toast whose Undo restores it. No confirmation step, since it's undoable.
-     * @param doc - the document to trash
-     */
-    const moveToTrash = useCallback(
-        async (doc: MenuDocument) => {
-            try {
-                await apiClient.delete(`/document/${doc.id}`);
-            } catch (err) {
-                console.error("useDocumentMenuActions: delete failed", err);
-                showToast("Couldn't move the document to Trash", {
-                    tone: "error",
-                });
-                return;
-            }
-            queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
+    // Leaves the editor if the trashed document was open, and offers Undo.
+    // No confirmation step, since it's undoable.
+    const { moveToTrash } = useMoveToTrash({
+        onSuccess: (doc) => {
             if (String(doc.id) === openDocumentId) navigate("/library");
             showToast(`Moved "${displayTitle(doc)}" to Trash`, {
-                action: { label: "Undo", onClick: () => restore(doc) },
+                action: { label: "Undo", onClick: () => restoreDocument(doc) },
             });
         },
-        [navigate, openDocumentId, queryClient, restore, showToast],
-    );
+    });
 
     /**
      * Opens the Share dialog for the document.
