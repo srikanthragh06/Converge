@@ -9,8 +9,9 @@ const ACTION_BUTTON_CLASSES =
 
 /**
  * Single row in the sidebar's Pinned or Recent section: a document title
- * that opens it, with pin and ⋯ buttons revealed on hover or focus. The ⋯
- * button and a right-click (long-press on touch) open the same menu.
+ * that opens it, with pin and ⋯ buttons revealed on hover or focus (always
+ * shown on touch screens, which have no hover). The ⋯ button and a
+ * right-click (long-press on touch) open the same menu.
  */
 const SidebarDocumentRow = ({
     doc,
@@ -45,7 +46,7 @@ const SidebarDocumentRow = ({
                 onClick={onOpen}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                    "flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md pl-2.5 pr-2 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-gold/60 group-focus-within/doc:pr-16 group-hover/doc:pr-16 group-has-[[data-state=open]]/doc:pr-16",
+                    "flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md pl-2.5 pr-2 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-gold/60 group-focus-within/doc:pr-16 group-hover/doc:pr-16 group-has-[[data-state=open]]/doc:pr-16 [@media(hover:none)]:pr-16",
                     isActive ? "text-fg" : "text-fg-secondary",
                 )}
             >
@@ -54,8 +55,8 @@ const SidebarDocumentRow = ({
                     {doc.title || "Untitled"}
                 </span>
             </button>
-            {/* Hover actions — also shown while focused inside, or while the ⋯ menu is open */}
-            <div className="absolute right-1 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/doc:opacity-100 has-[[data-state=open]]:opacity-100">
+            {/* Hover actions — also shown while focused inside, while the ⋯ menu is open, and always on touch screens */}
+            <div className="absolute right-1 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/doc:opacity-100 has-[[data-state=open]]:opacity-100 [@media(hover:none)]:opacity-100">
                 <button
                     type="button"
                     onClick={onTogglePin}
