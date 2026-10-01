@@ -1,10 +1,4 @@
 import { atom } from "jotai";
-import type { ResolvedDocumentAccessLevel } from "@converge/shared";
-
-/** The resolved access level of the currently open document, or null when no document is loaded. */
-export const documentAccessAtom = atom<ResolvedDocumentAccessLevel | null>(
-    null,
-);
 
 /** Title of the document open in the editor, or null on any other page. Lets the app shell (e.g. Ask Converge's empty state) name it. */
 export const openDocumentTitleAtom = atom<string | null>(null);
