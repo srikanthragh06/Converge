@@ -46,7 +46,7 @@ const CheckpointDiffView = ({
     onClose,
 }: {
     /** ID of the document the checkpoints belong to. */
-    documentId: string | undefined;
+    documentId: number;
     /** Checkpoint currently selected in the list. */
     selectedCheckpoint: DocumentCheckpointDto;
     /** Checkpoint immediately before the selected one, or null if none is loaded. */

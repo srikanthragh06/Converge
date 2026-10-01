@@ -18,7 +18,7 @@ const DocumentSwitcherOverlay = ({
 }: {
     /** Called to close the palette on Escape, backdrop click, or navigation. */
     onClose: () => void;
-    documentId: string | undefined; // ID of the currently open document, excluded from the results
+    documentId: number | undefined; // ID of the currently open document, excluded from the results
 }) => {
     const {
         searchText,
@@ -29,10 +29,7 @@ const DocumentSwitcherOverlay = ({
         listRef,
         handleDocumentClick,
         focusedIndex,
-    } = useDocumentSwitcher(
-        documentId ? Number(documentId) : undefined,
-        onClose,
-    ); // palette state: search query, results, and keyboard focus
+    } = useDocumentSwitcher(documentId, onClose); // palette state: search query, results, and keyboard focus
 
     return (
         <DialogPrimitive.Root open onOpenChange={(o) => !o && onClose()}>

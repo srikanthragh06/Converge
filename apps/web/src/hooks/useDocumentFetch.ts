@@ -9,14 +9,14 @@ import useDocument from "./useDocument";
  * document already loaded stays ready even if a background refresh fails.
  * Seeds the title via setTitle once per document; after that, title changes
  * arrive over the socket.
- * @param documentId - the raw URL param string (undefined if the route param is missing)
+ * @param documentId - the open document, or undefined when the URL's id isn't a number (reported as notFound)
  * @param setTitle - setter from useDocumentTitle used to seed the title from the server response
  */
 const useDocumentFetch = (
-    documentId: string | undefined,
+    documentId: number | undefined,
     setTitle: React.Dispatch<React.SetStateAction<string>>,
 ) => {
-    const { document, error } = useDocument(Number(documentId));
+    const { document, error } = useDocument(documentId);
     const [seededId, setSeededId] = useState<number | null>(null); // document whose title was last seeded
 
     // Seeds the title during render (rather than in an effect) the first
@@ -26,13 +26,16 @@ const useDocumentFetch = (
         setTitle(document.title);
     }
 
-    const documentStatus = document
-        ? ("ready" as const)
-        : !error
-          ? ("loading" as const)
-          : isAxiosError(error) && error.response?.status === 403
-            ? ("forbidden" as const)
-            : ("notFound" as const);
+    const documentStatus =
+        documentId === undefined
+            ? ("notFound" as const)
+            : document
+              ? ("ready" as const)
+              : !error
+                ? ("loading" as const)
+                : isAxiosError(error) && error.response?.status === 403
+                  ? ("forbidden" as const)
+                  : ("notFound" as const);
 
     return {
         documentStatus,

@@ -13,7 +13,7 @@ const DocumentDialogs = () => {
     const [dialog, setDialog] = useAtom(documentDialogAtom); // the open dialog and its document, or null
 
     if (!dialog) return null;
-    const documentId = String(dialog.documentId);
+    const { documentId } = dialog;
     const close = () => setDialog(null);
 
     return dialog.kind === "share" ? (

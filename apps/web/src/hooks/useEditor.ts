@@ -1,6 +1,5 @@
 import { BlockNoteEditor } from "@blocknote/core";
 import { useMemo } from "react";
-import { useParams } from "react-router-dom";
 import useSocket from "./useSocket";
 import useYjsSync from "./useYjsSync";
 import useDocumentTitle from "./useDocumentTitle";
@@ -8,6 +7,7 @@ import useDocumentFetch from "./useDocumentFetch";
 import useUndoManagerGuard from "./useUndoManagerGuard";
 import useAwareness from "./useAwareness";
 import useUploadFile from "./useUploadFile";
+import useDocumentId from "./useDocumentId";
 import deleteBlockExtension from "../lib/deleteBlockExtension";
 import { editorSchema } from "@converge/shared";
 
@@ -19,7 +19,7 @@ import { editorSchema } from "@converge/shared";
  * must guard against null before rendering the editor.
  */
 const useEditor = () => {
-    const { documentId } = useParams<{ documentId: string }>(); // document ID from the URL path
+    const documentId = useDocumentId(); // undefined for a non-numeric id, which useDocumentFetch reports as notFound
 
     const { yDoc } = useYjsSync(documentId);
 
@@ -35,7 +35,7 @@ const useEditor = () => {
 
     // Stable upload function for this workspace+document pair. Null fallbacks are safe —
     // the editor is not created until both are present, so the fallbacks never reach ImageKit.
-    const uploadFile = useUploadFile(docWorkspace?.id ?? 0, documentId ?? "");
+    const uploadFile = useUploadFile(docWorkspace?.id ?? 0, documentId ?? 0);
 
     // Created once per document (yDoc changes on switch). Gated on docWorkspace and
     // documentId so uploadFile always has the correct folder path when first created.

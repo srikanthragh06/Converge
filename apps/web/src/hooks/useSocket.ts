@@ -13,7 +13,7 @@ import { isSocketReadyAtom } from "../atoms/socket";
  * @param canConnect - When false the socket is disconnected; defaults to true.
  * @param documentId - Stamped onto the socket query so the gateway can identify the document.
  */
-const useSocket = (canConnect: boolean = true, documentId?: string) => {
+const useSocket = (canConnect: boolean = true, documentId?: number) => {
     const setIsSocketReady = useSetAtom(isSocketReadyAtom); // true only after DOC_READY is received, not merely when the transport connects
 
     // Registers event listeners then connects or disconnects based on canConnect. Re-runs when documentId changes to reconnect to the new document's room.

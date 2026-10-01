@@ -53,7 +53,8 @@ const EditorPage = () => {
             haveSidebar
             mobileTopBar={documentStatus !== "ready"}
         >
-            {documentStatus === "ready" && (
+            {/* ready implies a numeric documentId (useDocumentFetch reports a missing one as notFound) */}
+            {documentStatus === "ready" && documentId !== undefined && (
                 <EditorPageHeader
                     documentStatus={documentStatus}
                     documentId={documentId}

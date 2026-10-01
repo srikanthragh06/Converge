@@ -21,14 +21,14 @@ const OBSERVE_TIMEOUT_MS = 15000; // gives up waiting for the block to appear ra
  * (syncStatus cycling through "restoring" again mid-session) never
  * re-triggers it.
  */
-const useScrollToBlock = (documentId: string | undefined) => {
+const useScrollToBlock = (documentId: number | undefined) => {
     const [searchParams] = useSearchParams();
     const blockId = searchParams.get("blockId");
 
     const isSocketReady = useAtomValue(isSocketReadyAtom);
     const syncStatus = useAtomValue(syncStatusAtom);
 
-    const scrolledForDocumentIdRef = useRef<string | undefined>(undefined); // the documentId this hook has already attempted a scroll for, if any
+    const scrolledForDocumentIdRef = useRef<number | undefined>(undefined); // the documentId this hook has already attempted a scroll for, if any
     const prevSyncStatusRef = useRef(syncStatus); // syncStatus as of the previous run, to detect the real "restoring" -> not-"restoring" edge
 
     useEffect(() => {

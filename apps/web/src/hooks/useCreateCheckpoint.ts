@@ -15,7 +15,7 @@ const TRANSIENT_STATUS_DISPLAY_MS = 2000;
  * button becomes clickable again. A failure shows the global error toast.
  * @param documentId - the document to checkpoint
  */
-const useCreateCheckpoint = (documentId: string | undefined) => {
+const useCreateCheckpoint = (documentId: number) => {
     const queryClient = useQueryClient();
 
     const { mutate, status, reset } = useMutation({
@@ -29,7 +29,7 @@ const useCreateCheckpoint = (documentId: string | undefined) => {
         onSuccess: (data) => {
             if (data.created)
                 queryClient.invalidateQueries({
-                    queryKey: checkpointKeys.list(Number(documentId)),
+                    queryKey: checkpointKeys.list(documentId),
                 });
         },
     });
@@ -51,8 +51,7 @@ const useCreateCheckpoint = (documentId: string | undefined) => {
         createCheckpoint: (
             onSaved?: (result: CreateCheckpointResponseDto) => void,
         ) => {
-            if (status === "idle" && documentId)
-                mutate(undefined, { onSuccess: onSaved });
+            if (status === "idle") mutate(undefined, { onSuccess: onSaved });
         },
         status: status === "pending" ? ("loading" as const) : status, // idle, loading, success or error
     };

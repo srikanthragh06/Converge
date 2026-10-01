@@ -1,5 +1,6 @@
 import { useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import useDocumentId from "./useDocumentId";
 import { useSetAtom } from "jotai";
 import { documentDialogAtom } from "../atoms/document";
 import useMoveToTrash from "./useMoveToTrash";
@@ -25,7 +26,7 @@ const displayTitle = (doc: MenuDocument) => doc.title || "Untitled";
  */
 const useDocumentMenuActions = () => {
     const navigate = useNavigate();
-    const { documentId: openDocumentId } = useParams(); // document open in the editor, if any
+    const openDocumentId = useDocumentId(); // document open in the editor, if any
     const setDocumentDialog = useSetAtom(documentDialogAtom); // opens Share / Document details
     const { showToast } = useToast();
     const { togglePin } = useTogglePin();
@@ -66,7 +67,7 @@ const useDocumentMenuActions = () => {
     // No confirmation step, since it's undoable.
     const { moveToTrash } = useMoveToTrash({
         onSuccess: (doc) => {
-            if (String(doc.id) === openDocumentId) navigate("/library");
+            if (doc.id === openDocumentId) navigate("/library");
             showToast(`Moved "${displayTitle(doc)}" to Trash`, {
                 action: { label: "Undo", onClick: () => restoreDocument(doc) },
             });

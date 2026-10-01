@@ -28,7 +28,7 @@ export const documentKeys = {
     switcher: (workspaceId: number, search: string) =>
         ["documents", "list", "switcher", workspaceId, search] as const,
     /** One document's own data: title, access, workspace. */
-    detail: (documentId: number) =>
+    detail: (documentId: number | undefined) =>
         ["documents", "detail", documentId] as const,
     /** One document's details dialog: owner, dates, size. */
     overview: (documentId: number) =>

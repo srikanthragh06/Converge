@@ -1,4 +1,5 @@
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import useDocumentId from "../../hooks/useDocumentId";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
     LuChevronsLeft,
@@ -37,7 +38,7 @@ import UserMenu from "./UserMenu";
 const SidebarPanel = ({ onCollapse }: { onCollapse: () => void }) => {
     const navigate = useNavigate();
     const { pathname } = useLocation(); // current route — highlights the matching nav item
-    const { documentId } = useParams(); // document open in the editor, if any — highlights its row
+    const documentId = useDocumentId(); // document open in the editor, if any — highlights its row
     const auth = useAtomValue(authAtom); // signed-in user, shown in the footer
     const user = auth.status === "authenticated" ? auth.user : null;
     const {
@@ -154,7 +155,7 @@ const SidebarPanel = ({ onCollapse }: { onCollapse: () => void }) => {
                                 key={doc.id}
                                 doc={doc}
                                 isPinned
-                                isActive={String(doc.id) === documentId}
+                                isActive={doc.id === documentId}
                                 menuItems={documentMenu(doc, true)}
                                 onOpen={() => go(`/document/${doc.id}`)}
                                 onTogglePin={() => togglePin(doc, false)}
@@ -179,7 +180,7 @@ const SidebarPanel = ({ onCollapse }: { onCollapse: () => void }) => {
                             key={doc.id}
                             doc={doc}
                             isPinned={false}
-                            isActive={String(doc.id) === documentId}
+                            isActive={doc.id === documentId}
                             menuItems={documentMenu(doc, false)}
                             onOpen={() => go(`/document/${doc.id}`)}
                             onTogglePin={() => togglePin(doc, true)}

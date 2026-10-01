@@ -52,33 +52,34 @@ const ShareDialog = ({
     title,
     onClose,
 }: {
-    documentId: string | undefined;
+    documentId: number;
     title: string;
     onClose: () => void;
 }) => {
-    const id = Number(documentId);
-    const { document } = useDocument(id);
+    const { document } = useDocument(documentId);
     const callerAccess = document?.resolvedAccess ?? null; // gates every control
     const canManage = callerAccess !== null && hasAccess(callerAccess, "admin"); // admins and above may add people and change access
-    const { overview, isLoading: isOverviewLoading } = useDocumentOverview(id); // the owner, shown first (they never have an access row)
+    const { overview, isLoading: isOverviewLoading } =
+        useDocumentOverview(documentId); // the owner, shown first (they never have an access row)
     const {
         people,
         isLoading: isPeopleLoading,
         isFetchingMore,
         sentinelRef,
-    } = useDocumentAccessList(id);
-    const { changeAccess, changingUserId } = useChangeDocumentAccess(id);
-    const { removeAccess, removingUserId } = useRemoveDocumentAccess(id);
+    } = useDocumentAccessList(documentId);
+    const { changeAccess, changingUserId } =
+        useChangeDocumentAccess(documentId);
+    const { removeAccess, removingUserId } =
+        useRemoveDocumentAccess(documentId);
     const [email, setEmail] = useState(""); // text in the "Add people by email" field
-    const lookup = useNewAccessUserLookup(id, email, canManage);
-    const { addPerson, isAdding } = useAddDocumentAccess(id, {
+    const lookup = useNewAccessUserLookup(documentId, email, canManage);
+    const { addPerson, isAdding } = useAddDocumentAccess(documentId, {
         onSuccess: () => setEmail(""),
     });
     const { roleOverrides, isLoading: isRoleOverridesLoading } =
-        useDocumentRoleOverrides(Number(documentId)); // General access
-    const { updateRoleOverride, savingRole } = useUpdateRoleOverride(
-        Number(documentId),
-    );
+        useDocumentRoleOverrides(documentId); // General access
+    const { updateRoleOverride, savingRole } =
+        useUpdateRoleOverride(documentId);
     const auth = useAtomValue(authAtom); // current user, for the "(you)" labels
     const { copyLink } = useDocumentMenuActions(); // Copy link, shared with the ⋯ menus
     const isMobile = useIsMobile(); // phones get a bottom sheet instead of a centered dialog
@@ -299,10 +300,7 @@ const ShareDialog = ({
 
             {/* Footer — desktop only; the phone ⋯ sheet has Copy link */}
             <div className="mt-4 hidden items-center justify-between gap-3 border-t border-line pt-5 sm:flex">
-                <Button
-                    onClick={() => copyLink({ id: Number(documentId), title })}
-                    disabled={!documentId}
-                >
+                <Button onClick={() => copyLink({ id: documentId, title })}>
                     <LuLink />
                     Copy link
                 </Button>

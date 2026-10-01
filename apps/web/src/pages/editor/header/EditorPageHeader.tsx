@@ -57,7 +57,7 @@ const EditorPageHeader = ({
 }: {
     documentStatus: "loading" | "ready" | "forbidden" | "notFound";
     /** ID of the currently open document, forwarded to the Share, Document details, and version-history modals. */
-    documentId: string | undefined;
+    documentId: number;
     /** Name of the workspace the document belongs to, shown as a breadcrumb label. */
     workspaceName: string | null;
     /** Title of the current document, shown as the second segment of the breadcrumb. */
@@ -119,7 +119,7 @@ const EditorPageHeader = ({
     const visibleUsers = otherUsers.slice(0, MAX_VISIBLE_AVATARS); // avatars rendered explicitly
     const overflowCount = otherUsers.length - visibleUsers.length; // users collapsed into +N label
     const status = getSyncStatusDisplay(syncStatus); // dot tone + label beside the breadcrumb
-    const menuDocument = { id: Number(documentId), title }; // the open document, as the menu actions take it
+    const menuDocument = { id: documentId, title }; // the open document, as the menu actions take it
     const documentMenu = getEditorDocumentMenu({
         isPinned,
         canTrash,

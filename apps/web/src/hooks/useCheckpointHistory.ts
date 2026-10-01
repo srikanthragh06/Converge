@@ -17,17 +17,16 @@ const CHECKPOINTS_LIST_LIMIT = 10;
  * selected — the newest until the user picks another.
  * @param documentId - the document whose checkpoints to list
  */
-const useCheckpointHistory = (documentId: string | undefined) => {
-    const id = Number(documentId);
+const useCheckpointHistory = (documentId: number) => {
     const [pickedId, setPickedId] = useState<number | null>(null); // checkpoint the user selected; null means the newest
     const { ref: sentinelRef, inView } = useInView();
 
     const list = useInfiniteQuery({
-        queryKey: checkpointKeys.list(id),
+        queryKey: checkpointKeys.list(documentId),
         queryFn: async ({ pageParam }) => {
             const { data } =
                 await apiClient.get<GetDocumentCheckpointsResponseDto>(
-                    `/document/${id}/checkpoints`,
+                    `/document/${documentId}/checkpoints`,
                     {
                         params: {
                             limit: CHECKPOINTS_LIST_LIMIT,

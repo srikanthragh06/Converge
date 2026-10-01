@@ -21,21 +21,20 @@ import {
  * @param editor - the live editor instance, used for "selectedVsCurrent"
  */
 const useCheckpointDiff = (
-    documentId: string | undefined,
+    documentId: number,
     selectedCheckpointId: number | null,
     previousCheckpointId: number | null,
     diffType: "selectedVsCurrent" | "previousVsSelected",
     editor: EditorInstance | null,
 ) => {
-    const id = Number(documentId);
     const [liveDocVersion, setLiveDocVersion] = useState(0); // bumped on every live editor change, so the "selectedVsCurrent" diff recomputes as the user types
 
     const selected = useQuery({
-        ...checkpointBlocksQuery(id, selectedCheckpointId ?? 0),
+        ...checkpointBlocksQuery(documentId, selectedCheckpointId ?? 0),
         enabled: selectedCheckpointId !== null,
     });
     const previous = useQuery({
-        ...checkpointBlocksQuery(id, previousCheckpointId ?? 0),
+        ...checkpointBlocksQuery(documentId, previousCheckpointId ?? 0),
         enabled:
             diffType === "previousVsSelected" && previousCheckpointId !== null,
     });

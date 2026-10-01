@@ -24,7 +24,7 @@ import { socket } from "../lib/socket";
  * protocol (client-initiated on connect + 15 s heartbeat).
  * Returns the Y.Doc for use by the BlockNote editor.
  */
-const useYjsSync = (documentId: string | undefined) => {
+const useYjsSync = (documentId: number | undefined) => {
     const isSocketReady = useAtomValue(isSocketReadyAtom); // read-only view of the global socket connection state
     const setSyncStatus = useSetAtom(syncStatusAtom); // writes the derived sync status to the global atom
 
@@ -132,7 +132,7 @@ const useYjsSync = (documentId: string | undefined) => {
             const res = socketReceive(SyncDocClientSchema, data);
             if (!res) return;
             // reject stale events that arrived after switching to a different document
-            if (res.documentId !== Number(documentId)) return;
+            if (res.documentId !== documentId) return;
             const { updateArray, serverSVArray } = res;
 
             const update = new Uint8Array(updateArray);
@@ -202,7 +202,7 @@ const useYjsSync = (documentId: string | undefined) => {
             const res = socketReceive(RepairSyncDocClientSchema, data);
             if (!res) return;
             // reject stale events that arrived after switching to a different document
-            if (res.documentId !== Number(documentId)) return;
+            if (res.documentId !== documentId) return;
             const serverSV = new Uint8Array(res.serverSVArray);
             const diffArray = Array.from(Y.encodeStateAsUpdate(yDoc, serverSV));
             const clientSVArray = Array.from(Y.encodeStateVector(yDoc));
@@ -226,7 +226,7 @@ const useYjsSync = (documentId: string | undefined) => {
             const res = socketReceive(RepairSyncAckDocClientSchema, data);
             if (!res) return;
             // reject stale events that arrived after switching to a different document
-            if (res.documentId !== Number(documentId)) return;
+            if (res.documentId !== documentId) return;
             Y.applyUpdate(yDoc, new Uint8Array(res.diffArray), "REMOTE");
             setIsRestoring(false);
             const diffArray = Array.from(
@@ -252,7 +252,7 @@ const useYjsSync = (documentId: string | undefined) => {
             const res = socketReceive(RepairAckDocClientSchema, data);
             if (!res) return;
             // reject stale events that arrived after switching to a different document
-            if (res.documentId !== Number(documentId)) return;
+            if (res.documentId !== documentId) return;
             Y.applyUpdate(yDoc, new Uint8Array(res.diffArray), "REMOTE");
         };
 

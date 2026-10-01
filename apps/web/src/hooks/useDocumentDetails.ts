@@ -12,11 +12,10 @@ const POLL_INTERVAL_MS = 5000;
  * live rather than only on the next open.
  * @param documentId - the document to describe
  */
-const useDocumentDetails = (documentId: string | undefined) => {
-    const id = Number(documentId);
-    const { document, isLoading: isDocumentLoading } = useDocument(id);
+const useDocumentDetails = (documentId: number) => {
+    const { document, isLoading: isDocumentLoading } = useDocument(documentId);
     const { overview, isLoading: isOverviewLoading } = useDocumentOverview(
-        id,
+        documentId,
         POLL_INTERVAL_MS,
     );
 

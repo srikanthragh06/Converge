@@ -30,7 +30,7 @@ const DocumentDetailsModal = ({
     documentId,
     onClose,
 }: {
-    documentId: string | undefined;
+    documentId: number;
     onClose: () => void;
 }) => {
     const { overview, document, isLoading } = useDocumentDetails(documentId);

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { WRITE_LOCK_STORAGE_PREFIX } from "../constants/constants";
 
 /** Reads the persisted write-lock flag for a single document. */
-const readWriteLock = (documentId: string) =>
+const readWriteLock = (documentId: number) =>
     localStorage.getItem(`${WRITE_LOCK_STORAGE_PREFIX}${documentId}`) ===
     "true";
 
@@ -13,7 +13,7 @@ const readWriteLock = (documentId: string) =>
  * level or affect any other user's ability to write. Persisted in
  * localStorage keyed by document ID so it survives reloads.
  */
-const useWriteLock = (documentId: string | undefined) => {
+const useWriteLock = (documentId: number | undefined) => {
     const [trackedDocumentId, setTrackedDocumentId] = useState(documentId); // documentId the current isWriteLocked value was derived from
     const [isWriteLocked, setIsWriteLocked] = useState(
         () => documentId !== undefined && readWriteLock(documentId),

@@ -13,7 +13,7 @@ const ENV = import.meta.env.MODE; // "development" in dev, "production" in prod 
  * @param workspaceId - scopes the upload folder to the current workspace
  * @param documentId - scopes the upload folder to the current document
  */
-const useUploadFile = (workspaceId: number, documentId: string) => {
+const useUploadFile = (workspaceId: number, documentId: number) => {
     /**
      * Validates the file, fetches a one-time auth token from the server, uploads
      * the file directly to ImageKit, and returns the public CDN URL.
@@ -35,7 +35,9 @@ const useUploadFile = (workspaceId: number, documentId: string) => {
             const isVideo = file.type.startsWith("video/");
             const isAudio = file.type.startsWith("audio/");
             if (!isImage && !isVideo && !isAudio)
-                throw new Error("Only images, videos, and audio files can be uploaded.");
+                throw new Error(
+                    "Only images, videos, and audio files can be uploaded.",
+                );
 
             // Enforce size caps before any network request — fails fast with a clear message.
             if (isImage && file.size > 25 * 1024 * 1024)
@@ -59,7 +61,10 @@ const useUploadFile = (workspaceId: number, documentId: string) => {
             body.append("token", auth.token);
             body.append("expire", String(auth.expire));
             body.append("signature", auth.signature);
-            body.append("folder", `/converge/${ENV}/workspaces/${workspaceId}/documents/${documentId}`);
+            body.append(
+                "folder",
+                `/converge/${ENV}/workspaces/${workspaceId}/documents/${documentId}`,
+            );
 
             // Pre-transform images at ingestion to cap resolution and quality before storage.
             if (file.type.startsWith("image/"))

@@ -36,7 +36,7 @@ const CheckpointHistoryModal = ({
     onClose,
 }: {
     /** ID of the document whose checkpoints to list. */
-    documentId: string | undefined;
+    documentId: number;
     /** Title of the document, shown beside the modal title. */
     documentTitle: string;
     /** Live editor instance, forwarded to CheckpointDiffView for its live-document comparison. */

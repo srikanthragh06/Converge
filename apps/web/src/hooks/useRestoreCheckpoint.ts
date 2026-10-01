@@ -20,7 +20,7 @@ const TRANSIENT_STATUS_DISPLAY_MS = 2000;
  * @param editor - the live editor instance to write the restored content into
  */
 const useRestoreCheckpoint = (
-    documentId: string | undefined,
+    documentId: number,
     editor: EditorInstance | null,
 ) => {
     const queryClient = useQueryClient();
@@ -34,7 +34,7 @@ const useRestoreCheckpoint = (
             checkpointId: number;
         }) => {
             const blocks = await queryClient.fetchQuery(
-                checkpointBlocksQuery(Number(documentId), checkpointId),
+                checkpointBlocksQuery(documentId, checkpointId),
             );
             editor.replaceBlocks(editor.document, blocks);
         },

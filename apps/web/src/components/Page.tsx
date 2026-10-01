@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import useDocumentId from "../hooks/useDocumentId";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { LuMenu } from "react-icons/lu";
 import { authAtom } from "../atoms/auth";
@@ -39,7 +40,7 @@ const Page = ({
     const auth = useAtomValue(authAtom); // Current auth state — drives the loading and redirect logic.
     const navigate = useNavigate();
     const [isSearchOpen, setIsSearchOpen] = useAtom(isSearchOpenAtom); // ⌘K search palette visibility
-    const { documentId } = useParams(); // document open in the editor, if any — the palette leaves it out of its list
+    const documentId = useDocumentId(); // document open in the editor, if any — the palette leaves it out of its list
     const setIsDrawerOpen = useSetAtom(mobileSidebarOpenAtom); // opens the sidebar drawer on phones
 
     useAppShortcuts(haveSidebar); // ⌘K search and ⌘J Ask Converge, on pages with the sidebar
