@@ -13,7 +13,8 @@ import type {
 /**
  * Removes a member from a workspace via DELETE
  * /workspaces/:id/members/:userId. On success it drops them from the cached
- * member list and refreshes the member count. A failure shows the global
+ * member list and refreshes the member count and the "add member" lookups.
+ * A failure shows the global
  * error toast.
  * @param workspaceId - the workspace being configured
  */
@@ -53,6 +54,10 @@ const useRemoveWorkspaceMember = (workspaceId: number) => {
             );
             queryClient.invalidateQueries({
                 queryKey: workspaceKeys.overview(workspaceId),
+            });
+            // An old "already a member" lookup for them is now stale.
+            queryClient.invalidateQueries({
+                queryKey: workspaceKeys.newMemberLookups(workspaceId),
             });
         },
     });

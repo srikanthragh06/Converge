@@ -10,7 +10,8 @@ import type { GetDocumentAccessResponseDto } from "@converge/shared";
 /**
  * Removes a person's direct access to a document via DELETE
  * /document-access/:id/user/:userId, so they fall back to their role's
- * general access. On success it drops them from the cached people list. A
+ * general access. On success it drops them from the cached people list and
+ * refreshes the "add person" lookups. A
  * failure shows the global error toast.
  * @param documentId - the document being shared
  */
@@ -38,6 +39,10 @@ const useRemoveDocumentAccess = (documentId: number) => {
                         })),
                     },
             );
+            // An old "already has access" lookup for them is now stale.
+            queryClient.invalidateQueries({
+                queryKey: accessKeys.newUserLookups(documentId),
+            });
         },
     });
 
