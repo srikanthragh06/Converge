@@ -2,7 +2,7 @@ import type { ReactElement, ReactNode } from "react";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
 import { LuCheck } from "react-icons/lu";
-import { cn } from "../../lib/utils";
+import { cn } from "@/lib/utils";
 
 /** A clickable menu row. */
 export type MenuItem = {

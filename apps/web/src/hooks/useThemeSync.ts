@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useAtomValue } from "jotai";
-import { themeAtom } from "../atoms/theme";
+import { themeAtom } from "@/atoms/theme";
 
 /**
  * Mirrors themeAtom onto `<html>`: `data-theme` selects the active set of

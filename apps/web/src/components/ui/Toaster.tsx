@@ -1,7 +1,7 @@
 import { useAtom } from "jotai";
 import * as ToastPrimitive from "@radix-ui/react-toast";
 import { LuCheck, LuCircleAlert } from "react-icons/lu";
-import { toastsAtom } from "../../atoms/toast";
+import { toastsAtom } from "@/atoms/toast";
 
 /** How long a toast stays on screen, in ms. Hovering or focusing it pauses the timer. */
 const TOAST_DURATION_MS = 5000;

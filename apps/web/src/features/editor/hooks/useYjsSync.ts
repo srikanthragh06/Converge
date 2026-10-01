@@ -1,0 +1,291 @@
+import { useAtomValue, useSetAtom } from "jotai";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { isSocketReadyAtom, syncStatusAtom } from "@/atoms/socket";
+import { socketReceive } from "@/lib/socket-receive.util";
+import {
+    mapsAreEqual,
+    RepairAckDocClientSchema,
+    RepairAckDocServerSchema,
+    RepairSyncAckDocClientSchema,
+    RepairSyncAckDocServerSchema,
+    RepairSyncDocClientSchema,
+    RepairSyncDocServerSchema,
+    SOCKET_EVENTS,
+    SyncDocClientSchema,
+    SyncDocServerSchema,
+} from "@converge/shared";
+import * as Y from "yjs";
+import { socketEmit } from "@/lib/socket-emit.util";
+import { socket } from "@/lib/socket";
+
+/**
+ * Creates and owns the shared Y.Doc (re-created on each document switch), wires up local-update debouncing,
+ * handles incoming server sync events, and manages the full repair sync
+ * protocol (client-initiated on connect + 15 s heartbeat).
+ * Returns the Y.Doc for use by the BlockNote editor.
+ */
+const useYjsSync = (documentId: number | undefined) => {
+    const isSocketReady = useAtomValue(isSocketReadyAtom); // read-only view of the global socket connection state
+    const setSyncStatus = useSetAtom(syncStatusAtom); // writes the derived sync status to the global atom
+
+    const [isRestoring, setIsRestoring] = useState(false); // true while the initial repair sync after connect is in progress
+    const [isTyping, setIsTyping] = useState(false); // true during the 300ms debounce window after a local edit
+    const [isSyncing, setIsSyncing] = useState(false); // true for 1s after a local update is emitted to the server
+    const syncingTimeoutRef = useRef<number | null>(null); // timer handle for clearing isSyncing after the linger period
+
+    const timeoutIdRef = useRef<number | null>(null); // stores the debounce timer ID for batching outgoing Yjs updates
+    const pendingUpdatesRef = useRef<Uint8Array<ArrayBufferLike>[]>([]); // accumulates Yjs update chunks between debounce flushes
+    // Re-created when documentId changes so the new document starts with a clean slate.
+    const yDoc = useMemo(() => new Y.Doc(), [documentId]); // the shared Yjs document that backs the BlockNote editor state
+
+    // Derives and publishes syncStatus to the atom whenever any flag changes.
+    // Priority: offline > restoring > typing > syncing.
+    useEffect(() => {
+        if (!isSocketReady) setSyncStatus("offline");
+        else if (isRestoring) setSyncStatus("restoring");
+        else if (isTyping) setSyncStatus("typing");
+        else if (isSyncing) setSyncStatus("syncing");
+        else setSyncStatus(null);
+    }, [isSocketReady, isRestoring, isTyping, isSyncing]);
+
+    // Listens for local Yjs updates and debounces them before emitting to the server.
+    // Runs whenever the socket connection state changes.
+    useEffect(() => {
+        if (!isSocketReady) return;
+
+        /**
+         * Called on every local Yjs update. Skips remote-origin updates to avoid
+         * echo loops, then debounces and merges pending updates before emitting
+         * them to the server along with the client state vector.
+         * @param update - the encoded Yjs update bytes produced by the local change
+         * @param origin - the origin tag; "REMOTE" updates are ignored
+         */
+        const handleNewUserUpdate = (
+            update: Uint8Array<ArrayBufferLike>,
+            origin: string,
+        ) => {
+            // ignore updates that originated remotely to prevent echo loops
+            if (origin === "REMOTE") return;
+
+            // queue the update, mark as typing, and reset the debounce timer
+            pendingUpdatesRef.current.push(update);
+            setIsTyping(true);
+            if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
+
+            // after 300 ms of inactivity, merge all queued updates and emit once
+            timeoutIdRef.current = setTimeout(() => {
+                const mergedUpdate = Y.mergeUpdates(pendingUpdatesRef.current);
+                pendingUpdatesRef.current = [];
+                // include client SV so the server can detect any updates the client missed
+                const clientSV = Y.encodeStateVector(yDoc);
+
+                const updateArray = Array.from(mergedUpdate);
+                const clientSVArray = Array.from(clientSV);
+                socketEmit(
+                    socket,
+                    SOCKET_EVENTS.SYNC_DOC_SERVER,
+                    SyncDocServerSchema,
+                    {
+                        updateArray,
+                        clientSVArray,
+                    },
+                );
+
+                // debounce fired — no longer typing; linger as "syncing" for 1s
+                setIsTyping(false);
+                setIsSyncing(true);
+                if (syncingTimeoutRef.current)
+                    clearTimeout(syncingTimeoutRef.current);
+                syncingTimeoutRef.current = setTimeout(
+                    () => setIsSyncing(false),
+                    1000,
+                );
+            }, 300);
+        };
+
+        yDoc.on("update", handleNewUserUpdate);
+
+        return () => {
+            yDoc.off("update", handleNewUserUpdate);
+            if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
+            timeoutIdRef.current = null;
+            if (syncingTimeoutRef.current)
+                clearTimeout(syncingTimeoutRef.current);
+            syncingTimeoutRef.current = null;
+            setIsTyping(false);
+            setIsSyncing(false);
+        };
+    }, [yDoc, isSocketReady]);
+
+    // Listens for server-pushed sync-doc events and applies remote Yjs updates.
+    // Triggers a repair sync if the state vectors diverge after applying the update.
+    // Runs whenever the socket connection state changes.
+    useEffect(() => {
+        if (!isSocketReady) return;
+
+        /**
+         * Applies a server-pushed Yjs update to the local doc. If the resulting
+         * state vectors diverge, initiates a repair sync to reconcile the difference.
+         * @param data - raw socket payload containing the update and server state vector
+         */
+        const handleSyncDocClient = (data: unknown) => {
+            const res = socketReceive(SyncDocClientSchema, data);
+            if (!res) return;
+            // reject stale events that arrived after switching to a different document
+            if (res.documentId !== documentId) return;
+            const { updateArray, serverSVArray } = res;
+
+            const update = new Uint8Array(updateArray);
+            const serverSV = new Uint8Array(serverSVArray);
+
+            // apply the server update to the local doc, tagged as REMOTE to avoid re-emitting it
+            Y.applyUpdate(yDoc, update, "REMOTE");
+
+            // capture the client state vector after the update to compare against the server's
+            const clientSV = Y.encodeStateVector(yDoc);
+
+            // if state vectors differ, the client is still missing some updates — trigger a repair
+            if (
+                !mapsAreEqual(
+                    Y.decodeStateVector(serverSV),
+                    Y.decodeStateVector(clientSV),
+                )
+            ) {
+                socketEmit(
+                    socket,
+                    SOCKET_EVENTS.REPAIR_SYNC_DOC_SERVER,
+                    RepairSyncDocServerSchema,
+                    {
+                        clientSVArray: Array.from(clientSV),
+                    },
+                );
+            }
+        };
+
+        socket.on(SOCKET_EVENTS.SYNC_DOC_CLIENT, handleSyncDocClient);
+
+        return () => {
+            socket.off(SOCKET_EVENTS.SYNC_DOC_CLIENT, handleSyncDocClient);
+        };
+    }, [yDoc, isSocketReady]);
+
+    // Manages the repair sync protocol: initiates a repair on connect and on a
+    // 5-second heartbeat, and handles incoming repair-sync/ack events from the server.
+    // Runs whenever the socket connection state changes.
+    useEffect(() => {
+        if (!isSocketReady) return;
+
+        /**
+         * Sends the client's current state vector to the server to kick off a
+         * repair sync, allowing the server to detect and send any missing updates.
+         */
+        const initiateRepairSync = () => {
+            // snapshot the current client state vector to send to the server
+            const clientSVArray = Array.from(Y.encodeStateVector(yDoc));
+            // emit to the server so it can compute what the client is missing
+            socketEmit(
+                socket,
+                SOCKET_EVENTS.REPAIR_SYNC_DOC_SERVER,
+                RepairSyncDocServerSchema,
+                {
+                    clientSVArray,
+                },
+            );
+        };
+
+        /**
+         * Responds to a server-initiated repair sync by computing the local diff
+         * relative to the server's state vector and emitting it back with the client SV.
+         * @param data - raw socket payload containing the server's state vector
+         */
+        const handleRepairSyncDoc = (data: unknown) => {
+            const res = socketReceive(RepairSyncDocClientSchema, data);
+            if (!res) return;
+            // reject stale events that arrived after switching to a different document
+            if (res.documentId !== documentId) return;
+            const serverSV = new Uint8Array(res.serverSVArray);
+            const diffArray = Array.from(Y.encodeStateAsUpdate(yDoc, serverSV));
+            const clientSVArray = Array.from(Y.encodeStateVector(yDoc));
+            socketEmit(
+                socket,
+                SOCKET_EVENTS.REPAIR_SYNC_ACK_DOC_SERVER,
+                RepairSyncAckDocServerSchema,
+                {
+                    diffArray,
+                    clientSVArray,
+                },
+            );
+        };
+
+        /**
+         * Applies the diff received from the other side, then computes and sends
+         * back the diff the other side is missing based on their state vector.
+         * @param data - raw socket payload containing the server's diff and state vector
+         */
+        const handleRepairSyncAckDoc = (data: unknown) => {
+            const res = socketReceive(RepairSyncAckDocClientSchema, data);
+            if (!res) return;
+            // reject stale events that arrived after switching to a different document
+            if (res.documentId !== documentId) return;
+            Y.applyUpdate(yDoc, new Uint8Array(res.diffArray), "REMOTE");
+            setIsRestoring(false);
+            const diffArray = Array.from(
+                Y.encodeStateAsUpdate(yDoc, new Uint8Array(res.serverSVArray)),
+            );
+            const clientSVArray = Array.from(Y.encodeStateVector(yDoc));
+            socketEmit(
+                socket,
+                SOCKET_EVENTS.REPAIR_ACK_DOC_SERVER,
+                RepairAckDocServerSchema,
+                {
+                    diffArray,
+                    clientSVArray,
+                },
+            );
+        };
+
+        /**
+         * Applies the final diff sent by the server, completing the repair sync round.
+         * @param data - raw socket payload containing the server's remaining delta
+         */
+        const handleRepairAckDoc = (data: unknown) => {
+            const res = socketReceive(RepairAckDocClientSchema, data);
+            if (!res) return;
+            // reject stale events that arrived after switching to a different document
+            if (res.documentId !== documentId) return;
+            Y.applyUpdate(yDoc, new Uint8Array(res.diffArray), "REMOTE");
+        };
+
+        socket.on(SOCKET_EVENTS.REPAIR_SYNC_DOC_CLIENT, handleRepairSyncDoc);
+        socket.on(
+            SOCKET_EVENTS.REPAIR_SYNC_ACK_DOC_CLIENT,
+            handleRepairSyncAckDoc,
+        );
+        socket.on(SOCKET_EVENTS.REPAIR_ACK_DOC_CLIENT, handleRepairAckDoc);
+
+        // Initiate repair on connect to pull any server state the client missed.
+        // The interval runs every 15 seconds — frequent enough to catch divergence quickly,
+        // infrequent enough to avoid unnecessary server load.
+        setIsRestoring(true);
+        initiateRepairSync();
+        const heartbeatIntervalId = setInterval(initiateRepairSync, 15000);
+
+        return () => {
+            socket.off(
+                SOCKET_EVENTS.REPAIR_SYNC_DOC_CLIENT,
+                handleRepairSyncDoc,
+            );
+            socket.off(
+                SOCKET_EVENTS.REPAIR_SYNC_ACK_DOC_CLIENT,
+                handleRepairSyncAckDoc,
+            );
+            socket.off(SOCKET_EVENTS.REPAIR_ACK_DOC_CLIENT, handleRepairAckDoc);
+            clearInterval(heartbeatIntervalId);
+            setIsRestoring(false);
+        };
+    }, [yDoc, isSocketReady]);
+
+    return { yDoc };
+};
+
+export default useYjsSync;

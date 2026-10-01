@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { LuCheck, LuChevronDown } from "react-icons/lu";
-import { cn } from "../../lib/utils";
+import { cn } from "@/lib/utils";
 
 /** One choice in a Select. */
 export type SelectOption<T extends string> = { label: string; value: T };

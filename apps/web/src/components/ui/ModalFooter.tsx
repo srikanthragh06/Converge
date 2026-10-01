@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { cn } from "../../lib/utils";
+import { cn } from "@/lib/utils";
 
 /**
  * Right-aligned button row at the bottom of a Modal body.

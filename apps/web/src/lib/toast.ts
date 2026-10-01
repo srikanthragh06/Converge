@@ -1,5 +1,5 @@
 import { getDefaultStore } from "jotai";
-import { toastsAtom, type Toast } from "../atoms/toast";
+import { toastsAtom, type Toast } from "@/atoms/toast";
 
 /** Increasing id for each toast shown in this session. */
 let nextToastId = 1;

@@ -1,7 +1,7 @@
 import { useRef, useState, type PointerEvent, type ReactNode } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { LuX } from "react-icons/lu";
-import { cn } from "../../lib/utils";
+import { cn } from "@/lib/utils";
 import type { MenuEntry } from "./Menu";
 
 /** How far (px) the sheet must be dragged down before releasing closes it. */

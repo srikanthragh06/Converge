@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client";
 import "./index.css";
-import App from "./App.tsx";
+import App from "./app/App";
 import { BrowserRouter } from "react-router-dom";
 import { injectThemeVariables } from "./theme/themeVariables";
 import { TooltipProvider } from "./components/ui/Tooltip";

@@ -1,4 +1,4 @@
-import { showToast } from "../lib/toast";
+import { showToast } from "@/lib/toast";
 
 /**
  * Returns showToast, which pops a short notification at the bottom of the

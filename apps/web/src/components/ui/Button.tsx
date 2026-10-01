@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { cn } from "../../lib/utils";
+import { cn } from "@/lib/utils";
 
 /** Visual style of a Button. */
 export type ButtonVariant =

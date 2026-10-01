@@ -1,5 +1,5 @@
 import { atomWithStorage } from "jotai/utils";
-import type { ThemeMode } from "../theme/colors";
+import type { ThemeMode } from "@/theme/colors";
 
 /** localStorage key for the theme choice. Also read by the inline script in index.html — keep the two in sync. */
 const THEME_STORAGE_KEY = "converge-theme";

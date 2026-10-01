@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
-import { cn } from "../../lib/utils";
+import { cn } from "@/lib/utils";
 
 /** Height of an Input: "md" for forms and dialogs, "lg" for a page's filter bar. */
 export type InputSize = "md" | "lg";
