@@ -66,6 +66,9 @@ export class DocumentIndexingSchedulerService {
         // rejectUnauthorized: false skips CA chain verification — required for
         // Supabase, matching DatabaseService's connection for the same reason.
         ssl: { rejectUnauthorized: false },
+        // Part of the PROD connection budget sized in DatabaseService — keeps
+        // both deploy slots under Supavisor's 48-client limit.
+        max: 2,
       });
     } else {
       throw new Error(`Unknown ENVIRONMENT "${environment}"`);

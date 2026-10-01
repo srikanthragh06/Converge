@@ -56,6 +56,10 @@ export class DatabaseService {
         // whose certificate chain is not trusted by Node's default CA bundle.
         // The connection is still encrypted; only the CA trust check is bypassed.
         ssl: { rejectUnauthorized: false },
+        // Caps this pool so every PROD pool together fits Supavisor's 48-client
+        // session-mode limit while both deploy slots run: 6 instances × (4 here
+        // + 2 per pg-boss scheduler) = 48. Without it pg defaults to 10.
+        max: 4,
       });
     } else {
       throw new Error(`Unknown ENVIRONMENT "${environment}"`);
