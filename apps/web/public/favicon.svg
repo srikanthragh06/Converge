@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Converge">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="4 6 56 52" role="img" aria-label="Converge">
   <title>Converge</title>
-  <rect width="100" height="100" rx="22" fill="#151922"></rect>
-  <g transform="translate(20 25.4) scale(0.1531)" fill="#e7e5dd">
-    <polygon points="0,0 85,0 196,172 85,344 0,344 85,172"></polygon>
-    <polygon points="392,0 307,0 196,172 307,344 392,344 307,172"></polygon>
-  </g>
+  <!-- Same geometry as LogoMark; the fill follows the browser's color scheme (fg token of each theme). -->
+  <style>path{fill:#1a1c25}@media (prefers-color-scheme: dark){path{fill:#e7e5dd}}</style>
+  <path d="M4 6h12l14 26-14 26H4l14-26z"></path>
+  <path d="M60 6H48L34 32l14 26h12L46 32z"></path>
 </svg>
