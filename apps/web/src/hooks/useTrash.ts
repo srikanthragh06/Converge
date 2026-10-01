@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAtom, useAtomValue } from "jotai";
+import { useQueryClient } from "@tanstack/react-query";
 import apiClient from "../lib/http";
+import { documentKeys } from "../queries/documents";
 import useToast from "./useToast";
 import type {
     GetTrashDocumentsResponseDto,
@@ -25,6 +27,7 @@ const TRASH_PAGE_LIMIT = 12;
 const useTrash = (filterText: string) => {
     const navigate = useNavigate();
     const { showToast } = useToast();
+    const queryClient = useQueryClient();
     const currentWorkspace = useAtomValue(currentWorkspaceAtom); // active workspace — its ID is required by all trash API calls
     const [refreshSidebar, setRefreshSidebar] = useAtom(refreshSidebarAtom); // bumped when a document is trashed or restored anywhere, so the list re-fetches; bumped here on restore so the sidebar regains the document
     const [documents, setDocuments] = useState<TrashDocumentDto[]>([]); // accumulated list of fetched trashed documents
@@ -130,6 +133,7 @@ const useTrash = (filterText: string) => {
             await apiClient.post(`/document/${doc.id}/restore`);
             setDocuments((prev) => prev.filter((d) => d.id !== doc.id));
             setRefreshSidebar((prev) => prev + 1);
+            queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
             showToast(`Restored "${doc.title || "Untitled"}"`, {
                 action: {
                     label: "Open",

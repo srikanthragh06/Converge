@@ -1,20 +1,13 @@
 import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
-import type { LibraryDocumentDto } from "@converge/shared";
 
 /** The user's currently selected workspace (id and name). Initialized from the auth response. */
 export const currentWorkspaceAtom = atom<{ id: number; name: string } | null>(
     null,
 );
 
-/** Increment to trigger a sidebar data refresh (pinned and recent documents). */
+/** Increment to make the Library and Trash pages re-fetch. */
 export const refreshSidebarAtom = atom(0);
-
-/** Recent documents in the current workspace, persisted across sidebar remounts to avoid flicker. Excludes pinned documents — see pinnedDocumentsAtom. */
-export const recentDocumentsAtom = atom<LibraryDocumentDto[]>([]);
-
-/** Documents the user has pinned in the current workspace, most-recently-pinned first. Persisted across sidebar remounts to avoid flicker. */
-export const pinnedDocumentsAtom = atom<LibraryDocumentDto[]>([]);
 
 /**
  * Pin state set by a pin/unpin in this session, by document id. Takes

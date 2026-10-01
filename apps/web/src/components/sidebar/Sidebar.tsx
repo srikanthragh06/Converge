@@ -5,7 +5,7 @@ import {
     sidebarCollapsedAtom,
 } from "../../atoms/sidebar";
 import useIsMobile from "../../hooks/useIsMobile";
-import useSidebarSync from "../../hooks/useSidebarSync";
+import useSeedWorkspace from "../../hooks/useSeedWorkspace";
 import SidebarPanel from "./SidebarPanel";
 import SidebarRail from "./SidebarRail";
 
@@ -17,7 +17,7 @@ import SidebarRail from "./SidebarRail";
  * tap on the dimmed page.
  */
 const Sidebar = () => {
-    useSidebarSync(); // fetch workspaces and documents here, so they load even while the phone drawer is closed
+    useSeedWorkspace(); // here, so the workspace is set even while the phone drawer is closed
     const isMobile = useIsMobile(); // phones get the drawer instead of an inline sidebar
     const [isCollapsed, setIsCollapsed] = useAtom(sidebarCollapsedAtom); // desktop: whether the rail is shown instead of the panel
     const [isDrawerOpen, setIsDrawerOpen] = useAtom(mobileSidebarOpenAtom); // phones: whether the drawer is open

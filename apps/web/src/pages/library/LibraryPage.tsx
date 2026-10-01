@@ -5,12 +5,9 @@ import Input from "../../components/ui/Input";
 import TableSkeleton from "../../components/ui/TableSkeleton";
 import { PageContainer, PageHeader } from "../../components/ui/PageHeader";
 import { Table, TableHeadCell, TableHeader } from "../../components/ui/Table";
-import {
-    currentWorkspaceAtom,
-    pinnedDocumentsAtom,
-    pinOverridesAtom,
-} from "../../atoms/sidebar";
+import { currentWorkspaceAtom, pinOverridesAtom } from "../../atoms/sidebar";
 import useLibrary from "../../hooks/useLibrary";
+import usePinnedDocuments from "../../hooks/usePinnedDocuments";
 import useDocumentRowMenu from "../../hooks/useDocumentRowMenu";
 import LibraryRow from "./components/LibraryRow";
 
@@ -31,7 +28,7 @@ const LibraryPage = () => {
         createDocument,
     } = useLibrary(); // search state, paginated document list, infinite scroll sentinel, and document creation state
     const currentWorkspace = useAtomValue(currentWorkspaceAtom); // named in the subtitle
-    const pinnedDocuments = useAtomValue(pinnedDocumentsAtom); // every pinned document in the workspace (the sidebar's unpaginated list)
+    const { pinnedDocuments } = usePinnedDocuments(); // every pinned document in the workspace (the sidebar's unpaginated list)
     const pinOverrides = useAtomValue(pinOverridesAtom); // pin toggles made this session, applied before the pinned list re-fetches
     const { documentMenu, togglePin } = useDocumentRowMenu(); // row ⋯ / right-click menu and pin toggle
     const pinnedIds = new Set(pinnedDocuments.map((d) => d.id)); // ids of pinned documents, for each row's pin

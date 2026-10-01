@@ -1,5 +1,6 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { isSocketReadyAtom } from "../atoms/socket";
 import { socketReceive } from "../lib/socket-receive.util";
 import {
@@ -12,6 +13,7 @@ import { socket } from "../lib/socket";
 import { socketEmit } from "../lib/socket-emit.util";
 import { refreshSidebarAtom } from "@/atoms/sidebar";
 import { openDocumentTitleAtom } from "@/atoms/document";
+import { documentKeys } from "@/queries/documents";
 
 /**
  * Manages document title state and sync. Exposes a debounced change handler
@@ -28,6 +30,7 @@ const useDocumentTitle = () => {
     const lastTitleChangeIdRef = useRef<string | null>(null); // changeId of the most recent title emit — used to match acks
 
     const refreshSidebar = useSetAtom(refreshSidebarAtom);
+    const queryClient = useQueryClient();
     const setOpenDocumentTitle = useSetAtom(openDocumentTitleAtom); // shares the title with the app shell (Ask Converge's empty state)
 
     /**
@@ -87,6 +90,9 @@ const useDocumentTitle = () => {
             if (res.changeId === lastTitleChangeIdRef.current) {
                 setIsTitlePending(false);
                 refreshSidebar((prev) => prev + 1);
+                queryClient.invalidateQueries({
+                    queryKey: documentKeys.lists(),
+                });
             }
         };
 

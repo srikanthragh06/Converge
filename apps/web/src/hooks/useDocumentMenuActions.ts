@@ -1,9 +1,11 @@
 import { useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSetAtom } from "jotai";
+import { useQueryClient } from "@tanstack/react-query";
 import { pinOverridesAtom, refreshSidebarAtom } from "../atoms/sidebar";
 import { documentDialogAtom } from "../atoms/document";
 import apiClient from "../lib/http";
+import { documentKeys } from "../queries/documents";
 import useToast from "./useToast";
 import type { SetDocumentPinnedResponseDto } from "@converge/shared";
 
@@ -29,6 +31,7 @@ const useDocumentMenuActions = () => {
     const setRefreshSidebar = useSetAtom(refreshSidebarAtom); // bumped so Pinned / Recent drop or regain a document
     const setPinOverrides = useSetAtom(pinOverridesAtom); // records each toggle, so the editor's ⋯ menu follows it
     const setDocumentDialog = useSetAtom(documentDialogAtom); // opens Share / Document details
+    const queryClient = useQueryClient();
     const { showToast } = useToast();
 
     /**
@@ -49,6 +52,9 @@ const useDocumentMenuActions = () => {
                 );
                 setPinOverrides((prev) => ({ ...prev, [documentId]: pinned }));
                 setRefreshSidebar((prev) => prev + 1);
+                queryClient.invalidateQueries({
+                    queryKey: documentKeys.lists(),
+                });
             } catch (err) {
                 console.error("useDocumentMenuActions: pin failed", err);
                 showToast(
@@ -59,7 +65,7 @@ const useDocumentMenuActions = () => {
                 );
             }
         },
-        [setPinOverrides, setRefreshSidebar, showToast],
+        [queryClient, setPinOverrides, setRefreshSidebar, showToast],
     );
 
     /**
@@ -99,13 +105,16 @@ const useDocumentMenuActions = () => {
             try {
                 await apiClient.post(`/document/${doc.id}/restore`);
                 setRefreshSidebar((prev) => prev + 1);
+                queryClient.invalidateQueries({
+                    queryKey: documentKeys.lists(),
+                });
                 showToast(`Restored "${displayTitle(doc)}"`);
             } catch (err) {
                 console.error("useDocumentMenuActions: restore failed", err);
                 showToast("Couldn't restore the document", { tone: "error" });
             }
         },
-        [setRefreshSidebar, showToast],
+        [queryClient, setRefreshSidebar, showToast],
     );
 
     /**
@@ -126,12 +135,20 @@ const useDocumentMenuActions = () => {
                 return;
             }
             setRefreshSidebar((prev) => prev + 1);
+            queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
             if (String(doc.id) === openDocumentId) navigate("/library");
             showToast(`Moved "${displayTitle(doc)}" to Trash`, {
                 action: { label: "Undo", onClick: () => restore(doc) },
             });
         },
-        [navigate, openDocumentId, restore, setRefreshSidebar, showToast],
+        [
+            navigate,
+            openDocumentId,
+            queryClient,
+            restore,
+            setRefreshSidebar,
+            showToast,
+        ],
     );
 
     /**

@@ -1,8 +1,10 @@
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAtomValue, useSetAtom } from "jotai";
+import { useQueryClient } from "@tanstack/react-query";
 import { currentWorkspaceAtom, refreshSidebarAtom } from "../atoms/sidebar";
 import apiClient from "../lib/http";
+import { documentKeys } from "../queries/documents";
 import type { CreateDocumentResponseDto } from "@converge/shared";
 
 /**
@@ -14,6 +16,7 @@ const useNewDocument = () => {
     const navigate = useNavigate();
     const currentWorkspace = useAtomValue(currentWorkspaceAtom); // used to scope the new document to the current workspace
     const refreshSidebar = useSetAtom(refreshSidebarAtom); // increments to tell the sidebar to refetch
+    const queryClient = useQueryClient();
     const [isCreating, setIsCreating] = useState(false); // true while the POST is in flight
 
     /**
@@ -31,6 +34,7 @@ const useNewDocument = () => {
                 },
             );
             refreshSidebar((c) => c + 1);
+            queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
             navigate(`/document/${data.documentId}`);
         } catch (err) {
             console.error("useNewDocument: failed to create document", err);
