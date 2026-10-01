@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useAtomValue } from "jotai";
 import type {
     DocumentAccessLevel,
@@ -10,7 +11,8 @@ import BottomSheet from "../../../components/ui/BottomSheet";
 import Input from "../../../components/ui/Input";
 import Button from "../../../components/ui/Button";
 import Select, { type SelectOption } from "../../../components/ui/Select";
-import useShareDialog from "../../../hooks/useShareDialog";
+import useNewAccessUserLookup from "../../../hooks/useNewAccessUserLookup";
+import useAddDocumentAccess from "../../../hooks/useAddDocumentAccess";
 import useDocument from "../../../hooks/useDocument";
 import useDocumentOverview from "../../../hooks/useDocumentOverview";
 import useDocumentAccessList from "../../../hooks/useDocumentAccessList";
@@ -67,10 +69,11 @@ const ShareDialog = ({
     } = useDocumentAccessList(id);
     const { changeAccess, changingUserId } = useChangeDocumentAccess(id);
     const { removeAccess, removingUserId } = useRemoveDocumentAccess(id);
-    const { email, setEmail, lookup, isAdding, addPerson } = useShareDialog(
-        documentId,
-        canManage,
-    );
+    const [email, setEmail] = useState(""); // text in the "Add people by email" field
+    const lookup = useNewAccessUserLookup(id, email, canManage);
+    const { addPerson, isAdding } = useAddDocumentAccess(id, {
+        onSuccess: () => setEmail(""),
+    });
     const { roleOverrides, isLoading: isRoleOverridesLoading } =
         useDocumentRoleOverrides(Number(documentId)); // General access
     const { updateRoleOverride, savingRole } = useUpdateRoleOverride(
@@ -148,7 +151,9 @@ const ShareDialog = ({
                                     options={grantableOptions}
                                     defaultValue="editor"
                                     isAdding={isAdding}
-                                    onAdd={addPerson}
+                                    onAdd={(access) =>
+                                        addPerson(lookup.user, access)
+                                    }
                                 />
                             </div>
                             <p className="mt-2 text-xs text-fg-muted">
