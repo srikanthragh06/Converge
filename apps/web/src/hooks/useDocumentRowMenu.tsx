@@ -19,8 +19,9 @@ import useDocumentMenuActions from "./useDocumentMenuActions";
  * Document details, Version history, and (admins only) Move to Trash.
  * Version history opens the document first, since it compares against the
  * live editor.
- * @param onDialogOpen - called after Share…, Document details, or Version
- *                       history is chosen, e.g. to close the phone drawer
+ * @param onDialogOpen - called after Share…, Document details, Version
+ *                       history, or Move to Trash is chosen, e.g. to close
+ *                       the phone drawer
  * @returns documentMenu(doc, isPinned), which builds a row's entries, and
  *          togglePin, for the row's own pin button
  */
@@ -93,7 +94,10 @@ const useDocumentRowMenu = (onDialogOpen?: () => void) => {
                       label: "Move to Trash",
                       icon: <LuTrash2 />,
                       destructive: true,
-                      onSelect: () => moveToTrash(doc),
+                      onSelect: () => {
+                          moveToTrash(doc);
+                          onDialogOpen?.();
+                      },
                   },
               ] satisfies MenuEntry[])
             : []),
