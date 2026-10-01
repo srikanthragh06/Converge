@@ -1,47 +1,43 @@
-import { useCallback, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useAtomValue } from "jotai";
-import { useQueryClient } from "@tanstack/react-query";
 import { currentWorkspaceAtom } from "../atoms/sidebar";
 import apiClient from "../lib/http";
 import { documentKeys } from "../queries/documents";
 import type { CreateDocumentResponseDto } from "@converge/shared";
 
 /**
- * Returns a createDocument function that POST /document with the current
- * workspace ID and navigates to the new document's editor page. Tracks
- * isCreating to prevent double-submission.
+ * Creates a document in the current workspace via POST /document, refreshes
+ * the document lists, and opens the new document in the editor. A failure
+ * shows the global error toast.
  */
 const useNewDocument = () => {
     const navigate = useNavigate();
-    const currentWorkspace = useAtomValue(currentWorkspaceAtom); // used to scope the new document to the current workspace
+    const currentWorkspace = useAtomValue(currentWorkspaceAtom);
     const queryClient = useQueryClient();
-    const [isCreating, setIsCreating] = useState(false); // true while the POST is in flight
 
-    /**
-     * Creates a new document in the current workspace and navigates to the
-     * editor. No-ops if a create is already in flight or no workspace is set.
-     */
-    const createDocument = useCallback(async () => {
-        if (isCreating || !currentWorkspace) return;
-        try {
-            setIsCreating(true);
+    const { mutate, isPending } = useMutation({
+        mutationFn: async (workspaceId: number) => {
             const { data } = await apiClient.post<CreateDocumentResponseDto>(
                 "/document",
-                {
-                    workspaceId: currentWorkspace.id,
-                },
+                { workspaceId },
             );
+            return data.documentId;
+        },
+        meta: { errorMessage: "Couldn't create a document" },
+        onSuccess: (documentId) => {
             queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
-            navigate(`/document/${data.documentId}`);
-        } catch (err) {
-            console.error("useNewDocument: failed to create document", err);
-        } finally {
-            setIsCreating(false);
-        }
-    }, [isCreating, currentWorkspace, navigate]);
+            navigate(`/document/${documentId}`);
+        },
+    });
 
-    return { createDocument, isCreating };
+    return {
+        // No-ops while a create is in flight or before the workspace loads.
+        createDocument: () => {
+            if (!isPending && currentWorkspace) mutate(currentWorkspace.id);
+        },
+        isCreating: isPending, // true while the create request is in flight
+    };
 };
 
 export default useNewDocument;
