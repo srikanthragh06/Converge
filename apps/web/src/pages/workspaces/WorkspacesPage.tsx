@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { LuPlus, LuSearch } from "react-icons/lu";
 import Page from "../../components/Page";
+import MobileTopBar from "../../components/MobileTopBar";
 import Input from "../../components/ui/Input";
 import TableSkeleton from "../../components/ui/TableSkeleton";
 import { PageContainer, PageHeader } from "../../components/ui/PageHeader";
@@ -30,7 +31,8 @@ const WorkspacesPage = () => {
     });
 
     return (
-        <Page authRequired haveSidebar mobileTitle="Workspaces">
+        <Page authRequired haveSidebar>
+            <MobileTopBar title="Workspaces" />
             <div className="flex-1 overflow-y-auto">
                 <PageContainer>
                     <PageHeader

@@ -4,6 +4,7 @@ import { BlockNoteView } from "@blocknote/mantine";
 import { convergeTheme } from "../../theme/editorTheme";
 import useEditor from "../../hooks/useEditor";
 import Page from "../../components/Page";
+import MobileTopBar from "../../components/MobileTopBar";
 import EditorPageHeader from "./header/EditorPageHeader";
 import BlockAwarenessOverlay from "./blockAwarenessOverlay/BlockAwarenessOverlay";
 import WriteLockBanner from "./writeLockBanner/WriteLockBanner";
@@ -48,11 +49,8 @@ const EditorPage = () => {
     return (
         // authRequired redirects unauthenticated users before rendering children
         // The editor header draws its own phone top bar once the document is ready.
-        <Page
-            authRequired
-            haveSidebar
-            mobileTopBar={documentStatus !== "ready"}
-        >
+        <Page authRequired haveSidebar>
+            {documentStatus !== "ready" && <MobileTopBar />}
             {/* ready implies a numeric documentId (useDocumentFetch reports a missing one as notFound) */}
             {documentStatus === "ready" && documentId !== undefined && (
                 <EditorPageHeader

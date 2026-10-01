@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { LuSearch } from "react-icons/lu";
 import Page from "../../components/Page";
+import MobileTopBar from "../../components/MobileTopBar";
 import Input from "../../components/ui/Input";
 import TableSkeleton from "../../components/ui/TableSkeleton";
 import { PageContainer, PageHeader } from "../../components/ui/PageHeader";
@@ -34,7 +35,8 @@ const TrashPage = () => {
     const isFiltering = filterText.trim() !== ""; // a filter is set, so an empty list means no match
 
     return (
-        <Page authRequired haveSidebar mobileTitle="Trash">
+        <Page authRequired haveSidebar>
+            <MobileTopBar title="Trash" />
             <div className="flex-1 overflow-y-auto">
                 <PageContainer>
                     <PageHeader
