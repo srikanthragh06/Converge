@@ -1,63 +1,48 @@
-import { useCallback, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
-import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { currentWorkspaceAtom } from "../atoms/sidebar";
 import apiClient from "../lib/http";
 import { workspaceKeys } from "../queries/workspaces";
 import type { CreateWorkspaceResponseDto } from "@converge/shared";
-import { useNavigate } from "react-router-dom";
 
 /**
- * Returns a createWorkspace function that POST /workspaces with the given
- * name, selects it via PUT /workspaces/:id/select, refreshes the cached
- * workspace list, and navigates to /library.
+ * Creates a workspace via POST /workspaces, selects it via
+ * PUT /workspaces/:id/select (so the choice survives a reload), refreshes the
+ * workspace lists, and opens /library in it. A failure shows the global error
+ * toast.
+ * @param onSuccess - called after a successful create, before navigating
  */
-const useCreateWorkspace = () => {
-    const setCurrentWorkspace = useSetAtom(currentWorkspaceAtom);
+const useCreateWorkspace = ({ onSuccess }: { onSuccess: () => void }) => {
     const queryClient = useQueryClient();
-    const [isCreating, setIsCreating] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const setCurrentWorkspace = useSetAtom(currentWorkspaceAtom);
     const navigate = useNavigate();
 
-    const createWorkspace = useCallback(
-        async (name: string) => {
-            setIsCreating(true);
-            setError(null);
-            try {
-                const { data } =
-                    await apiClient.post<CreateWorkspaceResponseDto>(
-                        "/workspaces",
-                        { name },
-                    );
-
-                // Persist the selection across reloads.
-                await apiClient.put(`/workspaces/${data.id}/select`);
-
-                queryClient.invalidateQueries({
-                    queryKey: workspaceKeys.list(),
-                });
-
-                // Update the selected workspace atom.
-                setCurrentWorkspace({ id: data.id, name: data.name });
-
-                navigate("/library");
-
-                return true;
-            } catch (err) {
-                const message =
-                    err instanceof Error
-                        ? err.message
-                        : "Failed to create workspace";
-                setError(message);
-                return false;
-            } finally {
-                setIsCreating(false);
-            }
+    const { mutate, isPending } = useMutation({
+        mutationFn: async (name: string) => {
+            const { data } = await apiClient.post<CreateWorkspaceResponseDto>(
+                "/workspaces",
+                { name },
+            );
+            await apiClient.put(`/workspaces/${data.id}/select`);
+            return data;
         },
-        [setCurrentWorkspace, queryClient],
-    );
+        meta: { errorMessage: "Couldn't create the workspace" },
+        onSuccess: (created) => {
+            queryClient.invalidateQueries({ queryKey: workspaceKeys.list() });
+            queryClient.invalidateQueries({
+                queryKey: workspaceKeys.searches(),
+            });
+            setCurrentWorkspace({ id: created.id, name: created.name });
+            onSuccess();
+            navigate("/library");
+        },
+    });
 
-    return { createWorkspace, isCreating, error };
+    return {
+        createWorkspace: (name: string) => mutate(name), // sends the create request
+        isCreating: isPending, // true while the create request is in flight
+    };
 };
 
 export default useCreateWorkspace;

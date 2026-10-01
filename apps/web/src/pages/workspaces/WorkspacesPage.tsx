@@ -20,7 +20,6 @@ import CreateWorkspaceModal from "./components/CreateWorkspaceModal";
  * this and a settings gear that opens the workspace settings.
  */
 const WorkspacesPage = () => {
-    const { createWorkspace, isCreating, error } = useCreateWorkspace(); // workspace creation handler, in-flight flag, and last error message
     const queryClient = useQueryClient();
     const [searchText, setSearchText] = useState(""); // the filter box's text
     const { workspaces, isLoading } = useWorkspaces(searchText); // the full list, or the matches for searchText
@@ -29,16 +28,9 @@ const WorkspacesPage = () => {
     const [configWorkspaceId, setConfigWorkspaceId] = useState<number | null>(
         null,
     ); // workspace whose settings are open, or null when closed
-
-    /**
-     * Creates a workspace via the useCreateWorkspace hook and closes the
-     * modal on success.
-     * @param name - the new workspace's name
-     */
-    const handleCreate = async (name: string) => {
-        const ok = await createWorkspace(name);
-        if (ok) setShowModal(false);
-    };
+    const { createWorkspace, isCreating } = useCreateWorkspace({
+        onSuccess: () => setShowModal(false),
+    });
 
     /** Closes the settings modal and re-fetches the list, which a rename, leave, or transfer may have changed. */
     const closeSettings = () => {
@@ -103,10 +95,9 @@ const WorkspacesPage = () => {
 
             {showModal && (
                 <CreateWorkspaceModal
-                    onCreate={handleCreate}
+                    onCreate={createWorkspace}
                     onCancel={() => setShowModal(false)}
                     isCreating={isCreating}
-                    error={error}
                 />
             )}
 

@@ -14,7 +14,6 @@ const CreateWorkspaceModal = ({
     onCreate,
     onCancel,
     isCreating,
-    error,
 }: {
     /** Called with the trimmed workspace name when the user confirms. */
     onCreate: (name: string) => void;
@@ -22,8 +21,6 @@ const CreateWorkspaceModal = ({
     onCancel: () => void;
     /** True while the create request is in flight. */
     isCreating: boolean;
-    /** Optional server error message shown below the input. */
-    error: string | null;
 }) => {
     const [name, setName] = useState(""); // workspace name typed so far
 
@@ -59,9 +56,7 @@ const CreateWorkspaceModal = ({
                     onChange={(e) => setName(e.target.value)}
                     autoFocus
                     maxLength={128}
-                    invalid={!!error}
                 />
-                {error && <p className="mt-1.5 text-xs text-danger">{error}</p>}
                 <ModalFooter>
                     <Button onClick={onCancel} disabled={isCreating}>
                         Cancel

@@ -46,9 +46,14 @@ const WorkspaceSwitcher = ({
 }) => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
-    const { createWorkspace, isCreating, error } = useCreateWorkspace(); // creates, selects, and opens a new workspace
     const [configTab, setConfigTab] = useState<string | null>(null); // tab the workspace settings modal is open on; null when closed
     const [isCreateOpen, setIsCreateOpen] = useState(false); // whether the Create workspace modal is open
+    const { createWorkspace, isCreating } = useCreateWorkspace({
+        onSuccess: () => {
+            setIsCreateOpen(false);
+            onNavigate();
+        },
+    }); // creates, selects, and opens a new workspace
 
     // Full record of the current workspace (type and role), once the list has loaded.
     const workspace = workspaces.find((w) => w.id === currentWorkspace?.id);
@@ -165,15 +170,9 @@ const WorkspaceSwitcher = ({
             )}
             {isCreateOpen && (
                 <CreateWorkspaceModal
-                    onCreate={async (name) => {
-                        if (await createWorkspace(name)) {
-                            setIsCreateOpen(false);
-                            onNavigate();
-                        }
-                    }}
+                    onCreate={createWorkspace}
                     onCancel={() => setIsCreateOpen(false)}
                     isCreating={isCreating}
-                    error={error}
                 />
             )}
         </>
