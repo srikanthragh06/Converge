@@ -1,127 +1,71 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import apiClient from "../lib/http";
+import { checkpointKeys } from "../queries/checkpoints";
+import useInView from "./useInView";
 import type {
     DocumentCheckpointDto,
     GetDocumentCheckpointsResponseDto,
 } from "@converge/shared";
 
-/** Page size for both the initial fetch and each subsequent loadMore call. */
+/** Page size of the checkpoint list. */
 const CHECKPOINTS_LIST_LIMIT = 10;
 
 /**
- * Fetches a document's version-history checkpoints with infinite-scroll
- * keyset pagination, newest first. Fetches the first page whenever
- * documentId changes or refresh is called, resetting any accumulated state
- * and selecting the newest checkpoint.
- * @param documentId - the document whose checkpoints to fetch
+ * A document's version-history checkpoints, newest first, a page at a time
+ * as the sentinel (`sentinelRef`) scrolls into view, plus which one is
+ * selected — the newest until the user picks another.
+ * @param documentId - the document whose checkpoints to list
  */
 const useCheckpointHistory = (documentId: string | undefined) => {
-    const [checkpoints, setCheckpoints] = useState<DocumentCheckpointDto[]>([]); // accumulated checkpoint list, newest first; replaced on documentId change, appended on loadMore
-    const [isLoading, setIsLoading] = useState(false); // true while the first page fetch is in flight
-    const [isFetchingMore, setIsFetchingMore] = useState(false); // true while a subsequent page fetch is in flight
-    const [selectedCheckpoint, setSelectedCheckpoint] =
-        useState<DocumentCheckpointDto | null>(null); // checkpoint currently selected for viewing/diffing; auto-set to the newest checkpoint once the first page loads
-    const [reloadCount, setReloadCount] = useState(0); // bumped by refresh to re-run the first-page fetch
+    const id = Number(documentId);
+    const [pickedId, setPickedId] = useState<number | null>(null); // checkpoint the user selected; null means the newest
+    const { ref: sentinelRef, inView } = useInView();
 
-    const nextCursorRef = useRef<number | null>(null); // keyset cursor for the next page; null when no more pages exist
-    const hasMoreRef = useRef(true); // whether another page exists — ref so loadMore reads the latest value without being in its own deps
-
-    // Sentinel element stored as state so the observer effect re-runs when it mounts.
-    const [sentinelEl, setSentinelEl] = useState<HTMLDivElement | null>(null);
-    // Callback ref passed to the sentinel div — React calls this when the element mounts or unmounts.
-    const sentinelRef = useCallback(
-        (node: HTMLDivElement | null) => setSentinelEl(node),
-        [],
-    );
-
-    /**
-     * Fetches the next page and appends it to checkpoints. No-ops when a
-     * fetch is already in flight, there are no more pages, or documentId is
-     * not yet available.
-     */
-    const loadMore = useCallback(async () => {
-        if (!documentId || isFetchingMore || !hasMoreRef.current) return;
-        try {
-            setIsFetchingMore(true);
+    const list = useInfiniteQuery({
+        queryKey: checkpointKeys.list(id),
+        queryFn: async ({ pageParam }) => {
             const { data } =
                 await apiClient.get<GetDocumentCheckpointsResponseDto>(
-                    `/document/${documentId}/checkpoints`,
+                    `/document/${id}/checkpoints`,
                     {
                         params: {
                             limit: CHECKPOINTS_LIST_LIMIT,
-                            cursorId: nextCursorRef.current ?? undefined,
+                            cursorId: pageParam ?? undefined,
                         },
                     },
                 );
-            setCheckpoints((prev) => [...prev, ...data.checkpoints]);
-            nextCursorRef.current = data.nextCursor;
-            hasMoreRef.current = data.nextCursor !== null;
-        } catch (err) {
-            console.error(
-                "useCheckpointHistory: failed to load more checkpoints:",
-                err,
-            );
-        } finally {
-            setIsFetchingMore(false);
-        }
-    }, [documentId, isFetchingMore]);
+            return data;
+        },
+        initialPageParam: null as number | null,
+        getNextPageParam: (lastPage) => lastPage.nextCursor,
+        // The server adds checkpoints on its own (scheduler, MCP edits), so
+        // re-fetch on every open rather than trusting a recent cache.
+        staleTime: 0,
+    });
 
-    /** Reloads the list from the first page, e.g. after a new checkpoint was saved. */
-    const refresh = useCallback(() => setReloadCount((c) => c + 1), []);
-
-    // Fetches the first page whenever documentId changes or refresh is called, resetting pagination state.
+    const { hasNextPage, isFetchingNextPage, fetchNextPage } = list;
+    // Loads the next page while the sentinel is on screen; re-runs after each
+    // page, so a short page that leaves it visible loads another.
     useEffect(() => {
-        if (!documentId) return;
+        if (inView && hasNextPage && !isFetchingNextPage) fetchNextPage();
+    }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-        const fetchFirstPage = async () => {
-            try {
-                setIsLoading(true);
-                const { data } =
-                    await apiClient.get<GetDocumentCheckpointsResponseDto>(
-                        `/document/${documentId}/checkpoints`,
-                        { params: { limit: CHECKPOINTS_LIST_LIMIT } },
-                    );
-                setCheckpoints(data.checkpoints);
-                setSelectedCheckpoint(data.checkpoints[0] ?? null);
-                nextCursorRef.current = data.nextCursor;
-                hasMoreRef.current = data.nextCursor !== null;
-            } catch (err) {
-                console.error(
-                    "useCheckpointHistory: failed to fetch checkpoints:",
-                    err,
-                );
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchFirstPage();
-    }, [documentId, reloadCount]);
-
-    // Observes the sentinel element and calls loadMore when it enters the viewport.
-    // Depends on sentinelEl so it re-runs once the sentinel actually mounts.
-    useEffect(() => {
-        if (!sentinelEl) return;
-
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry.isIntersecting) loadMore();
-            },
-            { threshold: 0.1 },
-        );
-
-        observer.observe(sentinelEl);
-        return () => observer.disconnect();
-    }, [sentinelEl, loadMore]);
+    const checkpoints =
+        list.data?.pages.flatMap((page) => page.checkpoints) ?? [];
 
     return {
         checkpoints,
-        isLoading,
-        isFetchingMore,
+        isLoading: list.isPending,
+        isFetchingMore: isFetchingNextPage,
         sentinelRef,
-        selectedCheckpoint,
-        setSelectedCheckpoint,
-        refresh,
+        selectedCheckpoint:
+            checkpoints.find((c) => c.id === pickedId) ??
+            checkpoints[0] ??
+            null,
+        // Selects a checkpoint; null goes back to the newest.
+        setSelectedCheckpoint: (checkpoint: DocumentCheckpointDto | null) =>
+            setPickedId(checkpoint?.id ?? null),
     };
 };
 
