@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { useAtomValue } from "jotai";
 import { LuCrown, LuUserPlus } from "react-icons/lu";
 import { authAtom } from "../../../../atoms/auth";
-import useWorkspaceOwnerTab from "../../../../hooks/useWorkspaceOwnerTab";
+import useOwnerCandidate from "../../../../hooks/useOwnerCandidate";
+import useTransferWorkspaceOwner from "../../../../hooks/useTransferWorkspaceOwner";
+import useWorkspaceOwner from "../../../../hooks/useWorkspaceOwner";
 import { Avatar } from "../../../../components/ui/Avatar";
 import Button from "../../../../components/ui/Button";
 import Input from "../../../../components/ui/Input";
@@ -19,38 +22,36 @@ import EmailNotice from "../../../../components/people/EmailNotice";
  * @param workspaceName - must be typed to confirm a transfer
  * @param isOwner - whether the caller owns the workspace
  * @param isPersonal - personal workspaces can't be transferred
- * @param onTransferred - called after a successful transfer
  */
 const OwnerTab = ({
     workspaceId,
     workspaceName,
     isOwner,
     isPersonal,
-    onTransferred,
 }: {
     workspaceId: number;
     workspaceName: string;
     isOwner: boolean;
     isPersonal: boolean;
-    onTransferred: () => void;
 }) => {
     const canTransfer = isOwner && !isPersonal;
-    const {
-        owner,
-        email,
-        setEmail,
-        lookup,
-        confirmText,
-        setConfirmText,
-        canSubmit,
-        isTransferring,
-        transferOwner,
-    } = useWorkspaceOwnerTab({
+    const [email, setEmail] = useState(""); // new owner's email
+    const [confirmText, setConfirmText] = useState(""); // workspace name typed to confirm
+    const { owner } = useWorkspaceOwner(workspaceId);
+    const lookup = useOwnerCandidate(workspaceId, email, canTransfer);
+    const { transferOwner, isTransferring } = useTransferWorkspaceOwner(
         workspaceId,
-        workspaceName,
-        canTransfer,
-        onTransferred,
-    });
+        {
+            onSuccess: () => {
+                setEmail("");
+                setConfirmText("");
+            },
+        },
+    );
+    const canSubmit =
+        lookup.status === "found" &&
+        confirmText.trim() === workspaceName && // the typed name must match exactly
+        !isTransferring;
     const userEmail = useAtomValue(authAtom).user?.email; // marks the owner as "(you)"
 
     return (
@@ -94,7 +95,8 @@ const OwnerTab = ({
                 <form
                     onSubmit={(e) => {
                         e.preventDefault();
-                        transferOwner();
+                        if (canSubmit && lookup.status === "found")
+                            transferOwner(lookup.user.id);
                     }}
                     className="mt-6 flex flex-col rounded-xl border border-danger/60 p-5"
                 >

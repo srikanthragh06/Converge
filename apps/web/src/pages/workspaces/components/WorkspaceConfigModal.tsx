@@ -73,7 +73,7 @@ const WorkspaceConfigModal = ({
     const { role } = useMyWorkspaceRole(workspaceId);
     const isOwner = role === "owner";
 
-    /** Reloads the overview and the user's role, which member changes and an ownership transfer alter. */
+    /** Reloads the overview and the user's role, which member changes alter. */
     const refetch = () => {
         queryClient.invalidateQueries({
             queryKey: workspaceKeys.overview(workspaceId),
@@ -171,7 +171,6 @@ const WorkspaceConfigModal = ({
                                     workspaceName={overview.name}
                                     isOwner={isOwner}
                                     isPersonal={overview.type === "personal"}
-                                    onTransferred={refetch}
                                 />
                             )}
                         </section>
