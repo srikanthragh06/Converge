@@ -1,14 +1,14 @@
-import { useEffect, useState } from "react";
-import apiClient from "../lib/http";
-import type { GetDocumentResponseDto } from "@converge/shared";
-import type { ResolvedDocumentAccessLevel } from "@converge/shared";
-import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { isAxiosError } from "axios";
+import useDocument from "./useDocument";
 
 /**
- * Fetches the document by ID on mount and whenever documentId changes, driving the document status state.
- * Navigates to /404 on a 404 response or any unexpected error; sets status to
- * "forbidden" on a 403. Seeds the title via setTitle on success.
+ * Loads the open document through the shared useDocument query and turns
+ * the result into the editor's status: loading, ready, forbidden (a 403), or
+ * notFound (a 404 or any other failure, which EditorPage sends to /404). A
+ * document already loaded stays ready even if a background refresh fails.
+ * Seeds the title via setTitle once per document; after that, title changes
+ * arrive over the socket.
  * @param documentId - the raw URL param string (undefined if the route param is missing)
  * @param setTitle - setter from useDocumentTitle used to seed the title from the server response
  */
@@ -16,59 +16,30 @@ const useDocumentFetch = (
     documentId: string | undefined,
     setTitle: React.Dispatch<React.SetStateAction<string>>,
 ) => {
-    const navigate = useNavigate();
+    const { document, error } = useDocument(Number(documentId));
+    const [seededId, setSeededId] = useState<number | null>(null); // document whose title was last seeded
 
-    const [documentStatus, setDocumentStatus] = useState<
-        "loading" | "ready" | "forbidden" | "notFound"
-    >("loading"); // tracks the outcome of the document fetch
-    const [documentAccess, setDocumentAccess] =
-        useState<ResolvedDocumentAccessLevel | null>(null); // resolved access level for the current user on this document
-    const [docWorkspace, setDocWorkspace] = useState<{
-        id: number;
-        name: string;
-    } | null>(null); // workspace the document belongs to; null while loading or on error
-    const [isPinned, setIsPinned] = useState(false); // whether the user had pinned the document when it was fetched
+    // Seeds the title during render (rather than in an effect) the first
+    // time each document's data arrives.
+    if (document && document.id !== seededId) {
+        setSeededId(document.id);
+        setTitle(document.title);
+    }
 
-    // Fetches the document whenever documentId changes — resets to loading first so stale content is hidden.
-    useEffect(() => {
-        setDocumentStatus("loading");
-        const fetchDocument = async () => {
-            try {
-                const { data } = await apiClient.get<GetDocumentResponseDto>(
-                    `/document/id/${documentId || ""}`,
-                );
-                setTitle(data.title);
-                setDocumentAccess(data.resolvedAccess);
-                setDocWorkspace(data.workspace);
-                setIsPinned(data.isPinned);
-                setDocumentStatus("ready");
-            } catch (err) {
-                if (axios.isAxiosError(err)) {
-                    const statusCode = err.response?.status;
-                    if (statusCode === 403) {
-                        setDocumentStatus("forbidden");
-                        return;
-                    } else if (statusCode === 404) {
-                        setDocumentStatus("notFound");
-                        navigate("/404");
-                        return;
-                    }
-                }
-                // Treat all other errors (network failure, unexpected status, etc.) as not found.
-                setDocumentStatus("notFound");
-                navigate("/404");
-            }
-        };
+    const documentStatus = document
+        ? ("ready" as const)
+        : !error
+          ? ("loading" as const)
+          : isAxiosError(error) && error.response?.status === 403
+            ? ("forbidden" as const)
+            : ("notFound" as const);
 
-        fetchDocument();
-
-        return () => {
-            setDocumentAccess(null);
-            setDocWorkspace(null);
-        };
-    }, [documentId]);
-
-    return { documentStatus, documentAccess, docWorkspace, isPinned };
+    return {
+        documentStatus,
+        documentAccess: document?.resolvedAccess ?? null, // resolved access level for the current user on this document
+        docWorkspace: document?.workspace ?? null, // workspace the document belongs to; null while loading or on error
+        isPinned: document?.isPinned ?? false, // whether the user has pinned the document
+    };
 };
 
 export default useDocumentFetch;

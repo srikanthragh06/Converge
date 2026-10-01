@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { Navigate } from "react-router-dom";
 import { BlockNoteView } from "@blocknote/mantine";
 import { convergeTheme } from "../../theme/editorTheme";
 import useEditor from "../../hooks/useEditor";
@@ -72,6 +73,7 @@ const EditorPage = () => {
                     onToggleWriteLock={toggleWriteLock}
                 />
             )}
+            {documentStatus === "notFound" && <Navigate to="/404" />}
             {/* Forbidden state — shown when the user lacks access to this document */}
             {documentStatus === "forbidden" && (
                 <div className="flex-1 w-full flex justify-center items-center">
