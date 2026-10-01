@@ -1,5 +1,10 @@
+import { useState } from "react";
 import { useAtomValue } from "jotai";
 import { authAtom } from "../../../../atoms/auth";
+import { currentWorkspaceAtom } from "../../../../atoms/sidebar";
+import useLeaveWorkspace from "../../../../hooks/useLeaveWorkspace";
+import useMyWorkspaceRole from "../../../../hooks/useMyWorkspaceRole";
+import useRenameWorkspace from "../../../../hooks/useRenameWorkspace";
 import useWorkspaceOverview from "../../../../hooks/useWorkspaceOverview";
 import { hasWorkspaceRole } from "@converge/shared";
 import Button from "../../../../components/ui/Button";
@@ -17,33 +22,45 @@ const TAB_LINK_CLASSES =
  * General tab of workspace settings (pp 18 / 25): the workspace name (Save
  * appears once it changes; admins and the owner only), a details card, and
  * a Leave workspace card explaining why leaving is blocked when it is.
- * @param settings - the modal's shared useWorkspaceOverview state
+ * @param workspaceId - the workspace being configured
+ * @param onLeft - called after the user leaves the workspace
  * @param onGoToTab - switches the modal to another tab, e.g. "members"
  */
 const GeneralTab = ({
-    settings,
+    workspaceId,
+    onLeft,
     onGoToTab,
 }: {
-    settings: ReturnType<typeof useWorkspaceOverview>;
+    workspaceId: number;
+    onLeft: () => void;
     onGoToTab: (tab: "members" | "owner") => void;
 }) => {
-    const {
-        overview,
-        role,
-        name,
-        setName,
-        isNameChanged,
-        isSaving,
-        save,
-        isOwner,
-        isSelected,
-        canLeave,
-        isConfirmOpen,
-        setIsConfirmOpen,
-        isLeaving,
-        handleLeave,
-    } = settings;
+    const { overview } = useWorkspaceOverview(workspaceId);
+    const { role } = useMyWorkspaceRole(workspaceId);
+    const { renameWorkspace, isRenaming } = useRenameWorkspace(workspaceId);
+    const { leaveWorkspace, isLeaving } = useLeaveWorkspace(workspaceId, {
+        onSuccess: onLeft,
+    });
     const userEmail = useAtomValue(authAtom).user?.email; // marks the owner as "(you)"
+    const currentWorkspace = useAtomValue(currentWorkspaceAtom);
+    const [name, setName] = useState(""); // editable workspace name, seeded from the overview
+    const [isConfirmOpen, setIsConfirmOpen] = useState(false); // true while the leave confirmation is shown
+
+    // Seeds the name field when the overview loads, and again after a rename.
+    const [seededFor, setSeededFor] = useState<string | null>(null); // overview name the field was last seeded from
+    if (overview && overview.name !== seededFor) {
+        setSeededFor(overview.name);
+        setName(overview.name);
+    }
+
+    const trimmedName = name.trim();
+    const isNameChanged =
+        overview !== null &&
+        trimmedName !== "" &&
+        trimmedName !== overview.name; // Save shows only after the name changes
+    const isOwner = role === "owner";
+    const isSelected = currentWorkspace?.id === workspaceId; // the server refuses to leave the selected workspace
+    const canLeave = role !== null && !isOwner && !isSelected;
 
     if (!overview || !role)
         return (
@@ -65,7 +82,8 @@ const GeneralTab = ({
             <form
                 onSubmit={(e) => {
                     e.preventDefault();
-                    save();
+                    if (isNameChanged && !isRenaming)
+                        renameWorkspace(trimmedName);
                 }}
                 className="flex flex-col"
             >
@@ -81,17 +99,17 @@ const GeneralTab = ({
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         maxLength={128}
-                        disabled={!canRename || isSaving}
+                        disabled={!canRename || isRenaming}
                         inputSize="lg"
                     />
                     {isNameChanged && canRename && (
                         <Button
                             type="submit"
                             variant="primary"
-                            disabled={isSaving}
+                            disabled={isRenaming}
                             className="h-10 px-4 font-semibold sm:h-11"
                         >
-                            {isSaving ? "Saving…" : "Save"}
+                            {isRenaming ? "Saving…" : "Save"}
                         </Button>
                     )}
                 </div>
@@ -171,7 +189,7 @@ const GeneralTab = ({
                 <LeaveWorkspaceConfirmationModal
                     workspaceName={overview.name}
                     onCancel={() => setIsConfirmOpen(false)}
-                    onConfirm={handleLeave}
+                    onConfirm={leaveWorkspace}
                     isLeaving={isLeaving}
                 />
             )}

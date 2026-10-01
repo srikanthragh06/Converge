@@ -1,8 +1,11 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { LuX } from "react-icons/lu";
 import { cn } from "../../../lib/utils";
+import useMyWorkspaceRole from "../../../hooks/useMyWorkspaceRole";
 import useWorkspaceOverview from "../../../hooks/useWorkspaceOverview";
+import { workspaceKeys } from "../../../queries/workspaces";
 import WorkspaceTile from "../../../components/sidebar/WorkspaceTile";
 import DocumentAccessTab from "./documentAccessTab/DocumentAccessTab";
 import GeneralTab from "./generalTab/GeneralTab";
@@ -65,8 +68,20 @@ const WorkspaceConfigModal = ({
             ? (initialTab as TabKey)
             : "general",
     ); // currently shown tab
-    const settings = useWorkspaceOverview(workspaceId, onClose); // overview, role, rename, and leave — shared by the tabs
-    const { overview, role, isOwner, refetch } = settings;
+    const queryClient = useQueryClient();
+    const { overview } = useWorkspaceOverview(workspaceId);
+    const { role } = useMyWorkspaceRole(workspaceId);
+    const isOwner = role === "owner";
+
+    /** Reloads the overview and the user's role, which member changes and an ownership transfer alter. */
+    const refetch = () => {
+        queryClient.invalidateQueries({
+            queryKey: workspaceKeys.overview(workspaceId),
+        });
+        queryClient.invalidateQueries({
+            queryKey: workspaceKeys.myRole(workspaceId),
+        });
+    };
     const tab = TABS.find((t) => t.key === selectedTab)!;
     // Plain members can't add anyone, so their Members subtitle just describes the list.
     const description =
@@ -132,7 +147,8 @@ const WorkspaceConfigModal = ({
                             </div>
                             {selectedTab === "general" && (
                                 <GeneralTab
-                                    settings={settings}
+                                    workspaceId={workspaceId}
+                                    onLeft={onClose}
                                     onGoToTab={setSelectedTab}
                                 />
                             )}
