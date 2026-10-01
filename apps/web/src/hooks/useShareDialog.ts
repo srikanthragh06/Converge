@@ -6,9 +6,7 @@ import type {
     GetDocumentAccessResponseDto,
     GetDocumentOverviewResponseDto,
     GetDocumentResponseDto,
-    GetDocumentRoleOverridesResponseDto,
     ResolvedDocumentAccessLevel,
-    UpdateDocumentRoleOverridesResponseDto,
 } from "@converge/shared";
 import { isAxiosError } from "axios";
 import apiClient from "../lib/http";
@@ -17,12 +15,6 @@ import useToast from "./useToast";
 
 /** Page size of the people-with-access list. */
 const ACCESS_LIST_LIMIT = 20;
-
-/** A per-role override field on the document. */
-export type RoleOverrideField =
-    | "adminDocAccess"
-    | "memberDocAccess"
-    | "nonMemberDocAccess";
 
 /**
  * Result of looking up the typed email: nothing to show yet, in flight, a
@@ -39,8 +31,7 @@ export type EmailLookup =
 /**
  * State and actions for the Share dialog. On mount fetches, in parallel, the
  * caller's resolved access, the document owner (from the overview endpoint —
- * the workspace owner never has an access row), the per-role overrides, and
- * the first page of people with direct access; later pages load when the
+ * the workspace owner never has an access row), and the first page of people with direct access; later pages load when the
  * list's sentinel scrolls into view. Typing a full email looks the person
  * up (debounced) so they can be added with a chosen level.
  * @param documentId - the document being shared
@@ -52,11 +43,6 @@ const useShareDialog = (documentId: string | undefined) => {
         name: string;
         email: string;
     } | null>(null); // workspace owner, shown as the list's first row
-    const [roleOverrides, setRoleOverrides] =
-        useState<GetDocumentRoleOverridesResponseDto | null>(null); // per-role overrides + workspace defaults; null while loading
-    const [savingRole, setSavingRole] = useState<RoleOverrideField | null>(
-        null,
-    ); // role whose override PUT is in flight
     const [people, setPeople] = useState<DocumentAccessUserDto[]>([]); // people with direct access, accumulated across pages
     const [pendingUserId, setPendingUserId] = useState<number | null>(null); // person whose access change is in flight
     const [isInitialLoading, setIsInitialLoading] = useState(true); // true until the mount fetches settle
@@ -120,22 +106,6 @@ const useShareDialog = (documentId: string | undefined) => {
             }
         };
 
-        /** Fetches the per-role overrides with the workspace defaults. */
-        const fetchRoleOverrides = async () => {
-            try {
-                const { data } =
-                    await apiClient.get<GetDocumentRoleOverridesResponseDto>(
-                        `/document-access/${documentId}/role-overrides`,
-                    );
-                setRoleOverrides(data);
-            } catch (err) {
-                console.error(
-                    "useShareDialog: failed to fetch role overrides:",
-                    err,
-                );
-            }
-        };
-
         /** Fetches the first page of people with direct access. */
         const fetchPeople = async () => {
             try {
@@ -151,12 +121,9 @@ const useShareDialog = (documentId: string | undefined) => {
             }
         };
 
-        Promise.all([
-            fetchCallerAccess(),
-            fetchOwner(),
-            fetchRoleOverrides(),
-            fetchPeople(),
-        ]).finally(() => setIsInitialLoading(false));
+        Promise.all([fetchCallerAccess(), fetchOwner(), fetchPeople()]).finally(
+            () => setIsInitialLoading(false),
+        );
     }, [documentId]);
 
     /** Appends the next page of people. No-ops while loading or on the last page. */
@@ -314,43 +281,10 @@ const useShareDialog = (documentId: string | undefined) => {
         }
     };
 
-    /**
-     * Sets or resets one role's override. Null resets the role to the
-     * workspace default.
-     * @param field - which role's override to change
-     * @param value - the new level, or null for the workspace default
-     */
-    const updateRoleOverride = async (
-        field: RoleOverrideField,
-        value: DocumentAccessLevel | null,
-    ) => {
-        if (!documentId) return;
-        try {
-            setSavingRole(field);
-            const { data } =
-                await apiClient.put<UpdateDocumentRoleOverridesResponseDto>(
-                    `/document-access/${documentId}/role-overrides`,
-                    { [field]: value },
-                );
-            setRoleOverrides((prev) => (prev ? { ...prev, ...data } : prev));
-        } catch (err) {
-            console.error(
-                "useShareDialog: failed to update role override:",
-                err,
-            );
-            showToast("Couldn't change general access", { tone: "error" });
-        } finally {
-            setSavingRole(null);
-        }
-    };
-
     return {
         callerAccess,
         canManage,
         owner,
-        roleOverrides,
-        savingRole,
-        updateRoleOverride,
         people,
         pendingUserId,
         changePersonAccess,

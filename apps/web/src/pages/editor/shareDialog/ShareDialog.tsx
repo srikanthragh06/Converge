@@ -11,6 +11,8 @@ import Input from "../../../components/ui/Input";
 import Button from "../../../components/ui/Button";
 import Select, { type SelectOption } from "../../../components/ui/Select";
 import useShareDialog from "../../../hooks/useShareDialog";
+import useDocumentRoleOverrides from "../../../hooks/useDocumentRoleOverrides";
+import useUpdateRoleOverride from "../../../hooks/useUpdateRoleOverride";
 import useIsMobile from "../../../hooks/useIsMobile";
 import useDocumentMenuActions from "../../../hooks/useDocumentMenuActions";
 import { formatAccessLevel } from "../../../utils/utils";
@@ -51,9 +53,6 @@ const ShareDialog = ({
         callerAccess,
         canManage,
         owner,
-        roleOverrides,
-        savingRole,
-        updateRoleOverride,
         people,
         pendingUserId,
         changePersonAccess,
@@ -67,6 +66,11 @@ const ShareDialog = ({
         isAdding,
         addPerson,
     } = useShareDialog(documentId);
+    const { roleOverrides, isLoading: isRoleOverridesLoading } =
+        useDocumentRoleOverrides(Number(documentId)); // General access
+    const { updateRoleOverride, savingRole } = useUpdateRoleOverride(
+        Number(documentId),
+    );
     const auth = useAtomValue(authAtom); // current user, for the "(you)" labels
     const { copyLink } = useDocumentMenuActions(); // Copy link, shared with the ⋯ menus
     const isMobile = useIsMobile(); // phones get a bottom sheet instead of a centered dialog
@@ -232,7 +236,7 @@ const ShareDialog = ({
                     Applies to everyone in a role who has no direct access
                     above.
                 </p>
-                {isInitialLoading ? (
+                {isRoleOverridesLoading ? (
                     <ShareRowsSkeleton count={3} />
                 ) : (
                     roleOverrides && (
