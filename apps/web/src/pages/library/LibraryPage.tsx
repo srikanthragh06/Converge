@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useAtomValue } from "jotai";
 import { LuPlus, LuSearch } from "react-icons/lu";
-import Page from "../../components/Page";
 import MobileTopBar from "../../components/MobileTopBar";
 import Input from "../../components/ui/Input";
 import TableSkeleton from "../../components/ui/TableSkeleton";
@@ -32,7 +31,7 @@ const LibraryPage = () => {
     const isFiltering = searchText.trim() !== ""; // a filter is set, so an empty list means no match
 
     return (
-        <Page authRequired haveSidebar>
+        <>
             <MobileTopBar title="Library" />
             <div className="flex-1 overflow-y-auto">
                 <PageContainer>
@@ -101,7 +100,7 @@ const LibraryPage = () => {
                     <div ref={sentinelRef} />
                 </PageContainer>
             </div>
-        </Page>
+        </>
     );
 };
 

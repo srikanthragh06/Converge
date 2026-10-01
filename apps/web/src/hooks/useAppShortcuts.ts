@@ -9,16 +9,14 @@ import { IS_APPLE } from "../lib/utils";
  * off Apple devices) opens document search, and ⌘J opens or closes the Ask
  * Converge panel.
  * Ctrl+P also opens search, the switcher's original shortcut.
- * @param enabled - registers the shortcuts only while true, e.g. on pages with the sidebar
  */
-const useAppShortcuts = (enabled: boolean) => {
+const useAppShortcuts = () => {
     const setIsSearchOpen = useSetAtom(isSearchOpenAtom); // opens the search palette
     const setIsAgentPanelOpen = useSetAtom(isAgentPanelOpenAtom); // toggles the Ask Converge panel
 
-    // Listens for the shortcuts while enabled; preventDefault stops the browser's
+    // Listens for the shortcuts; preventDefault stops the browser's
     // own binding for the same keys (address-bar search, downloads, print).
     useEffect(() => {
-        if (!enabled) return;
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.altKey || e.shiftKey) return;
             const isMod = IS_APPLE ? e.metaKey : e.ctrlKey;
@@ -34,7 +32,7 @@ const useAppShortcuts = (enabled: boolean) => {
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [enabled, setIsAgentPanelOpen, setIsSearchOpen]);
+    }, [setIsAgentPanelOpen, setIsSearchOpen]);
 };
 
 export default useAppShortcuts;

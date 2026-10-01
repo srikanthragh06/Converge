@@ -1,6 +1,5 @@
 import { useNavigate } from "react-router-dom";
 import { LuCheck, LuCopy, LuKeyRound } from "react-icons/lu";
-import Page from "../../components/Page";
 import MobileTopBar from "../../components/MobileTopBar";
 import Button from "../../components/ui/Button";
 import { PageContainer, PageHeader } from "../../components/ui/PageHeader";
@@ -23,7 +22,7 @@ const McpDocsPage = () => {
     const { copied, copy } = useCopyToClipboard(); // Copy as Markdown
 
     return (
-        <Page authRequired haveSidebar>
+        <>
             <MobileTopBar title="MCP setup" />
             <div className="flex-1 overflow-y-auto">
                 <PageContainer>
@@ -98,7 +97,7 @@ const McpDocsPage = () => {
                     </div>
                 </PageContainer>
             </div>
-        </Page>
+        </>
     );
 };
 

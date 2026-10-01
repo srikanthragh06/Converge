@@ -6,7 +6,7 @@ import DocumentDetailsModal from "../pages/editor/documentDetailsModal/DocumentD
 /**
  * Renders the Share dialog or Document details modal named by
  * documentDialogAtom, for whichever document it points at. Mounted once in
- * Page, so the editor header and the sidebar row menus open the same
+ * AppShell, so the editor header and the sidebar row menus open the same
  * dialogs from any page.
  */
 const DocumentDialogs = () => {

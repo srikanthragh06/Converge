@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { LuChevronDown, LuPlus } from "react-icons/lu";
 import type { ApiKeyDto } from "@converge/shared";
 import { cn } from "../../lib/utils";
-import Page from "../../components/Page";
 import MobileTopBar from "../../components/MobileTopBar";
 import TableSkeleton from "../../components/ui/TableSkeleton";
 import { PageContainer, PageHeader } from "../../components/ui/PageHeader";
@@ -57,7 +56,7 @@ const ApiKeysPage = () => {
     const revokedKeys = apiKeys.filter((k) => k.revokedAt !== null);
 
     return (
-        <Page authRequired haveSidebar>
+        <>
             <MobileTopBar title="API keys" />
             <div className="flex-1 overflow-y-auto">
                 <PageContainer>
@@ -182,7 +181,7 @@ const ApiKeysPage = () => {
                     onSuccess={() => setModalData(null)}
                 />
             )}
-        </Page>
+        </>
     );
 };
 

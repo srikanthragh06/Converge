@@ -11,6 +11,8 @@ import McpDocsPage from "./pages/mcpDocs/McpDocsPage";
 import TrashPage from "./pages/trash/TrashPage";
 import useThemeSync from "./hooks/useThemeSync";
 import AgentPanel from "./components/agentPanel/AgentPanel";
+import RequireAuth from "./components/RequireAuth";
+import AppShell from "./components/AppShell";
 
 /**
  * Root application component. Hydrates auth state, keeps the active color
@@ -23,13 +25,24 @@ function App() {
     return (
         <div className="bg-surface text-fg">
             <Routes>
-                <Route path="/document/:documentId" element={<EditorPage />} />
-                <Route path="/library" element={<LibraryPage />} />
-                <Route path="/trash" element={<TrashPage />} />
+                {/* Signed-in pages share one auth gate and one app shell, which stay mounted across navigation */}
+                <Route element={<RequireAuth />}>
+                    <Route element={<AppShell />}>
+                        <Route
+                            path="/document/:documentId"
+                            element={<EditorPage />}
+                        />
+                        <Route path="/library" element={<LibraryPage />} />
+                        <Route path="/trash" element={<TrashPage />} />
+                        <Route
+                            path="/workspaces"
+                            element={<WorkspacesPage />}
+                        />
+                        <Route path="/api-keys" element={<ApiKeysPage />} />
+                        <Route path="/mcp-docs" element={<McpDocsPage />} />
+                    </Route>
+                </Route>
                 <Route path="/" element={<Navigate to="/library" replace />} />
-                <Route path="/workspaces" element={<WorkspacesPage />} />
-                <Route path="/api-keys" element={<ApiKeysPage />} />
-                <Route path="/mcp-docs" element={<McpDocsPage />} />
                 <Route path="/auth" element={<AuthPage />} />
                 <Route path="/auth/callback" element={<AuthCallbackPage />} />
                 <Route path="*" element={<NotFoundPage />} />

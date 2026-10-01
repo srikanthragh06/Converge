@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { LuPlus, LuSearch } from "react-icons/lu";
-import Page from "../../components/Page";
 import MobileTopBar from "../../components/MobileTopBar";
 import Input from "../../components/ui/Input";
 import TableSkeleton from "../../components/ui/TableSkeleton";
@@ -31,7 +30,7 @@ const WorkspacesPage = () => {
     });
 
     return (
-        <Page authRequired haveSidebar>
+        <>
             <MobileTopBar title="Workspaces" />
             <div className="flex-1 overflow-y-auto">
                 <PageContainer>
@@ -100,7 +99,7 @@ const WorkspacesPage = () => {
                     onClose={() => setConfigWorkspaceId(null)}
                 />
             )}
-        </Page>
+        </>
     );
 };
 
