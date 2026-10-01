@@ -1,4 +1,9 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAtomValue } from "jotai";
+import { currentWorkspaceAtom } from "@/atoms/sidebar";
+import { agentKeys } from "@/queries/agent";
+import { documentKeys } from "@/queries/documents";
 import useAgentConversation from "./useAgentConversation";
 import useAgentStream from "./useAgentStream";
 
@@ -33,14 +38,21 @@ const useAgentChat = (conversationId: number | null) => {
     // for the turn to finish and history to refetch. Cleared once refetch
     // resolves, alongside the live steps, so the persisted version takes
     // over without a duplicate or a flicker of emptiness.
-    const [pendingUserContent, setPendingUserContent] = useState<string | null>(null);
+    const [pendingUserContent, setPendingUserContent] = useState<string | null>(
+        null,
+    );
+    const queryClient = useQueryClient();
+    const workspace = useAtomValue(currentWorkspaceAtom);
 
     /**
      * Sends `content` as the next user message: shows it immediately as
      * pendingUserContent, streams the assistant's reply live via
      * useAgentStream, then — once the stream ends — refetches the turn's
      * real persisted history and clears both the optimistic user message
-     * and the live steps, so the persisted version takes over cleanly.
+     * and the live steps, so the persisted version takes over cleanly. Also
+     * refreshes the conversation list (the order is newest-used first) and
+     * the document lists, since agent tools can create, rename or trash
+     * documents.
      * Not wrapped in useCallback: refetch and clearSteps are fresh
      * function references on every render of their source hooks anyway
      * (neither is memoized there), so memoizing this one wouldn't make it
@@ -50,9 +62,16 @@ const useAgentChat = (conversationId: number | null) => {
      * @param content - The message text to send.
      * @param targetId - The conversation to send into (default: the current one) — e.g. one just created for this message, before this closure has caught up with the new selection.
      */
-    const send = async (content: string, targetId: number | null = conversationId) => {
+    const send = async (
+        content: string,
+        targetId: number | null = conversationId,
+    ) => {
         setPendingUserContent(content);
         await sendMessage(content, targetId);
+        queryClient.invalidateQueries({
+            queryKey: agentKeys.conversations(workspace?.id ?? 0),
+        });
+        queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
         await refetch(targetId);
         clearSteps();
         setPendingUserContent(null);
