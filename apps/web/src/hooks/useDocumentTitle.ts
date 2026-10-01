@@ -11,7 +11,6 @@ import {
 } from "@converge/shared";
 import { socket } from "../lib/socket";
 import { socketEmit } from "../lib/socket-emit.util";
-import { refreshSidebarAtom } from "@/atoms/sidebar";
 import { openDocumentTitleAtom } from "@/atoms/document";
 import { documentKeys } from "@/queries/documents";
 
@@ -29,7 +28,6 @@ const useDocumentTitle = () => {
     const titleTimeoutIdRef = useRef<number | null>(null); // debounce timer for outgoing title sync events
     const lastTitleChangeIdRef = useRef<string | null>(null); // changeId of the most recent title emit — used to match acks
 
-    const refreshSidebar = useSetAtom(refreshSidebarAtom);
     const queryClient = useQueryClient();
     const setOpenDocumentTitle = useSetAtom(openDocumentTitleAtom); // shares the title with the app shell (Ask Converge's empty state)
 
@@ -86,10 +84,9 @@ const useDocumentTitle = () => {
         const handleSyncDocTitleAck = (data: unknown) => {
             const res = socketReceive(SyncDocTitleAckSchema, data);
             if (!res) return;
-            // Only clear the pending state and refresh the sidebar if the ack matches the latest emit.
+            // Only clear the pending state and refresh the document lists if the ack matches the latest emit.
             if (res.changeId === lastTitleChangeIdRef.current) {
                 setIsTitlePending(false);
-                refreshSidebar((prev) => prev + 1);
                 queryClient.invalidateQueries({
                     queryKey: documentKeys.lists(),
                 });
@@ -109,7 +106,7 @@ const useDocumentTitle = () => {
             );
             socket.off(SOCKET_EVENTS.SYNC_DOC_TITLE_ACK, handleSyncDocTitleAck);
         };
-    }, [isSocketReady]);
+    }, [isSocketReady, queryClient]);
 
     // Cleans up any pending title debounce timer on unmount.
     useEffect(() => {

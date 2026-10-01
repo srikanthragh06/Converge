@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSetAtom } from "jotai";
 import { useQueryClient } from "@tanstack/react-query";
-import { pinOverridesAtom, refreshSidebarAtom } from "../atoms/sidebar";
+import { pinOverridesAtom } from "../atoms/sidebar";
 import { documentDialogAtom } from "../atoms/document";
 import apiClient from "../lib/http";
 import { documentKeys } from "../queries/documents";
@@ -28,15 +28,14 @@ const displayTitle = (doc: MenuDocument) => doc.title || "Untitled";
 const useDocumentMenuActions = () => {
     const navigate = useNavigate();
     const { documentId: openDocumentId } = useParams(); // document open in the editor, if any
-    const setRefreshSidebar = useSetAtom(refreshSidebarAtom); // bumped so Pinned / Recent drop or regain a document
     const setPinOverrides = useSetAtom(pinOverridesAtom); // records each toggle, so the editor's ⋯ menu follows it
     const setDocumentDialog = useSetAtom(documentDialogAtom); // opens Share / Document details
     const queryClient = useQueryClient();
     const { showToast } = useToast();
 
     /**
-     * Pins or unpins the document via PUT /document/:id/pin, then bumps
-     * refreshSidebarAtom to re-fetch both the pinned and recent lists — the
+     * Pins or unpins the document via PUT /document/:id/pin, then refreshes
+     * the document lists, including both pinned and recent — the
      * two are complements of each other (ignorePinnedDocs), so a toggle in
      * either direction needs both re-fetched to move the document across
      * without duplicating or losing it.
@@ -51,7 +50,6 @@ const useDocumentMenuActions = () => {
                     { pinned },
                 );
                 setPinOverrides((prev) => ({ ...prev, [documentId]: pinned }));
-                setRefreshSidebar((prev) => prev + 1);
                 queryClient.invalidateQueries({
                     queryKey: documentKeys.lists(),
                 });
@@ -65,7 +63,7 @@ const useDocumentMenuActions = () => {
                 );
             }
         },
-        [queryClient, setPinOverrides, setRefreshSidebar, showToast],
+        [queryClient, setPinOverrides, showToast],
     );
 
     /**
@@ -104,7 +102,6 @@ const useDocumentMenuActions = () => {
         async (doc: MenuDocument) => {
             try {
                 await apiClient.post(`/document/${doc.id}/restore`);
-                setRefreshSidebar((prev) => prev + 1);
                 queryClient.invalidateQueries({
                     queryKey: documentKeys.lists(),
                 });
@@ -114,7 +111,7 @@ const useDocumentMenuActions = () => {
                 showToast("Couldn't restore the document", { tone: "error" });
             }
         },
-        [queryClient, setRefreshSidebar, showToast],
+        [queryClient, showToast],
     );
 
     /**
@@ -134,21 +131,13 @@ const useDocumentMenuActions = () => {
                 });
                 return;
             }
-            setRefreshSidebar((prev) => prev + 1);
             queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
             if (String(doc.id) === openDocumentId) navigate("/library");
             showToast(`Moved "${displayTitle(doc)}" to Trash`, {
                 action: { label: "Undo", onClick: () => restore(doc) },
             });
         },
-        [
-            navigate,
-            openDocumentId,
-            queryClient,
-            restore,
-            setRefreshSidebar,
-            showToast,
-        ],
+        [navigate, openDocumentId, queryClient, restore, showToast],
     );
 
     /**

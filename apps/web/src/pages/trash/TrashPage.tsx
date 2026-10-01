@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { LuSearch } from "react-icons/lu";
 import Page from "../../components/Page";
 import Input from "../../components/ui/Input";
@@ -6,6 +7,8 @@ import TableSkeleton from "../../components/ui/TableSkeleton";
 import { PageContainer, PageHeader } from "../../components/ui/PageHeader";
 import { Table, TableHeadCell, TableHeader } from "../../components/ui/Table";
 import useTrash from "../../hooks/useTrash";
+import useRestoreDocument from "../../hooks/useRestoreDocument";
+import { showToast } from "../../lib/toast";
 import TrashRow from "./TrashRow";
 
 /**
@@ -16,13 +19,18 @@ import TrashRow from "./TrashRow";
  */
 const TrashPage = () => {
     const [filterText, setFilterText] = useState(""); // title filter typed into the filter bar
-    const {
-        documents,
-        isLoadingMore,
-        sentinelRef,
-        restoringId,
-        restoreDocument,
-    } = useTrash(filterText); // filtered deleted documents, pagination, and restore state
+    const { documents, isLoading, isFetchingMore, sentinelRef } =
+        useTrash(filterText); // filtered deleted documents and pagination
+    const navigate = useNavigate();
+    const { restoreDocument, restoringId } = useRestoreDocument({
+        onSuccess: (doc) =>
+            showToast(`Restored "${doc.title || "Untitled"}"`, {
+                action: {
+                    label: "Open",
+                    onClick: () => navigate(`/document/${doc.id}`),
+                },
+            }),
+    });
     const isFiltering = filterText.trim() !== ""; // a filter is set, so an empty list means no match
 
     return (
@@ -56,13 +64,13 @@ const TrashPage = () => {
                                 key={doc.id}
                                 document={doc}
                                 isRestoring={restoringId === doc.id}
-                                onRestore={restoreDocument}
+                                onRestore={() => restoreDocument(doc)}
                             />
                         ))}
-                        {isLoadingMore && (
+                        {(isLoading || isFetchingMore) && (
                             <TableSkeleton rows={documents.length ? 2 : 5} />
                         )}
-                        {!isLoadingMore && documents.length === 0 && (
+                        {!isLoading && documents.length === 0 && (
                             <p className="py-10 text-center text-sm text-fg-muted">
                                 {isFiltering
                                     ? "No deleted documents match this filter."

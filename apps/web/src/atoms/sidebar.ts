@@ -6,9 +6,6 @@ export const currentWorkspaceAtom = atom<{ id: number; name: string } | null>(
     null,
 );
 
-/** Increment to make the Library and Trash pages re-fetch. */
-export const refreshSidebarAtom = atom(0);
-
 /**
  * Pin state set by a pin/unpin in this session, by document id. Takes
  * precedence over an isPinned fetched earlier (e.g. by the editor), so a
