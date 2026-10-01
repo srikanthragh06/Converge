@@ -108,12 +108,14 @@ export type CreateDocumentResponseDto = z.infer<
     typeof CreateDocumentResponseSchema
 >;
 
+/** Response for GET /document/id/:id. isPinned is whether the caller has pinned the document to their sidebar. */
 export const GetDocumentResponseSchema = z.object({
     id: z.number(),
     title: z.string(),
     createdAt: z.coerce.date(),
     workspace: z.object({ id: z.number(), name: z.string() }),
     resolvedAccess: ResolvedDocumentAccessLevelSchema,
+    isPinned: z.boolean(),
 });
 
 export type GetDocumentResponseDto = z.infer<typeof GetDocumentResponseSchema>;

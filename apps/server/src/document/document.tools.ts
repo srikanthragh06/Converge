@@ -129,7 +129,7 @@ export class DocumentTools {
 
   /**
    * Returns a document's metadata only (id, title, createdAt, workspace,
-   * resolvedAccess) — no content. Content is exposed separately, by
+   * resolvedAccess, isPinned) — no content. Content is exposed separately, by
    * readDocumentMarkdown, since it needs its own readable conversion rather
    * than the raw Yjs blob. createdAt is an ISO string rather than a Date
    * object — MCP tool schemas can't represent a Date type (see

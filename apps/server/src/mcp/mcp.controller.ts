@@ -163,7 +163,7 @@ export class McpController {
       {
         title: 'Get Document Metadata',
         description:
-          "Fetches a document's metadata (title, workspace, resolved access, createdAt). Does not return document content — see getDocumentBlocks/readDocumentMarkdown for that. Requires viewer access or higher.",
+          "Fetches a document's metadata (title, workspace, resolved access, createdAt, and whether the caller has pinned it). Does not return document content — see getDocumentBlocks/readDocumentMarkdown for that. Requires viewer access or higher.",
         inputSchema: GetDocumentMetadataToolInputSchema,
         outputSchema: GetDocumentMetadataToolResponseSchema,
       },

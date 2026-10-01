@@ -6,7 +6,7 @@ import {
   WorkspaceRole,
   WorkspaceType,
 } from '@converge/shared';
-import { Generated } from 'kysely';
+import { ColumnType, Generated } from 'kysely';
 
 /**
  * Row shape for the document_updates table.
@@ -217,6 +217,25 @@ export interface AgentConversationsTable {
   updated_at: Generated<Date>;
   /** User-set display name. Null means untitled — the frontend falls back to a formatted creation date. */
   title: string | null;
+  /**
+   * Tool results last_response_id's response is still owed, as the
+   * function_call_output items the next call must send; null when nothing
+   * is owed. Set with last_response_id whenever a response requests tools
+   * ("cancelled" stand-ins), replaced by the real results once they run, and
+   * cleared by the next response — so a turn that ends in between (a 429,
+   * a stream failure, MAX_STEPS, a restart) leaves exactly what the next
+   * turn has to send first. See AgentService.sendMessage.
+   */
+  pending_tool_outputs: ColumnType<
+    | {
+        type: 'function_call_output';
+        call_id: string;
+        output: string;
+      }[]
+    | null,
+    string | null,
+    string | null
+  >;
 }
 
 /**

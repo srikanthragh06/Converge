@@ -11,11 +11,12 @@ A Notion-style editor with live collaborative editing, workspaces, and granular 
 - **Rich-text editor** built on BlockNote, with image, video, and audio upload support
 - **Workspaces** to organize documents into shared spaces with owner, admin, and member roles
 - **Granular access control** with four tiers: workspace role defaults, per-doc overrides, explicit user grants, and workspace owner
-- **Document library** with full-text search, infinite scroll, a keyboard-navigable switcher (Ctrl+P), and a Trash tab for restoring soft-deleted documents
+- **Document library** with full-text search, infinite scroll, a keyboard-navigable ⌘K switcher, and a Trash page for restoring soft-deleted documents
 - **Sidebar pinning** for quick access to frequently used documents, kept separate from the recently-visited list
 - **AI agent access via MCP** — a Model Context Protocol server exposes documents to AI agents over API-key auth (list, create, read, edit, rename, delete), enforcing the same access control as the browser editor; every agent-driven edit takes an automatic checkpoint beforehand so it can always be undone, and keys are self-served from a dedicated API Keys page
 - **Semantic search (RAG)** — hybrid semantic + lexical retrieval over document content, reranked and exposed as a grounded, cited MCP tool; indexed incrementally as documents are edited, with live indexing-status visibility in the document Overview panel
-- **In-app AI agent chat** — a workspace-scoped chat assistant that runs the same MCP tool surface (read, search, write, checkpoint/restore) through a real multi-step tool-calling loop, streaming its progress live; rate-limited on both request volume and token spend, per user, per workspace, and globally, to keep provider cost bounded
+- **In-app AI agent chat** — a workspace-scoped chat assistant that runs the same MCP tool surface (read, search, write, checkpoint/restore) through a real multi-step tool-calling loop, streaming its progress live; rate-limited on both request volume and token spend, per user, per workspace, and globally, to keep provider cost bounded; it lives in a slide-over panel (⌘J) that keeps its conversation across navigation, with Stop to cut off a streaming reply
+- **Light and dark themes** from one semantic token set (switching is pure CSS), with phone layouts built into every screen
 - **Google OAuth** with secure httpOnly cookie sessions
 
 ## Architecture
@@ -65,7 +66,7 @@ The in-app AI agent talks to OpenAI's Responses API rather than resending a full
 
 | Layer | Tech |
 |---|---|
-| Frontend | React 19, Vite, TypeScript, Tailwind CSS v3, Jotai |
+| Frontend | React 19, Vite, TypeScript, Tailwind CSS v3, TanStack Query, Jotai, Radix UI |
 | Editor | BlockNote (ProseMirror + Tiptap), Yjs, y-prosemirror |
 | Backend | NestJS 11, Socket.io, Kysely, PostgreSQL 16 + pgvector, MCP SDK |
 | AI/ML | OpenAI (embeddings, agent chat), Voyage AI (reranking), BM25 |

@@ -135,6 +135,9 @@ export const GetDocumentMetadataToolResponseSchema = z.object({
     resolvedAccess: ResolvedDocumentAccessLevelSchema.describe(
         "The caller's resolved access level for this document.",
     ),
+    isPinned: z.boolean().describe(
+        "Whether the caller has pinned this document to their sidebar.",
+    ),
 });
 
 export type GetDocumentMetadataToolResponseDto = z.infer<

@@ -1,19 +1,26 @@
 import { atom } from "jotai";
-import type { LibraryDocumentDto, WorkspaceDto } from "@converge/shared";
+import { atomWithStorage } from "jotai/utils";
 
 /** The user's currently selected workspace (id and name). Initialized from the auth response. */
 export const currentWorkspaceAtom = atom<{ id: number; name: string } | null>(
     null,
 );
 
-/** All workspaces the authenticated user belongs to. Populated on sidebar mount. */
-export const workspacesAtom = atom<WorkspaceDto[]>([]);
+/** Which collapsible sidebar sections are expanded, remembered across visits. Read on init so the first render doesn't flash the defaults. */
+export const sidebarSectionsAtom = atomWithStorage(
+    "converge-sidebar-sections",
+    { pinned: true, recent: true },
+    undefined,
+    { getOnInit: true },
+);
 
-/** Increment to trigger a sidebar data refresh (workspaces, pinned documents, recent documents). */
-export const refreshSidebarAtom = atom(0);
+/** Whether the sidebar is collapsed to its icon rail, remembered across pages and visits. Read on init so the first render doesn't flash the panel. */
+export const sidebarCollapsedAtom = atomWithStorage(
+    "converge-sidebar-collapsed",
+    false,
+    undefined,
+    { getOnInit: true },
+);
 
-/** Recent documents in the current workspace, persisted across sidebar remounts to avoid flicker. Excludes pinned documents — see pinnedDocumentsAtom. */
-export const recentDocumentsAtom = atom<LibraryDocumentDto[]>([]);
-
-/** Documents the user has pinned in the current workspace, most-recently-pinned first. Persisted across sidebar remounts to avoid flicker. */
-export const pinnedDocumentsAtom = atom<LibraryDocumentDto[]>([]);
+/** Whether the sidebar drawer is open on phones, where it overlays the page instead of sitting beside it. */
+export const mobileSidebarOpenAtom = atom(false);
