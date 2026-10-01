@@ -1,21 +1,20 @@
 import { useCallback, useState } from "react";
 import { useSetAtom } from "jotai";
-import { currentWorkspaceAtom, workspacesAtom } from "../atoms/sidebar";
+import { useQueryClient } from "@tanstack/react-query";
+import { currentWorkspaceAtom } from "../atoms/sidebar";
 import apiClient from "../lib/http";
-import type {
-    CreateWorkspaceResponseDto,
-    GetWorkspacesResponseDto,
-} from "@converge/shared";
+import { workspaceKeys } from "../queries/workspaces";
+import type { CreateWorkspaceResponseDto } from "@converge/shared";
 import { useNavigate } from "react-router-dom";
 
 /**
  * Returns a createWorkspace function that POST /workspaces with the given
- * name, selects it via PUT /workspaces/:id/select, refreshes the sidebar
- * workspace list from the server, and navigates to /library.
+ * name, selects it via PUT /workspaces/:id/select, refreshes the cached
+ * workspace list, and navigates to /library.
  */
 const useCreateWorkspace = () => {
     const setCurrentWorkspace = useSetAtom(currentWorkspaceAtom);
-    const setWorkspaces = useSetAtom(workspacesAtom);
+    const queryClient = useQueryClient();
     const [isCreating, setIsCreating] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const navigate = useNavigate();
@@ -34,12 +33,9 @@ const useCreateWorkspace = () => {
                 // Persist the selection across reloads.
                 await apiClient.put(`/workspaces/${data.id}/select`);
 
-                // Refetch the full enriched list from the server.
-                const { data: list } =
-                    await apiClient.get<GetWorkspacesResponseDto>(
-                        "/workspaces",
-                    );
-                setWorkspaces(list.workspaces);
+                queryClient.invalidateQueries({
+                    queryKey: workspaceKeys.list(),
+                });
 
                 // Update the selected workspace atom.
                 setCurrentWorkspace({ id: data.id, name: data.name });
@@ -58,7 +54,7 @@ const useCreateWorkspace = () => {
                 setIsCreating(false);
             }
         },
-        [setCurrentWorkspace, setWorkspaces],
+        [setCurrentWorkspace, queryClient],
     );
 
     return { createWorkspace, isCreating, error };

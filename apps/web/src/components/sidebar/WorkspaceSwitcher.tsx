@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useSetAtom } from "jotai";
+import { useQueryClient } from "@tanstack/react-query";
 import {
     LuChevronsUpDown,
     LuLayoutGrid,
@@ -9,7 +9,7 @@ import {
     LuUsers,
 } from "react-icons/lu";
 import type { WorkspaceDto } from "@converge/shared";
-import { refreshSidebarAtom } from "../../atoms/sidebar";
+import { workspaceKeys } from "../../queries/workspaces";
 import useCreateWorkspace from "../../hooks/useCreateWorkspace";
 import { describeWorkspace } from "../../utils/utils";
 import { DropdownMenu, type MenuEntry } from "../ui/Menu";
@@ -45,7 +45,7 @@ const WorkspaceSwitcher = ({
     compact?: boolean;
 }) => {
     const navigate = useNavigate();
-    const refreshSidebar = useSetAtom(refreshSidebarAtom); // bumped after the settings modal closes, to pick up a rename
+    const queryClient = useQueryClient();
     const { createWorkspace, isCreating, error } = useCreateWorkspace(); // creates, selects, and opens a new workspace
     const [configTab, setConfigTab] = useState<string | null>(null); // tab the workspace settings modal is open on; null when closed
     const [isCreateOpen, setIsCreateOpen] = useState(false); // whether the Create workspace modal is open
@@ -156,7 +156,10 @@ const WorkspaceSwitcher = ({
                     initialTab={configTab}
                     onClose={() => {
                         setConfigTab(null);
-                        refreshSidebar((prev) => prev + 1);
+                        // Pick up a rename or role change made in settings.
+                        queryClient.invalidateQueries({
+                            queryKey: workspaceKeys.list(),
+                        });
                     }}
                 />
             )}
