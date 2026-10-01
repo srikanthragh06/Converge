@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useAtomValue } from "jotai";
 import { LuPlus, LuSearch } from "react-icons/lu";
 import Page from "../../components/Page";
@@ -7,6 +8,7 @@ import { PageContainer, PageHeader } from "../../components/ui/PageHeader";
 import { Table, TableHeadCell, TableHeader } from "../../components/ui/Table";
 import { currentWorkspaceAtom, pinOverridesAtom } from "../../atoms/sidebar";
 import useLibrary from "../../hooks/useLibrary";
+import useNewDocument from "../../hooks/useNewDocument";
 import usePinnedDocuments from "../../hooks/usePinnedDocuments";
 import useDocumentRowMenu from "../../hooks/useDocumentRowMenu";
 import LibraryRow from "./components/LibraryRow";
@@ -18,15 +20,10 @@ import LibraryRow from "./components/LibraryRow";
  * ⋯ / right-click menu as the sidebar's.
  */
 const LibraryPage = () => {
-    const {
-        searchText,
-        setSearchText,
-        documents,
-        sentinelRef,
-        isLoadingMore,
-        isCreating,
-        createDocument,
-    } = useLibrary(); // search state, paginated document list, infinite scroll sentinel, and document creation state
+    const [searchText, setSearchText] = useState(""); // the filter box's text
+    const { documents, isLoading, isFetchingMore, sentinelRef } =
+        useLibrary(searchText); // the paginated list, or the matches for searchText
+    const { createDocument, isCreating } = useNewDocument();
     const currentWorkspace = useAtomValue(currentWorkspaceAtom); // named in the subtitle
     const { pinnedDocuments } = usePinnedDocuments(); // every pinned document in the workspace (the sidebar's unpaginated list)
     const pinOverrides = useAtomValue(pinOverridesAtom); // pin toggles made this session, applied before the pinned list re-fetches
@@ -90,10 +87,10 @@ const LibraryPage = () => {
                                 />
                             );
                         })}
-                        {isLoadingMore && (
+                        {(isLoading || isFetchingMore) && (
                             <TableSkeleton rows={documents.length ? 2 : 6} />
                         )}
-                        {!isLoadingMore && documents.length === 0 && (
+                        {!isLoading && documents.length === 0 && (
                             <p className="py-10 text-center text-sm text-fg-muted">
                                 {isFiltering
                                     ? "No documents match this filter."

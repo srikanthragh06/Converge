@@ -1,193 +1,106 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
+import {
+    keepPreviousData,
+    useInfiniteQuery,
+    useQuery,
+} from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import apiClient from "../lib/http";
-import useNewDocument from "./useNewDocument";
+import { currentWorkspaceAtom } from "../atoms/sidebar";
+import { documentKeys } from "../queries/documents";
+import useDebouncedValue from "./useDebouncedValue";
+import useInView from "./useInView";
 import type {
     GetLibraryDocumentsResponseDto,
-    LibraryDocumentDto,
     SearchLibraryDocumentsResponseDto,
 } from "@converge/shared";
-import { currentWorkspaceAtom, refreshSidebarAtom } from "../atoms/sidebar";
 
 const LIBRARY_PAGE_LIMIT = 12;
 const LIBRARY_SEARCH_PAGE_LIMIT = 5;
 
 /**
- * Manages library page state. Fetches documents from GET /document/library
- * with keyset pagination, debounced search, and an IntersectionObserver on
- * the returned sentinelRef to automatically load the next page on scroll.
+ * The Library page's list: every document in the current workspace, most
+ * recently visited first, a page at a time as the sentinel (`sentinelRef`)
+ * scrolls into view, while `search` is empty; otherwise GET
+ * /document/library/search results (not paginated), 300ms after the user
+ * stops typing.
+ * @param search - the title filter as typed
  */
-const useLibrary = () => {
-    const { createDocument, isCreating } = useNewDocument(); // creates a new document in the current workspace
-    const currentWorkspace = useAtomValue(currentWorkspaceAtom); // active workspace — its ID is required by all library API calls
-    const refreshSidebar = useAtomValue(refreshSidebarAtom); // bumped when a menu trashes, restores, or pins a document, so the list re-fetches too
-    const [searchText, setSearchText] = useState(""); // current search query string
-    const [documents, setDocuments] = useState<LibraryDocumentDto[]>([]); // accumulated list of fetched documents
-    const [isLoadingMore, setIsLoadingMore] = useState(true); // true when a library fetch is in flight; starts true since the first page is fetched on mount
+const useLibrary = (search: string) => {
+    const currentWorkspace = useAtomValue(currentWorkspaceAtom);
+    const workspaceId = currentWorkspace?.id ?? 0;
+    const debouncedSearch = useDebouncedValue(search.trim(), 300);
+    // Clearing the box shows the full list at once, without the debounce.
+    const query = search.trim() === "" ? "" : debouncedSearch;
+    const { ref: sentinelRef, inView } = useInView();
 
-    const nextCursor = useRef<{ lastVisitedAt: Date; id: number } | null>(null); // compound keyset cursor for the next page
-    const hasMoreRef = useRef(true); // whether another page exists — ref so loadMore always reads the latest value without needing to be in its deps
-
-    // Sentinel element stored as state so the observer effect re-runs when it mounts.
-    const [sentinelEl, setSentinelEl] = useState<HTMLDivElement | null>(null);
-    // Callback ref passed to the sentinel div — React calls this when the element mounts.
-    const sentinelRef = useCallback(
-        (node: HTMLDivElement | null) => setSentinelEl(node),
-        [],
-    );
-
-    /** Fetches the first page of the user's library and resets pagination state. */
-    const fetchFirstPage = async () => {
-        if (!currentWorkspace) {
-            setIsLoadingMore(false);
-            return;
-        }
-        try {
-            setIsLoadingMore(true);
+    const list = useInfiniteQuery({
+        queryKey: documentKeys.library(workspaceId, ""),
+        queryFn: async ({ pageParam }) => {
             const { data } =
                 await apiClient.get<GetLibraryDocumentsResponseDto>(
                     "/document/library",
                     {
                         params: {
-                            workspaceId: currentWorkspace.id,
+                            workspaceId,
                             limit: LIBRARY_PAGE_LIMIT,
+                            cursorVisitedAt:
+                                pageParam &&
+                                new Date(
+                                    pageParam.lastVisitedAt!,
+                                ).toISOString(),
+                            cursorId: pageParam?.id,
                         },
                     },
                 );
-            setDocuments(data.documents);
-            nextCursor.current = data.nextCursor
-                ? {
-                      id: data.nextCursor.id,
-                      lastVisitedAt: new Date(data.nextCursor.lastVisitedAt!),
-                  }
-                : null;
-            hasMoreRef.current = data.nextCursor !== null;
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setIsLoadingMore(false);
-        }
-    };
+            return data;
+        },
+        initialPageParam: null as GetLibraryDocumentsResponseDto["nextCursor"],
+        getNextPageParam: (lastPage) => lastPage.nextCursor,
+        enabled: currentWorkspace !== null,
+    });
 
-    /**
-     * Fetches documents matching the given title query from the search endpoint.
-     * Replaces the current document list and disables infinite scroll.
-     */
-    const fetchSearchedDocs = async (query: string) => {
-        if (!currentWorkspace) {
-            setIsLoadingMore(false);
-            return;
-        }
-        try {
-            setIsLoadingMore(true);
+    const results = useQuery({
+        queryKey: documentKeys.library(workspaceId, query),
+        queryFn: async () => {
             const { data } =
                 await apiClient.get<SearchLibraryDocumentsResponseDto>(
                     "/document/library/search",
                     {
                         params: {
-                            workspaceId: currentWorkspace.id,
+                            workspaceId,
                             title: query,
                             limit: LIBRARY_SEARCH_PAGE_LIMIT,
                         },
                     },
                 );
-            setDocuments(data.documents);
-            nextCursor.current = null;
-            hasMoreRef.current = false;
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setIsLoadingMore(false);
-        }
-    };
+            return data.documents;
+        },
+        enabled: currentWorkspace !== null && query !== "",
+        // Keep the previous results on screen while the next search loads.
+        placeholderData: keepPreviousData,
+    });
 
-    /**
-     * Fetches the next page of documents and appends them to the list.
-     * No-ops if a fetch is already in flight or there are no more pages.
-     */
-    const loadMore = async () => {
-        if (
-            !currentWorkspace ||
-            isLoadingMore ||
-            !hasMoreRef.current ||
-            !nextCursor.current
-        )
-            return;
-
-        try {
-            setIsLoadingMore(true);
-            const { data } =
-                await apiClient.get<GetLibraryDocumentsResponseDto>(
-                    "/document/library",
-                    {
-                        params: {
-                            workspaceId: currentWorkspace.id,
-                            limit: LIBRARY_PAGE_LIMIT,
-                            cursorVisitedAt:
-                                nextCursor.current.lastVisitedAt.toISOString(),
-                            cursorId: nextCursor.current.id,
-                        },
-                    },
-                );
-
-            setDocuments((prev) => [...prev, ...data.documents]);
-            nextCursor.current = data.nextCursor
-                ? {
-                      id: data.nextCursor.id,
-                      lastVisitedAt: new Date(data.nextCursor.lastVisitedAt!),
-                  }
-                : null;
-            hasMoreRef.current = data.nextCursor !== null;
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setIsLoadingMore(false);
-        }
-    };
-
-    // Debounces searchText and fires the search API 300ms after the user stops typing.
-    // When the query is cleared, resets to the first page of the normal library fetch.
-    // Also re-runs when a document menu bumps refreshSidebarAtom (Move to Trash,
-    // its Undo, pin toggles).
+    const { hasNextPage, isFetchingNextPage, fetchNextPage } = list;
+    // Loads the next page while the sentinel is on screen; re-runs after each
+    // page, so a short page that leaves it visible loads another.
     useEffect(() => {
-        let timeout: number | null = null;
-        if (searchText.trim() === "") {
-            fetchFirstPage();
-        } else {
-            timeout = setTimeout(() => {
-                fetchSearchedDocs(searchText.trim());
-            }, 300);
-        }
+        if (query === "" && inView && hasNextPage && !isFetchingNextPage)
+            fetchNextPage();
+    }, [query, inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-        return () => {
-            if (timeout) clearTimeout(timeout);
+    if (query === "")
+        return {
+            documents: list.data?.pages.flatMap((page) => page.documents) ?? [],
+            isLoading: list.isPending,
+            isFetchingMore: isFetchingNextPage,
+            sentinelRef,
         };
-    }, [searchText, currentWorkspace, refreshSidebar]);
-
-    // Observes the sentinel element and calls loadMore when it enters the viewport.
-    // Depends on sentinelEl so it re-runs once the element actually mounts.
-    useEffect(() => {
-        if (!sentinelEl) return;
-
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry.isIntersecting) loadMore();
-            },
-            { threshold: 0.1 },
-        );
-
-        observer.observe(sentinelEl);
-        return () => observer.disconnect();
-    }, [sentinelEl, loadMore]);
-
     return {
-        searchText,
-        setSearchText,
-        documents,
-        isLoadingMore,
+        documents: results.data ?? [],
+        isLoading: results.isPending,
+        isFetchingMore: false,
         sentinelRef,
-        isCreating,
-        createDocument,
     };
 };
 
