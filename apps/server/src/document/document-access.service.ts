@@ -17,8 +17,8 @@ import {
   hasAccess,
 } from '@converge/shared';
 import { DatabaseService } from '../db/database.service.js';
-import { bumpDocAccessVersion } from '../utils/access-version.util.js';
-import { sql } from 'kysely';
+import { sql, type Transaction } from 'kysely';
+import type { DatabaseSchema } from '../db/database.schema.js';
 
 /** A document's two access version counters — see the 0048 migration. */
 export interface AccessVersions {
@@ -524,7 +524,7 @@ export class DocumentAccessService {
         )
         .execute();
 
-      await bumpDocAccessVersion(tx, documentId);
+      await this.bumpDocAccessVersion(tx, documentId);
     });
 
     return {
@@ -585,7 +585,29 @@ export class DocumentAccessService {
 
       // Same transaction as the delete, so the revoke and the signal that
       // makes open sockets re-resolve commit together.
-      await bumpDocAccessVersion(tx, documentId);
+      await this.bumpDocAccessVersion(tx, documentId);
     });
+  }
+
+  /**
+   * Increments a document's doc_access_version. Call it in the same
+   * transaction as any write that can change who may access that one
+   * document, so the change and the signal that makes every open socket
+   * re-resolve its access commit together — a missed bump leaves open
+   * sockets on their old access. Writes that already update the documents
+   * row (role overrides, delete/restore) bump inline in that statement
+   * instead.
+   * @param tx - the transaction the access change runs in
+   * @param documentId - the document whose access changed
+   */
+  private async bumpDocAccessVersion(
+    tx: Transaction<DatabaseSchema>,
+    documentId: number,
+  ): Promise<void> {
+    await tx
+      .updateTable('documents')
+      .set({ doc_access_version: sql`doc_access_version + 1` })
+      .where('id', '=', documentId)
+      .execute();
   }
 }
