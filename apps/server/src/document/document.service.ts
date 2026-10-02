@@ -519,12 +519,18 @@ export class DocumentService {
         'You must have admin access to delete this document.',
       );
 
-    // Mark the document as deleted without removing any rows.
-    await db
-      .updateTable('documents')
-      .set({ is_deleted: true, deleted_at: new Date() })
-      .where('id', '=', documentId)
-      .execute();
+    // Mark the document as deleted without removing any rows, and bump the
+    // access version in the same transaction so open sockets re-resolve
+    // (and, now that it 404s, get disconnected) on their next emit.
+    await db.transaction().execute(async (tx) => {
+      await tx
+        .updateTable('documents')
+        .set({ is_deleted: true, deleted_at: new Date() })
+        .where('id', '=', documentId)
+        .execute();
+
+      await this.documentAccessService.bumpDocAccessVersion(tx, documentId);
+    });
   }
 
   /**
@@ -554,14 +560,20 @@ export class DocumentService {
     // WHERE on is_deleted = true makes the "already restored" check atomic
     // with the write itself, so two concurrent restores can't both report
     // success.
-    const result = await db
-      .updateTable('documents')
-      .set({ is_deleted: false, deleted_at: null })
-      .where('id', '=', documentId)
-      .where('is_deleted', '=', true)
-      .returning('id')
-      .executeTakeFirst();
-    if (!result) throw new ConflictException('Document is not deleted.');
+    // The access version is bumped in the same transaction, like every other
+    // write that changes who may access the document.
+    await db.transaction().execute(async (tx) => {
+      const result = await tx
+        .updateTable('documents')
+        .set({ is_deleted: false, deleted_at: null })
+        .where('id', '=', documentId)
+        .where('is_deleted', '=', true)
+        .returning('id')
+        .executeTakeFirst();
+      if (!result) throw new ConflictException('Document is not deleted.');
+
+      await this.documentAccessService.bumpDocAccessVersion(tx, documentId);
+    });
   }
 
   /**

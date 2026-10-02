@@ -17,7 +17,8 @@ import {
   hasAccess,
 } from '@converge/shared';
 import { DatabaseService } from '../db/database.service.js';
-import { sql } from 'kysely';
+import { sql, type Transaction } from 'kysely';
+import type { DatabaseSchema } from '../db/database.schema.js';
 
 @Injectable()
 export class DocumentAccessService {
@@ -162,16 +163,23 @@ export class DocumentAccessService {
     if (body.nonMemberDocAccess !== undefined)
       patch.non_member_doc_access = body.nonMemberDocAccess;
 
-    const updated = await db
-      .updateTable('documents')
-      .set(patch)
-      .where('id', '=', documentId)
-      .returning([
-        'admin_doc_access',
-        'member_doc_access',
-        'non_member_doc_access',
-      ])
-      .executeTakeFirstOrThrow();
+    // Apply the overrides and bump the access version in one transaction, so
+    // every open socket's next emit re-resolves against the new overrides.
+    const updated = await db.transaction().execute(async (tx) => {
+      const row = await tx
+        .updateTable('documents')
+        .set(patch)
+        .where('id', '=', documentId)
+        .returning([
+          'admin_doc_access',
+          'member_doc_access',
+          'non_member_doc_access',
+        ])
+        .executeTakeFirstOrThrow();
+
+      await this.bumpDocAccessVersion(tx, documentId);
+      return row;
+    });
 
     return {
       adminDocAccess: updated.admin_doc_access,
@@ -439,14 +447,20 @@ export class DocumentAccessService {
 
     if (!targetUser) throw new NotFoundException('User not found.');
 
-    // Upsert — insert or update the access level if a row already exists.
-    await db
-      .insertInto('document_access')
-      .values({ document_id: documentId, user_id: targetUserId, access })
-      .onConflict((oc) =>
-        oc.columns(['document_id', 'user_id']).doUpdateSet({ access }),
-      )
-      .execute();
+    // Upsert — insert or update the access level if a row already exists —
+    // and bump doc_access_version in the same transaction, so an open socket
+    // of the target user re-resolves on its next emit.
+    await db.transaction().execute(async (tx) => {
+      await tx
+        .insertInto('document_access')
+        .values({ document_id: documentId, user_id: targetUserId, access })
+        .onConflict((oc) =>
+          oc.columns(['document_id', 'user_id']).doUpdateSet({ access }),
+        )
+        .execute();
+
+      await this.bumpDocAccessVersion(tx, documentId);
+    });
 
     return {
       id: targetUser.id,
@@ -503,6 +517,30 @@ export class DocumentAccessService {
         .where('document_id', '=', documentId)
         .where('user_id', '=', targetUserId)
         .execute();
+
+      // Same transaction as the delete, so the revoke and the signal that
+      // makes open sockets re-resolve commit together.
+      await this.bumpDocAccessVersion(tx, documentId);
     });
+  }
+
+  /**
+   * Increments a document's doc_access_version. Call it in the same
+   * transaction as any write that can change who may access that one
+   * document, so the change and the signal that makes every open socket
+   * re-resolve its access commit together — a missed bump leaves open
+   * sockets on their old access.
+   * @param tx - the transaction the access change runs in
+   * @param documentId - the document whose access changed
+   */
+  async bumpDocAccessVersion(
+    tx: Transaction<DatabaseSchema>,
+    documentId: number,
+  ): Promise<void> {
+    await tx
+      .updateTable('documents')
+      .set({ doc_access_version: sql`doc_access_version + 1` })
+      .where('id', '=', documentId)
+      .execute();
   }
 }
