@@ -20,6 +20,14 @@ import { DatabaseService } from '../db/database.service.js';
 import { sql, type Transaction } from 'kysely';
 import type { DatabaseSchema } from '../db/database.schema.js';
 
+/** A document's two access version counters, bumped by every access change. */
+export interface AccessVersions {
+  /** documents.doc_access_version — bumped by changes to this one document's access. */
+  docAccessVersion: number;
+  /** workspaces.workspace_access_version — bumped by changes to access across the document's workspace. */
+  workspaceAccessVersion: number;
+}
+
 @Injectable()
 export class DocumentAccessService {
   constructor(private readonly dbService: DatabaseService) {}
@@ -43,6 +51,30 @@ export class DocumentAccessService {
     userId: number,
     includeDeleted = false,
   ): Promise<ResolvedDocumentAccessLevel> {
+    const { access } = await this.resolveAccessWithVersions(
+      documentId,
+      userId,
+      includeDeleted,
+    );
+    return access;
+  }
+
+  /**
+   * Same as resolveAccess, but also returns the document's two access
+   * versions from the same query, so a socket can store them alongside the
+   * access they were read with.
+   * Throws NotFoundException if the document does not exist, or is deleted
+   * and includeDeleted is false.
+   * @param documentId - the document to resolve access for
+   * @param userId - the user whose access level to resolve
+   * @param includeDeleted - see resolveAccess
+   * @returns the resolved access level and both access versions
+   */
+  async resolveAccessWithVersions(
+    documentId: number,
+    userId: number,
+    includeDeleted = false,
+  ): Promise<AccessVersions & { access: ResolvedDocumentAccessLevel }> {
     const db = this.dbService.kysely;
 
     // Single indexed join resolving all four tiers at once — same CASE
@@ -69,6 +101,10 @@ export class DocumentAccessService {
           END
         `.as('access'),
       )
+      .select([
+        'd.doc_access_version as docAccessVersion',
+        'w.workspace_access_version as workspaceAccessVersion',
+      ])
       .where('d.id', '=', documentId);
     if (!includeDeleted) query = query.where('d.is_deleted', '=', false);
 
@@ -77,7 +113,29 @@ export class DocumentAccessService {
     const row = await query.executeTakeFirst();
     if (!row) throw new NotFoundException('Document not found.');
 
-    return row.access;
+    return row;
+  }
+
+  /**
+   * Reads a document's current access versions without resolving anyone's
+   * access — what an emit with no access check of its own (e.g. a Redis
+   * relay) compares each socket's stored versions against.
+   * @param documentId - the document to read versions for
+   * @returns both access versions, or null if the document doesn't exist or is deleted
+   */
+  async getAccessVersions(documentId: number): Promise<AccessVersions | null> {
+    const row = await this.dbService.kysely
+      .selectFrom('documents as d')
+      .innerJoin('workspaces as w', 'w.id', 'd.workspace_id')
+      .select([
+        'd.doc_access_version as docAccessVersion',
+        'w.workspace_access_version as workspaceAccessVersion',
+      ])
+      .where('d.id', '=', documentId)
+      .where('d.is_deleted', '=', false)
+      .executeTakeFirst();
+
+    return row ?? null;
   }
 
   /**
