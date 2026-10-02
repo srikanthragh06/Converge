@@ -519,10 +519,16 @@ export class DocumentService {
         'You must have admin access to delete this document.',
       );
 
-    // Mark the document as deleted without removing any rows.
+    // Mark the document as deleted without removing any rows, bumping
+    // doc_access_version in the same statement so open sockets re-resolve
+    // (and, now that it 404s, get disconnected) on their next emit.
     await db
       .updateTable('documents')
-      .set({ is_deleted: true, deleted_at: new Date() })
+      .set({
+        is_deleted: true,
+        deleted_at: new Date(),
+        doc_access_version: sql`doc_access_version + 1`,
+      })
       .where('id', '=', documentId)
       .execute();
   }
@@ -554,9 +560,15 @@ export class DocumentService {
     // WHERE on is_deleted = true makes the "already restored" check atomic
     // with the write itself, so two concurrent restores can't both report
     // success.
+    // doc_access_version is bumped in the same statement, like every other
+    // write that changes who may access the document.
     const result = await db
       .updateTable('documents')
-      .set({ is_deleted: false, deleted_at: null })
+      .set({
+        is_deleted: false,
+        deleted_at: null,
+        doc_access_version: sql`doc_access_version + 1`,
+      })
       .where('id', '=', documentId)
       .where('is_deleted', '=', true)
       .returning('id')

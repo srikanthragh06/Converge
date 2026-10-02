@@ -5,6 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { DatabaseService } from '../db/database.service.js';
+import { bumpWorkspaceAccessVersion } from '../utils/access-version.util.js';
 import { sql } from 'kysely';
 import { hasWorkspaceRole, WORKSPACE_ROLE_RANK } from '@converge/shared';
 import type {
@@ -669,6 +670,11 @@ export class WorkspaceService {
         .returning(['role'])
         .executeTakeFirstOrThrow();
 
+      // A new member or role change can change the target's access to every
+      // document in the workspace — bump in the same transaction so open
+      // sockets re-resolve on their next emit.
+      await bumpWorkspaceAccessVersion(tx, workspaceId);
+
       return {
         id: targetUser.id,
         name: targetUser.name,
@@ -748,6 +754,9 @@ export class WorkspaceService {
         .where('workspace_id', '=', workspaceId)
         .where('user_id', '=', targetUserId)
         .execute();
+
+      // Same transaction as the delete — see addMember.
+      await bumpWorkspaceAccessVersion(tx, workspaceId);
     });
   }
 
@@ -796,6 +805,9 @@ export class WorkspaceService {
       if (!result.numDeletedRows) {
         throw new NotFoundException('Membership not found.');
       }
+
+      // Same transaction as the delete — see addMember.
+      await bumpWorkspaceAccessVersion(tx, workspaceId);
     });
   }
 
@@ -896,10 +908,15 @@ export class WorkspaceService {
     if (body.memberDocAccess !== undefined) update.member_doc_access = body.memberDocAccess;
     if (body.nonMemberDocAccess !== undefined) update.non_member_doc_access = body.nonMemberDocAccess;
 
-    // Persist the changes and return the updated defaults.
+    // Persist the changes and return the updated defaults, bumping
+    // workspace_access_version in the same statement so open sockets on any
+    // of the workspace's documents re-resolve on their next emit.
     const updated = await db
       .updateTable('workspaces')
-      .set(update)
+      .set({
+        ...update,
+        workspace_access_version: sql`workspace_access_version + 1`,
+      })
       .where('id', '=', workspaceId)
       .returning(['admin_doc_access', 'member_doc_access', 'non_member_doc_access'])
       .executeTakeFirstOrThrow();
@@ -1095,10 +1112,15 @@ export class WorkspaceService {
         .where('user_id', '=', userId)
         .execute();
 
-      // Persist the canonical owner on the workspace row.
+      // Persist the canonical owner on the workspace row, bumping
+      // workspace_access_version in the same statement — both users' access
+      // to every document in the workspace just changed.
       await tx
         .updateTable('workspaces')
-        .set({ owner_id: newOwnerId })
+        .set({
+          owner_id: newOwnerId,
+          workspace_access_version: sql`workspace_access_version + 1`,
+        })
         .where('id', '=', workspaceId)
         .execute();
 
