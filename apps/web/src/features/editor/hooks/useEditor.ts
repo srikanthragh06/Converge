@@ -6,6 +6,7 @@ import useDocumentTitle from "./useDocumentTitle";
 import useDocumentFetch from "./useDocumentFetch";
 import useUndoManagerGuard from "./useUndoManagerGuard";
 import useAwareness from "./useAwareness";
+import useAccessChanges from "./useAccessChanges";
 import useUploadFile from "./useUploadFile";
 import useDocumentId from "@/hooks/useDocumentId";
 import deleteBlockExtension from "@/features/editor/lib/deleteBlockExtension";
@@ -21,7 +22,7 @@ import { editorSchema } from "@converge/shared";
 const useEditor = () => {
     const documentId = useDocumentId(); // undefined for a non-numeric id, which useDocumentFetch reports as notFound
 
-    const { yDoc } = useYjsSync(documentId);
+    const { yDoc, resetYDoc } = useYjsSync(documentId);
 
     const { title, setTitle, isTitlePending, handleTitleChange } =
         useDocumentTitle();
@@ -32,6 +33,9 @@ const useEditor = () => {
     // Connect the socket only once the document is confirmed — prevents the gateway
     // from receiving a connection with an invalid or inaccessible document ID.
     useSocket(documentStatus === "ready", documentId);
+
+    // Reacts to the server telling this socket its access changed or was revoked.
+    useAccessChanges(documentId, resetYDoc);
 
     // Stable upload function for this workspace+document pair. Null fallbacks are safe —
     // the editor is not created until both are present, so the fallbacks never reach ImageKit.

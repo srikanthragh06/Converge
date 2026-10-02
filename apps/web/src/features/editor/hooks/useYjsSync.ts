@@ -1,5 +1,5 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isSocketReadyAtom, syncStatusAtom } from "@/atoms/socket";
 import { socketReceive } from "@/lib/socket-receive.util";
 import {
@@ -22,7 +22,10 @@ import { socket } from "@/lib/socket";
  * Creates and owns the shared Y.Doc (re-created on each document switch), wires up local-update debouncing,
  * handles incoming server sync events, and manages the full repair sync
  * protocol (client-initiated on connect + 15 s heartbeat).
- * Returns the Y.Doc for use by the BlockNote editor.
+ * Returns the Y.Doc for use by the BlockNote editor, and resetYDoc, which
+ * throws the local doc away for a fresh one that the repair sync refills
+ * from the server — used when local edits the server rejected must not stay
+ * on screen.
  */
 const useYjsSync = (documentId: number | undefined) => {
     const isSocketReady = useAtomValue(isSocketReadyAtom); // read-only view of the global socket connection state
@@ -35,8 +38,9 @@ const useYjsSync = (documentId: number | undefined) => {
 
     const timeoutIdRef = useRef<number | null>(null); // stores the debounce timer ID for batching outgoing Yjs updates
     const pendingUpdatesRef = useRef<Uint8Array<ArrayBufferLike>[]>([]); // accumulates Yjs update chunks between debounce flushes
-    // Re-created when documentId changes so the new document starts with a clean slate.
-    const yDoc = useMemo(() => new Y.Doc(), [documentId]); // the shared Yjs document that backs the BlockNote editor state
+    const [resetCount, setResetCount] = useState(0); // bumped by resetYDoc to force a fresh Y.Doc for the same document
+    // Re-created when documentId changes (or on resetYDoc) so the doc starts with a clean slate.
+    const yDoc = useMemo(() => new Y.Doc(), [documentId, resetCount]); // the shared Yjs document that backs the BlockNote editor state
 
     // Derives and publishes syncStatus to the atom whenever any flag changes.
     // Priority: offline > restoring > typing > syncing.
@@ -285,7 +289,13 @@ const useYjsSync = (documentId: number | undefined) => {
         };
     }, [yDoc, isSocketReady]);
 
-    return { yDoc };
+    // Stable so consumers can list it as an effect dependency.
+    const resetYDoc = useCallback(
+        () => setResetCount((count) => count + 1),
+        [],
+    );
+
+    return { yDoc, resetYDoc };
 };
 
 export default useYjsSync;
