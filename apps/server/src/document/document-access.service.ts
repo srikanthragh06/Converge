@@ -17,7 +17,24 @@ import {
   hasAccess,
 } from '@converge/shared';
 import { DatabaseService } from '../db/database.service.js';
-import { sql } from 'kysely';
+import { sql, type Transaction } from 'kysely';
+import type { DatabaseSchema } from '../db/database.schema.js';
+
+/** A document's two access version counters — see the 0048 migration. */
+export interface AccessVersions {
+  /** Bumped by access changes scoped to this one document. */
+  docAccessVersion: number;
+  /** Bumped by access changes scoped to the document's whole workspace. */
+  workspaceAccessVersion: number;
+}
+
+/** resolveAccessWithVersions' result: the access level plus what a socket stamps to detect later changes. */
+export interface ResolvedAccessWithVersions extends AccessVersions {
+  /** The caller's resolved access level on the document. */
+  access: ResolvedDocumentAccessLevel;
+  /** The workspace the document belongs to — fixed for a document's lifetime. */
+  workspaceId: number;
+}
 
 @Injectable()
 export class DocumentAccessService {
@@ -42,6 +59,32 @@ export class DocumentAccessService {
     userId: number,
     includeDeleted = false,
   ): Promise<ResolvedDocumentAccessLevel> {
+    const { access } = await this.resolveAccessWithVersions(
+      documentId,
+      userId,
+      includeDeleted,
+    );
+    return access;
+  }
+
+  /**
+   * Same resolution as resolveAccess, in the same single query, but also
+   * returns the document's workspace and both access version counters. The
+   * document gateway stamps these on a socket and compares them before every
+   * emit, so a mid-session access change is caught without depending on any
+   * cross-server message.
+   * Throws NotFoundException if the document does not exist, or is deleted
+   * and includeDeleted is false.
+   * @param documentId - the document to resolve access for
+   * @param userId - the user whose access level to resolve
+   * @param includeDeleted - see resolveAccess
+   * @returns the resolved access level, workspace id, and both access versions
+   */
+  async resolveAccessWithVersions(
+    documentId: number,
+    userId: number,
+    includeDeleted = false,
+  ): Promise<ResolvedAccessWithVersions> {
     const db = this.dbService.kysely;
 
     // Single indexed join resolving all four tiers at once — same CASE
@@ -68,6 +111,11 @@ export class DocumentAccessService {
           END
         `.as('access'),
       )
+      .select([
+        'd.workspace_id as workspaceId',
+        'd.doc_access_version as docAccessVersion',
+        'w.workspace_access_version as workspaceAccessVersion',
+      ])
       .where('d.id', '=', documentId);
     if (!includeDeleted) query = query.where('d.is_deleted', '=', false);
 
@@ -76,7 +124,30 @@ export class DocumentAccessService {
     const row = await query.executeTakeFirst();
     if (!row) throw new NotFoundException('Document not found.');
 
-    return row.access;
+    return row;
+  }
+
+  /**
+   * Reads a document's current access version counters without resolving
+   * anyone's access — the cheap primary-key read an emit with no
+   * resolveAccess of its own (e.g. a Redis relay) compares socket stamps
+   * against.
+   * @param documentId - the document to read versions for
+   * @returns both access versions, or null if the document doesn't exist or is soft-deleted
+   */
+  async getAccessVersions(documentId: number): Promise<AccessVersions | null> {
+    const row = await this.dbService.kysely
+      .selectFrom('documents as d')
+      .innerJoin('workspaces as w', 'w.id', 'd.workspace_id')
+      .select([
+        'd.doc_access_version as docAccessVersion',
+        'w.workspace_access_version as workspaceAccessVersion',
+      ])
+      .where('d.id', '=', documentId)
+      .where('d.is_deleted', '=', false)
+      .executeTakeFirst();
+
+    return row ?? null;
   }
 
   /**
@@ -162,9 +233,11 @@ export class DocumentAccessService {
     if (body.nonMemberDocAccess !== undefined)
       patch.non_member_doc_access = body.nonMemberDocAccess;
 
+    // Bump doc_access_version in the same statement so every open socket's
+    // next emit re-resolves access against the new overrides.
     const updated = await db
       .updateTable('documents')
-      .set(patch)
+      .set({ ...patch, doc_access_version: sql`doc_access_version + 1` })
       .where('id', '=', documentId)
       .returning([
         'admin_doc_access',
@@ -439,14 +512,20 @@ export class DocumentAccessService {
 
     if (!targetUser) throw new NotFoundException('User not found.');
 
-    // Upsert — insert or update the access level if a row already exists.
-    await db
-      .insertInto('document_access')
-      .values({ document_id: documentId, user_id: targetUserId, access })
-      .onConflict((oc) =>
-        oc.columns(['document_id', 'user_id']).doUpdateSet({ access }),
-      )
-      .execute();
+    // Upsert — insert or update the access level if a row already exists —
+    // and bump doc_access_version in the same transaction, so an open socket
+    // of the target user re-resolves on its next emit.
+    await db.transaction().execute(async (tx) => {
+      await tx
+        .insertInto('document_access')
+        .values({ document_id: documentId, user_id: targetUserId, access })
+        .onConflict((oc) =>
+          oc.columns(['document_id', 'user_id']).doUpdateSet({ access }),
+        )
+        .execute();
+
+      await this.bumpDocAccessVersion(tx, documentId);
+    });
 
     return {
       id: targetUser.id,
@@ -503,6 +582,32 @@ export class DocumentAccessService {
         .where('document_id', '=', documentId)
         .where('user_id', '=', targetUserId)
         .execute();
+
+      // Same transaction as the delete, so the revoke and the signal that
+      // makes open sockets re-resolve commit together.
+      await this.bumpDocAccessVersion(tx, documentId);
     });
+  }
+
+  /**
+   * Increments a document's doc_access_version. Call it in the same
+   * transaction as any write that can change who may access that one
+   * document, so the change and the signal that makes every open socket
+   * re-resolve its access commit together — a missed bump leaves open
+   * sockets on their old access. Writes that already update the documents
+   * row (role overrides, delete/restore) bump inline in that statement
+   * instead.
+   * @param tx - the transaction the access change runs in
+   * @param documentId - the document whose access changed
+   */
+  private async bumpDocAccessVersion(
+    tx: Transaction<DatabaseSchema>,
+    documentId: number,
+  ): Promise<void> {
+    await tx
+      .updateTable('documents')
+      .set({ doc_access_version: sql`doc_access_version + 1` })
+      .where('id', '=', documentId)
+      .execute();
   }
 }

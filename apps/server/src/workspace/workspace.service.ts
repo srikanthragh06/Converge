@@ -5,7 +5,8 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { DatabaseService } from '../db/database.service.js';
-import { sql } from 'kysely';
+import { sql, type Transaction } from 'kysely';
+import type { DatabaseSchema } from '../db/database.schema.js';
 import { hasWorkspaceRole, WORKSPACE_ROLE_RANK } from '@converge/shared';
 import type {
   CreateWorkspaceResponseDto,
@@ -669,6 +670,11 @@ export class WorkspaceService {
         .returning(['role'])
         .executeTakeFirstOrThrow();
 
+      // A new member or role change can change the target's access to every
+      // document in the workspace — bump in the same transaction so open
+      // sockets re-resolve on their next emit.
+      await this.bumpWorkspaceAccessVersion(tx, workspaceId);
+
       return {
         id: targetUser.id,
         name: targetUser.name,
@@ -748,6 +754,9 @@ export class WorkspaceService {
         .where('workspace_id', '=', workspaceId)
         .where('user_id', '=', targetUserId)
         .execute();
+
+      // Same transaction as the delete — see addMember.
+      await this.bumpWorkspaceAccessVersion(tx, workspaceId);
     });
   }
 
@@ -796,6 +805,9 @@ export class WorkspaceService {
       if (!result.numDeletedRows) {
         throw new NotFoundException('Membership not found.');
       }
+
+      // Same transaction as the delete — see addMember.
+      await this.bumpWorkspaceAccessVersion(tx, workspaceId);
     });
   }
 
@@ -896,10 +908,15 @@ export class WorkspaceService {
     if (body.memberDocAccess !== undefined) update.member_doc_access = body.memberDocAccess;
     if (body.nonMemberDocAccess !== undefined) update.non_member_doc_access = body.nonMemberDocAccess;
 
-    // Persist the changes and return the updated defaults.
+    // Persist the changes and return the updated defaults, bumping
+    // workspace_access_version in the same statement so open sockets on any
+    // of the workspace's documents re-resolve on their next emit.
     const updated = await db
       .updateTable('workspaces')
-      .set(update)
+      .set({
+        ...update,
+        workspace_access_version: sql`workspace_access_version + 1`,
+      })
       .where('id', '=', workspaceId)
       .returning(['admin_doc_access', 'member_doc_access', 'non_member_doc_access'])
       .executeTakeFirstOrThrow();
@@ -1095,10 +1112,15 @@ export class WorkspaceService {
         .where('user_id', '=', userId)
         .execute();
 
-      // Persist the canonical owner on the workspace row.
+      // Persist the canonical owner on the workspace row, bumping
+      // workspace_access_version in the same statement — both users' access
+      // to every document in the workspace just changed.
       await tx
         .updateTable('workspaces')
-        .set({ owner_id: newOwnerId })
+        .set({
+          owner_id: newOwnerId,
+          workspace_access_version: sql`workspace_access_version + 1`,
+        })
         .where('id', '=', workspaceId)
         .execute();
 
@@ -1153,5 +1175,27 @@ export class WorkspaceService {
     });
 
     return { id: ws.id, name: ws.name };
+  }
+
+  /**
+   * Increments a workspace's workspace_access_version. Call it in the same
+   * transaction as any write that can change access to all of the
+   * workspace's documents (membership, member roles), so the change and the
+   * signal that makes every open socket re-resolve its access commit
+   * together — a missed bump leaves open sockets on their old access. Writes
+   * that already update the workspaces row (ownership transfer, default doc
+   * access) bump inline in that statement instead.
+   * @param tx - the transaction the access change runs in
+   * @param workspaceId - the workspace whose access changed
+   */
+  private async bumpWorkspaceAccessVersion(
+    tx: Transaction<DatabaseSchema>,
+    workspaceId: number,
+  ): Promise<void> {
+    await tx
+      .updateTable('workspaces')
+      .set({ workspace_access_version: sql`workspace_access_version + 1` })
+      .where('id', '=', workspaceId)
+      .execute();
   }
 }

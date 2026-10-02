@@ -51,6 +51,8 @@ export interface DocumentsTable {
   indexing_status: Generated<DocumentIndexingStatus>;
   /** When this document's content was last confirmed indexed by a successful reindex run. NULL if never indexed. */
   last_indexed_at: Date | null;
+  /** Bumped by every write that can change access to this one document (grants, role overrides, delete/restore) — compared against each open socket's stamp before every emit. */
+  doc_access_version: Generated<number>;
 }
 
 /** Row shape for the users table. */
@@ -106,6 +108,8 @@ export interface WorkspacesTable {
   /** Default doc access for users not in this workspace. */
   non_member_doc_access: Generated<DocumentAccessLevel>;
   created_at: Generated<Date>;
+  /** Bumped by every write that can change access to all of this workspace's documents (membership, roles, ownership, default doc access) — compared against each open socket's stamp before every emit. */
+  workspace_access_version: Generated<number>;
 }
 
 /** Row shape for the document_checkpoint_contributors table. */
