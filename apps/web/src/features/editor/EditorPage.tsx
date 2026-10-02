@@ -36,11 +36,14 @@ const EditorPage = () => {
 
     const isSocketReady = useAtomValue(isSocketReadyAtom); // true only after DOC_READY — gates editor render so it never mounts before the socket handshake completes
     const scrollRef = useEditorScrollGap(editor); // ref for the scroll container — maintains a gap below the last block
-    const { isWriteLocked, toggleWriteLock } = useWriteLock(documentId); // local, per-user write lock toggle — has no effect on isEditable itself
     const editorWrapperRef = useRef<HTMLDivElement>(null); // ref for the position:relative wrapper used by BlockAwarenessOverlay
     const isEditable =
         documentAccess !== null && hasAccess(documentAccess, "editor"); // editor+ may write; viewers get a read-only instance
-    const canWrite = isEditable && !isWriteLocked; // combines resolved access with the local write lock to gate actual editing
+    const { isWriteLocked, toggleWriteLock, canWrite } = useWriteLock(
+        documentId,
+        editor,
+        isEditable,
+    ); // local, per-user write lock toggle (no effect on isEditable itself); also applies canWrite to the editor
 
     const syncStatus = useAtomValue(syncStatusAtom); // current Yjs sync state — drives skeleton vs. editor rendering
     useScrollToBlock(documentId); // scrolls to a ?blockId= deep link once the editor's content first becomes visible
@@ -143,7 +146,6 @@ const EditorPage = () => {
                                 <BlockNoteView
                                     editor={editor}
                                     theme={convergeTheme}
-                                    editable={canWrite}
                                 />
                                 <BlockAwarenessOverlay
                                     editorWrapperRef={editorWrapperRef}
