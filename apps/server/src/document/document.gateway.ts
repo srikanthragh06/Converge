@@ -50,6 +50,7 @@ import {
   AwarenessUpdateServerSchema,
   type AwarenessUpdateServerPayload,
   AwarenessUpdateClientSchema,
+  AccessChangedSchema,
 } from '@converge/shared';
 import { GlobalExceptionFilter } from '../utils/global-exception.filter.js';
 import { socketEmit } from '../utils/ws-emit.util.js';
@@ -195,6 +196,8 @@ export class DocumentGateway
       // emitToDocRoomChecked re-checks the socket once they go stale.
       client.data.docAccessVersion = resolved.docAccessVersion;
       client.data.workspaceAccessVersion = resolved.workspaceAccessVersion;
+      // Only used to tell whether a later re-check changed the level.
+      client.data.accessLevel = resolved.access;
 
       // join the document room — broadcasts are scoped to this room
       client.join(String(documentId));
@@ -496,12 +499,19 @@ export class DocumentGateway
     const userId = client.data.userId as number;
 
     // This sends back document content, so require viewer access — resolved
-    // fresh, so a revoked socket can't keep pulling the document.
-    const access = await this.documentAccessService.resolveAccess(
-      documentId,
-      userId,
-    );
-    if (!hasAccess(access, 'viewer')) return;
+    // fresh, so a revoked socket can't keep pulling the document. The client
+    // sends this every 15s, so a revoked user on an idle document is told
+    // and disconnected here even if nothing else is emitted to the room.
+    const access = await this.documentAccessService
+      .resolveAccess(documentId, userId)
+      .catch((err) => {
+        if (err instanceof NotFoundException) return 'noAccess' as const;
+        throw err;
+      });
+    if (!hasAccess(access, 'viewer')) {
+      this.revokeSocket(client);
+      return;
+    }
 
     const clientSV = new Uint8Array(clientSVArray);
 
@@ -783,6 +793,15 @@ export class DocumentGateway
               socket.data.userId as number,
             );
           if (hasAccess(resolved.access, 'viewer')) {
+            // Tell the client if its level changed (e.g. editor → viewer).
+            if (resolved.access !== socket.data.accessLevel)
+              socketEmit(
+                socket,
+                SOCKET_EVENTS.ACCESS_CHANGED,
+                AccessChangedSchema,
+                { accessLevel: resolved.access },
+              );
+            socket.data.accessLevel = resolved.access;
             socket.data.docAccessVersion = resolved.docAccessVersion;
             socket.data.workspaceAccessVersion =
               resolved.workspaceAccessVersion;
@@ -798,10 +817,9 @@ export class DocumentGateway
             return;
           }
         }
-        // Below viewer, or the document is gone. Force-close the transport
-        // (see handleConnection), which also removes it from the room.
+        // Below viewer, or the document is gone.
         skipIds.push(socket.id);
-        socket.disconnect(true);
+        this.revokeSocket(socket);
       }),
     );
 
@@ -809,5 +827,19 @@ export class DocumentGateway
       .to(room)
       .except(skipIds)
       .emit(event, schema.parse(payload));
+  }
+
+  /**
+   * Tells a socket it has lost access (ACCESS_CHANGED with noAccess, so the
+   * client shows the no-access screen and stops reconnecting), then
+   * force-closes its transport — see handleConnection for why plain
+   * disconnect() isn't enough. Disconnecting also removes it from the room.
+   * @param socket - the socket that lost access
+   */
+  private revokeSocket(socket: Socket): void {
+    socketEmit(socket, SOCKET_EVENTS.ACCESS_CHANGED, AccessChangedSchema, {
+      accessLevel: 'noAccess',
+    });
+    socket.disconnect(true);
   }
 }

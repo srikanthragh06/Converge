@@ -297,9 +297,11 @@ export {
     AwarenessUpdateServerSchema,
     AwarenessUpdateClientSchema,
     GetAwarenessUpdateSchema,
+    AccessChangedSchema,
 } from "./socket/socket.js";
 export type {
     AwarenessUser,
     AwarenessUpdateServerPayload,
     AwarenessUpdateClientPayload,
+    AccessChangedPayload,
 } from "./socket/socket.js";

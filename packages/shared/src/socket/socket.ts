@@ -153,3 +153,12 @@ export const AwarenessUpdateClientSchema = z.object({
 export type AwarenessUpdateClientPayload = z.infer<
     typeof AwarenessUpdateClientSchema
 >;
+
+// Server → Client: the user's access to the open document changed mid-session.
+// noAccess means it was revoked (or the document deleted) — the server
+// disconnects the socket right after sending it.
+export const AccessChangedSchema = z.object({
+    accessLevel: ResolvedDocumentAccessLevelSchema,
+});
+
+export type AccessChangedPayload = z.infer<typeof AccessChangedSchema>;
