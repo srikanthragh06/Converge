@@ -4,7 +4,8 @@ import useDocument from "@/features/documents/hooks/useDocument";
 
 /**
  * Loads the open document through the shared useDocument query and turns
- * the result into the editor's status: loading, ready, forbidden (a 403), or
+ * the result into the editor's status: loading, ready, forbidden (a 403, or
+ * access revoked mid-session — ACCESS_CHANGED stores noAccess), or
  * notFound (a 404 or any other failure, which EditorPage sends to /404). A
  * document already loaded stays ready even if a background refresh fails.
  * Seeds the title via setTitle once per document; after that, title changes
@@ -29,13 +30,15 @@ const useDocumentFetch = (
     const documentStatus =
         documentId === undefined
             ? ("notFound" as const)
-            : document
-              ? ("ready" as const)
-              : !error
-                ? ("loading" as const)
-                : isAxiosError(error) && error.response?.status === 403
-                  ? ("forbidden" as const)
-                  : ("notFound" as const);
+            : document?.resolvedAccess === "noAccess"
+              ? ("forbidden" as const)
+              : document
+                ? ("ready" as const)
+                : !error
+                  ? ("loading" as const)
+                  : isAxiosError(error) && error.response?.status === 403
+                    ? ("forbidden" as const)
+                    : ("notFound" as const);
 
     return {
         documentStatus,

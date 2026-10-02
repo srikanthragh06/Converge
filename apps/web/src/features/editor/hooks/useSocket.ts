@@ -1,10 +1,15 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { socket } from "@/lib/socket";
-import { SOCKET_EVENTS } from "@converge/shared";
+import {
+    AccessChangedSchema,
+    SOCKET_EVENTS,
+    type GetDocumentResponseDto,
+} from "@converge/shared";
 import { useSetAtom } from "jotai";
 import { isSocketReadyAtom } from "@/atoms/socket";
 import { documentKeys } from "@/features/documents/queryKeys";
+import { socketReceive } from "@/lib/socket-receive.util";
 
 /**
  * Manages the Socket.io connection lifecycle.
@@ -13,7 +18,9 @@ import { documentKeys } from "@/features/documents/queryKeys";
  * handleConnection has fully completed before any sync operations begin.
  * DOC_READY also refreshes the document lists, since the server records
  * the visit just before sending it and Recent, Library and ⌘K are ordered
- * by last visit.
+ * by last visit. ACCESS_CHANGED writes the user's new access level into the
+ * cached document, so everything reading it (the editor's editability, the
+ * header's access badge) updates in place.
  *
  * @param canConnect - When false the socket is disconnected; defaults to true.
  * @param documentId - Stamped onto the socket query so the gateway can identify the document.
@@ -39,6 +46,15 @@ const useSocket = (canConnect: boolean = true, documentId?: number) => {
             queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
         });
 
+        socket.on(SOCKET_EVENTS.ACCESS_CHANGED, (data: unknown) => {
+            const res = socketReceive(AccessChangedSchema, data);
+            if (!res || documentId === undefined) return;
+            queryClient.setQueryData<GetDocumentResponseDto>(
+                documentKeys.detail(documentId),
+                (doc) => doc && { ...doc, resolvedAccess: res.accessLevel },
+            );
+        });
+
         socket.on("error", (error: string) => {
             console.error(error);
         });
@@ -54,6 +70,7 @@ const useSocket = (canConnect: boolean = true, documentId?: number) => {
             socket.off(SOCKET_EVENTS.CONNECT_ERROR);
             socket.off(SOCKET_EVENTS.DISCONNECT);
             socket.off(SOCKET_EVENTS.DOC_READY);
+            socket.off(SOCKET_EVENTS.ACCESS_CHANGED);
             socket.off("error");
             setIsSocketReady(false);
             socket.disconnect();
