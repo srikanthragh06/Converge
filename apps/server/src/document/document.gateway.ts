@@ -193,7 +193,7 @@ export class DocumentGateway
       client.data.userId = userId;
 
       // Store the access versions read alongside this access check —
-      // emitToDocRoomChecked re-checks the socket once they go stale.
+      // emitToDocRoomWithAccessCheck re-checks the socket once they go stale.
       client.data.docAccessVersion = resolved.docAccessVersion;
       client.data.workspaceAccessVersion = resolved.workspaceAccessVersion;
       // Only used to tell whether a later re-check changed the level.
