@@ -264,11 +264,13 @@ export class RedisService {
    * message. Messages published by this server instance are automatically
    * skipped to prevent echo loops.
    * @param channel - the Redis pub/sub channel to subscribe to
-   * @param handler - called with the parsed message payload for each foreign message
+   * @param handler - called with the parsed message payload for each foreign
+   *   message; may be async, in which case a rejection is caught and logged
+   *   the same as a synchronous throw
    */
   async subscribe(
     channel: string,
-    handler: (message: Record<string, unknown>) => void,
+    handler: (message: Record<string, unknown>) => void | Promise<void>,
   ): Promise<void> {
     await this.sub.subscribe(channel);
     this.sub.on('message', (msgChannel, raw) => {
@@ -286,16 +288,18 @@ export class RedisService {
       // Skip messages published by this server instance.
       if (message.clientId === this.clientId) return;
       // This listener runs outside the NestJS pipeline, so GlobalExceptionFilter
-      // never sees errors thrown here — an unguarded throw from a caller's
-      // handler would crash the whole process instead of just this message.
-      try {
-        handler(message);
-      } catch (err) {
-        console.error(
-          `Handler threw while processing message on Redis channel "${channel}":`,
-          err,
-        );
-      }
+      // never sees errors thrown here — an unguarded throw (or rejection)
+      // from a caller's handler would crash the whole process instead of
+      // just this message. Promise.resolve().then() funnels both into the
+      // one catch below.
+      Promise.resolve()
+        .then(() => handler(message))
+        .catch((err) => {
+          console.error(
+            `Handler threw while processing message on Redis channel "${channel}":`,
+            err,
+          );
+        });
     });
   }
 }

@@ -11,7 +11,7 @@ import { REDIS_EVENTS } from '../redis/redis.events.js';
 import { DatabaseService } from '../db/database.service.js';
 import { RedisService } from '../redis/redis.service.js';
 import { uint8ArrayToBase64 } from '../utils/utils.js';
-import { socketEmitRoom } from '../utils/ws-emit.util.js';
+import type { AccessVersions } from './document-access.service.js';
 import { DocumentGateway } from './document.gateway.js';
 import { sql } from 'kysely';
 
@@ -105,12 +105,16 @@ export class DocumentYjsService {
    *   already applied its own edit optimistically before sending it. Omit
    *   for server-driven writes with no originating socket (e.g. an MCP
    *   write tool), which broadcasts to every socket in the room instead.
+   * @param versions - the document's current access versions, when the
+   *   caller just resolved them, so the access-checked broadcast can skip
+   *   its own read
    * @returns the applied update and the server state vector after the update
    */
   async applyDocUpdate(
     documentId: number,
     update: Uint8Array,
     excludeSocket?: Socket,
+    versions?: AccessVersions,
   ): Promise<{ update: Uint8Array; serverSV: Uint8Array }> {
     const yDoc = await this.loadDoc(documentId);
 
@@ -144,14 +148,14 @@ export class DocumentYjsService {
 
     const serverSV = Y.encodeStateVector(yDoc);
 
-    // Broadcast to this instance's own room. socketServer can be undefined
-    // only if this is somehow called before the gateway has finished
-    // initializing, which can't happen in practice — the app isn't serving
-    // any requests yet at that point.
+    // Broadcast to this instance's own room, re-checking any recipient
+    // whose access may have changed. socketServer can be undefined only if
+    // this is somehow called before the gateway has finished initializing,
+    // which can't happen in practice — the app isn't serving any requests
+    // yet at that point.
     if (this.documentGateway.socketServer) {
-      socketEmitRoom(
-        excludeSocket ?? this.documentGateway.socketServer,
-        String(documentId),
+      await this.documentGateway.emitToDocRoomChecked(
+        documentId,
         SOCKET_EVENTS.SYNC_DOC_CLIENT,
         SyncDocClientSchema,
         {
@@ -159,6 +163,7 @@ export class DocumentYjsService {
           updateArray: Array.from(update),
           serverSVArray: Array.from(serverSV),
         },
+        { excludeSocket, versions },
       );
     }
 
@@ -232,11 +237,13 @@ export class DocumentYjsService {
    *   already has the new title. Omit for server-driven writes with no
    *   originating socket, which broadcasts to every socket in the room
    *   instead — same reasoning as applyDocUpdate's excludeSocket.
+   * @param versions - see applyDocUpdate
    */
   async applyDocTitleUpdate(
     documentId: number,
     title: string,
     excludeSocket?: Socket,
+    versions?: AccessVersions,
   ): Promise<void> {
     const db = this.dbService.kysely;
 
@@ -255,12 +262,12 @@ export class DocumentYjsService {
     // Broadcast to this instance's own room — see applyDocUpdate for why
     // this can't be left to the Redis publish alone.
     if (this.documentGateway.socketServer) {
-      socketEmitRoom(
-        excludeSocket ?? this.documentGateway.socketServer,
-        String(documentId),
+      await this.documentGateway.emitToDocRoomChecked(
+        documentId,
         SOCKET_EVENTS.SYNC_DOC_TITLE_CLIENT,
         SyncDocTitleClientSchema,
         { title },
+        { excludeSocket, versions },
       );
     }
   }
