@@ -19,7 +19,9 @@ import { mobileSidebarOpenAtom } from "@/atoms/sidebar";
 import CheckpointHistoryModal from "@/features/editor/checkpointHistoryModal/CheckpointHistoryModal";
 import type { EditorInstance } from "@/features/editor/lib/checkpointDiffUtils";
 import { Avatar, AvatarGroup } from "@/components/common/Avatar";
-import { StatusDot } from "@/components/ui/Badge";
+import { Badge, StatusDot } from "@/components/ui/Badge";
+import { formatAccessLevel } from "@/lib/utils";
+import type { ResolvedDocumentAccessLevel } from "@converge/shared";
 import Button from "@/components/ui/Button";
 import Tooltip from "@/components/ui/Tooltip";
 import { DropdownMenu, type MenuEntry } from "@/components/ui/Menu";
@@ -35,11 +37,12 @@ const MAX_VISIBLE_AVATARS = 4;
 
 /**
  * Top bar of the editor page. On desktop: a workspace / document breadcrumb
- * with the Saved / Syncing / Offline status dot on the left; collaborators'
+ * with the user's access level badge and the Saved / Syncing / Offline status
+ * dot on the left; collaborators'
  * presence avatars, the lock-editing, save-checkpoint, and version-history
  * icon buttons, the gold Share button, and the ⋯ document menu on the right.
- * On phones: a compact bar with the sidebar drawer button, the document title
- * and status dot, a Share icon, and a ⋯ button opening a bottom sheet that
+ * On phones: a compact bar with the sidebar drawer button, the document title,
+ * access badge and status dot, a Share icon, and a ⋯ button opening a bottom sheet that
  * also holds the lock / checkpoint / history actions. Only rendered when
  * documentStatus is "ready".
  */
@@ -50,6 +53,7 @@ const EditorPageHeader = ({
     title,
     editor,
     isEditable,
+    accessLevel,
     isPinned,
     canTrash,
     isWriteLocked,
@@ -66,6 +70,8 @@ const EditorPageHeader = ({
     editor: EditorInstance | null;
     /** Whether the requesting user has editor+ resolved access, forwarded to CheckpointHistoryModal to gate the restore action. */
     isEditable: boolean;
+    /** The user's resolved access to the document, shown as a badge beside the title; null while unknown. */
+    accessLevel: ResolvedDocumentAccessLevel | null;
     /** Whether the user has pinned the document to the sidebar, for the ⋯ menu's Pin / Unpin entry. */
     isPinned: boolean;
     /** Whether the user may move the document to Trash (admin access). */
@@ -194,6 +200,11 @@ const EditorPageHeader = ({
                     >
                         {title || "Untitled"}
                     </span>
+                    {accessLevel && (
+                        <Badge variant="outline">
+                            {formatAccessLevel(accessLevel)}
+                        </Badge>
+                    )}
                     <StatusDot
                         tone={status.tone}
                         aria-label={status.label}
@@ -238,10 +249,15 @@ const EditorPageHeader = ({
                             </span>
                         </span>
                     )}
+                    {accessLevel && (
+                        <Badge variant="outline" className="ml-1">
+                            {formatAccessLevel(accessLevel)}
+                        </Badge>
+                    )}
                     <StatusDot
                         tone={status.tone}
                         label={status.label}
-                        className="ml-3 shrink-0"
+                        className="ml-2 shrink-0"
                     />
                 </div>
 

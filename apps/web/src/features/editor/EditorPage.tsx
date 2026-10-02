@@ -58,6 +58,7 @@ const EditorPage = () => {
                     title={title}
                     editor={editor}
                     isEditable={isEditable}
+                    accessLevel={documentAccess}
                     isPinned={isPinned}
                     canTrash={
                         documentAccess !== null &&
