@@ -153,3 +153,19 @@ export const AwarenessUpdateClientSchema = z.object({
 export type AwarenessUpdateClientPayload = z.infer<
     typeof AwarenessUpdateClientSchema
 >;
+
+// Server → Client: the user's access to the open document changed mid-session
+// but is still viewer or above (e.g. editor → viewer). The client swaps in
+// the new level so the editor flips to or from read-only without a reload.
+export const AccessChangedSchema = z.object({
+    accessLevel: ResolvedDocumentAccessLevelSchema,
+});
+
+export type AccessChangedPayload = z.infer<typeof AccessChangedSchema>;
+
+// Server → Client: the user lost all access to the open document (or it was
+// deleted). Sent right before the server disconnects the socket, so the
+// client can show the no-access screen instead of waiting on a dead socket.
+export const AccessRevokedSchema = z.object({});
+
+export type AccessRevokedPayload = z.infer<typeof AccessRevokedSchema>;

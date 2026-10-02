@@ -38,4 +38,8 @@ export const SOCKET_EVENTS = {
     AWARENESS_UPDATE_SERVER: "awareness-update-server",
     AWARENESS_UPDATE_CLIENT: "awareness-update-client",
     GET_AWARENESS_UPDATE: "get-awareness-update",
+
+    // ── Access ────────────────────────────────────────────────────────────────
+    ACCESS_CHANGED: "access-changed",
+    ACCESS_REVOKED: "access-revoked",
 } as const;
