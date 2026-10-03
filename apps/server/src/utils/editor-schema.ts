@@ -5,6 +5,7 @@ import {
   editorSchema,
   type DocumentBlock,
   type BlockOperationDto,
+  type InsertedBlockDto,
 } from '@converge/shared';
 import * as Y from 'yjs';
 import { withMutex } from './async-mutex.js';
@@ -100,12 +101,13 @@ export function seedInitialDocumentUpdate(): Uint8Array {
  * @param liveYDoc - the document's live Y.Doc, e.g. from DocumentYjsService.loadDoc
  * @param operations - the edits to apply, in order
  * @returns the Yjs update bytes for the change, and the blocks the batch
- * inserted that still exist after it, in document order
+ * inserted that still exist after it, in document order, each with its
+ * position and the index of the operation that inserted it
  */
 export function applyBlockOperations(
   liveYDoc: Y.Doc,
   operations: BlockOperationDto[],
-): Promise<{ update: Uint8Array; insertedBlocks: DocumentBlock[] }> {
+): Promise<{ update: Uint8Array; insertedBlocks: InsertedBlockDto[] }> {
   return withMutex(() =>
     editor._withJSDOM(async () => {
       // Work on a throwaway copy of the document's current state, not the
@@ -138,12 +140,13 @@ export function applyBlockOperations(
       });
       collabEditor.mount(document.createElement('div'));
 
-      // Ids of every block a replace/insert below adds. Only ids are kept,
-      // not the blocks themselves: a later operation in the same batch can
-      // still change or remove a block an earlier one inserted, so the
-      // blocks are read back from the final document once every operation
-      // has run (see collectInsertedBlocks).
-      const insertedIds = new Set<string>();
+      // Maps the id of every block a replace/insert below adds to the index
+      // of the operation that added it. Only ids are kept, not the blocks
+      // themselves: a later operation in the same batch can still change or
+      // remove a block an earlier one inserted, so the blocks are read back
+      // from the final document once every operation has run (see
+      // collectInsertedBlocks).
+      const insertedOperations = new Map<string, number>();
 
       try {
         // Apply each operation in order. remove needs no content; replace
@@ -151,7 +154,8 @@ export function applyBlockOperations(
         // conversion readDocumentMarkdown's inverse would use, then apply
         // them through the real editor so the resulting Yjs ops are
         // proper incremental CRDT operations, not a wholesale rebuild.
-        for (const op of operations) {
+        for (let i = 0; i < operations.length; i++) {
+          const op = operations[i];
           if (op.type === 'remove') {
             collabEditor.removeBlocks(op.blockIds);
           } else if (op.type === 'replace') {
@@ -160,7 +164,9 @@ export function applyBlockOperations(
               [op.blockId],
               blocks,
             );
-            for (const block of insertedBlocks) insertedIds.add(block.id);
+            for (const block of insertedBlocks) {
+              insertedOperations.set(block.id, i);
+            }
           } else if (op.type === 'insert') {
             const blocks = await editor.tryParseMarkdownToBlocks(op.markdown);
             const insertedBlocks = collabEditor.insertBlocks(
@@ -168,7 +174,9 @@ export function applyBlockOperations(
               op.referenceBlockId,
               op.placement,
             );
-            for (const block of insertedBlocks) insertedIds.add(block.id);
+            for (const block of insertedBlocks) {
+              insertedOperations.set(block.id, i);
+            }
           }
         }
       } catch (err) {
@@ -194,7 +202,8 @@ export function applyBlockOperations(
       const update = Y.encodeStateAsUpdate(scratch, beforeSV);
       const insertedBlocks = collectInsertedBlocks(
         editor.yDocToBlocks(scratch, 'blocknote'),
-        insertedIds,
+        insertedOperations,
+        null,
       );
       return { update, insertedBlocks };
     }),
@@ -209,22 +218,36 @@ export function applyBlockOperations(
  * changed is returned as it ended up. A matched block is returned with its
  * children and not descended into, so an inserted block nested inside
  * another inserted block (e.g. a nested list item) is returned only as part
- * of its parent.
- * @param blocks - the document's final blocks, e.g. from yDocToBlocks
- * @param insertedIds - the ids of every block the batch inserted
+ * of its parent. Each returned block carries where it landed (its parent
+ * and previous sibling) and which operation inserted it.
+ * @param blocks - one level of the document's final blocks, starting with
+ * the top-level blocks from yDocToBlocks
+ * @param insertedOperations - maps the id of every block the batch inserted
+ * to the index of the operation that inserted it
+ * @param parentId - the id of the block that `blocks` are the children of,
+ * or null for the top level
  * @returns the inserted blocks that still exist, in document order
  */
 function collectInsertedBlocks(
   blocks: DocumentBlock[],
-  insertedIds: Set<string>,
-): DocumentBlock[] {
-  const result: DocumentBlock[] = [];
-  for (const block of blocks) {
-    if (insertedIds.has(block.id)) {
-      result.push(block);
+  insertedOperations: Map<string, number>,
+  parentId: string | null,
+): InsertedBlockDto[] {
+  const result: InsertedBlockDto[] = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    const operationIndex = insertedOperations.get(block.id);
+    if (operationIndex !== undefined) {
+      let previousBlockId: string | null = null;
+      if (i > 0) {
+        previousBlockId = blocks[i - 1].id;
+      }
+      result.push({ operationIndex, parentId, previousBlockId, block });
     } else {
       const children = block.children as DocumentBlock[];
-      result.push(...collectInsertedBlocks(children, insertedIds));
+      result.push(
+        ...collectInsertedBlocks(children, insertedOperations, block.id),
+      );
     }
   }
   return result;

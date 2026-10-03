@@ -24,6 +24,7 @@ import {
   hasAccess,
   type DocumentBlock,
   type BlockOperationDto,
+  type InsertedBlockDto,
 } from '@converge/shared';
 import { DatabaseService } from '../db/database.service.js';
 import { DocumentAccessService } from './document-access.service.js';
@@ -189,13 +190,14 @@ export class DocumentService {
    * @param userId - the ID of the authenticated requesting user
    * @param operations - the edits to apply, in order, as one atomic save
    * @returns the blocks the edits inserted (by replace or insert), in
-   * document order — not the whole document
+   * document order, each with its position and the index of the operation
+   * that inserted it — not the whole document
    */
   async updateDocumentBlocks(
     documentId: number,
     userId: number,
     operations: BlockOperationDto[],
-  ): Promise<DocumentBlock[]> {
+  ): Promise<InsertedBlockDto[]> {
     // Resolve access — throws NotFoundException if the document does not exist.
     const access = await this.documentAccessService.resolveAccess(
       documentId,

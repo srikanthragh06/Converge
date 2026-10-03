@@ -62,6 +62,7 @@ export type {
     GetDocumentBlocksResponseDto,
     BlockOperationDto,
     UpdateDocumentBlocksToolInputDto,
+    InsertedBlockDto,
     UpdateDocumentBlocksResponseDto,
     CreateDocumentToolInputDto,
     UpdateDocumentTitleToolInputDto,

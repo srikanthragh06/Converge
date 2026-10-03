@@ -223,7 +223,7 @@ export class McpController {
       {
         title: 'Update Document Blocks',
         description:
-          "Applies a batch of edits to a document's blocks as a single atomic save (all edits apply, or none do). Requires editor access or higher. Each edit either replaces an existing block, inserts new content next to one, or removes blocks — new content is given as Markdown, not raw block JSON. Use getDocumentBlocks first to find the block ids to target. Returns only the blocks the edits inserted, with their new ids — call getDocumentBlocks to read the whole document.",
+          "Applies a batch of edits to a document's blocks as a single atomic save (all edits apply, or none do). Requires editor access or higher. Each edit either replaces an existing block, inserts new content next to one, or removes blocks — new content is given as Markdown, not raw block JSON. Use getDocumentBlocks first to find the block ids to target. Returns only the blocks the edits inserted, each with its new id, its position (parentId, previousBlockId) and the index of the operation that inserted it — call getDocumentBlocks to read the whole document.",
         inputSchema: UpdateDocumentBlocksToolInputSchema,
         outputSchema: UpdateDocumentBlocksResponseSchema,
       },

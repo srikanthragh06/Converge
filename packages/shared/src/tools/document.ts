@@ -254,18 +254,43 @@ export type UpdateDocumentBlocksToolInputDto = {
     operations: BlockOperationDto[];
 };
 
+// One block an edit inserted, with where it landed and which operation made
+// it — so the caller can confirm the placement (e.g. nested vs. top level)
+// and map new ids back to its operations without re-reading the document.
+export const InsertedBlockSchema = z.object({
+    operationIndex: z.number().int().describe(
+        "The index, in the request's operations array, of the replace or insert that created this block.",
+    ),
+    parentId: z.string().nullable().describe(
+        "The id of the block this block is nested under, or null if it is a top-level block.",
+    ),
+    previousBlockId: z.string().nullable().describe(
+        "The id of the sibling block right before this block, or null if it is the first block at its level.",
+    ),
+    block: z.record(z.string(), z.unknown()).describe(
+        "The inserted block as BlockNote block JSON, with its new id and its children.",
+    ),
+});
+
+export type InsertedBlockDto = {
+    operationIndex: number;
+    parentId: string | null;
+    previousBlockId: string | null;
+    block: DocumentBlock;
+};
+
 // Returns the blocks the edits inserted rather than just a success flag —
 // the caller needs them to see the real ids of any newly inserted blocks,
 // which it has no way to predict in advance. Not the whole document: that
 // would cost the caller the full document's size on every edit.
 export const UpdateDocumentBlocksResponseSchema = z.object({
-    insertedBlocks: z.array(z.record(z.string(), z.unknown())).describe(
-        "The blocks the edits inserted (by replace or insert), with their new ids, in document order. Not the whole document — empty if the edits only removed blocks.",
+    insertedBlocks: z.array(InsertedBlockSchema).describe(
+        "The blocks the edits inserted (by replace or insert), in document order. A block nested inside another inserted block is returned only inside its parent's children. Not the whole document — empty if the edits only removed blocks.",
     ),
 });
 
 export type UpdateDocumentBlocksResponseDto = {
-    insertedBlocks: DocumentBlock[];
+    insertedBlocks: InsertedBlockDto[];
 };
 
 export const CreateDocumentToolInputSchema = {
