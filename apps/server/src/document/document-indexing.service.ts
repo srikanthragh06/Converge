@@ -90,7 +90,8 @@ export class DocumentIndexingService {
    * chunks embedded (or a real embed rate-limit rejection cuts a run
    * short), commits only what was actually embedded this run — hashes and
    * stale-chunk deletion both scoped to just the blocks that actually got
-   * a fresh chunk (or were removed outright) — and throws
+   * a fresh chunk (or were removed outright; a removed block keeps its
+   * hash row while an old chunk still contains it) — and throws
    * IndexingCappedError instead of calling markIndexed. An old chunk whose
    * replacement didn't finish this run is left in place rather than
    * deleted: search over that content keeps returning the pre-edit text
@@ -490,9 +491,7 @@ export class DocumentIndexingService {
       }
 
       // Store fresh hashes only for added/changed blocks that actually got
-      // re-embedded this run (see processedBlockIds above); drop hash rows
-      // for blocks that no longer exist — removal needs no embed call, so
-      // it's never held back by the cap.
+      // re-embedded this run (see processedBlockIds above).
       const hashesToStore = [...addedBlockIds, ...changedBlockIds]
         .filter((blockId) => processedBlockIds.has(blockId))
         .map((blockId) => ({
@@ -512,11 +511,40 @@ export class DocumentIndexingService {
           )
           .execute();
       }
-      if (removedBlockIds.size) {
+
+      // Delete the hash rows of removed blocks — but keep a removed block's
+      // hash row if a stale chunk containing that block wasn't deleted this
+      // run (the cap or a rate-limit rejection stopped the run before the
+      // chunk's other blocks were rebuilt). The kept hash row makes the next
+      // run see the block as removed again, so chunk-closure pulls that
+      // chunk back in and deletes it. Deleting the hash row now would leave
+      // the chunk, with the removed block's text, searchable until someone
+      // edits one of its other blocks. Every chunk containing a removed
+      // block is already in staleChunkBlockIdsById, since closure starts
+      // from removedBlockIds.
+      const deletedChunkIds = new Set(deletableChunkIds);
+      const removedBlocksWhoseChunksDidntGetRemoved = new Set<string>();
+      for (const [chunkId, blockIds] of staleChunkBlockIdsById) {
+        if (deletedChunkIds.has(chunkId)) continue;
+        for (const blockId of blockIds) {
+          if (removedBlockIds.has(blockId)) {
+            removedBlocksWhoseChunksDidntGetRemoved.add(blockId);
+          }
+        }
+      }
+
+      const hashesToDelete: string[] = [];
+      for (const blockId of removedBlockIds) {
+        if (!removedBlocksWhoseChunksDidntGetRemoved.has(blockId)) {
+          hashesToDelete.push(blockId);
+        }
+      }
+
+      if (hashesToDelete.length) {
         await tx
           .deleteFrom('document_block_hashes')
           .where('document_id', '=', documentId)
-          .where('block_id', 'in', [...removedBlockIds])
+          .where('block_id', 'in', hashesToDelete)
           .execute();
       }
 
