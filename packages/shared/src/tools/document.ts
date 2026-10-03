@@ -478,16 +478,19 @@ export type RestoreCheckpointToolInputDto = {
 // captured title, since title sync is a separate channel. A fresh 'mcp'
 // checkpoint is taken immediately before the restore lands (same safety net
 // updateDocumentBlocks gets), so an unwanted restore is itself just one more
-// restore away from undo.
+// restore away from undo. Returns no blocks: a restore keeps the
+// checkpoint's own block ids, so the caller has no new ids to learn, and the
+// whole document would cost the caller its full size on every restore.
 export const RestoreCheckpointResponseSchema = z.object({
-    blocks: z.array(z.record(z.string(), z.unknown())).describe(
-        "The document's full block list after the restore.",
+    success: z.literal(true),
+    blockCount: z.number().int().describe(
+        "The number of top-level blocks in the document after the restore. Call getDocumentBlocks to read the restored content.",
     ),
 });
 
-export type RestoreCheckpointResponseDto = {
-    blocks: DocumentBlock[];
-};
+export type RestoreCheckpointResponseDto = z.infer<
+    typeof RestoreCheckpointResponseSchema
+>;
 
 export const ListDeletedDocumentsToolInputSchema = {
     workspaceId: z.coerce.number().int().positive().describe(

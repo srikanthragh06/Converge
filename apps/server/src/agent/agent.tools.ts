@@ -236,7 +236,7 @@ export class AgentTools {
       {
         name: 'restoreCheckpoint',
         description:
-          "Restores a document's content to a past checkpoint. Requires editor access or higher. Only restores blocks, not title. A fresh checkpoint is taken immediately before the restore lands, so an unwanted restore is itself just one more restore away from undo. Use listCheckpoints first to find a checkpointId.",
+          "Restores a document's content to a past checkpoint. Requires editor access or higher. Only restores blocks, not title. A fresh checkpoint is taken immediately before the restore lands, so an unwanted restore is itself just one more restore away from undo. Use listCheckpoints first to find a checkpointId. Returns only a success flag and the restored document's top-level block count — call getDocumentBlocks to read the restored content.",
         inputSchema: z.object(RestoreCheckpointToolInputSchema),
         execute: (input) =>
           withAgentErrorHandling(() =>

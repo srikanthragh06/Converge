@@ -250,13 +250,15 @@ export class DocumentService {
    * @param documentId - the document to restore
    * @param userId - the requesting user, must have editor+ access
    * @param checkpointId - the checkpoint to restore the document's content to
-   * @returns the document's resulting blocks after the restore
+   * @returns the number of top-level blocks in the document after the
+   * restore — not the blocks themselves, since a restore keeps the
+   * checkpoint's own block ids, so the caller has no new ids to learn
    */
   async restoreCheckpoint(
     documentId: number,
     userId: number,
     checkpointId: number,
-  ): Promise<DocumentBlock[]> {
+  ): Promise<number> {
     // Resolve access — throws NotFoundException if the document does not exist.
     const access = await this.documentAccessService.resolveAccess(
       documentId,
@@ -303,7 +305,7 @@ export class DocumentService {
     await this.documentCheckpointSchedulerService.onDocumentEdited(documentId);
     await this.documentIndexingSchedulerService.onDocumentEdited(documentId);
 
-    return blocks;
+    return blocks.length;
   }
 
   /**

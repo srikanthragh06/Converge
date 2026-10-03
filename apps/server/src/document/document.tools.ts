@@ -349,7 +349,9 @@ export class DocumentTools {
    * blocks, not title (see DocumentService.restoreCheckpoint). Takes a
    * fresh 'mcp' checkpoint immediately before the restore lands, same as
    * updateDocumentBlocks, so an unwanted restore is itself just one more
-   * restore away from undo. restoreCheckpoint throws
+   * restore away from undo. Returns only a success flag and the restored
+   * document's top-level block count, not the whole document.
+   * restoreCheckpoint throws
    * NotFoundException/ForbiddenException on insufficient access / an
    * unknown checkpoint — left uncaught here since the MCP SDK already
    * converts a thrown error into a proper isError tool result.
@@ -360,12 +362,12 @@ export class DocumentTools {
     userId: number,
     input: RestoreCheckpointToolInputDto,
   ): Promise<RestoreCheckpointResponseDto> {
-    const blocks = await this.documentService.restoreCheckpoint(
+    const blockCount = await this.documentService.restoreCheckpoint(
       input.documentId,
       userId,
       input.checkpointId,
     );
-    return { blocks };
+    return { success: true, blockCount };
   }
 
   /**
