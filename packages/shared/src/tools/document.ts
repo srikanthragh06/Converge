@@ -254,17 +254,18 @@ export type UpdateDocumentBlocksToolInputDto = {
     operations: BlockOperationDto[];
 };
 
-// Returns the document's full updated block list rather than just a success
-// flag — the caller needs it to see the real ids of any newly inserted
-// blocks, which it has no way to predict in advance.
+// Returns the blocks the edits inserted rather than just a success flag —
+// the caller needs them to see the real ids of any newly inserted blocks,
+// which it has no way to predict in advance. Not the whole document: that
+// would cost the caller the full document's size on every edit.
 export const UpdateDocumentBlocksResponseSchema = z.object({
-    blocks: z.array(z.record(z.string(), z.unknown())).describe(
-        "The document's full block list after applying the edits.",
+    insertedBlocks: z.array(z.record(z.string(), z.unknown())).describe(
+        "The blocks the edits inserted (by replace or insert), with their new ids, in document order. Not the whole document — empty if the edits only removed blocks.",
     ),
 });
 
 export type UpdateDocumentBlocksResponseDto = {
-    blocks: DocumentBlock[];
+    insertedBlocks: DocumentBlock[];
 };
 
 export const CreateDocumentToolInputSchema = {

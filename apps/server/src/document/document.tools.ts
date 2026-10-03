@@ -192,7 +192,8 @@ export class DocumentTools {
 
   /**
    * Applies a batch of id-addressed block edits to a document as a single
-   * atomic save, returning the document's resulting blocks. Use
+   * atomic save, returning only the blocks the edits inserted (with their
+   * new ids), not the whole document. Use
    * getDocumentBlocks first to find the block ids to target. updateDocumentBlocks
    * throws NotFoundException/ForbiddenException on missing/inaccessible
    * documents — left uncaught here since the MCP SDK already converts a
@@ -204,12 +205,12 @@ export class DocumentTools {
     userId: number,
     input: UpdateDocumentBlocksToolInputDto,
   ): Promise<UpdateDocumentBlocksResponseDto> {
-    const blocks = await this.documentService.updateDocumentBlocks(
+    const insertedBlocks = await this.documentService.updateDocumentBlocks(
       input.documentId,
       userId,
       input.operations,
     );
-    return { blocks };
+    return { insertedBlocks };
   }
 
   /**

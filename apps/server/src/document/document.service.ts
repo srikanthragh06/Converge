@@ -188,7 +188,8 @@ export class DocumentService {
    * @param documentId - the document to edit
    * @param userId - the ID of the authenticated requesting user
    * @param operations - the edits to apply, in order, as one atomic save
-   * @returns the document's full block list after applying the edits
+   * @returns the blocks the edits inserted (by replace or insert), in
+   * document order — not the whole document
    */
   async updateDocumentBlocks(
     documentId: number,
@@ -219,7 +220,10 @@ export class DocumentService {
     // document (see applyBlockOperations), then apply it the same way a
     // live client's own edit would be applied.
     const yDoc = await this.documentYjsService.loadDoc(documentId);
-    const { update, blocks } = await applyBlockOperations(yDoc, operations);
+    const { update, insertedBlocks } = await applyBlockOperations(
+      yDoc,
+      operations,
+    );
     await this.documentYjsService.applyDocUpdate(documentId, update);
 
     // Keep last-edited tracking and automatic checkpoint/indexing
@@ -228,7 +232,7 @@ export class DocumentService {
     await this.documentCheckpointSchedulerService.onDocumentEdited(documentId);
     await this.documentIndexingSchedulerService.onDocumentEdited(documentId);
 
-    return blocks;
+    return insertedBlocks;
   }
 
   /**
