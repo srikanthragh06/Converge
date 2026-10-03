@@ -47,7 +47,7 @@ export interface BlockText {
 export interface Chunk {
   blockIds: string[];
   content: string;
-  /** Total token count across every block in this chunk — the same count already spent against MAX_TOKENS while building it, exposed so callers (e.g. the BM25 corpus-length stats) don't need to re-tokenize the joined content. */
+  /** Token count of content itself (the blocks plus the blank lines joining them), counted once when the chunk closes so callers (e.g. the BM25 corpus-length stats) don't need to re-tokenize it. */
   tokens: number;
 }
 
@@ -85,7 +85,8 @@ export function groupIntoSections(blockTexts: BlockText[]): Section[] {
 /**
  * Groups consecutive blocks into chunks. A chunk closes — starting a new
  * one — as soon as either limit is hit, whichever comes first:
- *  - the MAX_TOKENS cap, checked block by block; or
+ *  - the MAX_TOKENS cap, checked block by block against the joined chunk
+ *    text (blank lines between blocks included); or
  *  - a 4th "small" heading section (see SMALL_SECTION_TOKENS) would join
  *    the chunk, even though the token cap alone wouldn't have closed it yet.
  * Never splits a single block across two chunks — a block over MAX_TOKENS
@@ -110,33 +111,38 @@ export function chunkBlocks(blockTexts: BlockText[]): Chunk[] {
 
   const chunks: Chunk[] = [];
   let blockIds: string[] = [];
-  let texts: string[] = [];
-  let tokens = 0;
+  let content = '';
   let smallHeadingCount = 0;
 
   const flush = () => {
     if (blockIds.length === 0) return;
-    chunks.push({ blockIds, content: texts.join('\n\n'), tokens });
+    chunks.push({ blockIds, content, tokens: countTokens(content) });
     blockIds = [];
-    texts = [];
-    tokens = 0;
+    content = '';
     smallHeadingCount = 0;
   };
 
   for (const block of blockTexts) {
     const startsSmallSection = smallSectionStartIds.has(block.blockId);
-    const wouldExceedTokens =
-      blockIds.length > 0 && tokens + block.tokens > MAX_TOKENS;
-    const wouldExceedSmallHeadings =
-      blockIds.length > 0 &&
-      startsSmallSection &&
-      smallHeadingCount + 1 > MAX_SMALL_HEADINGS;
-    if (wouldExceedTokens || wouldExceedSmallHeadings) {
-      flush();
+
+    // Close the current chunk if this block would push it past either
+    // limit. The token cap is checked on the joined text itself, since the
+    // blank line between blocks costs tokens too.
+    if (blockIds.length > 0) {
+      const joinedTokens = countTokens(content + '\n\n' + block.text);
+      const wouldExceedSmallHeadings =
+        startsSmallSection && smallHeadingCount + 1 > MAX_SMALL_HEADINGS;
+      if (joinedTokens > MAX_TOKENS || wouldExceedSmallHeadings) {
+        flush();
+      }
+    }
+
+    if (blockIds.length === 0) {
+      content = block.text;
+    } else {
+      content = content + '\n\n' + block.text;
     }
     blockIds.push(block.blockId);
-    texts.push(block.text);
-    tokens += block.tokens;
     if (startsSmallSection) smallHeadingCount++;
   }
 
