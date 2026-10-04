@@ -21,7 +21,6 @@ import {
   chunkBlocks,
   splitOversizedBlock,
   countTokens,
-  groupIntoSections,
   type BlockText,
 } from '../utils/chunking.util.js';
 import { IndexingCappedError } from './indexing-capped.error.js';
@@ -133,7 +132,13 @@ export class DocumentIndexingService {
     const piecesByBlockId = new Map<string, BlockText[]>();
     const orderedBlockIds: string[] = [];
     const currentBlockHashById = new Map<string, string>();
-    for (const { block, depth } of this.flattenBlocks(blocks)) {
+    // Only a top-level heading counts as a heading for chunkBlocks — a
+    // heading nested in a list or toggle doesn't mark a new topic.
+    const topLevelBlockIds = new Set<string>();
+    for (const block of blocks) {
+      topLevelBlockIds.add(block.id);
+    }
+    for (const block of this.flattenBlocks(blocks)) {
       const text = (await markdownFromBlock({ ...block, children: [] })).trim();
       // Empty blocks carry nothing to index. An empty parent's children are
       // still their own entries in this loop, so they're indexed anyway.
@@ -142,10 +147,7 @@ export class DocumentIndexingService {
         blockId: block.id,
         text,
         tokens: countTokens(text),
-        // Only a top-level heading starts a section — a heading nested in a
-        // list or toggle doesn't change how the small-heading rule groups
-        // the document.
-        isHeading: block.type === 'heading' && depth === 0,
+        isHeading: block.type === 'heading' && topLevelBlockIds.has(block.id),
       });
       for (const piece of pieces) {
         blockTexts.push(piece);
@@ -156,30 +158,9 @@ export class DocumentIndexingService {
     }
 
     // blockTexts and orderedBlockIds preserve document order
-    // (blocksFromYDoc's order). Both the section grouping below and the
-    // contiguous-run split further down rely on that order to know which
-    // blocks are actually adjacent in the live document.
-
-    // Every block's section, keyed by every block id in it — headingless
-    // sections excluded on purpose. Section-closure below exists solely to
-    // protect chunkBlocks' small-heading-count check, which only ever
-    // looks at sections that start with a heading; a headingless section
-    // can never affect that check, so there's nothing to protect by
-    // expanding into one. Skipping them matters in practice: without this,
-    // a document with sparse or no headings would have its single
-    // headingless section span the whole document, and any edit would
-    // section-closure its way into a full-document rebuild every time.
-    // A block missing from this map is one this run treats as needing no
-    // section expansion — either it no longer exists, its Markdown is now
-    // empty (see the `if (!text) continue` skip above), or its section has
-    // no heading.
-    const sectionBlockIdsById = new Map<string, string[]>();
-    for (const section of groupIntoSections(blockTexts)) {
-      if (!section.hasHeading) continue;
-      for (const blockId of section.blockIds) {
-        sectionBlockIdsById.set(blockId, section.blockIds);
-      }
-    }
+    // (blocksFromYDoc's order). The contiguous-run split further down relies
+    // on that order to know which blocks are actually adjacent in the live
+    // document.
 
     const db = this.dbService.kysely;
 
@@ -252,16 +233,14 @@ export class DocumentIndexingService {
         return true;
       }
 
-      // A brand-new block has no chunk of its own yet, and isn't
-      // guaranteed to be swept up by section-closure below either (it
-      // won't be, if it lands in headingless territory). Left alone, it
+      // A brand-new block has no chunk of its own yet. Left alone, it
       // would index as an isolated singleton with no surrounding context
       // in its embedding. To avoid that, anchor each added block to its
       // nearest still-existing neighbor in document order — skipping past
       // other added blocks, which have no chunk of their own to anchor to
       // either — so that seeding the rebuild with the anchor lets the
-      // closure loop below naturally pull in whatever chunk or section the
-      // anchor belongs to, merging the new block into that rebuild instead
+      // closure loop below naturally pull in whatever chunk the anchor
+      // belongs to, merging the new block into that rebuild instead
       // of standing alone. Falls back to searching forward when there's no
       // existing block before it (e.g. an insert at the very start of the
       // document); if there's truly no existing block in either direction
@@ -293,14 +272,12 @@ export class DocumentIndexingService {
 
       // Grow the rebuild set to a fixed point: every block directly touched
       // by the diff, plus every added block's neighbor anchor above, pulls
-      // in (a) every block sharing an existing chunk with it, so a chunk is
-      // never partially deleted and left with orphaned survivors, and (b)
-      // every block in its heading section, so the chunker above always
-      // sees a section's true, complete size instead of a partial one.
-      // Each of those can in turn land in a chunk or section not yet
-      // accounted for, so this repeats until a full pass adds nothing new
-      // — bounded, since the set only ever grows and the whole document is
-      // a hard ceiling.
+      // in every block sharing an existing chunk with it, so a chunk is
+      // never partially deleted and left with orphaned survivors. A block
+      // split into pieces can sit in more than one chunk, so a pulled-in
+      // block can lead to another chunk — this repeats until a full pass
+      // adds nothing new, bounded since the set only ever grows and the
+      // whole document is a hard ceiling.
       const rebuildBlockIds = new Set<string>([
         ...addedBlockIds,
         ...removedBlockIds,
@@ -318,7 +295,7 @@ export class DocumentIndexingService {
       while (grew) {
         grew = false;
 
-        // (a) Chunk-closure: any existing chunk that overlaps the rebuild
+        // Any existing chunk that overlaps the rebuild
         // set is stale, and every other block that chunk spans has to join
         // the rebuild set too — otherwise deleting the chunk would silently
         // drop its unchanged blocks from the index entirely.
@@ -343,25 +320,6 @@ export class DocumentIndexingService {
             }
           }
         }
-
-        // (b) Section-closure: any block in the rebuild set pulls in every
-        // other block in its heading section, so the chunker always sees a
-        // section's true, complete size rather than a partial one.
-        for (const blockId of [...rebuildBlockIds]) {
-          const sectionBlockIds = sectionBlockIdsById.get(blockId);
-          if (!sectionBlockIds) continue; // no heading section to protect (removed, empty, or headingless)
-          for (const sectionBlockId of sectionBlockIds) {
-            if (!rebuildBlockIds.has(sectionBlockId)) {
-              rebuildBlockIds.add(sectionBlockId);
-              grew = true;
-            }
-          }
-        }
-
-        // (a) and (b) can each reveal more territory for the other — a
-        // pulled-in section can span into a fresh chunk, and a pulled-in
-        // chunk can span into a fresh section — so the loop keeps going
-        // until a full pass adds nothing new.
       }
 
       // Split the rebuild set into contiguous runs, using the live
@@ -683,20 +641,16 @@ export class DocumentIndexingService {
   /**
    * Lists every block in a document, parent or child, in document order — a
    * depth-first walk, so a parent is always directly followed by its own
-   * children — each with its nesting depth.
+   * children.
    * @param blocks - the blocks to walk, e.g. a document's top-level blocks
-   * @param depth - the nesting depth of blocks (0 for top-level blocks)
-   * @returns every block in the tree, each with its depth, in document order
+   * @returns every block in the tree, in document order
    */
-  private flattenBlocks(
-    blocks: DocumentBlock[],
-    depth = 0,
-  ): { block: DocumentBlock; depth: number }[] {
-    const flat: { block: DocumentBlock; depth: number }[] = [];
+  private flattenBlocks(blocks: DocumentBlock[]): DocumentBlock[] {
+    const flat: DocumentBlock[] = [];
     for (const block of blocks) {
-      flat.push({ block, depth });
-      for (const child of this.flattenBlocks(block.children, depth + 1)) {
-        flat.push(child);
+      flat.push(block);
+      for (const descendant of this.flattenBlocks(block.children)) {
+        flat.push(descendant);
       }
     }
     return flat;
