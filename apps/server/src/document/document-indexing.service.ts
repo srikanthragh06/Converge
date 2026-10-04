@@ -6,7 +6,11 @@ import {
 } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { sql, type Transaction } from 'kysely';
-import { hasAccess, type DocumentIndexingStatus } from '@converge/shared';
+import {
+  hasAccess,
+  type DocumentBlock,
+  type DocumentIndexingStatus,
+} from '@converge/shared';
 import { DatabaseService } from '../db/database.service.js';
 import type { DatabaseSchema } from '../db/database.schema.js';
 import { DocumentYjsService } from './document-yjs.service.js';
@@ -15,8 +19,8 @@ import { DocumentAccessService } from './document-access.service.js';
 import { blocksFromYDoc, markdownFromBlock } from '../utils/editor-schema.js';
 import {
   chunkBlocks,
+  splitOversizedBlock,
   countTokens,
-  groupIntoSections,
   type BlockText,
 } from '../utils/chunking.util.js';
 import { IndexingCappedError } from './indexing-capped.error.js';
@@ -90,7 +94,8 @@ export class DocumentIndexingService {
    * chunks embedded (or a real embed rate-limit rejection cuts a run
    * short), commits only what was actually embedded this run — hashes and
    * stale-chunk deletion both scoped to just the blocks that actually got
-   * a fresh chunk (or were removed outright) — and throws
+   * a fresh chunk (or were removed outright; a removed block keeps its
+   * hash row while an old chunk still contains it) — and throws
    * IndexingCappedError instead of calling markIndexed. An old chunk whose
    * replacement didn't finish this run is left in place rather than
    * deleted: search over that content keeps returning the pre-edit text
@@ -117,47 +122,45 @@ export class DocumentIndexingService {
     // stale, so always reconstruct fresh from document_updates instead.
     const yDoc = await this.documentYjsService.loadDoc(documentId, true);
     const blocks = blocksFromYDoc(yDoc);
+    // Every block, parent or child, is its own entry with its own text and
+    // hash — a block's text never includes its children's, so an edit to a
+    // child changes only that child's hash. A block over MAX_TOKENS is split
+    // into pieces that share its id (see splitOversizedBlock); the hash
+    // covers the block's whole text, so the diff below still works one block
+    // at a time.
     const blockTexts: BlockText[] = [];
+    const piecesByBlockId = new Map<string, BlockText[]>();
+    const orderedBlockIds: string[] = [];
     const currentBlockHashById = new Map<string, string>();
+    // Only a top-level heading counts as a heading for chunkBlocks — a
+    // heading nested in a list or toggle doesn't mark a new topic.
+    const topLevelBlockIds = new Set<string>();
     for (const block of blocks) {
-      const text = (await markdownFromBlock(block)).trim();
-      if (!text) continue; // empty blocks carry nothing to index
-      blockTexts.push({
+      topLevelBlockIds.add(block.id);
+    }
+    for (const block of this.flattenBlocks(blocks)) {
+      const text = (await markdownFromBlock({ ...block, children: [] })).trim();
+      // Empty blocks carry nothing to index. An empty parent's children are
+      // still their own entries in this loop, so they're indexed anyway.
+      if (!text) continue;
+      const pieces = splitOversizedBlock({
         blockId: block.id,
         text,
         tokens: countTokens(text),
-        isHeading: block.type === 'heading',
+        isHeading: block.type === 'heading' && topLevelBlockIds.has(block.id),
       });
+      for (const piece of pieces) {
+        blockTexts.push(piece);
+      }
+      piecesByBlockId.set(block.id, pieces);
+      orderedBlockIds.push(block.id);
       currentBlockHashById.set(block.id, this.hashBlockText(text));
     }
 
-    // blockTexts preserves document order (blocksFromYDoc's order). Both
-    // the section grouping below and the contiguous-run split further down
-    // rely on that order to know which blocks are actually adjacent in the
-    // live document.
-    const blockTextById = new Map(blockTexts.map((b) => [b.blockId, b]));
-    const orderedBlockIds = blockTexts.map((b) => b.blockId);
-
-    // Every block's section, keyed by every block id in it — headingless
-    // sections excluded on purpose. Section-closure below exists solely to
-    // protect chunkBlocks' small-heading-count check, which only ever
-    // looks at sections that start with a heading; a headingless section
-    // can never affect that check, so there's nothing to protect by
-    // expanding into one. Skipping them matters in practice: without this,
-    // a document with sparse or no headings would have its single
-    // headingless section span the whole document, and any edit would
-    // section-closure its way into a full-document rebuild every time.
-    // A block missing from this map is one this run treats as needing no
-    // section expansion — either it no longer exists, its Markdown is now
-    // empty (see the `if (!text) continue` skip above), or its section has
-    // no heading.
-    const sectionBlockIdsById = new Map<string, string[]>();
-    for (const section of groupIntoSections(blockTexts)) {
-      if (!section.hasHeading) continue;
-      for (const blockId of section.blockIds) {
-        sectionBlockIdsById.set(blockId, section.blockIds);
-      }
-    }
+    // blockTexts and orderedBlockIds preserve document order
+    // (blocksFromYDoc's order). The contiguous-run split further down relies
+    // on that order to know which blocks are actually adjacent in the live
+    // document.
 
     const db = this.dbService.kysely;
 
@@ -230,16 +233,14 @@ export class DocumentIndexingService {
         return true;
       }
 
-      // A brand-new block has no chunk of its own yet, and isn't
-      // guaranteed to be swept up by section-closure below either (it
-      // won't be, if it lands in headingless territory). Left alone, it
+      // A brand-new block has no chunk of its own yet. Left alone, it
       // would index as an isolated singleton with no surrounding context
       // in its embedding. To avoid that, anchor each added block to its
       // nearest still-existing neighbor in document order — skipping past
       // other added blocks, which have no chunk of their own to anchor to
       // either — so that seeding the rebuild with the anchor lets the
-      // closure loop below naturally pull in whatever chunk or section the
-      // anchor belongs to, merging the new block into that rebuild instead
+      // closure loop below naturally pull in whatever chunk the anchor
+      // belongs to, merging the new block into that rebuild instead
       // of standing alone. Falls back to searching forward when there's no
       // existing block before it (e.g. an insert at the very start of the
       // document); if there's truly no existing block in either direction
@@ -271,14 +272,12 @@ export class DocumentIndexingService {
 
       // Grow the rebuild set to a fixed point: every block directly touched
       // by the diff, plus every added block's neighbor anchor above, pulls
-      // in (a) every block sharing an existing chunk with it, so a chunk is
-      // never partially deleted and left with orphaned survivors, and (b)
-      // every block in its heading section, so the chunker above always
-      // sees a section's true, complete size instead of a partial one.
-      // Each of those can in turn land in a chunk or section not yet
-      // accounted for, so this repeats until a full pass adds nothing new
-      // — bounded, since the set only ever grows and the whole document is
-      // a hard ceiling.
+      // in every block sharing an existing chunk with it, so a chunk is
+      // never partially deleted and left with orphaned survivors. A block
+      // split into pieces can sit in more than one chunk, so a pulled-in
+      // block can lead to another chunk — this repeats until a full pass
+      // adds nothing new, bounded since the set only ever grows and the
+      // whole document is a hard ceiling.
       const rebuildBlockIds = new Set<string>([
         ...addedBlockIds,
         ...removedBlockIds,
@@ -296,7 +295,7 @@ export class DocumentIndexingService {
       while (grew) {
         grew = false;
 
-        // (a) Chunk-closure: any existing chunk that overlaps the rebuild
+        // Any existing chunk that overlaps the rebuild
         // set is stale, and every other block that chunk spans has to join
         // the rebuild set too — otherwise deleting the chunk would silently
         // drop its unchanged blocks from the index entirely.
@@ -321,25 +320,6 @@ export class DocumentIndexingService {
             }
           }
         }
-
-        // (b) Section-closure: any block in the rebuild set pulls in every
-        // other block in its heading section, so the chunker always sees a
-        // section's true, complete size rather than a partial one.
-        for (const blockId of [...rebuildBlockIds]) {
-          const sectionBlockIds = sectionBlockIdsById.get(blockId);
-          if (!sectionBlockIds) continue; // no heading section to protect (removed, empty, or headingless)
-          for (const sectionBlockId of sectionBlockIds) {
-            if (!rebuildBlockIds.has(sectionBlockId)) {
-              rebuildBlockIds.add(sectionBlockId);
-              grew = true;
-            }
-          }
-        }
-
-        // (a) and (b) can each reveal more territory for the other — a
-        // pulled-in section can span into a fresh chunk, and a pulled-in
-        // chunk can span into a fresh section — so the loop keeps going
-        // until a full pass adds nothing new.
       }
 
       // Split the rebuild set into contiguous runs, using the live
@@ -353,7 +333,9 @@ export class DocumentIndexingService {
       let currentRun: BlockText[] = [];
       for (const blockId of orderedBlockIds) {
         if (rebuildBlockIds.has(blockId)) {
-          currentRun.push(blockTextById.get(blockId)!);
+          for (const piece of piecesByBlockId.get(blockId)!) {
+            currentRun.push(piece);
+          }
         } else if (currentRun.length) {
           rebuildRuns.push(currentRun);
           currentRun = [];
@@ -385,7 +367,9 @@ export class DocumentIndexingService {
       let addedTokenTotal = 0;
       let completedFully = true;
       runsLoop: for (const run of rebuildRuns) {
-        for (const chunk of chunkBlocks(run)) {
+        const runChunks = chunkBlocks(run);
+        for (let chunkIndex = 0; chunkIndex < runChunks.length; chunkIndex++) {
+          const chunk = runChunks[chunkIndex];
           if (addedChunkCount >= DocumentIndexingService.MAX_CHUNKS_PER_RUN) {
             completedFully = false;
             break runsLoop;
@@ -434,7 +418,14 @@ export class DocumentIndexingService {
             .executeTakeFirstOrThrow();
           addedChunkCount++;
           addedTokenTotal += chunk.tokens;
+          // A block split into pieces can continue into the next chunk —
+          // then it's the last block here and the first one there. It only
+          // counts as processed once the chunk holding its last piece is
+          // in, so a run cut short between two pieces doesn't store its
+          // hash or delete its old chunk with part of its text unindexed.
+          const nextChunk = runChunks[chunkIndex + 1];
           for (const blockId of chunk.blockIds) {
+            if (nextChunk && nextChunk.blockIds[0] === blockId) continue;
             processedBlockIds.add(blockId);
           }
           for (const term of inserted.terms) {
@@ -490,9 +481,7 @@ export class DocumentIndexingService {
       }
 
       // Store fresh hashes only for added/changed blocks that actually got
-      // re-embedded this run (see processedBlockIds above); drop hash rows
-      // for blocks that no longer exist — removal needs no embed call, so
-      // it's never held back by the cap.
+      // re-embedded this run (see processedBlockIds above).
       const hashesToStore = [...addedBlockIds, ...changedBlockIds]
         .filter((blockId) => processedBlockIds.has(blockId))
         .map((blockId) => ({
@@ -512,11 +501,40 @@ export class DocumentIndexingService {
           )
           .execute();
       }
-      if (removedBlockIds.size) {
+
+      // Delete the hash rows of removed blocks — but keep a removed block's
+      // hash row if a stale chunk containing that block wasn't deleted this
+      // run (the cap or a rate-limit rejection stopped the run before the
+      // chunk's other blocks were rebuilt). The kept hash row makes the next
+      // run see the block as removed again, so chunk-closure pulls that
+      // chunk back in and deletes it. Deleting the hash row now would leave
+      // the chunk, with the removed block's text, searchable until someone
+      // edits one of its other blocks. Every chunk containing a removed
+      // block is already in staleChunkBlockIdsById, since closure starts
+      // from removedBlockIds.
+      const deletedChunkIds = new Set(deletableChunkIds);
+      const removedBlocksWhoseChunksDidntGetRemoved = new Set<string>();
+      for (const [chunkId, blockIds] of staleChunkBlockIdsById) {
+        if (deletedChunkIds.has(chunkId)) continue;
+        for (const blockId of blockIds) {
+          if (removedBlockIds.has(blockId)) {
+            removedBlocksWhoseChunksDidntGetRemoved.add(blockId);
+          }
+        }
+      }
+
+      const hashesToDelete: string[] = [];
+      for (const blockId of removedBlockIds) {
+        if (!removedBlocksWhoseChunksDidntGetRemoved.has(blockId)) {
+          hashesToDelete.push(blockId);
+        }
+      }
+
+      if (hashesToDelete.length) {
         await tx
           .deleteFrom('document_block_hashes')
           .where('document_id', '=', documentId)
-          .where('block_id', 'in', [...removedBlockIds])
+          .where('block_id', 'in', hashesToDelete)
           .execute();
       }
 
@@ -618,6 +636,24 @@ export class DocumentIndexingService {
       .set({ indexing_status: 'idle', last_indexed_at: sql`now()` })
       .where('id', '=', documentId)
       .execute();
+  }
+
+  /**
+   * Lists every block in a document, parent or child, in document order — a
+   * depth-first walk, so a parent is always directly followed by its own
+   * children.
+   * @param blocks - the blocks to walk, e.g. a document's top-level blocks
+   * @returns every block in the tree, in document order
+   */
+  private flattenBlocks(blocks: DocumentBlock[]): DocumentBlock[] {
+    const flat: DocumentBlock[] = [];
+    for (const block of blocks) {
+      flat.push(block);
+      for (const descendant of this.flattenBlocks(block.children)) {
+        flat.push(descendant);
+      }
+    }
+    return flat;
   }
 
   /**
