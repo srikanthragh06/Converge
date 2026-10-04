@@ -6,7 +6,11 @@ import {
 } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { sql, type Transaction } from 'kysely';
-import { hasAccess, type DocumentIndexingStatus } from '@converge/shared';
+import {
+  hasAccess,
+  type DocumentBlock,
+  type DocumentIndexingStatus,
+} from '@converge/shared';
 import { DatabaseService } from '../db/database.service.js';
 import type { DatabaseSchema } from '../db/database.schema.js';
 import { DocumentYjsService } from './document-yjs.service.js';
@@ -119,21 +123,29 @@ export class DocumentIndexingService {
     // stale, so always reconstruct fresh from document_updates instead.
     const yDoc = await this.documentYjsService.loadDoc(documentId, true);
     const blocks = blocksFromYDoc(yDoc);
-    // A block over MAX_TOKENS is split into pieces that share its id (see
-    // splitOversizedBlock); the hash covers the block's whole text, so the
-    // diff below still works one block at a time.
+    // Every block, parent or child, is its own entry with its own text and
+    // hash — a block's text never includes its children's, so an edit to a
+    // child changes only that child's hash. A block over MAX_TOKENS is split
+    // into pieces that share its id (see splitOversizedBlock); the hash
+    // covers the block's whole text, so the diff below still works one block
+    // at a time.
     const blockTexts: BlockText[] = [];
     const piecesByBlockId = new Map<string, BlockText[]>();
     const orderedBlockIds: string[] = [];
     const currentBlockHashById = new Map<string, string>();
-    for (const block of blocks) {
-      const text = (await markdownFromBlock(block)).trim();
-      if (!text) continue; // empty blocks carry nothing to index
+    for (const { block, depth } of this.flattenBlocks(blocks)) {
+      const text = (await markdownFromBlock({ ...block, children: [] })).trim();
+      // Empty blocks carry nothing to index. An empty parent's children are
+      // still their own entries in this loop, so they're indexed anyway.
+      if (!text) continue;
       const pieces = splitOversizedBlock({
         blockId: block.id,
         text,
         tokens: countTokens(text),
-        isHeading: block.type === 'heading',
+        // Only a top-level heading starts a section — a heading nested in a
+        // list or toggle doesn't change how the small-heading rule groups
+        // the document.
+        isHeading: block.type === 'heading' && depth === 0,
       });
       for (const piece of pieces) {
         blockTexts.push(piece);
@@ -666,6 +678,28 @@ export class DocumentIndexingService {
       .set({ indexing_status: 'idle', last_indexed_at: sql`now()` })
       .where('id', '=', documentId)
       .execute();
+  }
+
+  /**
+   * Lists every block in a document, parent or child, in document order — a
+   * depth-first walk, so a parent is always directly followed by its own
+   * children — each with its nesting depth.
+   * @param blocks - the blocks to walk, e.g. a document's top-level blocks
+   * @param depth - the nesting depth of blocks (0 for top-level blocks)
+   * @returns every block in the tree, each with its depth, in document order
+   */
+  private flattenBlocks(
+    blocks: DocumentBlock[],
+    depth = 0,
+  ): { block: DocumentBlock; depth: number }[] {
+    const flat: { block: DocumentBlock; depth: number }[] = [];
+    for (const block of blocks) {
+      flat.push({ block, depth });
+      for (const child of this.flattenBlocks(block.children, depth + 1)) {
+        flat.push(child);
+      }
+    }
+    return flat;
   }
 
   /**
