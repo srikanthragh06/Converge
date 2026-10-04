@@ -15,6 +15,7 @@ import { DocumentAccessService } from './document-access.service.js';
 import { blocksFromYDoc, markdownFromBlock } from '../utils/editor-schema.js';
 import {
   chunkBlocks,
+  splitOversizedBlock,
   countTokens,
   groupIntoSections,
   type BlockText,
@@ -118,26 +119,34 @@ export class DocumentIndexingService {
     // stale, so always reconstruct fresh from document_updates instead.
     const yDoc = await this.documentYjsService.loadDoc(documentId, true);
     const blocks = blocksFromYDoc(yDoc);
+    // A block over MAX_TOKENS is split into pieces that share its id (see
+    // splitOversizedBlock); the hash covers the block's whole text, so the
+    // diff below still works one block at a time.
     const blockTexts: BlockText[] = [];
+    const piecesByBlockId = new Map<string, BlockText[]>();
+    const orderedBlockIds: string[] = [];
     const currentBlockHashById = new Map<string, string>();
     for (const block of blocks) {
       const text = (await markdownFromBlock(block)).trim();
       if (!text) continue; // empty blocks carry nothing to index
-      blockTexts.push({
+      const pieces = splitOversizedBlock({
         blockId: block.id,
         text,
         tokens: countTokens(text),
         isHeading: block.type === 'heading',
       });
+      for (const piece of pieces) {
+        blockTexts.push(piece);
+      }
+      piecesByBlockId.set(block.id, pieces);
+      orderedBlockIds.push(block.id);
       currentBlockHashById.set(block.id, this.hashBlockText(text));
     }
 
-    // blockTexts preserves document order (blocksFromYDoc's order). Both
-    // the section grouping below and the contiguous-run split further down
-    // rely on that order to know which blocks are actually adjacent in the
-    // live document.
-    const blockTextById = new Map(blockTexts.map((b) => [b.blockId, b]));
-    const orderedBlockIds = blockTexts.map((b) => b.blockId);
+    // blockTexts and orderedBlockIds preserve document order
+    // (blocksFromYDoc's order). Both the section grouping below and the
+    // contiguous-run split further down rely on that order to know which
+    // blocks are actually adjacent in the live document.
 
     // Every block's section, keyed by every block id in it — headingless
     // sections excluded on purpose. Section-closure below exists solely to
@@ -354,7 +363,9 @@ export class DocumentIndexingService {
       let currentRun: BlockText[] = [];
       for (const blockId of orderedBlockIds) {
         if (rebuildBlockIds.has(blockId)) {
-          currentRun.push(blockTextById.get(blockId)!);
+          for (const piece of piecesByBlockId.get(blockId)!) {
+            currentRun.push(piece);
+          }
         } else if (currentRun.length) {
           rebuildRuns.push(currentRun);
           currentRun = [];
@@ -386,7 +397,9 @@ export class DocumentIndexingService {
       let addedTokenTotal = 0;
       let completedFully = true;
       runsLoop: for (const run of rebuildRuns) {
-        for (const chunk of chunkBlocks(run)) {
+        const runChunks = chunkBlocks(run);
+        for (let chunkIndex = 0; chunkIndex < runChunks.length; chunkIndex++) {
+          const chunk = runChunks[chunkIndex];
           if (addedChunkCount >= DocumentIndexingService.MAX_CHUNKS_PER_RUN) {
             completedFully = false;
             break runsLoop;
@@ -435,7 +448,14 @@ export class DocumentIndexingService {
             .executeTakeFirstOrThrow();
           addedChunkCount++;
           addedTokenTotal += chunk.tokens;
+          // A block split into pieces can continue into the next chunk —
+          // then it's the last block here and the first one there. It only
+          // counts as processed once the chunk holding its last piece is
+          // in, so a run cut short between two pieces doesn't store its
+          // hash or delete its old chunk with part of its text unindexed.
+          const nextChunk = runChunks[chunkIndex + 1];
           for (const blockId of chunk.blockIds) {
+            if (nextChunk && nextChunk.blockIds[0] === blockId) continue;
             processedBlockIds.add(blockId);
           }
           for (const term of inserted.terms) {
