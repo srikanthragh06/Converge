@@ -934,6 +934,26 @@ A full visual redesign of `apps/web` from an 88-page mockup PDF (light, dark and
 - Agent conversations stay resumable after an interrupted turn — new `agent_conversations.pending_tool_outputs` column (migration `0047`) holds the tool results the last response is still owed, sent ahead of the next message. Previously a turn ending between a tool-calling response and its results (a later step's 429 or stream failure, `MAX_STEPS`, a restart) left the conversation permanently rejected by OpenAI (400 "No tool output found for function call")
 - Stop support in `AgentService.sendMessage` — a closed client connection aborts the in-flight OpenAI call, marks tools that haven't started as cancelled, lets a running tool finish, and only writes a step's tool results while that step's response is still the conversation's latest, so a message sent right after Stop isn't overwritten
 
+## RAG Indexing Fixes & Simpler Chunking ✅
+
+> Branch: `release-rag-fixes` — merged 2026-10-04
+
+Fixes four problems in the shipped RAG indexer and replaces heading sections with a much simpler chunking rule. Found and validated on the `rag-poc` branch (Converge doc 82 §22–23, handoff doc 128): seeded test documents were indexed by the server's own indexer and scored with the POC's LLM-judged recall@3 eval (`reranked-sql` retrieval) — Nimbus 100%, recipe book 100%, DSA book 96.7% (one borderline miss), against 98.3% / 93.3% / 100% before.
+
+### Server (NestJS backend)
+
+- **Indexer loop fixed** — a capped reindex of a long document could repeat forever: section-closure pulled the previous run's 20 chunks back into the rebuild set, the chunker rebuilt the same 20, hit `MAX_CHUNKS_PER_RUN` before reaching any unhashed block, and saved nothing new, so the job burned all 50 retries and left the document half indexed. Fixed by removing heading sections altogether (below); long documents now finish in a few capped runs
+- **Heading sections removed, replaced by a local heading break** — no small-heading rule, no `groupIntoSections`, no section-closure step. A chunk fills to 500 tokens and closes early only when the next block is a top-level heading and the chunk already holds 250 tokens (`HEADING_BREAK_TOKENS`), so chunks tend to break at topic boundaries while short sections can still share one. Both checks look only at the current chunk and the next block, so a partial rebuild needs no whole-section context, and an edit in a long section no longer re-embeds the entire section
+- **Every block is its own unit** — the indexer walks the block tree depth-first (`flattenBlocks`) and indexes each block, parent or child, without its children's text, with its own hash. An edit to a child no longer changes its parent's hash, an empty parent's children are still indexed, and a search link (`?blockId=`) can point at a child block
+- **Oversized blocks split** — `splitOversizedBlock` cuts any block over 500 tokens at line ends, then sentence ends, then exact token cuts (moved back to whole characters); a table repeats its header in each piece when the header uses at most 250 tokens. Every piece keeps the block id, and a block only counts as processed once the chunk holding its last piece is in, so a capped run never leaves part of a block unindexed
+- **Chunk size counted on the joined text** — `chunkBlocks` measures the chunk text a block would produce, blank lines between blocks included, instead of summing per-block counts (chunks reached 518 tokens), and stores that real count as `token_count` for the BM25 stats
+- **Stale-chunk fix** — when the cap or a rate-limit rejection stopped a run before a stale chunk's other blocks were rebuilt, the removed block's hash was still deleted, so no later run saw it as removed and the chunk kept the deleted text searchable. A removed block's hash row now stays while a stale chunk that this run didn't delete still contains it
+- `src/scripts/reindex-all-documents.ts` — throwaway migration script: for every non-deleted document, clears its `document_block_hashes` rows (forcing a full rebuild through the normal reindex path, which keeps BM25 stats correct) and queues it through `onDocumentEdited`, in batches of 5. Dry run by default, `--run` to execute; run the compiled `dist/` file after a build. Run once against prod after this deploys, then delete
+
+### Tooling / docs
+
+- `CLAUDE.md`'s RAG entry describes the new block model and heading break; run notes for throwaway scripts added
+
 ## Upcoming
 
 - Frontend code-rules pass (Converge doc 120, part 3): one React component per file, a lighter comment pass that keeps the *why*, and ESLint to zero (17 problems today)
@@ -946,4 +966,5 @@ A full visual redesign of `apps/web` from an 88-page mockup PDF (light, dark and
 - Workspace/document access-control MCP tools (grant/revoke per-user access, role overrides) — deliberately deferred out of both MCP releases so far as higher-stakes, permission-escalation-risk surface; would need much narrower scoping than a straight mirror of the HTTP endpoints before it's worth building
 - `/mcp` per-user throttle (a per-user `incrWithExpire` guard, same pattern as `ImageKitUploadAuthRateLimitGuard`) — caps total MCP request volume per user for server/DB load, distinct from the provider-cost tiers now in place; lower urgency than what this release closed, since it bounds load rather than spend
 - Perimeter-level rate limiting (nginx `limit_req`/`limit_conn`, and/or an off-box layer like Cloudflare) and WebSocket gateway event throttling — deliberately deferred out of this release as lower-urgency than the unauthenticated-endpoint and paid-provider gaps it closed
-
+- Run `reindex-all-documents.ts` against prod once the RAG fixes deploy, then delete the script — until then, existing documents keep chunks built under the old rules (and documents with nested blocks rebuild piecemeal as they're edited)
+- Check the DSA book's one heading-break miss (#16, merge sort) — boundary shift or judge noise — and build a test document with large nested subtrees to measure what per-block indexing gains
