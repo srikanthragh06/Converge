@@ -19,6 +19,8 @@ import {
   type GetDocumentBlocksResponseDto,
   type FindInDocumentToolInputDto,
   type FindInDocumentToolResponseDto,
+  type GetBlocksByIdToolInputDto,
+  type GetBlocksByIdToolResponseDto,
   type UpdateDocumentBlocksToolInputDto,
   type UpdateDocumentBlocksResponseDto,
   type CreateDocumentToolInputDto,
@@ -210,6 +212,29 @@ export class DocumentTools {
       userId,
       input.text,
       input.limit ?? 50,
+    );
+  }
+
+  /**
+   * Reads blocks by id, each with its parent id and optional siblings
+   * before and after it, with children cut to the given depth.
+   * getBlocksById throws NotFoundException/ForbiddenException on
+   * missing/inaccessible documents — left uncaught here since the MCP SDK
+   * already converts a thrown error into a proper isError tool result.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the document, the block ids, and optional before/after/depth
+   */
+  async getBlocksById(
+    userId: number,
+    input: GetBlocksByIdToolInputDto,
+  ): Promise<GetBlocksByIdToolResponseDto> {
+    return this.documentService.getBlocksById(
+      input.documentId,
+      userId,
+      input.blockIds,
+      input.before ?? 0,
+      input.after ?? 0,
+      input.depth ?? -1,
     );
   }
 

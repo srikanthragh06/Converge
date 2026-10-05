@@ -21,6 +21,8 @@ import {
   GetDocumentBlocksResponseSchema,
   FindInDocumentToolInputSchema,
   FindInDocumentToolResponseSchema,
+  GetBlocksByIdToolInputSchema,
+  GetBlocksByIdToolResponseSchema,
   UpdateDocumentBlocksToolInputSchema,
   UpdateDocumentBlocksResponseSchema,
   CreateDocumentToolInputSchema,
@@ -225,13 +227,33 @@ export class McpController {
       {
         title: 'Find In Document',
         description:
-          'Finds every block in one document whose text contains the given text (case-insensitive, otherwise exact) and returns their block ids, parent ids and short previews, plus the total match count. Reads the live document, not the search index. Use it when you know the exact text, need every occurrence, or need to confirm some text is absent; for meaning-based questions use searchDocumentContent. Requires viewer access or higher.',
+          'Finds every block in one document whose text contains the given text (case-insensitive, otherwise exact) and returns their block ids, parent ids and short previews, plus the total match count. Reads the live document, not the search index. Use it when you know the exact text, need every occurrence, or need to confirm some text is absent; for meaning-based questions use searchDocumentContent. Read the matched blocks with getBlocksById. Requires viewer access or higher.',
         inputSchema: FindInDocumentToolInputSchema,
         outputSchema: FindInDocumentToolResponseSchema,
       },
       async (input) => {
         const result = await withMcpErrorHandling(() =>
           this.documentTools.findInDocument(userId, input),
+        );
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'getBlocksById',
+      {
+        title: 'Get Blocks By Id',
+        description:
+          'Reads specific blocks of one document by id — any block, top-level or nested, e.g. the ids findInDocument or searchDocumentContent returned — as BlockNote block JSON, each with its parentId. Pass before/after to also get that many sibling blocks (same parent) around each block, and depth to limit how many levels of children come back (-1 all, the default; 0 none; a block whose children were left out has childCount). Ids not in the document come back in notFoundIds instead of failing. Reads the live document, so it sees edits made a moment ago. Use it instead of getDocumentBlocks when you only need part of a large document. Requires viewer access or higher.',
+        inputSchema: GetBlocksByIdToolInputSchema,
+        outputSchema: GetBlocksByIdToolResponseSchema,
+      },
+      async (input) => {
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.getBlocksById(userId, input),
         );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
@@ -404,7 +426,7 @@ export class McpController {
       {
         title: 'Search Document Content',
         description:
-          "Retrieves the most relevant indexed content in a workspace for a natural-language question, as cited chunks — hybrid semantic + lexical (BM25) candidates, reranked. Returns grounded content and citations only; synthesizing an answer from them is the caller's job. Use listWorkspaces first to find a workspaceId. Pass documentId to search only that one document (it must be in workspaceId). Pass lexicalOnly to match the question's words only (BM25, no reranking) — for looking up specific words, names or codes; for exact text in one document, findInDocument is exact. Requires at least viewer access to a document for its content to be returned.",
+          "Retrieves the most relevant indexed content in a workspace for a natural-language question, as cited chunks — hybrid semantic + lexical (BM25) candidates, reranked. Returns grounded content and citations only; synthesizing an answer from them is the caller's job. Use listWorkspaces first to find a workspaceId. Pass documentId to search only that one document (it must be in workspaceId). Pass lexicalOnly to match the question's words only (BM25, no reranking) — for looking up specific words, names or codes; for exact text in one document, findInDocument is exact. Read a result's blocks with getBlocksById. Requires at least viewer access to a document for its content to be returned.",
         inputSchema: SearchDocumentContentToolInputSchema,
         outputSchema: SearchDocumentContentToolResponseSchema,
       },

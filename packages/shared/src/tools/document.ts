@@ -238,6 +238,68 @@ export type FindInDocumentToolResponseDto = z.infer<
     typeof FindInDocumentToolResponseSchema
 >;
 
+export const GetBlocksByIdToolInputSchema = {
+    documentId: z.coerce.number().int().positive().describe(
+        "The document the blocks are in.",
+    ),
+    blockIds: z.array(z.string()).min(1).max(200).describe(
+        "The ids of the blocks to read — any block, top-level or nested, e.g. from findInDocument or searchDocumentContent.",
+    ),
+    before: z.coerce.number().int().min(0).optional().describe(
+        "How many sibling blocks (same parent) to return before each block. Defaults to 0.",
+    ),
+    after: z.coerce.number().int().min(0).optional().describe(
+        "How many sibling blocks (same parent) to return after each block. Defaults to 0.",
+    ),
+    depth: z.coerce.number().int().min(-1).optional().describe(
+        "How many levels of children to include under each returned block: -1 for all, 0 for none. Defaults to -1. A block whose children were left out has a childCount field.",
+    ),
+};
+
+export type GetBlocksByIdToolInputDto = {
+    documentId: number;
+    blockIds: string[];
+    before?: number;
+    after?: number;
+    depth?: number;
+};
+
+// Blocks are loose records here for the same reason as
+// GetDocumentBlocksResponseSchema above.
+const GetBlocksByIdResultSchema = z.object({
+    block: z.record(z.string(), z.unknown()),
+    parentId: z.string().nullable().describe(
+        "The id of the block this one is nested under, or null for a top-level block. The before and after blocks have the same parent.",
+    ),
+    before: z.array(z.record(z.string(), z.unknown())).describe(
+        "The siblings directly before the block, in document order.",
+    ),
+    after: z.array(z.record(z.string(), z.unknown())).describe(
+        "The siblings directly after the block, in document order.",
+    ),
+});
+
+export const GetBlocksByIdToolResponseSchema = z.object({
+    results: z.array(GetBlocksByIdResultSchema).describe(
+        "One result for each block found, in the order of blockIds. A block can appear in more than one result's before or after.",
+    ),
+    notFoundIds: z.array(z.string()).describe(
+        "The blockIds that are not in the document.",
+    ),
+});
+
+export type GetBlocksByIdResultDto = {
+    block: DocumentBlock;
+    parentId: string | null;
+    before: DocumentBlock[];
+    after: DocumentBlock[];
+};
+
+export type GetBlocksByIdToolResponseDto = {
+    results: GetBlocksByIdResultDto[];
+    notFoundIds: string[];
+};
+
 // A single edit within an updateDocumentBlocks call. "replace" and "insert"
 // take a Markdown string rather than raw BlockNote block JSON — an agent
 // writing plain Markdown (which it already knows how to do) is far more

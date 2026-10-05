@@ -27,6 +27,8 @@ import {
   type InsertedBlockDto,
   type FindInDocumentMatchDto,
   type FindInDocumentToolResponseDto,
+  type GetBlocksByIdResultDto,
+  type GetBlocksByIdToolResponseDto,
 } from '@converge/shared';
 import { DatabaseService } from '../db/database.service.js';
 import { DocumentAccessService } from './document-access.service.js';
@@ -47,6 +49,7 @@ import {
   flattenBlocksWithParents,
   matchPreview,
 } from '../utils/block-text.util.js';
+import { indexBlocks, limitDepth } from '../utils/block-tree.util.js';
 import { sql } from 'kysely';
 import * as Y from 'yjs';
 
@@ -210,6 +213,67 @@ export class DocumentService {
     }
 
     return { matches, totalMatches, truncated: totalMatches > matches.length };
+  }
+
+  /**
+   * Reads blocks by id from the live document — any block, top-level or
+   * nested — each with its parent id and the given number of siblings
+   * before and after it. Ids not in the document are listed in
+   * notFoundIds rather than failing the call. Throws NotFoundException if
+   * the document does not exist, ForbiddenException if the user has less
+   * than viewer access.
+   * @param documentId - the document the blocks are in
+   * @param userId - the requesting user
+   * @param blockIds - the ids of the blocks to read
+   * @param before - how many siblings to return before each block
+   * @param after - how many siblings to return after each block
+   * @param depth - how many levels of children to keep under each returned block: -1 for all, 0 for none
+   * @returns one result per block found, in the order of blockIds, plus the ids not found
+   */
+  async getBlocksById(
+    documentId: number,
+    userId: number,
+    blockIds: string[],
+    before: number,
+    after: number,
+    depth: number,
+  ): Promise<GetBlocksByIdToolResponseDto> {
+    const blocks = await this.getDocumentBlocks(documentId, userId);
+    const indexed = indexBlocks(blocks, null);
+    const results: GetBlocksByIdResultDto[] = [];
+    const notFoundIds: string[] = [];
+    const seenIds = new Set<string>();
+
+    for (const blockId of blockIds) {
+      if (seenIds.has(blockId)) continue;
+      seenIds.add(blockId);
+
+      const found = indexed.get(blockId);
+      if (!found) {
+        notFoundIds.push(blockId);
+        continue;
+      }
+
+      const beforeBlocks: DocumentBlock[] = [];
+      for (let i = Math.max(0, found.index - before); i < found.index; i++) {
+        beforeBlocks.push(limitDepth(found.siblings[i], depth));
+      }
+
+      const afterBlocks: DocumentBlock[] = [];
+      const afterEnd = Math.min(found.siblings.length, found.index + 1 + after);
+      for (let i = found.index + 1; i < afterEnd; i++) {
+        afterBlocks.push(limitDepth(found.siblings[i], depth));
+      }
+
+      results.push({
+        block: limitDepth(found.block, depth),
+        parentId: found.parentId,
+        before: beforeBlocks,
+        after: afterBlocks,
+      });
+    }
+
+    return { results, notFoundIds };
   }
 
   /**
