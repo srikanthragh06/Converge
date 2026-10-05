@@ -5,6 +5,7 @@ import {
     LuCheck,
     LuCircleAlert,
     LuClock,
+    LuCopy,
     LuEllipsis,
     LuLoaderCircle,
     LuLock,
@@ -29,6 +30,7 @@ import BottomSheet, { SheetMenu } from "@/components/ui/BottomSheet";
 import useCreateCheckpoint from "@/features/editor/hooks/useCreateCheckpoint";
 import useDocumentMenuActions from "@/features/documents/hooks/useDocumentMenuActions";
 import useToast from "@/hooks/useToast";
+import { copyDocumentMarkdown } from "@/features/editor/lib/copyDocumentMarkdown";
 import { getSyncStatusDisplay } from "./syncStatusDisplay";
 import { getEditorDocumentMenu } from "./editorDocumentMenu";
 
@@ -48,8 +50,8 @@ const MAX_VISIBLE_AVATARS = 4;
  * Top bar of the editor page. On desktop: a workspace / document breadcrumb
  * with the user's access level badge and the Saved / Syncing / Offline status
  * dot on the left; collaborators'
- * presence avatars, the lock-editing, save-checkpoint, and version-history
- * icon buttons, the gold Share button, and the ⋯ document menu on the right.
+ * presence avatars, the copy-as-Markdown, lock-editing, save-checkpoint, and
+ * version-history icon buttons, the gold Share button, and the ⋯ document menu on the right.
  * On phones: a compact bar with the sidebar drawer button, the document title,
  * access badge and status dot, a Share icon, and a ⋯ button opening a bottom sheet that
  * also holds the lock / checkpoint / history actions. Only rendered when
@@ -161,6 +163,12 @@ const EditorPageHeader = ({
     // Phone sheet (pp 79 / 85): the header's icon-button actions, then the ⋯ menu.
     // Lock and checkpoint are editor+ only, as in the desktop bar.
     const sheetMenu: MenuEntry[] = [
+        {
+            label: "Copy as Markdown",
+            icon: <LuCopy />,
+            disabled: !editor,
+            onSelect: () => editor && copyDocumentMarkdown(editor, title),
+        },
         ...(isEditable
             ? ([
                   {
@@ -318,6 +326,21 @@ const EditorPageHeader = ({
                             )}
                         </AvatarGroup>
                     )}
+
+                    {/* Copy as Markdown — shown to viewers too, since it only reads. */}
+                    <Tooltip content="Copy as Markdown">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() =>
+                                editor && copyDocumentMarkdown(editor, title)
+                            }
+                            disabled={!editor}
+                            aria-label="Copy as Markdown"
+                        >
+                            <LuCopy />
+                        </Button>
+                    </Tooltip>
 
                     {/* Lock editing — a local, per-user comfort toggle that disables
                         editing in this browser only. Has no effect on this user's
