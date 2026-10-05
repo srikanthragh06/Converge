@@ -38,6 +38,7 @@ One row per workspace. Holds the workspace name, owner reference, type, and per-
 | `member_doc_access` | `document_access_level` | NOT NULL, default `'editor'` | Default doc access for workspace members when no per-doc override is set |
 | `non_member_doc_access` | `document_access_level` | NOT NULL, default `'noAccess'` | Default doc access for users not in this workspace when no per-doc override is set |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
+| `workspace_access_version` | `integer` | NOT NULL, default `0` | Access version counter (migration `0048`): bumped by `WorkspaceService.bumpWorkspaceAccessVersion` in the same transaction as every write that can change access to all of this workspace's documents (membership, member roles, ownership transfer, default doc access). Each open document socket stores the value it connected with; `DocumentGateway.emitToDocRoomWithAccessCheck` re-resolves a socket's access before a room emit when it differs |
 
 #### Indexes
 
@@ -88,6 +89,7 @@ One row per document. Stores the title and per-doc role overrides. Does not stor
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 | `indexing_status` | `text` | NOT NULL, default `'idle'`, CHECK (`idle` \| `pending` \| `indexing`) | RAG indexing lifecycle state (migration `0039`): `'pending'` while an edit's debounce timer is waiting to fire, or while a failed job still has a pg-boss retry queued (rather than falsely reading `'idle'` mid-backoff); `'indexing'` while a reindex job is actively running |
 | `last_indexed_at` | `timestamptz` | nullable | When this document's content was last confirmed indexed by a successful reindex run; NULL if never indexed. Advances even on a run that finds nothing changed — means "confirmed current," not "content changed" |
+| `doc_access_version` | `integer` | NOT NULL, default `0` | Access version counter (migration `0048`): bumped by `DocumentAccessService.bumpDocAccessVersion` in the same transaction as every write that can change access to this one document (per-user grants/revokes, role overrides, soft-delete/restore). Compared with each open socket's stored value before every room emit, alongside `workspaces.workspace_access_version` |
 
 > `update_count` and `last_compact_count` were dropped (migration `0027`) alongside the removal of count-based compaction — see `document_updates` below.
 
@@ -365,8 +367,8 @@ No feature currently holds a Redis-based distributed lock — the old `lock-comp
 
 | Key pattern | Constant | Type | TTL | Purpose |
 |---|---|---|---|---|
-| `awareness:<documentId>` | `REDIS_KEYS.awareness(documentId)` | Hash | 1 hour | Maps `userId` (string) → JSON-serialised `AwarenessUser` for every user currently present in a document. Written on connect, updated on cursor move, deleted on last-tab disconnect. TTL is refreshed on every write as a safety net against stale entries. |
-| `awareness-sockets:<documentId>:<userId>` | `REDIS_KEYS.awarenessSockets(documentId, userId)` | Set | 1 hour | Tracks the set of active `socketId`s for a user in a document — one entry per open browser tab. Used for multi-tab ref counting: the user's awareness entry is only removed when this Set becomes empty. TTL is refreshed on every write. |
+| `awareness:<documentId>` | `REDIS_KEYS.awareness(documentId)` | Hash | 1 hour | Maps `userId` (string) → JSON-serialised `AwarenessUser` for every user currently present in a document. Written on connect, updated on cursor move (recreated if missing), deleted when the user's last live socket closes or goes silent. TTL is refreshed on every write as a safety net against stale entries. |
+| `awareness-sockets:<documentId>` | `REDIS_KEYS.awarenessSockets(documentId)` | Sorted set | 1 hour | One member per open socket in the document, `userId:socketId`, scored by its last heartbeat time in ms. Refreshed on connect and on every 15s `REPAIR_SYNC_DOC_SERVER` heartbeat; each heartbeat drops members silent for over 90s (`AWARENESS_SOCKET_TIMEOUT_MS`) and removes from `awareness:<documentId>` any user with no live socket left — clearing ghosts left by a server that stopped before its disconnect handler ran. Per-tab ref counting: a user's awareness entry is removed only when they have no live socket left. TTL is refreshed on every write. |
 
 ---
 
