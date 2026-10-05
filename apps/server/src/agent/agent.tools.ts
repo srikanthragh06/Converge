@@ -298,7 +298,7 @@ export class AgentTools {
       {
         name: 'searchDocumentContent',
         description:
-          'Retrieves the most relevant indexed content in the current workspace for a natural-language question, as cited chunks — hybrid semantic + lexical (BM25) candidates, reranked. Returns grounded content and citations only; synthesizing an answer from them is your job. Pass documentId to search only that one document.',
+          'Retrieves the most relevant indexed content in the current workspace for a natural-language question, as cited chunks — hybrid semantic + lexical (BM25) candidates, reranked. Returns grounded content and citations only; synthesizing an answer from them is your job. Pass documentId to search only that one document. Pass lexicalOnly to match the question\'s words only (BM25, no reranking) — for looking up specific words, names or codes; for exact text in one document, findInDocument is exact.',
         inputSchema: z
           .object(SearchDocumentContentToolInputSchema)
           .omit({ workspaceId: true }),

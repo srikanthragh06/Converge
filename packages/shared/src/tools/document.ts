@@ -629,6 +629,9 @@ export const SearchDocumentContentToolInputSchema = {
     documentId: z.coerce.number().int().positive().optional().describe(
         "Limits the search to this one document, which must be in workspaceId. Omit to search the whole workspace.",
     ),
+    lexicalOnly: z.boolean().optional().describe(
+        "Match the question's words only (stemmed, any word may match), ranked by how often and how rarely they occur — no meaning-based matching or reranking. Use it to look up specific words, names or codes. Defaults to false.",
+    ),
 };
 
 export type SearchDocumentContentToolInputDto = {
@@ -636,6 +639,7 @@ export type SearchDocumentContentToolInputDto = {
     question: string;
     limit?: number;
     documentId?: number;
+    lexicalOnly?: boolean;
 };
 
 // A citation is deliberately minimal — workspaceId + documentId + the
@@ -664,7 +668,7 @@ export const SearchDocumentContentToolResponseSchema = z.object({
                 "The retrieved chunk's text, as Markdown.",
             ),
             score: z.number().describe(
-                "Relevance score from reranking — higher is more relevant. Not comparable across separate calls to this tool.",
+                "Relevance score — higher is more relevant. From reranking by default, or a BM25 keyword score with lexicalOnly (not on the same scale). Not comparable across separate calls to this tool.",
             ),
         }),
     ),
