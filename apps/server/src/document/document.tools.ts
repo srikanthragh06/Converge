@@ -440,7 +440,7 @@ export class DocumentTools {
    * separate check here, since a per-document resolveAccess call doesn't
    * fit a query that can span many documents at once.
    * @param userId - the calling user's ID, resolved from their API key
-   * @param input - the workspace to search, the question, and an optional result limit
+   * @param input - the workspace to search, the question, an optional result limit, and an optional documentId to search only that document
    */
   async searchDocumentContent(
     userId: number,
@@ -451,6 +451,7 @@ export class DocumentTools {
       input.workspaceId,
       userId,
       input.limit ?? 5,
+      input.documentId,
     );
     return { results };
   }

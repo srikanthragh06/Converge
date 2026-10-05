@@ -382,7 +382,7 @@ export class McpController {
       {
         title: 'Search Document Content',
         description:
-          "Retrieves the most relevant indexed content in a workspace for a natural-language question, as cited chunks — hybrid semantic + lexical (BM25) candidates, reranked. Returns grounded content and citations only; synthesizing an answer from them is the caller's job. Use listWorkspaces first to find a workspaceId. Requires at least viewer access to a document for its content to be returned.",
+          "Retrieves the most relevant indexed content in a workspace for a natural-language question, as cited chunks — hybrid semantic + lexical (BM25) candidates, reranked. Returns grounded content and citations only; synthesizing an answer from them is the caller's job. Use listWorkspaces first to find a workspaceId. Pass documentId to search only that one document (it must be in workspaceId). Requires at least viewer access to a document for its content to be returned.",
         inputSchema: SearchDocumentContentToolInputSchema,
         outputSchema: SearchDocumentContentToolResponseSchema,
       },

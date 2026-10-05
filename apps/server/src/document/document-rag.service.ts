@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { sql } from 'kysely';
 import { DatabaseService } from '../db/database.service.js';
 import { DocumentEmbeddingService } from './document-embedding.service.js';
@@ -60,13 +64,17 @@ export class DocumentRAGService {
    * @param workspaceId - the workspace to search within
    * @param userId - the calling user, for access filtering
    * @param limit - maximum number of results to return
+   * @param documentId - optional; limits the search to this one document
    * @returns cited chunks, most relevant first — empty if nothing accessible matches
+   * @throws NotFoundException if documentId is given but is deleted, missing, or not in workspaceId
+   * @throws ForbiddenException if documentId is given but userId has no access to it
    */
   async retrieve(
     question: string,
     workspaceId: number,
     userId: number,
     limit = 5,
+    documentId?: number,
   ): Promise<RetrievalResult[]> {
     const db = this.dbService.kysely;
 
@@ -74,7 +82,7 @@ export class DocumentRAGService {
     // in bulk, the same resolved-access CASE expression DocumentService's
     // getLibraryDocuments/getTrashDocuments already use for listing, rather
     // than DocumentAccessService.resolveAccess called once per document.
-    const accessibleDocs = await db
+    let accessibleDocsQuery = db
       .selectFrom('documents as d')
       .innerJoin('workspaces as w', 'w.id', 'd.workspace_id')
       .leftJoin('workspace_members as wm', (join) =>
@@ -98,8 +106,24 @@ export class DocumentRAGService {
         `.as('access'),
       )
       .where('d.is_deleted', '=', false)
-      .where('d.workspace_id', '=', workspaceId)
-      .execute();
+      .where('d.workspace_id', '=', workspaceId);
+    if (documentId !== undefined) {
+      accessibleDocsQuery = accessibleDocsQuery.where('d.id', '=', documentId);
+    }
+    const accessibleDocs = await accessibleDocsQuery.execute();
+
+    // A scoped search on a document the caller can't search fails loudly
+    // instead of returning [], which would read as "no match" — a document
+    // in another workspace counts as not found, same as a missing one.
+    if (documentId !== undefined) {
+      if (accessibleDocs.length === 0) {
+        throw new NotFoundException('Document not found.');
+      } else if (accessibleDocs[0].access === 'noAccess') {
+        throw new ForbiddenException(
+          'You do not have access to this document.',
+        );
+      }
+    }
 
     const accessibleDocumentIds = accessibleDocs
       .filter((doc) => doc.access !== 'noAccess')

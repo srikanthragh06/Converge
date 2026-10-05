@@ -579,12 +579,16 @@ export const SearchDocumentContentToolInputSchema = {
     limit: z.coerce.number().int().positive().max(20).optional().describe(
         "Max chunks to return. Defaults to 5.",
     ),
+    documentId: z.coerce.number().int().positive().optional().describe(
+        "Limits the search to this one document, which must be in workspaceId. Omit to search the whole workspace.",
+    ),
 };
 
 export type SearchDocumentContentToolInputDto = {
     workspaceId: number;
     question: string;
     limit?: number;
+    documentId?: number;
 };
 
 // A citation is deliberately minimal — workspaceId + documentId + the
