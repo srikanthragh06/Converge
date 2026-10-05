@@ -13,9 +13,8 @@ export const REDIS_EVENTS = {
 export const REDIS_KEYS = {
   /** Hash of userId → JSON AwarenessUser for all present users in a document. */
   awareness: (documentId: number) => `awareness:${documentId}`,
-  /** Set of active socketIds for a user in a document — used for multi-tab ref counting. */
-  awarenessSockets: (documentId: number, userId: number) =>
-    `awareness-sockets:${documentId}:${userId}`,
+  /** Sorted set of open sockets in a document — member `userId:socketId`, score the last heartbeat time in ms. */
+  awarenessSockets: (documentId: number) => `awareness-sockets:${documentId}`,
   /** Per-IP request counter for POST /auth/google, windowed to 60s. */
   googleAuthRateLimitIp: (ip: string) => `google-auth-ratelimit:ip:${ip}`,
   /** Global (cross-IP) request counter for POST /auth/google, windowed to 60s. */

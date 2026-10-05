@@ -202,7 +202,7 @@ export class DocumentGateway
       // join the document room — broadcasts are scoped to this room
       client.join(String(documentId));
 
-      // register this socket in the awareness ref-count set for multi-tab tracking
+      // register this socket in the document's open sockets for multi-tab tracking
       await this.documentAwarenessService.addSocket(
         documentId,
         userId,
@@ -350,8 +350,8 @@ export class DocumentGateway
   }
 
   /**
-   * Removes the disconnecting socket from the awareness ref-count set. If this
-   * was the user's last socket for the document, also removes their awareness
+   * Removes the disconnecting socket from the document's open sockets. If the
+   * user has no other live socket in the document, also removes their awareness
    * entry and broadcasts the updated presence list to the room. Once awareness
    * cleanup is complete, evicts the in-memory Y.Doc if no sockets remain in the
    * document room on this server instance. Skips silently if the socket never
@@ -486,6 +486,9 @@ export class DocumentGateway
   /**
    * Responds to a repair sync request by computing the updates the client
    * is missing and sending them back alongside the server's state vector.
+   * The client sends this every 15s, so it is also the socket's presence
+   * heartbeat: it keeps the socket in the awareness list, and broadcasts the
+   * presence list when that removed a user with no live socket left.
    * @param client - the socket requesting repair
    * @param data - contains the client's encoded state vector
    */
@@ -533,6 +536,16 @@ export class DocumentGateway
         diffArray: Array.from(diff),
       },
     );
+
+    // Presence heartbeat — runs after the reply so it never delays the sync.
+    const presenceChanged = await this.documentAwarenessService.heartbeat(
+      documentId,
+      userId,
+      client.id,
+    );
+    if (presenceChanged) {
+      await this.broadcastAwarenessState(documentId);
+    }
   }
 
   /**

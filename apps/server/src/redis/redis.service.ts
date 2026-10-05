@@ -117,32 +117,44 @@ export class RedisService {
   }
 
   /**
-   * Adds one or more members to a Redis Set, creating it if it does not exist.
-   * @param key - the Redis key for the Set
-   * @param members - the values to add
-   * @returns the number of members actually added (excludes already-present members)
+   * Adds a member to a Redis Sorted Set with the given score, or updates the
+   * score if the member is already present. Creates the set if it does not exist.
+   * @param key - the Redis key for the Sorted Set
+   * @param score - the score to store for the member
+   * @param member - the value to add or update
    */
-  async sadd(key: string, ...members: string[]): Promise<number> {
-    return this.pub.sadd(key, ...members);
+  async zadd(key: string, score: number, member: string): Promise<void> {
+    await this.pub.zadd(key, score, member);
   }
 
   /**
-   * Removes one or more members from a Redis Set.
-   * @param key - the Redis key for the Set
+   * Removes one or more members from a Redis Sorted Set.
+   * @param key - the Redis key for the Sorted Set
    * @param members - the values to remove
    * @returns the number of members actually removed
    */
-  async srem(key: string, ...members: string[]): Promise<number> {
-    return this.pub.srem(key, ...members);
+  async zrem(key: string, ...members: string[]): Promise<number> {
+    return this.pub.zrem(key, ...members);
   }
 
   /**
-   * Returns the number of members in a Redis Set.
-   * Returns 0 if the key does not exist.
-   * @param key - the Redis key for the Set
+   * Removes every member of a Redis Sorted Set whose score is at or below
+   * the given value.
+   * @param key - the Redis key for the Sorted Set
+   * @param maxScore - the highest score to remove
+   * @returns the number of members removed
    */
-  async scard(key: string): Promise<number> {
-    return this.pub.scard(key);
+  async zremBelowOrEqual(key: string, maxScore: number): Promise<number> {
+    return this.pub.zremrangebyscore(key, '-inf', maxScore);
+  }
+
+  /**
+   * Returns every member of a Redis Sorted Set, lowest score first.
+   * Returns an empty array if the key does not exist.
+   * @param key - the Redis key for the Sorted Set
+   */
+  async zmembers(key: string): Promise<string[]> {
+    return this.pub.zrange(key, 0, -1);
   }
 
   /**

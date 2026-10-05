@@ -170,7 +170,7 @@ const useYjsSync = (documentId: number | undefined) => {
     }, [yDoc, isSocketReady]);
 
     // Manages the repair sync protocol: initiates a repair on connect and on a
-    // 5-second heartbeat, and handles incoming repair-sync/ack events from the server.
+    // 15-second heartbeat, and handles incoming repair-sync/ack events from the server.
     // Runs whenever the socket connection state changes.
     useEffect(() => {
         if (!isSocketReady) return;
@@ -265,7 +265,9 @@ const useYjsSync = (documentId: number | undefined) => {
 
         // Initiate repair on connect to pull any server state the client missed.
         // The interval runs every 15 seconds — frequent enough to catch divergence quickly,
-        // infrequent enough to avoid unnecessary server load.
+        // infrequent enough to avoid unnecessary server load. The server also uses
+        // each repair sync as this tab's presence heartbeat, so the tab drops out
+        // of the presence list if the interval stops.
         setIsRestoring(true);
         initiateRepairSync();
         const heartbeatIntervalId = setInterval(initiateRepairSync, 15000);
