@@ -219,10 +219,10 @@ Embedded, searchable Markdown chunks produced by the RAG indexing pipeline. Requ
 | `id` | `bigserial` | PK | |
 | `document_id` | `bigint` | NOT NULL, FK → `documents.id` ON DELETE CASCADE, indexed | The document this chunk was extracted from |
 | `workspace_id` | `integer` | NOT NULL, FK → `workspaces.id` ON DELETE CASCADE, indexed | Denormalized from `documents.workspace_id` — retrieval-time access filtering needs it directly on this table, not via a join |
-| `block_ids` | `text[]` | NOT NULL | BlockNote block ids (UUID strings) this chunk spans, in document order |
+| `block_ids` | `text[]` | NOT NULL | BlockNote block ids (UUID strings) this chunk spans, in document order — any block in the tree, parent or child, listed once. A block over 500 tokens is split into pieces, so its id can appear in more than one chunk |
 | `content` | `text` | NOT NULL | The chunk's text, as Markdown — what gets embedded and what's shown as a citation excerpt |
 | `embedding` | `vector(1536)` | NOT NULL | `text-embedding-3-small` embedding; similarity search uses the `<=>` cosine-distance operator |
-| `token_count` | `integer` | NOT NULL, default `0` | Token count of `content`, via the same tokenizer used for chunk sizing (migration `0038`) — backs `document_chunk_corpus_stats`' average-length stat and BM25's length normalization |
+| `token_count` | `integer` | NOT NULL, default `0` | Token count of `content` itself (blocks plus the blank lines joining them), via the same tokenizer used for chunk sizing (migration `0038`) — backs `document_chunk_corpus_stats`' average-length stat and BM25's length normalization |
 | `content_tsv` | `tsvector` | GENERATED ALWAYS AS (`to_tsvector('english', content)`) STORED (migration `0038`) | Postgres maintains this automatically; no insert ever provides a value |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 
@@ -239,13 +239,13 @@ Embedded, searchable Markdown chunks produced by the RAG indexing pipeline. Requ
 ---
 
 ### `document_block_hashes`
-Per-block content fingerprints, used by the RAG indexing pipeline's snapshot-diff to detect changed/added/deleted blocks between indexing runs.
+Per-block content fingerprints, used by the RAG indexing pipeline's snapshot-diff to detect changed/added/deleted blocks between indexing runs. One row per non-empty block in the document tree, parent or child. A removed block's row is kept while a stale chunk containing it survives a capped run, so the next run still sees it as removed; deleting a document's rows forces a full rebuild (`reindex-all-documents.ts`).
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `document_id` | `bigint` | NOT NULL, FK → `documents.id` ON DELETE CASCADE | Scopes this row to a specific document |
 | `block_id` | `text` | NOT NULL | BlockNote block id (UUID string) this fingerprint belongs to |
-| `hash` | `text` | NOT NULL | SHA-256 hash of the block's Markdown as of the last indexing run |
+| `hash` | `text` | NOT NULL | SHA-256 hash of the block's own Markdown (children excluded) as of the last indexing run |
 | `updated_at` | `timestamptz` | NOT NULL, default `now()` | |
 
 > Composite PK on `(document_id, block_id)`.
