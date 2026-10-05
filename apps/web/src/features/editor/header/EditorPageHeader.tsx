@@ -32,6 +32,15 @@ import useToast from "@/hooks/useToast";
 import { getSyncStatusDisplay } from "./syncStatusDisplay";
 import { getEditorDocumentMenu } from "./editorDocumentMenu";
 
+/** What each access level lets the user do, shown on the access badge's hover. */
+const ACCESS_DESCRIPTIONS: Record<ResolvedDocumentAccessLevel, string> = {
+    owner: "You own this workspace — full access",
+    admin: "You can edit and manage who has access",
+    editor: "You can edit this document",
+    viewer: "You can read but not edit this document",
+    noAccess: "You don't have access to this document",
+};
+
 /** Maximum number of avatars shown before collapsing the rest into a +N label. */
 const MAX_VISIBLE_AVATARS = 4;
 
@@ -238,21 +247,27 @@ const EditorPageHeader = ({
                 <div className="flex min-w-0 flex-1 items-center gap-2 text-[13px]">
                     {workspaceName && (
                         <span className="flex min-w-0 items-center gap-2">
-                            <span className="truncate text-fg-muted">
-                                {workspaceName}
-                            </span>
+                            <Tooltip content={workspaceName}>
+                                <span className="truncate text-fg-muted">
+                                    {workspaceName}
+                                </span>
+                            </Tooltip>
                             <span className="shrink-0 text-fg-muted">/</span>
-                            <span
-                                className={`truncate font-medium ${title ? "text-fg" : "text-fg-muted"}`}
-                            >
-                                {title || "Untitled"}
-                            </span>
+                            <Tooltip content={title || "Untitled"}>
+                                <span
+                                    className={`truncate font-medium ${title ? "text-fg" : "text-fg-muted"}`}
+                                >
+                                    {title || "Untitled"}
+                                </span>
+                            </Tooltip>
                         </span>
                     )}
                     {accessLevel && (
-                        <Badge variant="outline" className="ml-1">
-                            {formatAccessLevel(accessLevel)}
-                        </Badge>
+                        <Tooltip content={ACCESS_DESCRIPTIONS[accessLevel]}>
+                            <Badge variant="outline" className="ml-1">
+                                {formatAccessLevel(accessLevel)}
+                            </Badge>
+                        </Tooltip>
                     )}
                     <StatusDot
                         tone={status.tone}
@@ -395,6 +410,7 @@ const EditorPageHeader = ({
                     <DropdownMenu
                         items={documentMenu}
                         className="w-60"
+                        tooltip="More actions"
                         trigger={
                             <Button
                                 variant="ghost"

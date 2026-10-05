@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { LuArrowUp } from "react-icons/lu";
 import { AGENT_MESSAGE_MAX_LENGTH } from "@converge/shared";
 import Button from "@/components/ui/Button";
+import Tooltip from "@/components/ui/Tooltip";
 import useIsMobile from "@/hooks/useIsMobile";
 
 /** Tallest the message field grows (px) before it scrolls. */
@@ -79,24 +80,28 @@ const MessageComposer = ({
                     }
                 />
                 {isStreaming ? (
-                    <Button
-                        variant="primary"
-                        onClick={onStop}
-                        aria-label="Stop reply"
-                        className="h-9 w-9 rounded-lg px-0"
-                    >
-                        <span className="h-3 w-3 shrink-0 rounded-[2px] bg-current" />
-                    </Button>
+                    <Tooltip content="Stop reply">
+                        <Button
+                            variant="primary"
+                            onClick={onStop}
+                            aria-label="Stop reply"
+                            className="h-9 w-9 rounded-lg px-0"
+                        >
+                            <span className="h-3 w-3 shrink-0 rounded-[2px] bg-current" />
+                        </Button>
+                    </Tooltip>
                 ) : (
-                    <Button
-                        variant="primary"
-                        onClick={handleSend}
-                        disabled={disabled || !content.trim()}
-                        aria-label="Send message"
-                        className="h-9 w-9 rounded-lg px-0 [&_svg]:h-[18px] [&_svg]:w-[18px]"
-                    >
-                        <LuArrowUp />
-                    </Button>
+                    <Tooltip content="Send" shortcut="↵">
+                        <Button
+                            variant="primary"
+                            onClick={handleSend}
+                            disabled={disabled || !content.trim()}
+                            aria-label="Send message"
+                            className="h-9 w-9 rounded-lg px-0 [&_svg]:h-[18px] [&_svg]:w-[18px]"
+                        >
+                            <LuArrowUp />
+                        </Button>
+                    </Tooltip>
                 )}
             </div>
             <p className="mt-2 hidden px-1 text-xs text-fg-muted sm:block">

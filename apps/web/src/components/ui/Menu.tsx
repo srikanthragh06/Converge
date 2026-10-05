@@ -1,8 +1,10 @@
+import { useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
 import { LuCheck } from "react-icons/lu";
 import { cn } from "@/lib/utils";
+import Tooltip from "@/components/ui/Tooltip";
 
 /** A clickable menu row. */
 export type MenuItem = {
@@ -111,6 +113,7 @@ const renderEntries = (parts: MenuParts, entries: MenuEntry[]) =>
  * @param onCloseAutoFocus - called as focus returns to the trigger on close; preventDefault() keeps it
  *                           elsewhere, e.g. in a field the chosen item just opened
  * @param className - extra panel classes, e.g. a width
+ * @param tooltip - hover label for the trigger, shown on the menu's side, e.g. for an icon-only ⋯ button
  */
 export const DropdownMenu = ({
     trigger,
@@ -120,6 +123,7 @@ export const DropdownMenu = ({
     onOpenChange,
     onCloseAutoFocus,
     className,
+    tooltip,
 }: {
     trigger: ReactElement;
     items: MenuEntry[];
@@ -128,25 +132,78 @@ export const DropdownMenu = ({
     onOpenChange?: (open: boolean) => void;
     onCloseAutoFocus?: (event: Event) => void;
     className?: string;
-}) => (
-    <DropdownMenuPrimitive.Root onOpenChange={onOpenChange}>
+    tooltip?: ReactNode;
+}) => {
+    const [isTooltipOpen, setIsTooltipOpen] = useState(false); // the trigger's tooltip, controlled so the menu can veto opens
+    const isMenuOpenRef = useRef(false); // no tooltip over the open menu
+    const isReturningFocusRef = useRef(false); // true while the closing menu hands focus back to the trigger
+
+    /**
+     * Records the menu's state, hides the tooltip when it opens, and passes the change on.
+     * @param open - whether the menu is now open
+     */
+    const handleMenuOpenChange = (open: boolean) => {
+        isMenuOpenRef.current = open;
+        if (open) setIsTooltipOpen(false);
+        onOpenChange?.(open);
+    };
+
+    /**
+     * Flags the focus that Radix returns to the trigger as the menu closes, so
+     * the tooltip doesn't pop up after every menu action. Radix focuses the
+     * trigger synchronously right after this event, so the flag clears on the
+     * next tick.
+     * @param event - the close auto-focus event, passed on to onCloseAutoFocus
+     */
+    const handleCloseAutoFocus = (event: Event) => {
+        onCloseAutoFocus?.(event);
+        isReturningFocusRef.current = true;
+        setTimeout(() => {
+            isReturningFocusRef.current = false;
+        }, 0);
+    };
+
+    const menuTrigger = (
         <DropdownMenuPrimitive.Trigger asChild>
             {trigger}
         </DropdownMenuPrimitive.Trigger>
-        <DropdownMenuPrimitive.Portal>
-            <DropdownMenuPrimitive.Content
-                align={align}
-                side={side}
-                sideOffset={4}
-                collisionPadding={8}
-                onCloseAutoFocus={onCloseAutoFocus}
-                className={cn(CONTENT_CLASSES, className)}
-            >
-                {renderEntries(DropdownMenuPrimitive, items)}
-            </DropdownMenuPrimitive.Content>
-        </DropdownMenuPrimitive.Portal>
-    </DropdownMenuPrimitive.Root>
-);
+    );
+
+    return (
+        <DropdownMenuPrimitive.Root onOpenChange={handleMenuOpenChange}>
+            {tooltip ? (
+                <Tooltip
+                    content={tooltip}
+                    side={side}
+                    open={isTooltipOpen}
+                    onOpenChange={(open) =>
+                        setIsTooltipOpen(
+                            open &&
+                                !isMenuOpenRef.current &&
+                                !isReturningFocusRef.current,
+                        )
+                    }
+                >
+                    {menuTrigger}
+                </Tooltip>
+            ) : (
+                menuTrigger
+            )}
+            <DropdownMenuPrimitive.Portal>
+                <DropdownMenuPrimitive.Content
+                    align={align}
+                    side={side}
+                    sideOffset={4}
+                    collisionPadding={8}
+                    onCloseAutoFocus={handleCloseAutoFocus}
+                    className={cn(CONTENT_CLASSES, className)}
+                >
+                    {renderEntries(DropdownMenuPrimitive, items)}
+                </DropdownMenuPrimitive.Content>
+            </DropdownMenuPrimitive.Portal>
+        </DropdownMenuPrimitive.Root>
+    );
+};
 
 /**
  * Menu that opens at the pointer on right-click (or long-press on touch)

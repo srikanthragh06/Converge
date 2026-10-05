@@ -1,5 +1,6 @@
 import type { AuthResponseDto } from "@converge/shared";
 import { Avatar } from "@/components/common/Avatar";
+import Tooltip from "@/components/ui/Tooltip";
 
 /**
  * Avatar, name, and email of the signed-in user, in a row.
@@ -14,10 +15,16 @@ const UserSummary = ({ user }: { user: AuthResponseDto }) => (
             className="h-7 w-7 text-[11px]"
         />
         <span className="flex min-w-0 flex-1 flex-col text-left">
-            <span className="truncate text-[13px] font-medium text-fg">
-                {user.name}
-            </span>
-            <span className="truncate text-xs text-fg-muted">{user.email}</span>
+            <Tooltip content={user.name}>
+                <span className="truncate text-[13px] font-medium text-fg">
+                    {user.name}
+                </span>
+            </Tooltip>
+            <Tooltip content={user.email}>
+                <span className="truncate text-xs text-fg-muted">
+                    {user.email}
+                </span>
+            </Tooltip>
         </span>
     </span>
 );

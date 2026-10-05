@@ -3,6 +3,7 @@ import type { WorkspaceMemberDto, WorkspaceRole } from "@converge/shared";
 import PersonRow from "@/components/common/people/PersonRow";
 import Select, { type SelectOption } from "@/components/ui/Select";
 import Button from "@/components/ui/Button";
+import Tooltip from "@/components/ui/Tooltip";
 
 /** Roles the owner can give an existing member. */
 const ROLE_OPTIONS: SelectOption<WorkspaceRole>[] = [
@@ -82,15 +83,17 @@ const WorkspaceMemberRow = ({
                         </span>
                     )}
                     {canRemove ? (
-                        <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={onRemove}
-                            disabled={isPending}
-                            aria-label={`Remove ${member.name}`}
-                        >
-                            <LuX />
-                        </Button>
+                        <Tooltip content="Remove from workspace">
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={onRemove}
+                                disabled={isPending}
+                                aria-label={`Remove ${member.name}`}
+                            >
+                                <LuX />
+                            </Button>
+                        </Tooltip>
                     ) : (
                         <span className="hidden w-7 sm:block" />
                     )}

@@ -1,5 +1,6 @@
 import { LuFile } from "react-icons/lu";
 import { cn } from "@/lib/utils";
+import Tooltip from "@/components/ui/Tooltip";
 
 /**
  * One document in the search palette: a file icon and the title. The
@@ -26,14 +27,16 @@ const DocumentSwitcherRow = ({
         )}
     >
         <LuFile className="h-4 w-4 shrink-0 text-fg-muted" />
-        <span
-            className={cn(
-                "min-w-0 flex-1 truncate text-[15px]",
-                title ? "text-fg" : "text-fg-muted",
-            )}
-        >
-            {title || "Untitled"}
-        </span>
+        <Tooltip content={title || "Untitled"}>
+            <span
+                className={cn(
+                    "min-w-0 flex-1 truncate text-[15px]",
+                    title ? "text-fg" : "text-fg-muted",
+                )}
+            >
+                {title || "Untitled"}
+            </span>
+        </Tooltip>
         {isFocused && (
             <span className="hidden shrink-0 text-xs text-fg-muted sm:inline">
                 Open ↵

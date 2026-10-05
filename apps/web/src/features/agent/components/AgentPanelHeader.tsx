@@ -11,6 +11,7 @@ import {
 import type { AgentConversationSummary } from "@/features/agent/hooks/useAgentConversations";
 import { formatShortcut } from "@/lib/utils";
 import Button from "@/components/ui/Button";
+import Tooltip from "@/components/ui/Tooltip";
 import { DropdownMenu } from "@/components/ui/Menu";
 import ConversationPicker from "./ConversationPicker";
 import RenameConversationInput from "./RenameConversationInput";
@@ -62,12 +63,14 @@ const AgentPanelHeader = ({
                 <kbd className="hidden shrink-0 rounded border border-line-strong px-1.5 py-0.5 font-sans text-[11px] leading-none text-fg-muted sm:inline">
                     {formatShortcut("J")}
                 </kbd>
-                <DialogPrimitive.Close
-                    aria-label="Close"
-                    className="-mr-1.5 ml-auto flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-fg-muted outline-none transition-colors hover:bg-surface-hover hover:text-fg focus-visible:ring-2 focus-visible:ring-gold/60 sm:h-7 sm:w-7"
-                >
-                    <LuX className="h-5 w-5 sm:h-4 sm:w-4" />
-                </DialogPrimitive.Close>
+                <Tooltip content="Close" shortcut={formatShortcut("J")}>
+                    <DialogPrimitive.Close
+                        aria-label="Close"
+                        className="-mr-1.5 ml-auto flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-fg-muted outline-none transition-colors hover:bg-surface-hover hover:text-fg focus-visible:ring-2 focus-visible:ring-gold/60 sm:h-7 sm:w-7"
+                    >
+                        <LuX className="h-5 w-5 sm:h-4 sm:w-4" />
+                    </DialogPrimitive.Close>
+                </Tooltip>
             </div>
 
             {/* Conversation row */}
@@ -99,6 +102,7 @@ const AgentPanelHeader = ({
                     />
                 )}
                 <DropdownMenu
+                    tooltip="Chat options"
                     onCloseAutoFocus={(e) => {
                         // The menu traps focus until it closes, so the rename field is focused
                         // here instead of by autoFocus, in place of returning focus to ⋯.

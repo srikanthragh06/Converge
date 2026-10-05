@@ -21,6 +21,7 @@ import { isAgentPanelOpenAtom } from "@/atoms/agent";
 import useSidebar from "./useSidebar";
 import { formatShortcut } from "@/lib/utils";
 import Button from "@/components/ui/Button";
+import Tooltip from "@/components/ui/Tooltip";
 import { DropdownMenu } from "@/components/ui/Menu";
 import WorkspaceSwitcher from "@/features/workspaces/components/WorkspaceSwitcher";
 import UserMenu from "./UserMenu";
@@ -96,13 +97,21 @@ const SidebarRail = ({ onExpand }: { onExpand: () => void }) => {
                         side="right"
                         align="start"
                         className="w-64"
+                        tooltip="Pinned documents"
                         items={[
                             {
                                 type: "label",
                                 label: `Pinned · ${pinnedDocuments.length}`,
                             },
                             ...pinnedDocuments.map((doc) => ({
-                                label: doc.title || "Untitled",
+                                label: (
+                                    <Tooltip
+                                        content={doc.title || "Untitled"}
+                                        side="right"
+                                    >
+                                        <span>{doc.title || "Untitled"}</span>
+                                    </Tooltip>
+                                ),
                                 icon: <LuFile />,
                                 onSelect: () => navigate(`/document/${doc.id}`),
                             })),

@@ -2,12 +2,14 @@ import type { DocumentIndexingStatus } from "@converge/shared";
 import Modal from "@/components/ui/Modal";
 import ModalFooter from "@/components/ui/ModalFooter";
 import Button from "@/components/ui/Button";
+import Tooltip from "@/components/ui/Tooltip";
+import RelativeTime from "@/components/common/RelativeTime";
 import Skeleton from "@/components/ui/Skeleton";
 import { StatusDot, type StatusTone } from "@/components/ui/Badge";
 import DelayedRender from "@/components/common/DelayedRender";
 import useDocumentDetails from "./hooks/useDocumentDetails";
 import DetailRow from "./DetailRow";
-import { formatAccessLevel, formatDate, timeAgo } from "@/lib/utils";
+import { formatAccessLevel, formatDate } from "@/lib/utils";
 
 /** Dot tone and label for each search indexing state. */
 const INDEXING_STATUS: Record<
@@ -54,7 +56,11 @@ const DocumentDetailsModal = ({
             ) : (
                 <dl className="mt-2 flex flex-col">
                     <DetailRow label="Title">
-                        {overview?.title || (
+                        {overview?.title ? (
+                            <Tooltip content={overview.title}>
+                                <span>{overview.title}</span>
+                            </Tooltip>
+                        ) : (
                             <span className="text-fg-muted">Untitled</span>
                         )}
                     </DetailRow>
@@ -87,11 +93,15 @@ const DocumentDetailsModal = ({
                         )}
                     </DetailRow>
                     <DetailRow label="Last indexed">
-                        {overview
-                            ? overview.lastIndexedAt
-                                ? timeAgo(overview.lastIndexedAt)
-                                : "Never"
-                            : "—"}
+                        {overview ? (
+                            overview.lastIndexedAt ? (
+                                <RelativeTime date={overview.lastIndexedAt} />
+                            ) : (
+                                "Never"
+                            )
+                        ) : (
+                            "—"
+                        )}
                     </DetailRow>
                 </dl>
             )}

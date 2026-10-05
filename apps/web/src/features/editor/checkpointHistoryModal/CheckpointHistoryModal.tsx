@@ -6,6 +6,7 @@ import { LuCheck, LuCircleAlert, LuLoaderCircle } from "react-icons/lu";
 import Skeleton from "@/components/ui/Skeleton";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
+import Tooltip from "@/components/ui/Tooltip";
 import useCheckpointHistory from "@/features/editor/hooks/useCheckpointHistory";
 import useCreateCheckpoint from "@/features/editor/hooks/useCreateCheckpoint";
 import useToast from "@/hooks/useToast";
@@ -84,9 +85,11 @@ const CheckpointHistoryModal = ({
             title="Version history"
             titleAside={
                 // Phones have no room beside the title for the document name.
-                <span className="hidden sm:inline">
-                    {documentTitle || "Untitled"}
-                </span>
+                <Tooltip content={documentTitle || "Untitled"}>
+                    <span className="hidden sm:inline">
+                        {documentTitle || "Untitled"}
+                    </span>
+                </Tooltip>
             }
             headerActions={
                 isEditable && (

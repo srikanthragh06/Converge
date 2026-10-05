@@ -4,21 +4,14 @@ import type { LibraryDocumentDto } from "@converge/shared";
 import { cn } from "@/lib/utils";
 import { formatAccessLevel, timeAgo } from "@/lib/utils";
 import Button from "@/components/ui/Button";
+import Tooltip from "@/components/ui/Tooltip";
+import RelativeTime from "@/components/common/RelativeTime";
 import {
     ContextMenu,
     DropdownMenu,
     type MenuEntry,
 } from "@/components/ui/Menu";
 import { RowActions, TableCell, TableRow } from "@/components/common/Table";
-
-/**
- * Relative time with a leading capital, for a table cell ("Just now", "3h ago").
- * @param date - the time to describe
- */
-const capitalizedTimeAgo = (date: Date | string) => {
-    const text = timeAgo(date);
-    return text.charAt(0).toUpperCase() + text.slice(1);
-};
 
 /**
  * One row of the Library table (pp 29 / 30): title, your access, last
@@ -64,16 +57,20 @@ const LibraryRow = ({
                     <LuFile className="h-4 w-4 shrink-0 text-fg-muted" />
                     <div className="flex min-w-0 flex-col">
                         {/* A real link, so the row is reachable by keyboard and opens in a new tab on modified clicks */}
-                        <Link
-                            to={href}
-                            onClick={(e) => e.stopPropagation()}
-                            className={cn(
-                                "truncate rounded-sm text-[15px] outline-none focus-visible:ring-2 focus-visible:ring-gold/60",
-                                document.title ? "text-fg" : "text-fg-muted",
-                            )}
-                        >
-                            {document.title || "Untitled"}
-                        </Link>
+                        <Tooltip content={document.title || "Untitled"}>
+                            <Link
+                                to={href}
+                                onClick={(e) => e.stopPropagation()}
+                                className={cn(
+                                    "truncate rounded-sm text-[15px] outline-none focus-visible:ring-2 focus-visible:ring-gold/60",
+                                    document.title
+                                        ? "text-fg"
+                                        : "text-fg-muted",
+                                )}
+                            >
+                                {document.title || "Untitled"}
+                            </Link>
+                        </Tooltip>
                         <span className="truncate text-xs text-fg-muted lg:hidden">
                             {mobileMeta}
                         </span>
@@ -83,39 +80,49 @@ const LibraryRow = ({
                     {formatAccessLevel(document.access)}
                 </TableCell>
                 <TableCell hideOnMobile className="text-fg-muted">
-                    {document.lastVisitedAt
-                        ? capitalizedTimeAgo(document.lastVisitedAt)
-                        : "—"}
+                    {document.lastVisitedAt ? (
+                        <RelativeTime
+                            date={document.lastVisitedAt}
+                            capitalize
+                        />
+                    ) : (
+                        "—"
+                    )}
                 </TableCell>
                 <TableCell hideOnMobile className="text-fg-muted">
-                    {document.lastEditedAt
-                        ? capitalizedTimeAgo(document.lastEditedAt)
-                        : "—"}
+                    {document.lastEditedAt ? (
+                        <RelativeTime date={document.lastEditedAt} capitalize />
+                    ) : (
+                        "—"
+                    )}
                 </TableCell>
                 {/* Clicks here don't reach the row, which opens the document */}
                 <div
                     onClick={(e) => e.stopPropagation()}
                     className="flex items-center justify-end gap-0.5"
                 >
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={onTogglePin}
-                        aria-label={
-                            isPinned ? "Unpin document" : "Pin document"
-                        }
-                        aria-pressed={isPinned}
-                        className={cn(
-                            isPinned
-                                ? "text-gold hover:text-gold"
-                                : "text-fg-muted hover:text-fg",
-                        )}
-                    >
-                        <LuPin />
-                    </Button>
+                    <Tooltip content={isPinned ? "Unpin" : "Pin to sidebar"}>
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={onTogglePin}
+                            aria-label={
+                                isPinned ? "Unpin document" : "Pin document"
+                            }
+                            aria-pressed={isPinned}
+                            className={cn(
+                                isPinned
+                                    ? "text-gold hover:text-gold"
+                                    : "text-fg-muted hover:text-fg",
+                            )}
+                        >
+                            <LuPin />
+                        </Button>
+                    </Tooltip>
                     <RowActions className="[@media(max-width:1023px)]:opacity-100">
                         <DropdownMenu
                             items={menuItems}
+                            tooltip="More actions"
                             trigger={
                                 <Button
                                     variant="ghost"

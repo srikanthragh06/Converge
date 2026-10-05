@@ -11,6 +11,7 @@ import type { WorkspaceDto } from "@converge/shared";
 import useCreateWorkspace from "@/features/workspaces/hooks/useCreateWorkspace";
 import { describeWorkspace } from "@/lib/utils";
 import { DropdownMenu, type MenuEntry } from "@/components/ui/Menu";
+import Tooltip from "@/components/ui/Tooltip";
 import WorkspaceConfigModal from "./WorkspaceConfigModal";
 import CreateWorkspaceModal from "./CreateWorkspaceModal";
 import WorkspaceTile from "./WorkspaceTile";
@@ -112,6 +113,7 @@ const WorkspaceSwitcher = ({
                 items={items}
                 onOpenChange={(open) => open && onOpen()}
                 className="w-[17.5rem] max-w-[calc(100vw-1rem)]"
+                tooltip={compact ? currentWorkspace?.name : undefined}
                 trigger={
                     compact ? (
                         <button
@@ -135,9 +137,11 @@ const WorkspaceSwitcher = ({
                                 type={workspace?.type}
                             />
                             <span className="flex min-w-0 flex-1 flex-col">
-                                <span className="truncate text-sm font-semibold text-fg">
-                                    {currentWorkspace?.name}
-                                </span>
+                                <Tooltip content={currentWorkspace?.name}>
+                                    <span className="truncate text-sm font-semibold text-fg">
+                                        {currentWorkspace?.name}
+                                    </span>
+                                </Tooltip>
                                 {workspace && (
                                     <span className="truncate text-xs text-fg-muted">
                                         {workspace.type === "personal"

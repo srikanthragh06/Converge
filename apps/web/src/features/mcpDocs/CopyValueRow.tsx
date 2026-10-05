@@ -1,6 +1,7 @@
 import { LuCheck, LuCopy } from "react-icons/lu";
 import useCopyToClipboard from "@/hooks/useCopyToClipboard";
 import Button from "@/components/ui/Button";
+import Tooltip from "@/components/ui/Tooltip";
 
 /**
  * A labelled, copyable value on the MCP setup page, e.g. the endpoint or
@@ -18,9 +19,11 @@ const CopyValueRow = ({ label, value }: { label: string; value: string }) => {
                 {label}
             </span>
             <div className="flex min-w-0 flex-1 items-center gap-2">
-                <code className="min-w-0 flex-1 truncate font-mono text-[13px] text-fg sm:text-sm">
-                    {value}
-                </code>
+                <Tooltip content={value}>
+                    <code className="min-w-0 flex-1 truncate font-mono text-[13px] text-fg sm:text-sm">
+                        {value}
+                    </code>
+                </Tooltip>
                 <Button
                     variant={copied ? "primary" : "ghost"}
                     size="sm"

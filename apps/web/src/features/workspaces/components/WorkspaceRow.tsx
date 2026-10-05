@@ -41,9 +41,11 @@ const WorkspaceRow = ({
             />
             <div className="flex min-w-0 flex-col">
                 <div className="flex min-w-0 items-center gap-2">
-                    <span className="truncate text-base text-fg">
-                        {workspace.name}
-                    </span>
+                    <Tooltip content={workspace.name}>
+                        <span className="truncate text-base text-fg">
+                            {workspace.name}
+                        </span>
+                    </Tooltip>
                     {workspace.type === "personal" && <Badge>Personal</Badge>}
                     {workspace.isSelected && (
                         <Badge variant="gold">Current</Badge>

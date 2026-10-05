@@ -30,6 +30,7 @@ const UserMenu = ({
                     ? "w-64"
                     : "w-[var(--radix-dropdown-menu-trigger-width)] max-w-none"
             }
+            tooltip={compact ? user.name : undefined}
             items={[
                 {
                     type: "label",

@@ -3,6 +3,8 @@ import type { TrashDocumentDto } from "@converge/shared";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/utils";
 import Button from "@/components/ui/Button";
+import Tooltip from "@/components/ui/Tooltip";
+import RelativeTime from "@/components/common/RelativeTime";
 import { RowActions, TableCell, TableRow } from "@/components/common/Table";
 
 /**
@@ -27,21 +29,23 @@ const TrashRow = ({
         <TableCell>
             <LuFile className="h-4 w-4 shrink-0 text-fg-muted" />
             <div className="flex min-w-0 flex-col">
-                <span
-                    className={cn(
-                        "truncate text-[15px]",
-                        document.title ? "text-fg" : "text-fg-muted",
-                    )}
-                >
-                    {document.title || "Untitled"}
-                </span>
+                <Tooltip content={document.title || "Untitled"}>
+                    <span
+                        className={cn(
+                            "truncate text-[15px]",
+                            document.title ? "text-fg" : "text-fg-muted",
+                        )}
+                    >
+                        {document.title || "Untitled"}
+                    </span>
+                </Tooltip>
                 <span className="truncate text-xs text-fg-muted lg:hidden">
                     Deleted {timeAgo(document.deletedAt)}
                 </span>
             </div>
         </TableCell>
         <TableCell hideOnMobile className="text-fg-muted">
-            {timeAgo(document.deletedAt)}
+            <RelativeTime date={document.deletedAt} />
         </TableCell>
         <RowActions className={cn(isRestoring && "opacity-100")}>
             <Button
