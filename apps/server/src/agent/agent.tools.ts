@@ -151,7 +151,7 @@ export class AgentTools {
       {
         name: 'findInDocument',
         description:
-          'Finds every block in one document whose text contains the given text (case-insensitive, otherwise exact) and returns their block ids, parent ids and short previews, plus the total match count. Reads the live document, not the search index. Use it when you know the exact text, need every occurrence, or need to confirm some text is absent; for meaning-based questions use searchDocumentContent. Read the matched blocks with getBlocksById.',
+          'Finds every block in one document whose text contains the given text (case-insensitive, otherwise exact) and returns their block ids, parent ids and short previews, plus the total match count. Reads the live document, not the search index. Use it when you know the exact text, need every occurrence, or need to confirm some text is absent; for meaning-based questions use searchDocumentContent. Search for plain text, not Markdown syntax (no **, [link](url) or backslash escapes copied from readDocumentMarkdown). Read the matched blocks with getBlocksById.',
         inputSchema: z.object(FindInDocumentToolInputSchema),
         execute: (input) =>
           withAgentErrorHandling(() =>
