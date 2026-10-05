@@ -4,6 +4,7 @@ import type { LibraryDocumentDto } from "@converge/shared";
 import { cn } from "@/lib/utils";
 import { formatAccessLevel, timeAgo } from "@/lib/utils";
 import Button from "@/components/ui/Button";
+import Tooltip from "@/components/ui/Tooltip";
 import {
     ContextMenu,
     DropdownMenu,
@@ -64,16 +65,20 @@ const LibraryRow = ({
                     <LuFile className="h-4 w-4 shrink-0 text-fg-muted" />
                     <div className="flex min-w-0 flex-col">
                         {/* A real link, so the row is reachable by keyboard and opens in a new tab on modified clicks */}
-                        <Link
-                            to={href}
-                            onClick={(e) => e.stopPropagation()}
-                            className={cn(
-                                "truncate rounded-sm text-[15px] outline-none focus-visible:ring-2 focus-visible:ring-gold/60",
-                                document.title ? "text-fg" : "text-fg-muted",
-                            )}
-                        >
-                            {document.title || "Untitled"}
-                        </Link>
+                        <Tooltip content={document.title || "Untitled"}>
+                            <Link
+                                to={href}
+                                onClick={(e) => e.stopPropagation()}
+                                className={cn(
+                                    "truncate rounded-sm text-[15px] outline-none focus-visible:ring-2 focus-visible:ring-gold/60",
+                                    document.title
+                                        ? "text-fg"
+                                        : "text-fg-muted",
+                                )}
+                            >
+                                {document.title || "Untitled"}
+                            </Link>
+                        </Tooltip>
                         <span className="truncate text-xs text-fg-muted lg:hidden">
                             {mobileMeta}
                         </span>

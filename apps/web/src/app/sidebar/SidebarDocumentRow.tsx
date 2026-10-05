@@ -6,6 +6,7 @@ import {
     DropdownMenu,
     type MenuEntry,
 } from "@/components/ui/Menu";
+import Tooltip from "@/components/ui/Tooltip";
 
 /** Classes for the small square buttons revealed at the row's right edge. */
 const ACTION_BUTTON_CLASSES =
@@ -45,20 +46,28 @@ const SidebarDocumentRow = ({
                 isActive ? "bg-surface-selected" : "hover:bg-surface-hover",
             )}
         >
-            <button
-                type="button"
-                onClick={onOpen}
-                aria-current={isActive ? "page" : undefined}
-                className={cn(
-                    "flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md pl-2.5 pr-2 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-gold/60 group-focus-within/doc:pr-16 group-hover/doc:pr-16 group-has-[[data-state=open]]/doc:pr-16 [@media(hover:none)]:pr-16",
-                    isActive ? "text-fg" : "text-fg-secondary",
-                )}
-            >
-                <LuFile className="h-4 w-4 shrink-0 text-fg-muted" />
-                <span className={cn("truncate", !doc.title && "text-fg-muted")}>
-                    {doc.title || "Untitled"}
-                </span>
-            </button>
+            {/* Full title on hover, since the hover actions truncate it further */}
+            <Tooltip content={doc.title || "Untitled"} side="right">
+                <button
+                    type="button"
+                    onClick={onOpen}
+                    aria-current={isActive ? "page" : undefined}
+                    className={cn(
+                        "flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md pl-2.5 pr-2 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-gold/60 group-focus-within/doc:pr-16 group-hover/doc:pr-16 group-has-[[data-state=open]]/doc:pr-16 [@media(hover:none)]:pr-16",
+                        isActive ? "text-fg" : "text-fg-secondary",
+                    )}
+                >
+                    <LuFile className="h-4 w-4 shrink-0 text-fg-muted" />
+                    <span
+                        className={cn(
+                            "truncate",
+                            !doc.title && "text-fg-muted",
+                        )}
+                    >
+                        {doc.title || "Untitled"}
+                    </span>
+                </button>
+            </Tooltip>
             {/* Hover actions — also shown while focused inside, while the ⋯ menu is open, and always on touch screens */}
             <div className="absolute right-1 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/doc:opacity-100 has-[[data-state=open]]:opacity-100 [@media(hover:none)]:opacity-100">
                 <button

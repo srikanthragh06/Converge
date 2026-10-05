@@ -10,6 +10,7 @@ import Modal from "@/components/ui/Modal";
 import BottomSheet from "@/components/ui/BottomSheet";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
+import Tooltip from "@/components/ui/Tooltip";
 import Select, { type SelectOption } from "@/components/ui/Select";
 import useNewAccessUserLookup from "./hooks/useNewAccessUserLookup";
 import useAddDocumentAccess from "./hooks/useAddDocumentAccess";
@@ -318,7 +319,11 @@ const ShareDialog = ({
     ) : (
         <Modal
             onClose={onClose}
-            title={`Share “${title || "Untitled"}”`}
+            title={
+                <Tooltip content={title || "Untitled"}>
+                    <span>Share “{title || "Untitled"}”</span>
+                </Tooltip>
+            }
             description={canManage ? "Changes apply immediately." : undefined}
             size="md"
         >

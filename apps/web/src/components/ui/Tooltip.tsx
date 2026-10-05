@@ -40,7 +40,7 @@ const Tooltip = ({
                 collisionPadding={8}
                 className="z-[70] flex max-w-xs animate-fade-in items-center gap-2 rounded-md bg-tooltip px-2 py-1 text-xs font-medium text-tooltip-fg shadow-md shadow-shadow"
             >
-                <span className="min-w-0">{content}</span>
+                <span className="min-w-0 break-words">{content}</span>
                 {shortcut && (
                     <kbd className="shrink-0 font-sans font-normal text-tooltip-fg/60">
                         {shortcut}

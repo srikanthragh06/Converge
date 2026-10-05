@@ -2,6 +2,7 @@ import type { DocumentIndexingStatus } from "@converge/shared";
 import Modal from "@/components/ui/Modal";
 import ModalFooter from "@/components/ui/ModalFooter";
 import Button from "@/components/ui/Button";
+import Tooltip from "@/components/ui/Tooltip";
 import Skeleton from "@/components/ui/Skeleton";
 import { StatusDot, type StatusTone } from "@/components/ui/Badge";
 import DelayedRender from "@/components/common/DelayedRender";
@@ -54,7 +55,11 @@ const DocumentDetailsModal = ({
             ) : (
                 <dl className="mt-2 flex flex-col">
                     <DetailRow label="Title">
-                        {overview?.title || (
+                        {overview?.title ? (
+                            <Tooltip content={overview.title}>
+                                <span>{overview.title}</span>
+                            </Tooltip>
+                        ) : (
                             <span className="text-fg-muted">Untitled</span>
                         )}
                     </DetailRow>

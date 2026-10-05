@@ -242,11 +242,13 @@ const EditorPageHeader = ({
                                 {workspaceName}
                             </span>
                             <span className="shrink-0 text-fg-muted">/</span>
-                            <span
-                                className={`truncate font-medium ${title ? "text-fg" : "text-fg-muted"}`}
-                            >
-                                {title || "Untitled"}
-                            </span>
+                            <Tooltip content={title || "Untitled"}>
+                                <span
+                                    className={`truncate font-medium ${title ? "text-fg" : "text-fg-muted"}`}
+                                >
+                                    {title || "Untitled"}
+                                </span>
+                            </Tooltip>
                         </span>
                     )}
                     {accessLevel && (
