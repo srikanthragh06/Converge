@@ -2,6 +2,7 @@ import { useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { LuX } from "react-icons/lu";
 import { cn } from "@/lib/utils";
+import Tooltip from "@/components/ui/Tooltip";
 import useMyWorkspaceRole from "@/features/workspaces/hooks/useMyWorkspaceRole";
 import useWorkspaceOverview from "@/features/workspaces/hooks/useWorkspaceOverview";
 import WorkspaceTile from "./WorkspaceTile";
@@ -88,9 +89,11 @@ const WorkspaceConfigModal = ({
                                     type={overview?.type}
                                 />
                                 <div className="flex min-w-0 flex-col">
-                                    <span className="truncate text-sm font-semibold text-fg">
-                                        {overview?.name}
-                                    </span>
+                                    <Tooltip content={overview?.name}>
+                                        <span className="truncate text-sm font-semibold text-fg">
+                                            {overview?.name}
+                                        </span>
+                                    </Tooltip>
                                     <span className="text-xs text-fg-muted">
                                         Workspace settings
                                     </span>

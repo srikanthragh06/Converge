@@ -23,6 +23,7 @@ import useDocumentRowMenu from "@/features/documents/hooks/useDocumentRowMenu";
 import useIsMobile from "@/hooks/useIsMobile";
 import { formatShortcut } from "@/lib/utils";
 import Button from "@/components/ui/Button";
+import Tooltip from "@/components/ui/Tooltip";
 import SidebarNavItem from "./SidebarNavItem";
 import SidebarSection from "./SidebarSection";
 import SidebarDocumentRow from "./SidebarDocumentRow";
@@ -84,14 +85,20 @@ const SidebarPanel = ({ onCollapse }: { onCollapse: () => void }) => {
                     onOpen={refetchWorkspaces}
                     onNavigate={closeOnMobile}
                 />
-                <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={onCollapse}
-                    aria-label={isMobile ? "Close sidebar" : "Collapse sidebar"}
+                <Tooltip
+                    content={isMobile ? "Close sidebar" : "Collapse sidebar"}
                 >
-                    <LuChevronsLeft />
-                </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={onCollapse}
+                        aria-label={
+                            isMobile ? "Close sidebar" : "Collapse sidebar"
+                        }
+                    >
+                        <LuChevronsLeft />
+                    </Button>
+                </Tooltip>
             </div>
 
             {/* Primary navigation */}

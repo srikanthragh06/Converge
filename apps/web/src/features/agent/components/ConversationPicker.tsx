@@ -9,6 +9,7 @@ import {
 import type { AgentConversationSummary } from "@/features/agent/hooks/useAgentConversations";
 import { cn } from "@/lib/utils";
 import Input from "@/components/ui/Input";
+import Tooltip from "@/components/ui/Tooltip";
 import { conversationLabel } from "./conversationLabel";
 
 /**
@@ -72,9 +73,11 @@ const ConversationPicker = ({
                     className="flex h-9 min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-lg border border-line-strong bg-surface-elevated px-3 text-sm text-fg outline-none transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-gold/60 data-[state=open]:border-gold"
                 >
                     <LuMessageSquare className="h-4 w-4 shrink-0 text-fg-muted" />
-                    <span className="min-w-0 flex-1 truncate text-left">
-                        {label}
-                    </span>
+                    <Tooltip content={label}>
+                        <span className="min-w-0 flex-1 truncate text-left">
+                            {label}
+                        </span>
+                    </Tooltip>
                     <LuChevronDown className="h-4 w-4 shrink-0 text-fg-muted" />
                 </button>
             </PopoverPrimitive.Trigger>
@@ -151,9 +154,18 @@ const ConversationPicker = ({
                                             isSelected && "font-semibold",
                                         )}
                                     >
-                                        <span className="min-w-0 flex-1 truncate">
-                                            {conversationLabel(conversation)}
-                                        </span>
+                                        <Tooltip
+                                            content={conversationLabel(
+                                                conversation,
+                                            )}
+                                            side="right"
+                                        >
+                                            <span className="min-w-0 flex-1 truncate">
+                                                {conversationLabel(
+                                                    conversation,
+                                                )}
+                                            </span>
+                                        </Tooltip>
                                         {isSelected && (
                                             <LuCheck className="h-4 w-4 shrink-0 text-gold" />
                                         )}

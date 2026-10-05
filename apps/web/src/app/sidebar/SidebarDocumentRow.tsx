@@ -70,20 +70,27 @@ const SidebarDocumentRow = ({
             </Tooltip>
             {/* Hover actions — also shown while focused inside, while the ⋯ menu is open, and always on touch screens */}
             <div className="absolute right-1 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/doc:opacity-100 has-[[data-state=open]]:opacity-100 [@media(hover:none)]:opacity-100">
-                <button
-                    type="button"
-                    onClick={onTogglePin}
-                    aria-label={isPinned ? "Unpin document" : "Pin document"}
-                    className={cn(
-                        ACTION_BUTTON_CLASSES,
-                        isPinned ? "text-gold" : "text-fg-muted hover:text-fg",
-                    )}
-                >
-                    <LuPin />
-                </button>
+                <Tooltip content={isPinned ? "Unpin" : "Pin to sidebar"}>
+                    <button
+                        type="button"
+                        onClick={onTogglePin}
+                        aria-label={
+                            isPinned ? "Unpin document" : "Pin document"
+                        }
+                        className={cn(
+                            ACTION_BUTTON_CLASSES,
+                            isPinned
+                                ? "text-gold"
+                                : "text-fg-muted hover:text-fg",
+                        )}
+                    >
+                        <LuPin />
+                    </button>
+                </Tooltip>
                 <DropdownMenu
                     align="start"
                     items={menuItems}
+                    tooltip="More actions"
                     trigger={
                         <button
                             type="button"

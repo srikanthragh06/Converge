@@ -97,6 +97,7 @@ const SidebarRail = ({ onExpand }: { onExpand: () => void }) => {
                         side="right"
                         align="start"
                         className="w-64"
+                        tooltip="Pinned documents"
                         items={[
                             {
                                 type: "label",

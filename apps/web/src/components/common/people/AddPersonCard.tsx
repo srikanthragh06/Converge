@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Avatar } from "@/components/common/Avatar";
 import Button from "@/components/ui/Button";
+import Tooltip from "@/components/ui/Tooltip";
 import Select, { type SelectOption } from "@/components/ui/Select";
 
 /**
@@ -41,10 +42,16 @@ const AddPersonCard = <T extends string>({
                 className="h-8 w-8 text-xs"
             />
             <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm text-fg">{user.name}</span>
-                <span className="truncate text-xs text-fg-muted">
-                    {subtitle ?? user.email}
-                </span>
+                <Tooltip content={user.name}>
+                    <span className="truncate text-sm text-fg">
+                        {user.name}
+                    </span>
+                </Tooltip>
+                <Tooltip content={subtitle ?? user.email}>
+                    <span className="truncate text-xs text-fg-muted">
+                        {subtitle ?? user.email}
+                    </span>
+                </Tooltip>
             </div>
             <Select
                 variant="outline"

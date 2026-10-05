@@ -5,6 +5,7 @@ import useRevokeApiKey from "@/features/apiKeys/hooks/useRevokeApiKey";
 import Modal from "@/components/ui/Modal";
 import ModalFooter from "@/components/ui/ModalFooter";
 import Button from "@/components/ui/Button";
+import Tooltip from "@/components/ui/Tooltip";
 
 /**
  * Confirmation before an API key is revoked (pp 36 / 44): the key's name,
@@ -39,9 +40,11 @@ const RevokeApiKeyConfirmationModal = ({
             <div className="mt-2 flex items-center gap-3 rounded-lg border border-line bg-surface-inset px-4 py-3">
                 <LuKeyRound className="h-4 w-4 shrink-0 text-fg-muted" />
                 <div className="flex min-w-0 flex-col">
-                    <span className="truncate text-sm text-fg">
-                        {apiKey.label}
-                    </span>
+                    <Tooltip content={apiKey.label}>
+                        <span className="truncate text-sm text-fg">
+                            {apiKey.label}
+                        </span>
+                    </Tooltip>
                     <span className="truncate font-mono text-xs text-fg-muted">
                         {apiKey.keyPrefix}… ·{" "}
                         {apiKey.lastUsedAt

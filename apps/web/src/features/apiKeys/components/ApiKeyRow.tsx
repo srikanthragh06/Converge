@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/utils";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import Tooltip from "@/components/ui/Tooltip";
+import RelativeTime from "@/components/common/RelativeTime";
 import { RowActions, TableCell, TableRow } from "@/components/common/Table";
 
 /**
@@ -44,16 +46,18 @@ const ApiKeyRow = ({
                     )}
                 />
                 <div className="flex min-w-0 flex-col">
-                    <span
-                        className={cn(
-                            "truncate",
-                            isRevoked
-                                ? "text-fg-muted line-through"
-                                : "text-base text-fg",
-                        )}
-                    >
-                        {apiKey.label}
-                    </span>
+                    <Tooltip content={apiKey.label}>
+                        <span
+                            className={cn(
+                                "truncate",
+                                isRevoked
+                                    ? "text-fg-muted line-through"
+                                    : "text-base text-fg",
+                            )}
+                        >
+                            {apiKey.label}
+                        </span>
+                    </Tooltip>
                     <span className="truncate font-mono text-xs text-fg-muted lg:hidden">
                         {apiKey.keyPrefix}… · used{" "}
                         {formatWhen(apiKey.lastUsedAt).toLowerCase()}
@@ -67,10 +71,14 @@ const ApiKeyRow = ({
                 <span className="truncate">{apiKey.keyPrefix}…</span>
             </TableCell>
             <TableCell hideOnMobile className="text-fg-muted">
-                {formatWhen(apiKey.createdAt)}
+                <RelativeTime date={apiKey.createdAt} capitalize />
             </TableCell>
             <TableCell hideOnMobile className="text-fg-muted">
-                {formatWhen(apiKey.lastUsedAt)}
+                {apiKey.lastUsedAt ? (
+                    <RelativeTime date={apiKey.lastUsedAt} capitalize />
+                ) : (
+                    "Never"
+                )}
             </TableCell>
             {isRevoked ? (
                 <div className="flex justify-end">

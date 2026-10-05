@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/utils";
 import Button from "@/components/ui/Button";
 import Tooltip from "@/components/ui/Tooltip";
+import RelativeTime from "@/components/common/RelativeTime";
 import { RowActions, TableCell, TableRow } from "@/components/common/Table";
 
 /**
@@ -44,7 +45,7 @@ const TrashRow = ({
             </div>
         </TableCell>
         <TableCell hideOnMobile className="text-fg-muted">
-            {timeAgo(document.deletedAt)}
+            <RelativeTime date={document.deletedAt} />
         </TableCell>
         <RowActions className={cn(isRestoring && "opacity-100")}>
             <Button

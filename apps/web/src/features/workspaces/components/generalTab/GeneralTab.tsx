@@ -10,6 +10,7 @@ import { hasWorkspaceRole } from "@converge/shared";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Skeleton from "@/components/ui/Skeleton";
+import Tooltip from "@/components/ui/Tooltip";
 import DelayedRender from "@/components/common/DelayedRender";
 import DetailItem from "./DetailItem";
 import LeaveWorkspaceConfirmationModal from "./LeaveWorkspaceConfirmationModal";
@@ -121,8 +122,12 @@ const GeneralTab = ({
                     {isPersonal ? "Personal workspace" : "Team workspace"}
                 </DetailItem>
                 <DetailItem label="Owner">
-                    {overview.ownerName}
-                    {overview.ownerEmail === userEmail && " (you)"}
+                    <Tooltip content={overview.ownerEmail}>
+                        <span>
+                            {overview.ownerName}
+                            {overview.ownerEmail === userEmail && " (you)"}
+                        </span>
+                    </Tooltip>
                 </DetailItem>
                 <DetailItem label="Created">
                     {new Date(overview.createdAt).toLocaleDateString("en-US", {

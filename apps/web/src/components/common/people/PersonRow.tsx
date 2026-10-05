@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Avatar } from "@/components/common/Avatar";
+import Tooltip from "@/components/ui/Tooltip";
 
 /**
  * One person in a people list (Share dialog, workspace Members): avatar,
@@ -35,17 +36,25 @@ const PersonRow = ({
             className="h-8 w-8 text-xs"
         />
         <div className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-sm text-fg">
-                {isSelf ? (
-                    <>
-                        <span className="sm:hidden">You</span>
-                        <span className="hidden sm:inline">{name} (you)</span>
-                    </>
-                ) : (
-                    name
-                )}
-            </span>
-            <span className="truncate text-xs text-fg-muted">{subtitle}</span>
+            <Tooltip content={name}>
+                <span className="truncate text-sm text-fg">
+                    {isSelf ? (
+                        <>
+                            <span className="sm:hidden">You</span>
+                            <span className="hidden sm:inline">
+                                {name} (you)
+                            </span>
+                        </>
+                    ) : (
+                        name
+                    )}
+                </span>
+            </Tooltip>
+            <Tooltip content={subtitle}>
+                <span className="truncate text-xs text-fg-muted">
+                    {subtitle}
+                </span>
+            </Tooltip>
         </div>
         {children}
     </div>

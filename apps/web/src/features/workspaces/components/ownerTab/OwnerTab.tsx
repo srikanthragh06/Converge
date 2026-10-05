@@ -9,6 +9,7 @@ import { Avatar } from "@/components/common/Avatar";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Skeleton from "@/components/ui/Skeleton";
+import Tooltip from "@/components/ui/Tooltip";
 import DelayedRender from "@/components/common/DelayedRender";
 import EmailNotice from "@/components/common/people/EmailNotice";
 
@@ -66,10 +67,12 @@ const OwnerTab = ({
                         className="h-8 w-8 text-xs"
                     />
                     <div className="flex min-w-0 flex-1 flex-col">
-                        <span className="truncate text-sm text-fg">
-                            {owner.name}
-                            {owner.email === userEmail && " (you)"}
-                        </span>
+                        <Tooltip content={owner.email}>
+                            <span className="truncate text-sm text-fg">
+                                {owner.name}
+                                {owner.email === userEmail && " (you)"}
+                            </span>
+                        </Tooltip>
                         <span className="text-xs text-fg-muted">
                             Current owner
                         </span>
@@ -137,12 +140,16 @@ const OwnerTab = ({
                                 className="h-8 w-8 text-xs"
                             />
                             <div className="flex min-w-0 flex-1 flex-col">
-                                <span className="truncate text-sm text-fg">
-                                    {lookup.user.name}
-                                </span>
-                                <span className="truncate text-xs text-fg-muted">
-                                    {lookup.user.email}
-                                </span>
+                                <Tooltip content={lookup.user.name}>
+                                    <span className="truncate text-sm text-fg">
+                                        {lookup.user.name}
+                                    </span>
+                                </Tooltip>
+                                <Tooltip content={lookup.user.email}>
+                                    <span className="truncate text-xs text-fg-muted">
+                                        {lookup.user.email}
+                                    </span>
+                                </Tooltip>
                             </div>
                             <span className="shrink-0 text-sm font-medium text-gold">
                                 New owner
