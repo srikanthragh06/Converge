@@ -630,7 +630,7 @@ export const SearchDocumentContentToolInputSchema = {
         "Limits the search to this one document, which must be in workspaceId. Omit to search the whole workspace.",
     ),
     lexicalOnly: z.boolean().optional().describe(
-        "Only chunks sharing the question's words (stemmed, any word may match) are candidates — no meaning-based candidates — then they are reranked as usual. Use it to look up specific words, names or codes. Defaults to false.",
+        "Match the question's words only (stemmed, any word may match), ranked by how often and how rarely they occur — no meaning-based matching or reranking. Use it to look up specific words, names or codes. Defaults to false.",
     ),
 };
 
@@ -668,7 +668,7 @@ export const SearchDocumentContentToolResponseSchema = z.object({
                 "The retrieved chunk's text, as Markdown.",
             ),
             score: z.number().describe(
-                "Relevance score from reranking — higher is more relevant. Not comparable across separate calls to this tool.",
+                "Relevance score — higher is more relevant. From reranking by default, or a BM25 keyword score with lexicalOnly (not on the same scale). Not comparable across separate calls to this tool.",
             ),
         }),
     ),

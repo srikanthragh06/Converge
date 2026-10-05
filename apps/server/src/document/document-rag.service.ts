@@ -65,7 +65,7 @@ export class DocumentRAGService {
    * @param userId - the calling user, for access filtering
    * @param limit - maximum number of results to return
    * @param documentId - optional; limits the search to this one document
-   * @param lexicalOnly - if true, only BM25 keyword matches are candidates (no embedding or semantic search); they are still reranked
+   * @param lexicalOnly - if true, returns BM25 keyword matches only, with no semantic search or reranking
    * @returns cited chunks, most relevant first — empty if nothing accessible matches
    * @throws NotFoundException if documentId is given but is deleted, missing, or not in workspaceId
    * @throws ForbiddenException if documentId is given but userId has no access to it
@@ -139,33 +139,19 @@ export class DocumentRAGService {
       accessibleDocs.map((doc) => [doc.id, doc.title]),
     );
 
-    // Lexical lookups skip the embedding and the semantic candidates — only
-    // chunks sharing the question's words are candidates — then rerank them
-    // like the default path does.
+    // Keyword lookups skip the embedding and the reranker entirely — BM25's
+    // own order is final. The reranker judges meaning, so it can rank a chunk
+    // holding the exact words below chunks that are merely about the topic.
     if (lexicalOnly) {
       const lexicalResult = await this.getLexicalCandidates(
         question,
         workspaceId,
         accessibleDocumentIds,
       );
-      const lexicalCandidates = lexicalResult.candidates;
-      if (lexicalCandidates.length === 0) return [];
-
-      const rerankedLexical = await this.documentRerankService.rerank(
-        question,
-        lexicalCandidates.map((chunk) => chunk.content),
-        limit,
-        userId,
-        workspaceId,
-      );
       const results: RetrievalResult[] = [];
-      for (const { index, relevanceScore } of rerankedLexical) {
+      for (const chunk of lexicalResult.candidates.slice(0, limit)) {
         results.push(
-          this.toRetrievalResult(
-            lexicalCandidates[index],
-            relevanceScore,
-            titleByDocumentId,
-          ),
+          this.toRetrievalResult(chunk, chunk.bm25Score, titleByDocumentId),
         );
       }
       return results;
@@ -300,13 +286,13 @@ export class DocumentRAGService {
    * @param question - the natural-language query
    * @param workspaceId - the workspace to search within
    * @param accessibleDocumentIds - document ids the caller may see
-   * @returns up to CANDIDATE_DEPTH chunks, highest BM25 score first
+   * @returns up to CANDIDATE_DEPTH chunks with their BM25 scores, highest first
    */
   private async getLexicalCandidates(
     question: string,
     workspaceId: number,
     accessibleDocumentIds: number[],
-  ): Promise<{ candidates: CandidateChunkRow[] }> {
+  ): Promise<{ candidates: (CandidateChunkRow & { bm25Score: number })[] }> {
     const db = this.dbService.kysely;
 
     // Tokenize the question with Postgres's own stemmer — the exact same
@@ -391,12 +377,13 @@ export class DocumentRAGService {
     scored.sort((a, b) => b.score - a.score);
 
     return {
-      candidates: scored.slice(0, CANDIDATE_DEPTH).map(({ row }) => ({
+      candidates: scored.slice(0, CANDIDATE_DEPTH).map(({ row, score }) => ({
         id: row.id,
         document_id: row.document_id,
         workspace_id: row.workspace_id,
         block_ids: row.block_ids,
         content: row.content,
+        bm25Score: score,
       })),
     };
   }
