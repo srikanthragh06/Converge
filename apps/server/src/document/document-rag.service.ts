@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { sql } from 'kysely';
 import { DatabaseService } from '../db/database.service.js';
 import { DocumentEmbeddingService } from './document-embedding.service.js';
@@ -60,13 +64,19 @@ export class DocumentRAGService {
    * @param workspaceId - the workspace to search within
    * @param userId - the calling user, for access filtering
    * @param limit - maximum number of results to return
+   * @param documentId - optional; limits the search to this one document
+   * @param lexicalOnly - if true, returns BM25 keyword matches only, with no semantic search or reranking
    * @returns cited chunks, most relevant first — empty if nothing accessible matches
+   * @throws NotFoundException if documentId is given but is deleted, missing, or not in workspaceId
+   * @throws ForbiddenException if documentId is given but userId has no access to it
    */
   async retrieve(
     question: string,
     workspaceId: number,
     userId: number,
     limit = 5,
+    documentId?: number,
+    lexicalOnly = false,
   ): Promise<RetrievalResult[]> {
     const db = this.dbService.kysely;
 
@@ -74,7 +84,7 @@ export class DocumentRAGService {
     // in bulk, the same resolved-access CASE expression DocumentService's
     // getLibraryDocuments/getTrashDocuments already use for listing, rather
     // than DocumentAccessService.resolveAccess called once per document.
-    const accessibleDocs = await db
+    let accessibleDocsQuery = db
       .selectFrom('documents as d')
       .innerJoin('workspaces as w', 'w.id', 'd.workspace_id')
       .leftJoin('workspace_members as wm', (join) =>
@@ -98,8 +108,24 @@ export class DocumentRAGService {
         `.as('access'),
       )
       .where('d.is_deleted', '=', false)
-      .where('d.workspace_id', '=', workspaceId)
-      .execute();
+      .where('d.workspace_id', '=', workspaceId);
+    if (documentId !== undefined) {
+      accessibleDocsQuery = accessibleDocsQuery.where('d.id', '=', documentId);
+    }
+    const accessibleDocs = await accessibleDocsQuery.execute();
+
+    // A scoped search on a document the caller can't search fails loudly
+    // instead of returning [], which would read as "no match" — a document
+    // in another workspace counts as not found, same as a missing one.
+    if (documentId !== undefined) {
+      if (accessibleDocs.length === 0) {
+        throw new NotFoundException('Document not found.');
+      } else if (accessibleDocs[0].access === 'noAccess') {
+        throw new ForbiddenException(
+          'You do not have access to this document.',
+        );
+      }
+    }
 
     const accessibleDocumentIds = accessibleDocs
       .filter((doc) => doc.access !== 'noAccess')
@@ -112,6 +138,24 @@ export class DocumentRAGService {
     const titleByDocumentId = new Map(
       accessibleDocs.map((doc) => [doc.id, doc.title]),
     );
+
+    // Keyword lookups skip the embedding and the reranker entirely — BM25's
+    // own order is final. The reranker judges meaning, so it can rank a chunk
+    // holding the exact words below chunks that are merely about the topic.
+    if (lexicalOnly) {
+      const lexicalResult = await this.getLexicalCandidates(
+        question,
+        workspaceId,
+        accessibleDocumentIds,
+      );
+      const results: RetrievalResult[] = [];
+      for (const chunk of lexicalResult.candidates.slice(0, limit)) {
+        results.push(
+          this.toRetrievalResult(chunk, chunk.bm25Score, titleByDocumentId),
+        );
+      }
+      return results;
+    }
 
     const [semanticCandidates, lexicalResult] = await Promise.all([
       this.getSemanticCandidates(
@@ -150,29 +194,47 @@ export class DocumentRAGService {
 
     // Voyage already sorted and truncated to `limit` — just map its indexes
     // back onto the candidates that produced them.
-    return reranked.map(({ index, relevanceScore }) => {
-      const chunk = candidates[index];
-      // First block of the chunk, in document order — the scroll target for
-      // url. A chunk always spans at least one block, but blockId is left
-      // out of the query string entirely rather than emitted empty on the
-      // off chance block_ids is ever empty.
-      const firstBlockId = chunk.block_ids[0];
-      const url = firstBlockId
-        ? `/document/${chunk.document_id}?blockId=${encodeURIComponent(firstBlockId)}`
-        : `/document/${chunk.document_id}`;
+    return reranked.map(({ index, relevanceScore }) =>
+      this.toRetrievalResult(
+        candidates[index],
+        relevanceScore,
+        titleByDocumentId,
+      ),
+    );
+  }
 
-      return {
-        citation: {
-          workspaceId: chunk.workspace_id,
-          documentId: chunk.document_id,
-          blockIds: chunk.block_ids,
-        },
-        title: titleByDocumentId.get(chunk.document_id) ?? '',
-        url,
-        content: chunk.content,
-        score: relevanceScore,
-      };
-    });
+  /**
+   * Builds a cited result from one retrieved chunk.
+   * @param chunk - the chunk to cite
+   * @param score - the chunk's relevance score (rerank or BM25)
+   * @param titleByDocumentId - accessible document titles, for the result's title
+   * @returns the chunk as a RetrievalResult
+   */
+  private toRetrievalResult(
+    chunk: CandidateChunkRow,
+    score: number,
+    titleByDocumentId: Map<number, string>,
+  ): RetrievalResult {
+    // First block of the chunk, in document order — the scroll target for
+    // url. A chunk always spans at least one block, but blockId is left
+    // out of the query string entirely rather than emitted empty on the
+    // off chance block_ids is ever empty.
+    const firstBlockId = chunk.block_ids[0];
+    const url = firstBlockId
+      ? `/document/${chunk.document_id}?blockId=${encodeURIComponent(firstBlockId)}`
+      : `/document/${chunk.document_id}`;
+
+    return {
+      citation: {
+        workspaceId: chunk.workspace_id,
+        documentId: chunk.document_id,
+        blockIds: chunk.block_ids,
+      },
+      title: titleByDocumentId.get(chunk.document_id) ?? '',
+      url,
+      content: chunk.content,
+      score,
+    };
   }
 
   /**
@@ -224,13 +286,13 @@ export class DocumentRAGService {
    * @param question - the natural-language query
    * @param workspaceId - the workspace to search within
    * @param accessibleDocumentIds - document ids the caller may see
-   * @returns up to CANDIDATE_DEPTH chunks, highest BM25 score first
+   * @returns up to CANDIDATE_DEPTH chunks with their BM25 scores, highest first
    */
   private async getLexicalCandidates(
     question: string,
     workspaceId: number,
     accessibleDocumentIds: number[],
-  ): Promise<{ candidates: CandidateChunkRow[] }> {
+  ): Promise<{ candidates: (CandidateChunkRow & { bm25Score: number })[] }> {
     const db = this.dbService.kysely;
 
     // Tokenize the question with Postgres's own stemmer — the exact same
@@ -315,12 +377,13 @@ export class DocumentRAGService {
     scored.sort((a, b) => b.score - a.score);
 
     return {
-      candidates: scored.slice(0, CANDIDATE_DEPTH).map(({ row }) => ({
+      candidates: scored.slice(0, CANDIDATE_DEPTH).map(({ row, score }) => ({
         id: row.id,
         document_id: row.document_id,
         workspace_id: row.workspace_id,
         block_ids: row.block_ids,
         content: row.content,
+        bm25Score: score,
       })),
     };
   }

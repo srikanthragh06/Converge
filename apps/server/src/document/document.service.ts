@@ -24,6 +24,12 @@ import {
   hasAccess,
   type DocumentBlock,
   type BlockOperationDto,
+  type InsertedBlockDto,
+  type FindInDocumentMatchDto,
+  type FindInDocumentToolResponseDto,
+  type GetBlocksByIdResultDto,
+  type GetBlocksByIdToolResponseDto,
+  type GetDocumentOutlineToolResponseDto,
 } from '@converge/shared';
 import { DatabaseService } from '../db/database.service.js';
 import { DocumentAccessService } from './document-access.service.js';
@@ -39,6 +45,16 @@ import {
   seedInitialDocumentUpdate,
 } from '../utils/editor-schema.js';
 import { base64ToUint8Array } from '../utils/utils.js';
+import {
+  blockPlainText,
+  flattenBlocksWithParents,
+  matchPreview,
+} from '../utils/block-text.util.js';
+import {
+  indexBlocks,
+  limitDepth,
+  outlineHeadings,
+} from '../utils/block-tree.util.js';
 import { sql } from 'kysely';
 import * as Y from 'yjs';
 
@@ -163,6 +179,130 @@ export class DocumentService {
   }
 
   /**
+   * Finds every block whose own text (not its children's) contains the
+   * given text, case-insensitively — an exact find over the live document,
+   * not the search index, so it can't miss a match and sees edits made a
+   * moment ago. Throws NotFoundException if the document does not exist,
+   * ForbiddenException if the user has less than viewer access.
+   * @param documentId - the document to search
+   * @param userId - the requesting user
+   * @param text - the text to find
+   * @param limit - maximum number of matches to return
+   * @returns the matching blocks in document order, up to limit, plus the total match count
+   */
+  async findInDocument(
+    documentId: number,
+    userId: number,
+    text: string,
+    limit: number,
+  ): Promise<FindInDocumentToolResponseDto> {
+    const blocks = await this.getDocumentBlocks(documentId, userId);
+    const needle = text.toLowerCase();
+    const matches: FindInDocumentMatchDto[] = [];
+    let totalMatches = 0;
+
+    for (const { block, parentId } of flattenBlocksWithParents(blocks, null)) {
+      const blockText = blockPlainText(block);
+      const index = blockText.toLowerCase().indexOf(needle);
+      if (index === -1) continue;
+
+      totalMatches++;
+      if (matches.length < limit) {
+        matches.push({
+          blockId: block.id,
+          parentId,
+          type: block.type,
+          preview: matchPreview(blockText, index, text.length),
+        });
+      }
+    }
+
+    return { matches, totalMatches, truncated: totalMatches > matches.length };
+  }
+
+  /**
+   * Reads blocks by id from the live document — any block, top-level or
+   * nested — each with its parent id and the given number of siblings
+   * before and after it. Ids not in the document are listed in
+   * notFoundIds rather than failing the call. Throws NotFoundException if
+   * the document does not exist, ForbiddenException if the user has less
+   * than viewer access.
+   * @param documentId - the document the blocks are in
+   * @param userId - the requesting user
+   * @param blockIds - the ids of the blocks to read
+   * @param before - how many siblings to return before each block
+   * @param after - how many siblings to return after each block
+   * @param depth - how many levels of children to keep under each returned block: -1 for all, 0 for none
+   * @returns one result per block found, in the order of blockIds, plus the ids not found
+   */
+  async getBlocksById(
+    documentId: number,
+    userId: number,
+    blockIds: string[],
+    before: number,
+    after: number,
+    depth: number,
+  ): Promise<GetBlocksByIdToolResponseDto> {
+    const blocks = await this.getDocumentBlocks(documentId, userId);
+    const indexed = indexBlocks(blocks, null);
+    const results: GetBlocksByIdResultDto[] = [];
+    const notFoundIds: string[] = [];
+    const seenIds = new Set<string>();
+
+    for (const blockId of blockIds) {
+      if (seenIds.has(blockId)) continue;
+      seenIds.add(blockId);
+
+      const found = indexed.get(blockId);
+      if (!found) {
+        notFoundIds.push(blockId);
+        continue;
+      }
+
+      const beforeBlocks: DocumentBlock[] = [];
+      for (let i = Math.max(0, found.index - before); i < found.index; i++) {
+        beforeBlocks.push(limitDepth(found.siblings[i], depth));
+      }
+
+      const afterBlocks: DocumentBlock[] = [];
+      const afterEnd = Math.min(found.siblings.length, found.index + 1 + after);
+      for (let i = found.index + 1; i < afterEnd; i++) {
+        afterBlocks.push(limitDepth(found.siblings[i], depth));
+      }
+
+      results.push({
+        block: limitDepth(found.block, depth),
+        parentId: found.parentId,
+        before: beforeBlocks,
+        after: afterBlocks,
+      });
+    }
+
+    return { results, notFoundIds };
+  }
+
+  /**
+   * Lists every heading in the live document with short text and the
+   * number of sibling blocks after it, so an agent can see the document's
+   * structure and read one section with getBlocksById instead of reading
+   * the whole document. Throws NotFoundException if the document does not
+   * exist, ForbiddenException if the user has less than viewer access.
+   * @param documentId - the document to outline
+   * @param userId - the requesting user
+   * @returns the headings in document order, plus the top-level block count
+   */
+  async getDocumentOutline(
+    documentId: number,
+    userId: number,
+  ): Promise<GetDocumentOutlineToolResponseDto> {
+    const blocks = await this.getDocumentBlocks(documentId, userId);
+    return {
+      headings: outlineHeadings(blocks, null),
+      topLevelBlockCount: blocks.length,
+    };
+  }
+
+  /**
    * Applies a batch of id-addressed block edits to a document as a single
    * atomic save, then returns the document's resulting blocks. Throws
    * NotFoundException if the document does not exist, ForbiddenException if
@@ -188,13 +328,15 @@ export class DocumentService {
    * @param documentId - the document to edit
    * @param userId - the ID of the authenticated requesting user
    * @param operations - the edits to apply, in order, as one atomic save
-   * @returns the document's full block list after applying the edits
+   * @returns the blocks the edits inserted (by replace or insert), in
+   * document order, each with its position and the index of the operation
+   * that inserted it — not the whole document
    */
   async updateDocumentBlocks(
     documentId: number,
     userId: number,
     operations: BlockOperationDto[],
-  ): Promise<DocumentBlock[]> {
+  ): Promise<InsertedBlockDto[]> {
     // Resolve access — throws NotFoundException if the document does not exist.
     const access = await this.documentAccessService.resolveAccess(
       documentId,
@@ -219,7 +361,10 @@ export class DocumentService {
     // document (see applyBlockOperations), then apply it the same way a
     // live client's own edit would be applied.
     const yDoc = await this.documentYjsService.loadDoc(documentId);
-    const { update, blocks } = await applyBlockOperations(yDoc, operations);
+    const { update, insertedBlocks } = await applyBlockOperations(
+      yDoc,
+      operations,
+    );
     await this.documentYjsService.applyDocUpdate(documentId, update);
 
     // Keep last-edited tracking and automatic checkpoint/indexing
@@ -228,7 +373,7 @@ export class DocumentService {
     await this.documentCheckpointSchedulerService.onDocumentEdited(documentId);
     await this.documentIndexingSchedulerService.onDocumentEdited(documentId);
 
-    return blocks;
+    return insertedBlocks;
   }
 
   /**
@@ -244,13 +389,15 @@ export class DocumentService {
    * @param documentId - the document to restore
    * @param userId - the requesting user, must have editor+ access
    * @param checkpointId - the checkpoint to restore the document's content to
-   * @returns the document's resulting blocks after the restore
+   * @returns the number of top-level blocks in the document after the
+   * restore — not the blocks themselves, since a restore keeps the
+   * checkpoint's own block ids, so the caller has no new ids to learn
    */
   async restoreCheckpoint(
     documentId: number,
     userId: number,
     checkpointId: number,
-  ): Promise<DocumentBlock[]> {
+  ): Promise<number> {
     // Resolve access — throws NotFoundException if the document does not exist.
     const access = await this.documentAccessService.resolveAccess(
       documentId,
@@ -297,7 +444,7 @@ export class DocumentService {
     await this.documentCheckpointSchedulerService.onDocumentEdited(documentId);
     await this.documentIndexingSchedulerService.onDocumentEdited(documentId);
 
-    return blocks;
+    return blocks.length;
   }
 
   /**

@@ -191,6 +191,157 @@ export type GetDocumentBlocksResponseDto = {
     blocks: DocumentBlock[];
 };
 
+export const FindInDocumentToolInputSchema = {
+    documentId: z.coerce.number().int().positive().describe(
+        "The document to search.",
+    ),
+    text: z.string().min(1).max(200).describe(
+        "The text to find. Matched case-insensitively, but otherwise exactly — no stemming or partial-word expansion.",
+    ),
+    limit: z.coerce.number().int().positive().max(200).optional().describe(
+        "Max matches to return. Defaults to 50.",
+    ),
+};
+
+export type FindInDocumentToolInputDto = {
+    documentId: number;
+    text: string;
+    limit?: number;
+};
+
+const FindInDocumentMatchSchema = z.object({
+    blockId: z.string(),
+    parentId: z.string().nullable().describe(
+        "The id of the block this one is nested under, or null for a top-level block.",
+    ),
+    type: z.string().describe("The block's type, e.g. paragraph or table."),
+    preview: z.string().describe(
+        "A short excerpt of the block's text around its first match.",
+    ),
+});
+
+export const FindInDocumentToolResponseSchema = z.object({
+    matches: z.array(FindInDocumentMatchSchema).describe(
+        "Every block whose own text (not its children's) contains the text, in document order, up to limit.",
+    ),
+    totalMatches: z.number().describe(
+        "How many blocks match in total, including any past limit.",
+    ),
+    truncated: z.boolean().describe(
+        "True if totalMatches is more than the matches returned.",
+    ),
+});
+
+export type FindInDocumentMatchDto = z.infer<typeof FindInDocumentMatchSchema>;
+
+export type FindInDocumentToolResponseDto = z.infer<
+    typeof FindInDocumentToolResponseSchema
+>;
+
+export const GetBlocksByIdToolInputSchema = {
+    documentId: z.coerce.number().int().positive().describe(
+        "The document the blocks are in.",
+    ),
+    blockIds: z.array(z.string()).min(1).max(200).describe(
+        "The ids of the blocks to read — any block, top-level or nested, e.g. from findInDocument or searchDocumentContent.",
+    ),
+    before: z.coerce.number().int().min(0).optional().describe(
+        "How many sibling blocks (same parent) to return before each block. Defaults to 0.",
+    ),
+    after: z.coerce.number().int().min(0).optional().describe(
+        "How many sibling blocks (same parent) to return after each block. Defaults to 0.",
+    ),
+    depth: z.coerce.number().int().min(-1).optional().describe(
+        "How many levels of children to include under each returned block: -1 for all, 0 for none. Defaults to -1. A block whose children were left out has a childCount field.",
+    ),
+};
+
+export type GetBlocksByIdToolInputDto = {
+    documentId: number;
+    blockIds: string[];
+    before?: number;
+    after?: number;
+    depth?: number;
+};
+
+// Blocks are loose records here for the same reason as
+// GetDocumentBlocksResponseSchema above.
+const GetBlocksByIdResultSchema = z.object({
+    block: z.record(z.string(), z.unknown()),
+    parentId: z.string().nullable().describe(
+        "The id of the block this one is nested under, or null for a top-level block. The before and after blocks have the same parent.",
+    ),
+    before: z.array(z.record(z.string(), z.unknown())).describe(
+        "The siblings directly before the block, in document order.",
+    ),
+    after: z.array(z.record(z.string(), z.unknown())).describe(
+        "The siblings directly after the block, in document order.",
+    ),
+});
+
+export const GetBlocksByIdToolResponseSchema = z.object({
+    results: z.array(GetBlocksByIdResultSchema).describe(
+        "One result for each block found, in the order of blockIds. A block can appear in more than one result's before or after.",
+    ),
+    notFoundIds: z.array(z.string()).describe(
+        "The blockIds that are not in the document.",
+    ),
+});
+
+export type GetBlocksByIdResultDto = {
+    block: DocumentBlock;
+    parentId: string | null;
+    before: DocumentBlock[];
+    after: DocumentBlock[];
+};
+
+export type GetBlocksByIdToolResponseDto = {
+    results: GetBlocksByIdResultDto[];
+    notFoundIds: string[];
+};
+
+export const GetDocumentOutlineToolInputSchema = {
+    documentId: z.coerce.number().int().positive().describe(
+        "The document to outline.",
+    ),
+};
+
+export type GetDocumentOutlineToolInputDto = {
+    documentId: number;
+};
+
+const OutlineHeadingSchema = z.object({
+    id: z.string(),
+    parentId: z.string().nullable().describe(
+        "The id of the block this heading is nested under, or null for a top-level heading.",
+    ),
+    level: z.number().describe("The heading level; 1 is the highest."),
+    text: z.string().describe(
+        "The heading's text, cut to 80 characters with … where it was cut.",
+    ),
+    blockCount: z.number().describe(
+        "How many sibling blocks follow this heading before the next heading of any level — pass it as after to getBlocksById to read just this heading's own content.",
+    ),
+    sectionBlockCount: z.number().describe(
+        "How many sibling blocks follow this heading before the next heading of the same or a higher level, so it includes any subheadings — pass it as after to getBlocksById to read the whole section.",
+    ),
+});
+
+export const GetDocumentOutlineToolResponseSchema = z.object({
+    headings: z.array(OutlineHeadingSchema).describe(
+        "Every heading in the document, in document order. Empty if the document has no headings.",
+    ),
+    topLevelBlockCount: z.number().describe(
+        "How many top-level blocks the document has.",
+    ),
+});
+
+export type OutlineHeadingDto = z.infer<typeof OutlineHeadingSchema>;
+
+export type GetDocumentOutlineToolResponseDto = z.infer<
+    typeof GetDocumentOutlineToolResponseSchema
+>;
+
 // A single edit within an updateDocumentBlocks call. "replace" and "insert"
 // take a Markdown string rather than raw BlockNote block JSON — an agent
 // writing plain Markdown (which it already knows how to do) is far more
@@ -254,17 +405,43 @@ export type UpdateDocumentBlocksToolInputDto = {
     operations: BlockOperationDto[];
 };
 
-// Returns the document's full updated block list rather than just a success
-// flag — the caller needs it to see the real ids of any newly inserted
-// blocks, which it has no way to predict in advance.
+// One block an edit inserted, with where it landed and which operation made
+// it — so the caller can confirm the placement (e.g. nested vs. top level)
+// and map new ids back to its operations without re-reading the document.
+export const InsertedBlockSchema = z.object({
+    operationIndex: z.number().int().describe(
+        "The index, in the request's operations array, of the replace or insert that created this block.",
+    ),
+    parentId: z.string().nullable().describe(
+        "The id of the block this block is nested under, or null if it is a top-level block.",
+    ),
+    previousBlockId: z.string().nullable().describe(
+        "The id of the sibling block right before this block, or null if it is the first block at its level.",
+    ),
+    block: z.record(z.string(), z.unknown()).describe(
+        "The inserted block as BlockNote block JSON, with its new id and its children.",
+    ),
+});
+
+export type InsertedBlockDto = {
+    operationIndex: number;
+    parentId: string | null;
+    previousBlockId: string | null;
+    block: DocumentBlock;
+};
+
+// Returns the blocks the edits inserted rather than just a success flag —
+// the caller needs them to see the real ids of any newly inserted blocks,
+// which it has no way to predict in advance. Not the whole document: that
+// would cost the caller the full document's size on every edit.
 export const UpdateDocumentBlocksResponseSchema = z.object({
-    blocks: z.array(z.record(z.string(), z.unknown())).describe(
-        "The document's full block list after applying the edits.",
+    insertedBlocks: z.array(InsertedBlockSchema).describe(
+        "The blocks the edits inserted (by replace or insert), in document order. A block nested inside another inserted block is returned only inside its parent's children. Not the whole document — empty if the edits only removed blocks.",
     ),
 });
 
 export type UpdateDocumentBlocksResponseDto = {
-    blocks: DocumentBlock[];
+    insertedBlocks: InsertedBlockDto[];
 };
 
 export const CreateDocumentToolInputSchema = {
@@ -452,16 +629,19 @@ export type RestoreCheckpointToolInputDto = {
 // captured title, since title sync is a separate channel. A fresh 'mcp'
 // checkpoint is taken immediately before the restore lands (same safety net
 // updateDocumentBlocks gets), so an unwanted restore is itself just one more
-// restore away from undo.
+// restore away from undo. Returns no blocks: a restore keeps the
+// checkpoint's own block ids, so the caller has no new ids to learn, and the
+// whole document would cost the caller its full size on every restore.
 export const RestoreCheckpointResponseSchema = z.object({
-    blocks: z.array(z.record(z.string(), z.unknown())).describe(
-        "The document's full block list after the restore.",
+    success: z.literal(true),
+    blockCount: z.number().int().describe(
+        "The number of top-level blocks in the document after the restore. Call getDocumentBlocks to read the restored content.",
     ),
 });
 
-export type RestoreCheckpointResponseDto = {
-    blocks: DocumentBlock[];
-};
+export type RestoreCheckpointResponseDto = z.infer<
+    typeof RestoreCheckpointResponseSchema
+>;
 
 export const ListDeletedDocumentsToolInputSchema = {
     workspaceId: z.coerce.number().int().positive().describe(
@@ -550,12 +730,20 @@ export const SearchDocumentContentToolInputSchema = {
     limit: z.coerce.number().int().positive().max(20).optional().describe(
         "Max chunks to return. Defaults to 5.",
     ),
+    documentId: z.coerce.number().int().positive().optional().describe(
+        "Limits the search to this one document, which must be in workspaceId. Omit to search the whole workspace.",
+    ),
+    lexicalOnly: z.boolean().optional().describe(
+        "Match the question's words only (stemmed, any word may match), ranked by how often and how rarely they occur — no meaning-based matching or reranking. Use it to look up specific words, names or codes. Defaults to false.",
+    ),
 };
 
 export type SearchDocumentContentToolInputDto = {
     workspaceId: number;
     question: string;
     limit?: number;
+    documentId?: number;
+    lexicalOnly?: boolean;
 };
 
 // A citation is deliberately minimal — workspaceId + documentId + the
@@ -584,7 +772,7 @@ export const SearchDocumentContentToolResponseSchema = z.object({
                 "The retrieved chunk's text, as Markdown.",
             ),
             score: z.number().describe(
-                "Relevance score from reranking — higher is more relevant. Not comparable across separate calls to this tool.",
+                "Relevance score — higher is more relevant. From reranking by default, or a BM25 keyword score with lexicalOnly (not on the same scale). Not comparable across separate calls to this tool.",
             ),
         }),
     ),

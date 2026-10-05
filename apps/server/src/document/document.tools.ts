@@ -17,6 +17,12 @@ import {
   type ReadDocumentMarkdownResponseDto,
   type GetDocumentBlocksToolInputDto,
   type GetDocumentBlocksResponseDto,
+  type FindInDocumentToolInputDto,
+  type FindInDocumentToolResponseDto,
+  type GetBlocksByIdToolInputDto,
+  type GetBlocksByIdToolResponseDto,
+  type GetDocumentOutlineToolInputDto,
+  type GetDocumentOutlineToolResponseDto,
   type UpdateDocumentBlocksToolInputDto,
   type UpdateDocumentBlocksResponseDto,
   type CreateDocumentToolInputDto,
@@ -191,8 +197,68 @@ export class DocumentTools {
   }
 
   /**
+   * Finds every block in a document whose text contains the given text,
+   * case-insensitively, returning their ids, parents and short previews.
+   * findInDocument throws NotFoundException/ForbiddenException on
+   * missing/inaccessible documents — left uncaught here since the MCP SDK
+   * already converts a thrown error into a proper isError tool result.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the document to search, the text to find, and an optional match limit
+   */
+  async findInDocument(
+    userId: number,
+    input: FindInDocumentToolInputDto,
+  ): Promise<FindInDocumentToolResponseDto> {
+    return this.documentService.findInDocument(
+      input.documentId,
+      userId,
+      input.text,
+      input.limit ?? 50,
+    );
+  }
+
+  /**
+   * Reads blocks by id, each with its parent id and optional siblings
+   * before and after it, with children cut to the given depth.
+   * getBlocksById throws NotFoundException/ForbiddenException on
+   * missing/inaccessible documents — left uncaught here since the MCP SDK
+   * already converts a thrown error into a proper isError tool result.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the document, the block ids, and optional before/after/depth
+   */
+  async getBlocksById(
+    userId: number,
+    input: GetBlocksByIdToolInputDto,
+  ): Promise<GetBlocksByIdToolResponseDto> {
+    return this.documentService.getBlocksById(
+      input.documentId,
+      userId,
+      input.blockIds,
+      input.before ?? 0,
+      input.after ?? 0,
+      input.depth ?? -1,
+    );
+  }
+
+  /**
+   * Lists a document's headings with short text and sibling-block counts.
+   * getDocumentOutline throws NotFoundException/ForbiddenException on
+   * missing/inaccessible documents — left uncaught here since the MCP SDK
+   * already converts a thrown error into a proper isError tool result.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the document to outline
+   */
+  async getDocumentOutline(
+    userId: number,
+    input: GetDocumentOutlineToolInputDto,
+  ): Promise<GetDocumentOutlineToolResponseDto> {
+    return this.documentService.getDocumentOutline(input.documentId, userId);
+  }
+
+  /**
    * Applies a batch of id-addressed block edits to a document as a single
-   * atomic save, returning the document's resulting blocks. Use
+   * atomic save, returning only the blocks the edits inserted (with their
+   * new ids, positions and operation indexes), not the whole document. Use
    * getDocumentBlocks first to find the block ids to target. updateDocumentBlocks
    * throws NotFoundException/ForbiddenException on missing/inaccessible
    * documents — left uncaught here since the MCP SDK already converts a
@@ -204,12 +270,12 @@ export class DocumentTools {
     userId: number,
     input: UpdateDocumentBlocksToolInputDto,
   ): Promise<UpdateDocumentBlocksResponseDto> {
-    const blocks = await this.documentService.updateDocumentBlocks(
+    const insertedBlocks = await this.documentService.updateDocumentBlocks(
       input.documentId,
       userId,
       input.operations,
     );
-    return { blocks };
+    return { insertedBlocks };
   }
 
   /**
@@ -348,7 +414,9 @@ export class DocumentTools {
    * blocks, not title (see DocumentService.restoreCheckpoint). Takes a
    * fresh 'mcp' checkpoint immediately before the restore lands, same as
    * updateDocumentBlocks, so an unwanted restore is itself just one more
-   * restore away from undo. restoreCheckpoint throws
+   * restore away from undo. Returns only a success flag and the restored
+   * document's top-level block count, not the whole document.
+   * restoreCheckpoint throws
    * NotFoundException/ForbiddenException on insufficient access / an
    * unknown checkpoint — left uncaught here since the MCP SDK already
    * converts a thrown error into a proper isError tool result.
@@ -359,12 +427,12 @@ export class DocumentTools {
     userId: number,
     input: RestoreCheckpointToolInputDto,
   ): Promise<RestoreCheckpointResponseDto> {
-    const blocks = await this.documentService.restoreCheckpoint(
+    const blockCount = await this.documentService.restoreCheckpoint(
       input.documentId,
       userId,
       input.checkpointId,
     );
-    return { blocks };
+    return { success: true, blockCount };
   }
 
   /**
@@ -437,7 +505,7 @@ export class DocumentTools {
    * separate check here, since a per-document resolveAccess call doesn't
    * fit a query that can span many documents at once.
    * @param userId - the calling user's ID, resolved from their API key
-   * @param input - the workspace to search, the question, and an optional result limit
+   * @param input - the workspace to search, the question, an optional result limit, an optional documentId to search only that document, and an optional lexicalOnly flag for BM25-only matching
    */
   async searchDocumentContent(
     userId: number,
@@ -448,6 +516,8 @@ export class DocumentTools {
       input.workspaceId,
       userId,
       input.limit ?? 5,
+      input.documentId,
+      input.lexicalOnly ?? false,
     );
     return { results };
   }
