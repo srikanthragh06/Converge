@@ -191,6 +191,53 @@ export type GetDocumentBlocksResponseDto = {
     blocks: DocumentBlock[];
 };
 
+export const FindInDocumentToolInputSchema = {
+    documentId: z.coerce.number().int().positive().describe(
+        "The document to search.",
+    ),
+    text: z.string().min(1).max(200).describe(
+        "The text to find. Matched case-insensitively, but otherwise exactly — no stemming or partial-word expansion.",
+    ),
+    limit: z.coerce.number().int().positive().max(200).optional().describe(
+        "Max matches to return. Defaults to 50.",
+    ),
+};
+
+export type FindInDocumentToolInputDto = {
+    documentId: number;
+    text: string;
+    limit?: number;
+};
+
+const FindInDocumentMatchSchema = z.object({
+    blockId: z.string(),
+    parentId: z.string().nullable().describe(
+        "The id of the block this one is nested under, or null for a top-level block.",
+    ),
+    type: z.string().describe("The block's type, e.g. paragraph or table."),
+    preview: z.string().describe(
+        "A short excerpt of the block's text around its first match.",
+    ),
+});
+
+export const FindInDocumentToolResponseSchema = z.object({
+    matches: z.array(FindInDocumentMatchSchema).describe(
+        "Every block whose own text (not its children's) contains the text, in document order, up to limit.",
+    ),
+    totalMatches: z.number().describe(
+        "How many blocks match in total, including any past limit.",
+    ),
+    truncated: z.boolean().describe(
+        "True if totalMatches is more than the matches returned.",
+    ),
+});
+
+export type FindInDocumentMatchDto = z.infer<typeof FindInDocumentMatchSchema>;
+
+export type FindInDocumentToolResponseDto = z.infer<
+    typeof FindInDocumentToolResponseSchema
+>;
+
 // A single edit within an updateDocumentBlocks call. "replace" and "insert"
 // take a Markdown string rather than raw BlockNote block JSON — an agent
 // writing plain Markdown (which it already knows how to do) is far more

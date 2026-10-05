@@ -8,6 +8,7 @@ import {
   GetDocumentMetadataToolInputSchema,
   ReadDocumentMarkdownToolInputSchema,
   GetDocumentBlocksToolInputSchema,
+  FindInDocumentToolInputSchema,
   UpdateDocumentBlocksToolInputSchema,
   CreateDocumentToolInputSchema,
   UpdateDocumentTitleToolInputSchema,
@@ -141,6 +142,20 @@ export class AgentTools {
             this.documentTools.getDocumentBlocks(
               userId,
               input as Parameters<typeof this.documentTools.getDocumentBlocks>[1],
+            ),
+          ),
+      },
+
+      {
+        name: 'findInDocument',
+        description:
+          'Finds every block in one document whose text contains the given text (case-insensitive, otherwise exact) and returns their block ids, parent ids and short previews, plus the total match count. Reads the live document, not the search index. Use it when you know the exact text, need every occurrence, or need to confirm some text is absent; for meaning-based questions use searchDocumentContent.',
+        inputSchema: z.object(FindInDocumentToolInputSchema),
+        execute: (input) =>
+          withAgentErrorHandling(() =>
+            this.documentTools.findInDocument(
+              userId,
+              input as Parameters<typeof this.documentTools.findInDocument>[1],
             ),
           ),
       },

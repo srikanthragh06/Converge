@@ -25,6 +25,8 @@ import {
   type DocumentBlock,
   type BlockOperationDto,
   type InsertedBlockDto,
+  type FindInDocumentMatchDto,
+  type FindInDocumentToolResponseDto,
 } from '@converge/shared';
 import { DatabaseService } from '../db/database.service.js';
 import { DocumentAccessService } from './document-access.service.js';
@@ -40,6 +42,11 @@ import {
   seedInitialDocumentUpdate,
 } from '../utils/editor-schema.js';
 import { base64ToUint8Array } from '../utils/utils.js';
+import {
+  blockPlainText,
+  flattenBlocksWithParents,
+  matchPreview,
+} from '../utils/block-text.util.js';
 import { sql } from 'kysely';
 import * as Y from 'yjs';
 
@@ -161,6 +168,48 @@ export class DocumentService {
 
     const yDoc = await this.documentYjsService.loadDoc(documentId);
     return blocksFromYDoc(yDoc);
+  }
+
+  /**
+   * Finds every block whose own text (not its children's) contains the
+   * given text, case-insensitively — an exact find over the live document,
+   * not the search index, so it can't miss a match and sees edits made a
+   * moment ago. Throws NotFoundException if the document does not exist,
+   * ForbiddenException if the user has less than viewer access.
+   * @param documentId - the document to search
+   * @param userId - the requesting user
+   * @param text - the text to find
+   * @param limit - maximum number of matches to return
+   * @returns the matching blocks in document order, up to limit, plus the total match count
+   */
+  async findInDocument(
+    documentId: number,
+    userId: number,
+    text: string,
+    limit: number,
+  ): Promise<FindInDocumentToolResponseDto> {
+    const blocks = await this.getDocumentBlocks(documentId, userId);
+    const needle = text.toLowerCase();
+    const matches: FindInDocumentMatchDto[] = [];
+    let totalMatches = 0;
+
+    for (const { block, parentId } of flattenBlocksWithParents(blocks, null)) {
+      const blockText = blockPlainText(block);
+      const index = blockText.toLowerCase().indexOf(needle);
+      if (index === -1) continue;
+
+      totalMatches++;
+      if (matches.length < limit) {
+        matches.push({
+          blockId: block.id,
+          parentId,
+          type: block.type,
+          preview: matchPreview(blockText, index, text.length),
+        });
+      }
+    }
+
+    return { matches, totalMatches, truncated: totalMatches > matches.length };
   }
 
   /**

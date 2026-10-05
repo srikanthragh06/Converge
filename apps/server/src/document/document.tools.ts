@@ -17,6 +17,8 @@ import {
   type ReadDocumentMarkdownResponseDto,
   type GetDocumentBlocksToolInputDto,
   type GetDocumentBlocksResponseDto,
+  type FindInDocumentToolInputDto,
+  type FindInDocumentToolResponseDto,
   type UpdateDocumentBlocksToolInputDto,
   type UpdateDocumentBlocksResponseDto,
   type CreateDocumentToolInputDto,
@@ -188,6 +190,27 @@ export class DocumentTools {
       userId,
     );
     return { blocks };
+  }
+
+  /**
+   * Finds every block in a document whose text contains the given text,
+   * case-insensitively, returning their ids, parents and short previews.
+   * findInDocument throws NotFoundException/ForbiddenException on
+   * missing/inaccessible documents — left uncaught here since the MCP SDK
+   * already converts a thrown error into a proper isError tool result.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the document to search, the text to find, and an optional match limit
+   */
+  async findInDocument(
+    userId: number,
+    input: FindInDocumentToolInputDto,
+  ): Promise<FindInDocumentToolResponseDto> {
+    return this.documentService.findInDocument(
+      input.documentId,
+      userId,
+      input.text,
+      input.limit ?? 50,
+    );
   }
 
   /**

@@ -19,6 +19,8 @@ import {
   ReadDocumentMarkdownResponseSchema,
   GetDocumentBlocksToolInputSchema,
   GetDocumentBlocksResponseSchema,
+  FindInDocumentToolInputSchema,
+  FindInDocumentToolResponseSchema,
   UpdateDocumentBlocksToolInputSchema,
   UpdateDocumentBlocksResponseSchema,
   CreateDocumentToolInputSchema,
@@ -210,6 +212,26 @@ export class McpController {
       async (input) => {
         const result = await withMcpErrorHandling(() =>
           this.documentTools.getDocumentBlocks(userId, input),
+        );
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'findInDocument',
+      {
+        title: 'Find In Document',
+        description:
+          'Finds every block in one document whose text contains the given text (case-insensitive, otherwise exact) and returns their block ids, parent ids and short previews, plus the total match count. Reads the live document, not the search index. Use it when you know the exact text, need every occurrence, or need to confirm some text is absent; for meaning-based questions use searchDocumentContent. Requires viewer access or higher.',
+        inputSchema: FindInDocumentToolInputSchema,
+        outputSchema: FindInDocumentToolResponseSchema,
+      },
+      async (input) => {
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.findInDocument(userId, input),
         );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
