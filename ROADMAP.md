@@ -954,6 +954,36 @@ Fixes four problems in the shipped RAG indexer and replaces heading sections wit
 
 - `CLAUDE.md`'s RAG entry describes the new block model and heading break; run notes for throwaway scripts added
 
+## Live Access Changes, Agent Navigation Tools & UI Polish ✅
+
+> Branch: `release-converge-enhancements` — merged 2026-10-06
+
+Closes the last gap in live access control — what the server *sends* to an open connection is now re-checked too, not only what it accepts — and shows the user their access level. Gives MCP and in-app agents tools to find and read just the part of a large document they need, and stops write tools echoing whole documents back. Adds hover tooltips across the app and Copy as Markdown, and fixes two editor bugs: toggling the write lock scrolled to the top, and users from a stopped server stayed present as ghosts. Feature branches: `mcp-changes`, `ui-doc-title-hover-tooltip-fix`, `copy-document-markdown`, plus direct commits.
+
+### Server (NestJS backend)
+
+- **Access version counters** — `documents.doc_access_version` and `workspaces.workspace_access_version` (migration `0048`), bumped through `DocumentAccessService.bumpDocAccessVersion` / `WorkspaceService.bumpWorkspaceAccessVersion` in the same transaction as every write that can change access: per-doc grants/revokes, role overrides, delete/restore, workspace membership, member roles, ownership transfer and default doc access
+- **Access re-checked on every room emit** — a socket stores both versions and its level at connect (`resolveAccessWithVersions`, one query); every emit of content, title or presence goes through `DocumentGateway.emitToDocRoomWithAccessCheck`, which re-resolves only sockets whose stored versions differ. Previously only writes re-resolved access, so a revoked user kept *receiving* live updates until they reconnected
+- **`ACCESS_CHANGED` event** — a socket whose level changed is told the new level; one that dropped below viewer (or whose document is gone) gets `noAccess` and is disconnected. The repair-sync handlers now require viewer before sending content, and the 15s heartbeat revokes the same way, so a revoke reaches an idle document within 15s
+- **Presence heartbeat** — `awareness-sockets` becomes one Redis sorted set per document (`userId:socketId`, scored by last heartbeat) instead of a set per user, and the 15s `REPAIR_SYNC_DOC_SERVER` doubles as the presence heartbeat: it drops sockets silent for over 90s, removes users with no live socket left (ghosts from a server that stopped before its disconnect handler ran), adds back a missing entry, and broadcasts only on change. Closing one of two tabs no longer hides the user, and a cursor move recreates a missing entry instead of skipping it. `RedisService`'s set helpers replaced by sorted-set ones
+- **Smaller MCP write responses** — `updateDocumentBlocks` returns only the inserted blocks (`insertedBlocks`, each `{ operationIndex, parentId, previousBlockId, block }`, in document order) instead of the whole document; `restoreCheckpoint` returns `{ success, blockCount }`. The in-app agent stored every full-document response and fed it back into its context
+- **`searchDocumentContent` options** — an optional `documentId` scopes the search to one document (404 for one missing, deleted or outside the workspace, 403 without access, rather than an empty result that reads as "no match"); an optional `lexicalOnly` returns BM25's top candidates in BM25 order with no embedding or rerank, so it makes no AI calls. Reranking those candidates was tried and reverted: it dropped an exact-phrase match from rank 1 to rank 5, the miss `lexicalOnly` exists to avoid
+- **New MCP and agent tools** —
+  - `findInDocument`: case-insensitive exact-text find over the live document (not the index), returning matching block ids with parent, type and a preview, plus `totalMatches`/`truncated`. Block text comes straight from block JSON (`blockPlainText`, `block-text.util.ts`) with no Markdown conversion or jsdom mutex. Its description tells agents to search plain text, not Markdown syntax copied from `readDocumentMarkdown`
+  - `getBlocksById`: reads up to 200 blocks by id (nested too) with `parentId`, optional `before`/`after` siblings and a `depth` limit on children (`childCount` when cut); unknown ids come back in `notFoundIds`
+  - `getDocumentOutline`: every heading with id, level, 80-character text and two sibling counts (`blockCount`, `sectionBlockCount`) meant to be passed as `after` to `getBlocksById`, so an agent reads one section of a large document instead of all of it. Tree helpers in `block-tree.util.ts`
+
+### Web (React frontend)
+
+- **Access badge** — the editor header shows Owner / Admin / Editor / Viewer beside the title on desktop and phone (previously nothing told a viewer the document was read-only), with a tooltip saying what the level allows. `useSocket` writes `ACCESS_CHANGED`'s level into the `documentKeys.detail` cache, so the badge and editability update in place, and `useDocumentFetch` reports `noAccess` as forbidden — the no-access screen, with the socket stopped from reconnecting
+- **Hover tooltips** — a truncated document title shows in full on hover everywhere it appears (sidebar, collapsed rail, Library, Trash, ⌘K, editor breadcrumb, Share / Details / Version history dialogs); relative times show the exact date and time through a new `RelativeTime` component; icon-only buttons get labels; truncated workspace, conversation, people, API key and MCP values show in full. `DropdownMenu` takes a `tooltip` prop for its trigger and hides it while the menu is open and as focus returns on close; tooltip content breaks long unspaced words
+- **Copy as Markdown** — copies the open document as Markdown, headed by its title, converted in the browser from the live editor (`blocksToMarkdownLossy`; colors, highlights and alignment dropped). An icon button left of the lock button on desktop, the first entry in the ⋯ sheet on phones; shown to viewers too
+- **Write-lock scroll fix** — toggling the lock passed a new `editable` to `BlockNoteView`, whose mount callback ref depends on it, so the editor DOM remounted and the page jumped to the top. `useWriteLock` now applies `canWrite` with `_tiptapEditor.setEditable`, which updates the view in place
+
+### Tooling / docs
+
+- `CLAUDE.md` documents the access version counters and `ACCESS_CHANGED`, the presence heartbeat, the new search and navigation tools, smaller write-tool responses, the `setEditable` rule, and the new UI primitives
+
 ## Upcoming
 
 - Frontend code-rules pass (Converge doc 120, part 3): one React component per file, a lighter comment pass that keeps the *why*, and ESLint to zero (17 problems today)
