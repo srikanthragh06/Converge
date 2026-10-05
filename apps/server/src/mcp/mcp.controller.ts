@@ -23,6 +23,8 @@ import {
   FindInDocumentToolResponseSchema,
   GetBlocksByIdToolInputSchema,
   GetBlocksByIdToolResponseSchema,
+  GetDocumentOutlineToolInputSchema,
+  GetDocumentOutlineToolResponseSchema,
   UpdateDocumentBlocksToolInputSchema,
   UpdateDocumentBlocksResponseSchema,
   CreateDocumentToolInputSchema,
@@ -254,6 +256,26 @@ export class McpController {
       async (input) => {
         const result = await withMcpErrorHandling(() =>
           this.documentTools.getBlocksById(userId, input),
+        );
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'getDocumentOutline',
+      {
+        title: 'Get Document Outline',
+        description:
+          'Lists every heading in one document, in order, with its id, level, text (cut to 80 characters) and two counts of the sibling blocks after it: blockCount (up to the next heading of any level) and sectionBlockCount (up to the next heading of the same or a higher level, so including subheadings). To read a section, call getBlocksById with the heading id and after set to one of those counts. Use it to see the structure of a large document, or to find where new content belongs, without reading the whole document; it does not search content — use findInDocument or searchDocumentContent for that. The headings list is empty for a document without headings. Requires viewer access or higher.',
+        inputSchema: GetDocumentOutlineToolInputSchema,
+        outputSchema: GetDocumentOutlineToolResponseSchema,
+      },
+      async (input) => {
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.getDocumentOutline(userId, input),
         );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],

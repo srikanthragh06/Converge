@@ -300,6 +300,48 @@ export type GetBlocksByIdToolResponseDto = {
     notFoundIds: string[];
 };
 
+export const GetDocumentOutlineToolInputSchema = {
+    documentId: z.coerce.number().int().positive().describe(
+        "The document to outline.",
+    ),
+};
+
+export type GetDocumentOutlineToolInputDto = {
+    documentId: number;
+};
+
+const OutlineHeadingSchema = z.object({
+    id: z.string(),
+    parentId: z.string().nullable().describe(
+        "The id of the block this heading is nested under, or null for a top-level heading.",
+    ),
+    level: z.number().describe("The heading level; 1 is the highest."),
+    text: z.string().describe(
+        "The heading's text, cut to 80 characters with … where it was cut.",
+    ),
+    blockCount: z.number().describe(
+        "How many sibling blocks follow this heading before the next heading of any level — pass it as after to getBlocksById to read just this heading's own content.",
+    ),
+    sectionBlockCount: z.number().describe(
+        "How many sibling blocks follow this heading before the next heading of the same or a higher level, so it includes any subheadings — pass it as after to getBlocksById to read the whole section.",
+    ),
+});
+
+export const GetDocumentOutlineToolResponseSchema = z.object({
+    headings: z.array(OutlineHeadingSchema).describe(
+        "Every heading in the document, in document order. Empty if the document has no headings.",
+    ),
+    topLevelBlockCount: z.number().describe(
+        "How many top-level blocks the document has.",
+    ),
+});
+
+export type OutlineHeadingDto = z.infer<typeof OutlineHeadingSchema>;
+
+export type GetDocumentOutlineToolResponseDto = z.infer<
+    typeof GetDocumentOutlineToolResponseSchema
+>;
+
 // A single edit within an updateDocumentBlocks call. "replace" and "insert"
 // take a Markdown string rather than raw BlockNote block JSON — an agent
 // writing plain Markdown (which it already knows how to do) is far more

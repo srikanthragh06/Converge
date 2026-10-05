@@ -21,6 +21,8 @@ import {
   type FindInDocumentToolResponseDto,
   type GetBlocksByIdToolInputDto,
   type GetBlocksByIdToolResponseDto,
+  type GetDocumentOutlineToolInputDto,
+  type GetDocumentOutlineToolResponseDto,
   type UpdateDocumentBlocksToolInputDto,
   type UpdateDocumentBlocksResponseDto,
   type CreateDocumentToolInputDto,
@@ -236,6 +238,21 @@ export class DocumentTools {
       input.after ?? 0,
       input.depth ?? -1,
     );
+  }
+
+  /**
+   * Lists a document's headings with short text and sibling-block counts.
+   * getDocumentOutline throws NotFoundException/ForbiddenException on
+   * missing/inaccessible documents — left uncaught here since the MCP SDK
+   * already converts a thrown error into a proper isError tool result.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the document to outline
+   */
+  async getDocumentOutline(
+    userId: number,
+    input: GetDocumentOutlineToolInputDto,
+  ): Promise<GetDocumentOutlineToolResponseDto> {
+    return this.documentService.getDocumentOutline(input.documentId, userId);
   }
 
   /**

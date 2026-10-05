@@ -10,6 +10,7 @@ import {
   GetDocumentBlocksToolInputSchema,
   FindInDocumentToolInputSchema,
   GetBlocksByIdToolInputSchema,
+  GetDocumentOutlineToolInputSchema,
   UpdateDocumentBlocksToolInputSchema,
   CreateDocumentToolInputSchema,
   UpdateDocumentTitleToolInputSchema,
@@ -171,6 +172,20 @@ export class AgentTools {
             this.documentTools.getBlocksById(
               userId,
               input as Parameters<typeof this.documentTools.getBlocksById>[1],
+            ),
+          ),
+      },
+
+      {
+        name: 'getDocumentOutline',
+        description:
+          'Lists every heading in one document, in order, with its id, level, text (cut to 80 characters) and two counts of the sibling blocks after it: blockCount (up to the next heading of any level) and sectionBlockCount (up to the next heading of the same or a higher level, so including subheadings). To read a section, call getBlocksById with the heading id and after set to one of those counts. Use it to see the structure of a large document, or to find where new content belongs, without reading the whole document; it does not search content — use findInDocument or searchDocumentContent for that. The headings list is empty for a document without headings.',
+        inputSchema: z.object(GetDocumentOutlineToolInputSchema),
+        execute: (input) =>
+          withAgentErrorHandling(() =>
+            this.documentTools.getDocumentOutline(
+              userId,
+              input as Parameters<typeof this.documentTools.getDocumentOutline>[1],
             ),
           ),
       },

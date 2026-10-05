@@ -29,6 +29,7 @@ import {
   type FindInDocumentToolResponseDto,
   type GetBlocksByIdResultDto,
   type GetBlocksByIdToolResponseDto,
+  type GetDocumentOutlineToolResponseDto,
 } from '@converge/shared';
 import { DatabaseService } from '../db/database.service.js';
 import { DocumentAccessService } from './document-access.service.js';
@@ -49,7 +50,11 @@ import {
   flattenBlocksWithParents,
   matchPreview,
 } from '../utils/block-text.util.js';
-import { indexBlocks, limitDepth } from '../utils/block-tree.util.js';
+import {
+  indexBlocks,
+  limitDepth,
+  outlineHeadings,
+} from '../utils/block-tree.util.js';
 import { sql } from 'kysely';
 import * as Y from 'yjs';
 
@@ -274,6 +279,27 @@ export class DocumentService {
     }
 
     return { results, notFoundIds };
+  }
+
+  /**
+   * Lists every heading in the live document with short text and the
+   * number of sibling blocks after it, so an agent can see the document's
+   * structure and read one section with getBlocksById instead of reading
+   * the whole document. Throws NotFoundException if the document does not
+   * exist, ForbiddenException if the user has less than viewer access.
+   * @param documentId - the document to outline
+   * @param userId - the requesting user
+   * @returns the headings in document order, plus the top-level block count
+   */
+  async getDocumentOutline(
+    documentId: number,
+    userId: number,
+  ): Promise<GetDocumentOutlineToolResponseDto> {
+    const blocks = await this.getDocumentBlocks(documentId, userId);
+    return {
+      headings: outlineHeadings(blocks, null),
+      topLevelBlockCount: blocks.length,
+    };
   }
 
   /**

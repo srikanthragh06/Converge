@@ -1,4 +1,5 @@
-import type { DocumentBlock } from '@converge/shared';
+import type { DocumentBlock, OutlineHeadingDto } from '@converge/shared';
+import { blockPlainText } from './block-text.util.js';
 
 /** Where one block sits in a document's block tree. */
 export type IndexedBlock = {
@@ -11,6 +12,9 @@ export type IndexedBlock = {
   /** The block's position in siblings. */
   index: number;
 };
+
+/** Heading text in an outline is cut to this many characters. */
+const OUTLINE_TEXT_LENGTH = 80;
 
 /**
  * Maps every block in a document, parent or child, to its place in the
@@ -59,4 +63,74 @@ export function limitDepth(block: DocumentBlock, depth: number): DocumentBlock {
     children.push(limitDepth(child, depth - 1));
   }
   return { ...block, children };
+}
+
+/**
+ * Returns a block's heading level, or null if it isn't a heading.
+ * @param block - the block to check
+ * @returns the heading level, or null
+ */
+function headingLevel(block: DocumentBlock): number | null {
+  if (block.type !== 'heading') {
+    return null;
+  }
+  return (block.props as { level: number }).level;
+}
+
+/**
+ * Lists every heading in a block tree, in document order, with its text
+ * cut short and two counts of the sibling blocks after it: up to the next
+ * heading of any level (the heading's own content), and up to the next
+ * heading of the same or a higher level (its whole section). Both counts
+ * are made to be passed as after to getBlocksById.
+ * @param blocks - the blocks to walk, e.g. a document's top-level blocks
+ * @param parentId - the id of the block these are nested under, or null for top-level blocks
+ * @param headings - the list to add to; a new one when omitted
+ * @returns every heading in the tree
+ */
+export function outlineHeadings(
+  blocks: DocumentBlock[],
+  parentId: string | null,
+  headings: OutlineHeadingDto[] = [],
+): OutlineHeadingDto[] {
+  for (let index = 0; index < blocks.length; index++) {
+    const block = blocks[index];
+    const level = headingLevel(block);
+
+    if (level !== null) {
+      let blockCount = 0;
+      while (
+        index + 1 + blockCount < blocks.length &&
+        headingLevel(blocks[index + 1 + blockCount]) === null
+      ) {
+        blockCount++;
+      }
+
+      let sectionBlockCount = 0;
+      while (index + 1 + sectionBlockCount < blocks.length) {
+        const nextLevel = headingLevel(blocks[index + 1 + sectionBlockCount]);
+        if (nextLevel !== null && nextLevel <= level) {
+          break;
+        }
+        sectionBlockCount++;
+      }
+
+      let text = blockPlainText(block).replace(/\s+/g, ' ').trim();
+      if (text.length > OUTLINE_TEXT_LENGTH) {
+        text = text.slice(0, OUTLINE_TEXT_LENGTH) + '…';
+      }
+
+      headings.push({
+        id: block.id,
+        parentId,
+        level,
+        text,
+        blockCount,
+        sectionBlockCount,
+      });
+    }
+
+    outlineHeadings(block.children, block.id, headings);
+  }
+  return headings;
 }
