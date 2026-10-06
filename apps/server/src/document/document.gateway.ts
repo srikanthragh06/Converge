@@ -218,6 +218,12 @@ export class DocumentGateway
       // Record that this user visited the document.
       await this.documentYjsService.recordLastVisited(documentId, userId);
 
+      // Nest binds the message handlers without waiting for handleConnection,
+      // so a client can send events before the socket is set up (e.g. a
+      // repair sync buffered during a document switch). Every handler that
+      // reads client.data ignores events until this is set.
+      client.data.isReady = true;
+
       // Signals to the client that it can start all server doc operations.
       client.emit(SOCKET_EVENTS.DOC_READY);
 
@@ -321,6 +327,9 @@ export class DocumentGateway
   async handleGetAwarenessUpdate(
     @ConnectedSocket() client: Socket,
   ): Promise<void> {
+    // Ignore events sent before handleConnection finished — see isReady there.
+    if (!client.data.isReady) return;
+
     const documentId = client.data.documentId as number;
     await this.broadcastAwarenessState(documentId);
   }
@@ -338,6 +347,9 @@ export class DocumentGateway
     @MessageBody(new ZodSocketValidationPipe(AwarenessUpdateServerSchema))
     { focusedBlockId }: AwarenessUpdateServerPayload,
   ): Promise<void> {
+    // Ignore events sent before handleConnection finished — see isReady there.
+    if (!client.data.isReady) return;
+
     const documentId = client.data.documentId as number;
     const userId = client.data.userId as number;
 
@@ -429,6 +441,9 @@ export class DocumentGateway
     @MessageBody(new ZodSocketValidationPipe(SyncDocServerSchema))
     { updateArray, clientSVArray }: SyncDocServerPayload,
   ) {
+    // Ignore events sent before handleConnection finished — see isReady there.
+    if (!client.data.isReady) return;
+
     const documentId = client.data.documentId as number;
     const userId = client.data.userId as number;
 
@@ -498,6 +513,9 @@ export class DocumentGateway
     @MessageBody(new ZodSocketValidationPipe(RepairSyncDocServerSchema))
     { clientSVArray }: RepairSyncDocServerPayload,
   ) {
+    // Ignore events sent before handleConnection finished — see isReady there.
+    if (!client.data.isReady) return;
+
     const documentId = client.data.documentId as number;
     const userId = client.data.userId as number;
 
@@ -563,6 +581,9 @@ export class DocumentGateway
     @MessageBody(new ZodSocketValidationPipe(RepairSyncAckDocServerSchema))
     { diffArray, clientSVArray }: RepairSyncAckDocServerPayload,
   ) {
+    // Ignore events sent before handleConnection finished — see isReady there.
+    if (!client.data.isReady) return;
+
     const documentId = client.data.documentId as number;
     const userId = client.data.userId as number;
 
@@ -639,6 +660,9 @@ export class DocumentGateway
     @MessageBody(new ZodSocketValidationPipe(RepairAckDocServerSchema))
     { diffArray }: RepairAckDocServerPayload,
   ) {
+    // Ignore events sent before handleConnection finished — see isReady there.
+    if (!client.data.isReady) return;
+
     const documentId = client.data.documentId as number;
     const userId = client.data.userId as number;
 
@@ -691,6 +715,9 @@ export class DocumentGateway
     @MessageBody(new ZodSocketValidationPipe(SyncDocTitleServerSchema))
     { title, changeId }: SyncDocTitleServerPayload,
   ) {
+    // Ignore events sent before handleConnection finished — see isReady there.
+    if (!client.data.isReady) return;
+
     const documentId = client.data.documentId as number;
     const userId = client.data.userId as number;
 
