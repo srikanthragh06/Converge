@@ -17,7 +17,16 @@ import {
   hasAccess,
 } from '@converge/shared';
 import { DatabaseService } from '../db/database.service.js';
-import { sql } from 'kysely';
+import { sql, type Transaction } from 'kysely';
+import type { DatabaseSchema } from '../db/database.schema.js';
+
+/** A document's two access version counters, bumped by every access change. */
+export interface AccessVersions {
+  /** documents.doc_access_version — bumped by changes to this one document's access. */
+  docAccessVersion: number;
+  /** workspaces.workspace_access_version — bumped by changes to access across the document's workspace. */
+  workspaceAccessVersion: number;
+}
 
 @Injectable()
 export class DocumentAccessService {
@@ -42,72 +51,91 @@ export class DocumentAccessService {
     userId: number,
     includeDeleted = false,
   ): Promise<ResolvedDocumentAccessLevel> {
+    const { access } = await this.resolveAccessWithVersions(
+      documentId,
+      userId,
+      includeDeleted,
+    );
+    return access;
+  }
+
+  /**
+   * Same as resolveAccess, but also returns the document's two access
+   * versions from the same query, so a socket can store them alongside the
+   * access they were read with.
+   * Throws NotFoundException if the document does not exist, or is deleted
+   * and includeDeleted is false.
+   * @param documentId - the document to resolve access for
+   * @param userId - the user whose access level to resolve
+   * @param includeDeleted - see resolveAccess
+   * @returns the resolved access level and both access versions
+   */
+  async resolveAccessWithVersions(
+    documentId: number,
+    userId: number,
+    includeDeleted = false,
+  ): Promise<AccessVersions & { access: ResolvedDocumentAccessLevel }> {
     const db = this.dbService.kysely;
 
-    // Step 1: fetch the document — verify it exists (and, unless
-    // includeDeleted, that it is not soft-deleted).
-    let docQuery = db
-      .selectFrom('documents')
+    // Single indexed join resolving all four tiers at once — same CASE
+    // precedence as getLibraryDocuments' access-resolution subquery.
+    let query = db
+      .selectFrom('documents as d')
+      .innerJoin('workspaces as w', 'w.id', 'd.workspace_id')
+      .leftJoin('workspace_members as wm', (join) =>
+        join
+          .onRef('wm.workspace_id', '=', 'd.workspace_id')
+          .on('wm.user_id', '=', userId),
+      )
+      .leftJoin('document_access as da', (join) =>
+        join.onRef('da.document_id', '=', 'd.id').on('da.user_id', '=', userId),
+      )
+      .select(
+        sql<ResolvedDocumentAccessLevel>`
+          CASE
+            WHEN wm.role = 'owner' THEN 'owner'
+            WHEN da.access IS NOT NULL THEN da.access
+            WHEN wm.role = 'admin' THEN COALESCE(d.admin_doc_access, w.admin_doc_access)
+            WHEN wm.role = 'member' THEN COALESCE(d.member_doc_access, w.member_doc_access)
+            ELSE COALESCE(d.non_member_doc_access, w.non_member_doc_access)
+          END
+        `.as('access'),
+      )
       .select([
-        'workspace_id',
-        'admin_doc_access',
-        'member_doc_access',
-        'non_member_doc_access',
+        'd.doc_access_version as docAccessVersion',
+        'w.workspace_access_version as workspaceAccessVersion',
       ])
-      .where('id', '=', documentId);
-    if (!includeDeleted) docQuery = docQuery.where('is_deleted', '=', false);
-    const docRow = await docQuery.executeTakeFirst();
+      .where('d.id', '=', documentId);
+    if (!includeDeleted) query = query.where('d.is_deleted', '=', false);
 
-    if (!docRow) throw new NotFoundException('Document not found.');
+    // Execute and surface a 404 if the document doesn't exist (or is
+    // soft-deleted and includeDeleted wasn't requested).
+    const row = await query.executeTakeFirst();
+    if (!row) throw new NotFoundException('Document not found.');
 
-    // Step 2: workspace owner gets unconditional owner access.
-    const memberRow = await db
-      .selectFrom('workspace_members')
-      .select('role')
-      .where('workspace_id', '=', docRow.workspace_id)
-      .where('user_id', '=', userId)
+    return row;
+  }
+
+  /**
+   * Reads a document's current access versions without resolving anyone's
+   * access — what an emit with no access check of its own (e.g. a Redis
+   * relay) compares each socket's stored versions against.
+   * @param documentId - the document to read versions for
+   * @returns both access versions, or null if the document doesn't exist or is deleted
+   */
+  async getAccessVersions(documentId: number): Promise<AccessVersions | null> {
+    const row = await this.dbService.kysely
+      .selectFrom('documents as d')
+      .innerJoin('workspaces as w', 'w.id', 'd.workspace_id')
+      .select([
+        'd.doc_access_version as docAccessVersion',
+        'w.workspace_access_version as workspaceAccessVersion',
+      ])
+      .where('d.id', '=', documentId)
+      .where('d.is_deleted', '=', false)
       .executeTakeFirst();
 
-    if (memberRow?.role === 'owner') return 'owner';
-
-    // Step 3: check for an explicit per-user document_access row.
-    const explicitRow = await db
-      .selectFrom('document_access')
-      .select('access')
-      .where('document_id', '=', documentId)
-      .where('user_id', '=', userId)
-      .executeTakeFirst();
-
-    if (explicitRow) return explicitRow.access as DocumentAccessLevel;
-
-    // Step 4: check for a document-level per-role override.
-    const role = memberRow?.role ?? null;
-
-    if (role === 'admin' && docRow.admin_doc_access != null) {
-      return docRow.admin_doc_access;
-    }
-    if (role === 'member' && docRow.member_doc_access != null) {
-      return docRow.member_doc_access;
-    }
-    if (!role && docRow.non_member_doc_access != null) {
-      return docRow.non_member_doc_access;
-    }
-
-    // Step 5: fall back to workspace-level per-role defaults.
-    const wsRow = await db
-      .selectFrom('workspaces')
-      .select([
-        'admin_doc_access',
-        'member_doc_access',
-        'non_member_doc_access',
-      ])
-      .where('id', '=', docRow.workspace_id)
-      .executeTakeFirstOrThrow();
-
-    if (role === 'admin') return wsRow.admin_doc_access as DocumentAccessLevel;
-    if (role === 'member')
-      return wsRow.member_doc_access as DocumentAccessLevel;
-    return wsRow.non_member_doc_access as DocumentAccessLevel;
+    return row ?? null;
   }
 
   /**
@@ -193,16 +221,23 @@ export class DocumentAccessService {
     if (body.nonMemberDocAccess !== undefined)
       patch.non_member_doc_access = body.nonMemberDocAccess;
 
-    const updated = await db
-      .updateTable('documents')
-      .set(patch)
-      .where('id', '=', documentId)
-      .returning([
-        'admin_doc_access',
-        'member_doc_access',
-        'non_member_doc_access',
-      ])
-      .executeTakeFirstOrThrow();
+    // Apply the overrides and bump the access version in one transaction, so
+    // every open socket's next emit re-resolves against the new overrides.
+    const updated = await db.transaction().execute(async (tx) => {
+      const row = await tx
+        .updateTable('documents')
+        .set(patch)
+        .where('id', '=', documentId)
+        .returning([
+          'admin_doc_access',
+          'member_doc_access',
+          'non_member_doc_access',
+        ])
+        .executeTakeFirstOrThrow();
+
+      await this.bumpDocAccessVersion(tx, documentId);
+      return row;
+    });
 
     return {
       adminDocAccess: updated.admin_doc_access,
@@ -470,14 +505,20 @@ export class DocumentAccessService {
 
     if (!targetUser) throw new NotFoundException('User not found.');
 
-    // Upsert — insert or update the access level if a row already exists.
-    await db
-      .insertInto('document_access')
-      .values({ document_id: documentId, user_id: targetUserId, access })
-      .onConflict((oc) =>
-        oc.columns(['document_id', 'user_id']).doUpdateSet({ access }),
-      )
-      .execute();
+    // Upsert — insert or update the access level if a row already exists —
+    // and bump doc_access_version in the same transaction, so an open socket
+    // of the target user re-resolves on its next emit.
+    await db.transaction().execute(async (tx) => {
+      await tx
+        .insertInto('document_access')
+        .values({ document_id: documentId, user_id: targetUserId, access })
+        .onConflict((oc) =>
+          oc.columns(['document_id', 'user_id']).doUpdateSet({ access }),
+        )
+        .execute();
+
+      await this.bumpDocAccessVersion(tx, documentId);
+    });
 
     return {
       id: targetUser.id,
@@ -534,6 +575,30 @@ export class DocumentAccessService {
         .where('document_id', '=', documentId)
         .where('user_id', '=', targetUserId)
         .execute();
+
+      // Same transaction as the delete, so the revoke and the signal that
+      // makes open sockets re-resolve commit together.
+      await this.bumpDocAccessVersion(tx, documentId);
     });
+  }
+
+  /**
+   * Increments a document's doc_access_version. Call it in the same
+   * transaction as any write that can change who may access that one
+   * document, so the change and the signal that makes every open socket
+   * re-resolve its access commit together — a missed bump leaves open
+   * sockets on their old access.
+   * @param tx - the transaction the access change runs in
+   * @param documentId - the document whose access changed
+   */
+  async bumpDocAccessVersion(
+    tx: Transaction<DatabaseSchema>,
+    documentId: number,
+  ): Promise<void> {
+    await tx
+      .updateTable('documents')
+      .set({ doc_access_version: sql`doc_access_version + 1` })
+      .where('id', '=', documentId)
+      .execute();
   }
 }

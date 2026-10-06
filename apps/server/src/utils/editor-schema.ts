@@ -5,6 +5,7 @@ import {
   editorSchema,
   type DocumentBlock,
   type BlockOperationDto,
+  type InsertedBlockDto,
 } from '@converge/shared';
 import * as Y from 'yjs';
 import { withMutex } from './async-mutex.js';
@@ -42,6 +43,19 @@ export function blocksFromYDoc(yDoc: Y.Doc): DocumentBlock[] {
 }
 
 /**
+ * Converts a single block to Markdown — the per-block granularity the RAG
+ * indexing pipeline needs for chunking, embedding, and content hashing
+ * (see document-indexing.service.ts). Routed through withMutex like
+ * markdownFromYDoc above, since blocksToMarkdownLossy depends on the shared
+ * jsdom shim.
+ * @param block - the block to convert, e.g. from blocksFromYDoc
+ * @returns the block's content as a Markdown string
+ */
+export function markdownFromBlock(block: DocumentBlock): Promise<string> {
+  return withMutex(() => editor.blocksToMarkdownLossy([block]));
+}
+
+/**
  * Builds the Yjs update bytes for a brand-new document's initial content:
  * a single empty paragraph, the same shape a live client's first editor
  * mount produces. Needed because the block-manipulation API
@@ -68,8 +82,9 @@ export function seedInitialDocumentUpdate(): Uint8Array {
  * Applies a batch of id-addressed block edits to a document, atomically —
  * if any operation fails (e.g. a stale/nonexistent block id), none of them
  * are applied, and the failure is thrown as a BadRequestException (safe to
- * show the caller — see the catch block below). Returns the resulting
- * document's blocks and the Yjs update bytes representing the change, ready
+ * show the caller — see the catch block below). Returns the blocks the
+ * batch inserted (not the whole document) and the Yjs update bytes
+ * representing the change, ready
  * to hand to DocumentYjsService.applyDocUpdate — the caller is responsible
  * for persisting it; this function never touches the live Y.Doc.
  *
@@ -85,12 +100,14 @@ export function seedInitialDocumentUpdate(): Uint8Array {
  * would be re-applying an update the live doc already has.
  * @param liveYDoc - the document's live Y.Doc, e.g. from DocumentYjsService.loadDoc
  * @param operations - the edits to apply, in order
- * @returns the Yjs update bytes for the change, and the document's resulting blocks
+ * @returns the Yjs update bytes for the change, and the blocks the batch
+ * inserted that still exist after it, in document order, each with its
+ * position and the index of the operation that inserted it
  */
 export function applyBlockOperations(
   liveYDoc: Y.Doc,
   operations: BlockOperationDto[],
-): Promise<{ update: Uint8Array; blocks: DocumentBlock[] }> {
+): Promise<{ update: Uint8Array; insertedBlocks: InsertedBlockDto[] }> {
   return withMutex(() =>
     editor._withJSDOM(async () => {
       // Work on a throwaway copy of the document's current state, not the
@@ -123,27 +140,43 @@ export function applyBlockOperations(
       });
       collabEditor.mount(document.createElement('div'));
 
+      // Maps the id of every block a replace/insert below adds to the index
+      // of the operation that added it. Only ids are kept, not the blocks
+      // themselves: a later operation in the same batch can still change or
+      // remove a block an earlier one inserted, so the blocks are read back
+      // from the final document once every operation has run (see
+      // collectInsertedBlocks).
+      const insertedOperations = new Map<string, number>();
+
       try {
         // Apply each operation in order. remove needs no content; replace
         // and insert first turn their Markdown into blocks via the same
         // conversion readDocumentMarkdown's inverse would use, then apply
         // them through the real editor so the resulting Yjs ops are
         // proper incremental CRDT operations, not a wholesale rebuild.
-        for (const op of operations) {
+        for (let i = 0; i < operations.length; i++) {
+          const op = operations[i];
           if (op.type === 'remove') {
             collabEditor.removeBlocks(op.blockIds);
-            continue;
-          }
-
-          const blocks = await editor.tryParseMarkdownToBlocks(op.markdown);
-          if (op.type === 'replace') {
-            collabEditor.replaceBlocks([op.blockId], blocks);
-          } else {
-            collabEditor.insertBlocks(
+          } else if (op.type === 'replace') {
+            const blocks = await editor.tryParseMarkdownToBlocks(op.markdown);
+            const { insertedBlocks } = collabEditor.replaceBlocks(
+              [op.blockId],
+              blocks,
+            );
+            for (const block of insertedBlocks) {
+              insertedOperations.set(block.id, i);
+            }
+          } else if (op.type === 'insert') {
+            const blocks = await editor.tryParseMarkdownToBlocks(op.markdown);
+            const insertedBlocks = collabEditor.insertBlocks(
               blocks,
               op.referenceBlockId,
               op.placement,
             );
+            for (const block of insertedBlocks) {
+              insertedOperations.set(block.id, i);
+            }
           }
         }
       } catch (err) {
@@ -167,9 +200,57 @@ export function applyBlockOperations(
       // gets diffed or returned, so a bad operation fails the whole batch
       // cleanly instead of partially applying edits.
       const update = Y.encodeStateAsUpdate(scratch, beforeSV);
-      return { update, blocks: editor.yDocToBlocks(scratch, 'blocknote') };
+      const insertedBlocks = collectInsertedBlocks(
+        editor.yDocToBlocks(scratch, 'blocknote'),
+        insertedOperations,
+        null,
+      );
+      return { update, insertedBlocks };
     }),
   );
+}
+
+/**
+ * Picks out the blocks a batch of operations inserted from the document's
+ * final block tree, in document order. Reading them from the final tree
+ * (rather than keeping what insertBlocks/replaceBlocks returned) means a
+ * block a later operation in the same batch removed is left out, and one it
+ * changed is returned as it ended up. A matched block is returned with its
+ * children and not descended into, so an inserted block nested inside
+ * another inserted block (e.g. a nested list item) is returned only as part
+ * of its parent. Each returned block carries where it landed (its parent
+ * and previous sibling) and which operation inserted it.
+ * @param blocks - one level of the document's final blocks, starting with
+ * the top-level blocks from yDocToBlocks
+ * @param insertedOperations - maps the id of every block the batch inserted
+ * to the index of the operation that inserted it
+ * @param parentId - the id of the block that `blocks` are the children of,
+ * or null for the top level
+ * @returns the inserted blocks that still exist, in document order
+ */
+function collectInsertedBlocks(
+  blocks: DocumentBlock[],
+  insertedOperations: Map<string, number>,
+  parentId: string | null,
+): InsertedBlockDto[] {
+  const result: InsertedBlockDto[] = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    const operationIndex = insertedOperations.get(block.id);
+    if (operationIndex !== undefined) {
+      let previousBlockId: string | null = null;
+      if (i > 0) {
+        previousBlockId = blocks[i - 1].id;
+      }
+      result.push({ operationIndex, parentId, previousBlockId, block });
+    } else {
+      const children = block.children as DocumentBlock[];
+      result.push(
+        ...collectInsertedBlocks(children, insertedOperations, block.id),
+      );
+    }
+  }
+  return result;
 }
 
 /**

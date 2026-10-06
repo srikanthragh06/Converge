@@ -1,7 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import * as Y from 'yjs';
 import { DocumentService } from './document.service.js';
 import { DocumentCheckpointService } from './document-checkpoint.service.js';
+import { DocumentRAGService } from './document-rag.service.js';
+import { DocumentIndexingService } from './document-indexing.service.js';
+import { ImageKitUploadAuthRateLimitGuard } from './imagekit-upload-auth-rate-limit.guard.js';
+import { RedisService } from '../redis/redis.service.js';
+import { REDIS_KEYS } from '../redis/redis.events.js';
 import { blocksFromYDoc } from '../utils/editor-schema.js';
 import { base64ToUint8Array } from '../utils/utils.js';
 import {
@@ -15,6 +20,14 @@ import {
   type ReadDocumentMarkdownResponseDto,
   type GetDocumentBlocksToolInputDto,
   type GetDocumentBlocksResponseDto,
+  type FindInDocumentToolInputDto,
+  type FindInDocumentToolResponseDto,
+  type GetBlocksByIdToolInputDto,
+  type GetBlocksByIdToolResponseDto,
+  type GetDocumentOutlineToolInputDto,
+  type GetDocumentOutlineToolResponseDto,
+  type GetUploadTokenToolInputDto,
+  type GetUploadTokenToolResponseDto,
   type UpdateDocumentBlocksToolInputDto,
   type UpdateDocumentBlocksResponseDto,
   type CreateDocumentToolInputDto,
@@ -33,6 +46,10 @@ import {
   type ListDeletedDocumentsToolResponseDto,
   type RestoreDocumentToolInputDto,
   type RestoreDocumentResponseDto,
+  type SearchDocumentContentToolInputDto,
+  type SearchDocumentContentToolResponseDto,
+  type GetDocumentIndexingStatusToolInputDto,
+  type GetDocumentIndexingStatusToolResponseDto,
 } from '@converge/shared';
 
 // MCP tool handlers for the document feature. Thin wrappers around
@@ -46,6 +63,9 @@ export class DocumentTools {
   constructor(
     private readonly documentService: DocumentService,
     private readonly documentCheckpointService: DocumentCheckpointService,
+    private readonly documentRAGService: DocumentRAGService,
+    private readonly documentIndexingService: DocumentIndexingService,
+    private readonly redisService: RedisService,
   ) {}
 
   /**
@@ -83,7 +103,8 @@ export class DocumentTools {
       nextCursor: result.nextCursor
         ? {
             ...result.nextCursor,
-            lastVisitedAt: result.nextCursor.lastVisitedAt?.toISOString() ?? null,
+            lastVisitedAt:
+              result.nextCursor.lastVisitedAt?.toISOString() ?? null,
           }
         : null,
     };
@@ -120,7 +141,7 @@ export class DocumentTools {
 
   /**
    * Returns a document's metadata only (id, title, createdAt, workspace,
-   * resolvedAccess) — no content. Content is exposed separately, by
+   * resolvedAccess, isPinned) — no content. Content is exposed separately, by
    * readDocumentMarkdown, since it needs its own readable conversion rather
    * than the raw Yjs blob. createdAt is an ISO string rather than a Date
    * object — MCP tool schemas can't represent a Date type (see
@@ -182,8 +203,112 @@ export class DocumentTools {
   }
 
   /**
+   * Finds every block in a document whose text contains the given text,
+   * case-insensitively, returning their ids, parents and short previews.
+   * findInDocument throws NotFoundException/ForbiddenException on
+   * missing/inaccessible documents — left uncaught here since the MCP SDK
+   * already converts a thrown error into a proper isError tool result.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the document to search, the text to find, and an optional match limit
+   */
+  async findInDocument(
+    userId: number,
+    input: FindInDocumentToolInputDto,
+  ): Promise<FindInDocumentToolResponseDto> {
+    return this.documentService.findInDocument(
+      input.documentId,
+      userId,
+      input.text,
+      input.limit ?? 50,
+    );
+  }
+
+  /**
+   * Reads blocks by id, each with its parent id and optional siblings
+   * before and after it, with children cut to the given depth.
+   * getBlocksById throws NotFoundException/ForbiddenException on
+   * missing/inaccessible documents — left uncaught here since the MCP SDK
+   * already converts a thrown error into a proper isError tool result.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the document, the block ids, and optional before/after/depth
+   */
+  async getBlocksById(
+    userId: number,
+    input: GetBlocksByIdToolInputDto,
+  ): Promise<GetBlocksByIdToolResponseDto> {
+    return this.documentService.getBlocksById(
+      input.documentId,
+      userId,
+      input.blockIds,
+      input.before ?? 0,
+      input.after ?? 0,
+      input.depth ?? -1,
+    );
+  }
+
+  /**
+   * Lists a document's headings with short text and sibling-block counts.
+   * getDocumentOutline throws NotFoundException/ForbiddenException on
+   * missing/inaccessible documents — left uncaught here since the MCP SDK
+   * already converts a thrown error into a proper isError tool result.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the document to outline
+   */
+  async getDocumentOutline(
+    userId: number,
+    input: GetDocumentOutlineToolInputDto,
+  ): Promise<GetDocumentOutlineToolResponseDto> {
+    return this.documentService.getDocumentOutline(input.documentId, userId);
+  }
+
+  /**
+   * Returns a one-time ImageKit upload token for a file going into a
+   * document, plus a ready curl command that uploads a local file with it —
+   * so an agent with a shell sends the file bytes through curl, never
+   * through the model. Shares the editor's per-user upload-token rate limit
+   * (ImageKitUploadAuthRateLimitGuard's counter), which as an HTTP guard
+   * can't run for an MCP call. getImageKitUploadAuth throws
+   * NotFoundException/ForbiddenException on missing documents or less than
+   * editor access.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the document and the kind of file being uploaded
+   */
+  async getUploadToken(
+    userId: number,
+    input: GetUploadTokenToolInputDto,
+  ): Promise<GetUploadTokenToolResponseDto> {
+    const count = await this.redisService.incrWithExpire(
+      REDIS_KEYS.imageKitUploadAuthRateLimitUser(userId),
+      ImageKitUploadAuthRateLimitGuard.WINDOW_SECONDS,
+    );
+    if (count > ImageKitUploadAuthRateLimitGuard.USER_LIMIT)
+      throw new HttpException(
+        'Too many upload requests. Please try again in 1-2 minutes.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+
+    const auth = await this.documentService.getImageKitUploadAuth(
+      input.documentId,
+      userId,
+      input.fileType,
+      input.extension,
+    );
+
+    // --form-string sends each value literally — plain -F would treat the
+    // quotes and commas in checks/transformation as curl syntax. No value
+    // contains a single quote, so single-quoting each one is safe.
+    let curlCommand = `curl -s '${auth.uploadUrl}' -F 'file=@<FILE_PATH>'`;
+    for (const [name, value] of Object.entries(auth.fields))
+      curlCommand += ` --form-string '${name}=${value}'`;
+    curlCommand += ` --form-string 'token=${auth.token}'`;
+
+    return { ...auth, curlCommand };
+  }
+
+  /**
    * Applies a batch of id-addressed block edits to a document as a single
-   * atomic save, returning the document's resulting blocks. Use
+   * atomic save, returning only the blocks the edits inserted (with their
+   * new ids, positions and operation indexes), not the whole document. Use
    * getDocumentBlocks first to find the block ids to target. updateDocumentBlocks
    * throws NotFoundException/ForbiddenException on missing/inaccessible
    * documents — left uncaught here since the MCP SDK already converts a
@@ -195,12 +320,12 @@ export class DocumentTools {
     userId: number,
     input: UpdateDocumentBlocksToolInputDto,
   ): Promise<UpdateDocumentBlocksResponseDto> {
-    const blocks = await this.documentService.updateDocumentBlocks(
+    const insertedBlocks = await this.documentService.updateDocumentBlocks(
       input.documentId,
       userId,
       input.operations,
     );
-    return { blocks };
+    return { insertedBlocks };
   }
 
   /**
@@ -308,11 +433,12 @@ export class DocumentTools {
     userId: number,
     input: GetCheckpointContentToolInputDto,
   ): Promise<GetCheckpointContentToolResponseDto> {
-    const checkpoint = await this.documentCheckpointService.getCheckpointContent(
-      input.documentId,
-      userId,
-      input.checkpointId,
-    );
+    const checkpoint =
+      await this.documentCheckpointService.getCheckpointContent(
+        input.documentId,
+        userId,
+        input.checkpointId,
+      );
 
     // A checkpoint's updateBase64 is a full self-contained Yjs state (every
     // checkpoint row from the beginning merged up through this one), not a
@@ -338,7 +464,9 @@ export class DocumentTools {
    * blocks, not title (see DocumentService.restoreCheckpoint). Takes a
    * fresh 'mcp' checkpoint immediately before the restore lands, same as
    * updateDocumentBlocks, so an unwanted restore is itself just one more
-   * restore away from undo. restoreCheckpoint throws
+   * restore away from undo. Returns only a success flag and the restored
+   * document's top-level block count, not the whole document.
+   * restoreCheckpoint throws
    * NotFoundException/ForbiddenException on insufficient access / an
    * unknown checkpoint — left uncaught here since the MCP SDK already
    * converts a thrown error into a proper isError tool result.
@@ -349,12 +477,12 @@ export class DocumentTools {
     userId: number,
     input: RestoreCheckpointToolInputDto,
   ): Promise<RestoreCheckpointResponseDto> {
-    const blocks = await this.documentService.restoreCheckpoint(
+    const blockCount = await this.documentService.restoreCheckpoint(
       input.documentId,
       userId,
       input.checkpointId,
     );
-    return { blocks };
+    return { success: true, blockCount };
   }
 
   /**
@@ -413,5 +541,60 @@ export class DocumentTools {
   ): Promise<RestoreDocumentResponseDto> {
     await this.documentService.restoreDocument(input.documentId, userId);
     return { success: true };
+  }
+
+  /**
+   * Retrieves the most relevant indexed chunks in a workspace for a
+   * natural-language question — hybrid semantic + BM25 candidates, reranked.
+   * Returns grounded content and citations only; answer synthesis is the
+   * calling agent's job (see the RAG Discussion doc's "Tool design"
+   * decision), which keeps this tool usable by both an external MCP client
+   * and any future internal chat agent without changing its contract.
+   * Access control is enforced inside DocumentRAGService itself (a bulk
+   * resolved-access filter applied to every candidate query), not a
+   * separate check here, since a per-document resolveAccess call doesn't
+   * fit a query that can span many documents at once.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the workspace to search, the question, an optional result limit, an optional documentId to search only that document, and an optional lexicalOnly flag for BM25-only matching
+   */
+  async searchDocumentContent(
+    userId: number,
+    input: SearchDocumentContentToolInputDto,
+  ): Promise<SearchDocumentContentToolResponseDto> {
+    const results = await this.documentRAGService.retrieve(
+      input.question,
+      input.workspaceId,
+      userId,
+      input.limit ?? 5,
+      input.documentId,
+      input.lexicalOnly ?? false,
+    );
+    return { results };
+  }
+
+  /**
+   * Returns a document's RAG indexing status: its lifecycle state
+   * (idle/pending/indexing) and when it was last confirmed indexed.
+   * lastIndexedAt is an ISO string rather than a Date object — MCP tool
+   * schemas can't represent a Date type (see
+   * GetDocumentIndexingStatusToolResponseSchema). getIndexingStatus throws
+   * NotFoundException/ForbiddenException on missing/inaccessible
+   * documents — left uncaught here since the MCP SDK already converts a
+   * thrown error into a proper isError tool result.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the document to check
+   */
+  async getDocumentIndexingStatus(
+    userId: number,
+    input: GetDocumentIndexingStatusToolInputDto,
+  ): Promise<GetDocumentIndexingStatusToolResponseDto> {
+    const result = await this.documentIndexingService.getIndexingStatus(
+      input.documentId,
+      userId,
+    );
+    return {
+      indexingStatus: result.indexingStatus,
+      lastIndexedAt: result.lastIndexedAt?.toISOString() ?? null,
+    };
   }
 }

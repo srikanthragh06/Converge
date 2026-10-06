@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from 'crypto';
+import { randomUUID } from 'crypto';
 import {
   ConflictException,
   ForbiddenException,
@@ -12,6 +12,8 @@ import {
   GetDocumentOverviewResponseDto,
   LibraryDocumentDto,
   GetLibraryDocumentsResponseDto,
+  GetPinnedDocumentsResponseDto,
+  SetDocumentPinnedResponseDto,
   SearchLibraryDocumentsResponseDto,
   type TrashDocumentDto,
   type GetTrashDocumentsResponseDto,
@@ -22,12 +24,19 @@ import {
   hasAccess,
   type DocumentBlock,
   type BlockOperationDto,
+  type InsertedBlockDto,
+  type FindInDocumentMatchDto,
+  type FindInDocumentToolResponseDto,
+  type GetBlocksByIdResultDto,
+  type GetBlocksByIdToolResponseDto,
+  type GetDocumentOutlineToolResponseDto,
 } from '@converge/shared';
 import { DatabaseService } from '../db/database.service.js';
 import { DocumentAccessService } from './document-access.service.js';
 import { DocumentYjsService } from './document-yjs.service.js';
 import { DocumentCheckpointSchedulerService } from './document-checkpoint-scheduler.service.js';
 import { DocumentCheckpointService } from './document-checkpoint.service.js';
+import { DocumentIndexingSchedulerService } from './document-indexing-scheduler.service.js';
 import {
   markdownFromYDoc,
   blocksFromYDoc,
@@ -36,8 +45,29 @@ import {
   seedInitialDocumentUpdate,
 } from '../utils/editor-schema.js';
 import { base64ToUint8Array } from '../utils/utils.js';
+import {
+  blockPlainText,
+  flattenBlocksWithParents,
+  matchPreview,
+} from '../utils/block-text.util.js';
+import {
+  indexBlocks,
+  limitDepth,
+  outlineHeadings,
+} from '../utils/block-tree.util.js';
 import { sql } from 'kysely';
 import * as Y from 'yjs';
+import jwt from 'jsonwebtoken';
+
+/** ImageKit's V2 upload endpoint, which checks a signed JWT covering every upload parameter. */
+const IMAGEKIT_UPLOAD_URL = 'https://upload.imagekit.io/api/v2/files/upload';
+
+/** Extensions an upload may keep on its stored name, per file kind. Video matches BlockNote's isVideoUrl list. */
+const UPLOAD_EXTENSIONS = {
+  image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'svg', 'bmp'],
+  video: ['mp4', 'webm', 'ogg', 'mov', 'mkv', 'flv', 'avi', 'wmv', 'm4v'],
+  audio: ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'opus', 'weba'],
+};
 
 @Injectable()
 export class DocumentService {
@@ -47,6 +77,7 @@ export class DocumentService {
     private readonly documentYjsService: DocumentYjsService,
     private readonly documentCheckpointSchedulerService: DocumentCheckpointSchedulerService,
     private readonly documentCheckpointService: DocumentCheckpointService,
+    private readonly documentIndexingSchedulerService: DocumentIndexingSchedulerService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -56,7 +87,7 @@ export class DocumentService {
    * requesting user has less than viewer access.
    * @param documentId - the ID of the document to fetch
    * @param userId - the ID of the authenticated requesting user
-   * @returns the document's id, title, and createdAt
+   * @returns the document's id, title, createdAt, workspace, the caller's resolved access, and whether the caller has pinned it
    */
   async getDocumentOfUser(
     documentId: number,
@@ -72,16 +103,24 @@ export class DocumentService {
     if (!hasAccess(access, 'viewer'))
       throw new ForbiddenException('You do not have access to this document.');
 
-    // Fetch the document fields and its workspace name in a single join.
+    // Fetch the document fields, its workspace name, and the caller's pin in
+    // a single query — left join, since a never-visited document has no
+    // document_user_metadata row yet.
     const row = await db
       .selectFrom('documents as d')
       .innerJoin('workspaces as w', 'w.id', 'd.workspace_id')
+      .leftJoin('document_user_metadata as dum', (join) =>
+        join
+          .onRef('dum.document_id', '=', 'd.id')
+          .on('dum.user_id', '=', userId),
+      )
       .select([
         'd.id',
         'd.title',
         'd.created_at',
         'w.id as workspaceId',
         'w.name as workspaceName',
+        'dum.pinned_at as pinnedAt',
       ])
       .where('d.id', '=', documentId)
       .where('d.is_deleted', '=', false)
@@ -95,6 +134,7 @@ export class DocumentService {
       createdAt: row.created_at,
       workspace: { id: row.workspaceId, name: row.workspaceName },
       resolvedAccess: access,
+      isPinned: row.pinnedAt !== null,
     };
   }
 
@@ -150,6 +190,130 @@ export class DocumentService {
   }
 
   /**
+   * Finds every block whose own text (not its children's) contains the
+   * given text, case-insensitively — an exact find over the live document,
+   * not the search index, so it can't miss a match and sees edits made a
+   * moment ago. Throws NotFoundException if the document does not exist,
+   * ForbiddenException if the user has less than viewer access.
+   * @param documentId - the document to search
+   * @param userId - the requesting user
+   * @param text - the text to find
+   * @param limit - maximum number of matches to return
+   * @returns the matching blocks in document order, up to limit, plus the total match count
+   */
+  async findInDocument(
+    documentId: number,
+    userId: number,
+    text: string,
+    limit: number,
+  ): Promise<FindInDocumentToolResponseDto> {
+    const blocks = await this.getDocumentBlocks(documentId, userId);
+    const needle = text.toLowerCase();
+    const matches: FindInDocumentMatchDto[] = [];
+    let totalMatches = 0;
+
+    for (const { block, parentId } of flattenBlocksWithParents(blocks, null)) {
+      const blockText = blockPlainText(block);
+      const index = blockText.toLowerCase().indexOf(needle);
+      if (index === -1) continue;
+
+      totalMatches++;
+      if (matches.length < limit) {
+        matches.push({
+          blockId: block.id,
+          parentId,
+          type: block.type,
+          preview: matchPreview(blockText, index, text.length),
+        });
+      }
+    }
+
+    return { matches, totalMatches, truncated: totalMatches > matches.length };
+  }
+
+  /**
+   * Reads blocks by id from the live document — any block, top-level or
+   * nested — each with its parent id and the given number of siblings
+   * before and after it. Ids not in the document are listed in
+   * notFoundIds rather than failing the call. Throws NotFoundException if
+   * the document does not exist, ForbiddenException if the user has less
+   * than viewer access.
+   * @param documentId - the document the blocks are in
+   * @param userId - the requesting user
+   * @param blockIds - the ids of the blocks to read
+   * @param before - how many siblings to return before each block
+   * @param after - how many siblings to return after each block
+   * @param depth - how many levels of children to keep under each returned block: -1 for all, 0 for none
+   * @returns one result per block found, in the order of blockIds, plus the ids not found
+   */
+  async getBlocksById(
+    documentId: number,
+    userId: number,
+    blockIds: string[],
+    before: number,
+    after: number,
+    depth: number,
+  ): Promise<GetBlocksByIdToolResponseDto> {
+    const blocks = await this.getDocumentBlocks(documentId, userId);
+    const indexed = indexBlocks(blocks, null);
+    const results: GetBlocksByIdResultDto[] = [];
+    const notFoundIds: string[] = [];
+    const seenIds = new Set<string>();
+
+    for (const blockId of blockIds) {
+      if (seenIds.has(blockId)) continue;
+      seenIds.add(blockId);
+
+      const found = indexed.get(blockId);
+      if (!found) {
+        notFoundIds.push(blockId);
+        continue;
+      }
+
+      const beforeBlocks: DocumentBlock[] = [];
+      for (let i = Math.max(0, found.index - before); i < found.index; i++) {
+        beforeBlocks.push(limitDepth(found.siblings[i], depth));
+      }
+
+      const afterBlocks: DocumentBlock[] = [];
+      const afterEnd = Math.min(found.siblings.length, found.index + 1 + after);
+      for (let i = found.index + 1; i < afterEnd; i++) {
+        afterBlocks.push(limitDepth(found.siblings[i], depth));
+      }
+
+      results.push({
+        block: limitDepth(found.block, depth),
+        parentId: found.parentId,
+        before: beforeBlocks,
+        after: afterBlocks,
+      });
+    }
+
+    return { results, notFoundIds };
+  }
+
+  /**
+   * Lists every heading in the live document with short text and the
+   * number of sibling blocks after it, so an agent can see the document's
+   * structure and read one section with getBlocksById instead of reading
+   * the whole document. Throws NotFoundException if the document does not
+   * exist, ForbiddenException if the user has less than viewer access.
+   * @param documentId - the document to outline
+   * @param userId - the requesting user
+   * @returns the headings in document order, plus the top-level block count
+   */
+  async getDocumentOutline(
+    documentId: number,
+    userId: number,
+  ): Promise<GetDocumentOutlineToolResponseDto> {
+    const blocks = await this.getDocumentBlocks(documentId, userId);
+    return {
+      headings: outlineHeadings(blocks, null),
+      topLevelBlockCount: blocks.length,
+    };
+  }
+
+  /**
    * Applies a batch of id-addressed block edits to a document as a single
    * atomic save, then returns the document's resulting blocks. Throws
    * NotFoundException if the document does not exist, ForbiddenException if
@@ -163,22 +327,27 @@ export class DocumentService {
    * do here. No socket originates this write, so nothing is excluded from
    * the broadcast — every connected viewer of this document sees it.
    *
-   * This is currently the only caller of DocumentYjsService.applyDocUpdate
-   * that isn't a live client edit — it's the MCP write path exclusively —
-   * so it takes a synchronous 'mcp' checkpoint immediately beforehand,
-   * folding in everything since the last checkpoint. That gives a human a
-   * restore point from right before the agent's change, regardless of the
-   * idle/interval scheduler's own timing.
+   * This is the MCP write path — one of the callers of
+   * DocumentYjsService.applyDocUpdate that isn't a live client edit (see
+   * also restoreCheckpoint below) — so it takes a synchronous 'mcp'
+   * checkpoint immediately beforehand: everything since the last checkpoint
+   * is folded in. If nothing changed since then, no new checkpoint row is
+   * created — the existing one already captures this exact pre-edit state,
+   * so the guarantee (a checkpoint immediately before the agent's change,
+   * regardless of the idle/interval scheduler's own timing) still holds
+   * without a redundant duplicate.
    * @param documentId - the document to edit
    * @param userId - the ID of the authenticated requesting user
    * @param operations - the edits to apply, in order, as one atomic save
-   * @returns the document's full block list after applying the edits
+   * @returns the blocks the edits inserted (by replace or insert), in
+   * document order, each with its position and the index of the operation
+   * that inserted it — not the whole document
    */
   async updateDocumentBlocks(
     documentId: number,
     userId: number,
     operations: BlockOperationDto[],
-  ): Promise<DocumentBlock[]> {
+  ): Promise<InsertedBlockDto[]> {
     // Resolve access — throws NotFoundException if the document does not exist.
     const access = await this.documentAccessService.resolveAccess(
       documentId,
@@ -190,7 +359,10 @@ export class DocumentService {
       );
 
     // Snapshot everything since the last checkpoint before the agent's write
-    // lands, so restoring it undoes exactly this call.
+    // lands, so restoring it undoes exactly this call. Not forced: if
+    // nothing changed since the last checkpoint (e.g. it was just taken by
+    // the idle/interval scheduler), that checkpoint already captures this
+    // exact pre-edit state, so there's nothing to gain from a duplicate row.
     await this.documentCheckpointService.createCheckpointInternal(
       documentId,
       'mcp',
@@ -200,15 +372,19 @@ export class DocumentService {
     // document (see applyBlockOperations), then apply it the same way a
     // live client's own edit would be applied.
     const yDoc = await this.documentYjsService.loadDoc(documentId);
-    const { update, blocks } = await applyBlockOperations(yDoc, operations);
+    const { update, insertedBlocks } = await applyBlockOperations(
+      yDoc,
+      operations,
+    );
     await this.documentYjsService.applyDocUpdate(documentId, update);
 
-    // Keep last-edited tracking and automatic checkpoint scheduling
-    // consistent with a real client edit.
+    // Keep last-edited tracking and automatic checkpoint/indexing
+    // scheduling consistent with a real client edit.
     await this.documentYjsService.recordLastEdited(documentId, userId);
     await this.documentCheckpointSchedulerService.onDocumentEdited(documentId);
+    await this.documentIndexingSchedulerService.onDocumentEdited(documentId);
 
-    return blocks;
+    return insertedBlocks;
   }
 
   /**
@@ -224,13 +400,15 @@ export class DocumentService {
    * @param documentId - the document to restore
    * @param userId - the requesting user, must have editor+ access
    * @param checkpointId - the checkpoint to restore the document's content to
-   * @returns the document's resulting blocks after the restore
+   * @returns the number of top-level blocks in the document after the
+   * restore — not the blocks themselves, since a restore keeps the
+   * checkpoint's own block ids, so the caller has no new ids to learn
    */
   async restoreCheckpoint(
     documentId: number,
     userId: number,
     checkpointId: number,
-  ): Promise<DocumentBlock[]> {
+  ): Promise<number> {
     // Resolve access — throws NotFoundException if the document does not exist.
     const access = await this.documentAccessService.resolveAccess(
       documentId,
@@ -243,7 +421,9 @@ export class DocumentService {
 
     // Snapshot everything since the last checkpoint before the restore
     // lands, so undoing a bad restore is itself just restoring to this new
-    // checkpoint — same safety net updateDocumentBlocks gets.
+    // checkpoint — same safety net updateDocumentBlocks gets, and for the
+    // same reason not forced: an existing checkpoint with nothing since it
+    // already captures this exact pre-restore state.
     await this.documentCheckpointService.createCheckpointInternal(
       documentId,
       'mcp',
@@ -252,11 +432,12 @@ export class DocumentService {
     // Reconstruct the target checkpoint's content: its stored update is a
     // full self-contained Yjs state, not a delta, so applying it alone to
     // an empty scratch doc fully reconstructs the checkpoint's content.
-    const checkpoint = await this.documentCheckpointService.getCheckpointContent(
-      documentId,
-      userId,
-      checkpointId,
-    );
+    const checkpoint =
+      await this.documentCheckpointService.getCheckpointContent(
+        documentId,
+        userId,
+        checkpointId,
+      );
     const targetScratch = new Y.Doc();
     Y.applyUpdate(targetScratch, base64ToUint8Array(checkpoint.updateBase64));
     const targetBlocks = blocksFromYDoc(targetScratch);
@@ -268,12 +449,13 @@ export class DocumentService {
     const { update, blocks } = await restoreYDocFromBlocks(yDoc, targetBlocks);
     await this.documentYjsService.applyDocUpdate(documentId, update);
 
-    // Keep last-edited tracking and automatic checkpoint scheduling
-    // consistent with a real client edit.
+    // Keep last-edited tracking and automatic checkpoint/indexing
+    // scheduling consistent with a real client edit.
     await this.documentYjsService.recordLastEdited(documentId, userId);
     await this.documentCheckpointSchedulerService.onDocumentEdited(documentId);
+    await this.documentIndexingSchedulerService.onDocumentEdited(documentId);
 
-    return blocks;
+    return blocks.length;
   }
 
   /**
@@ -397,9 +579,10 @@ export class DocumentService {
 
   /**
    * Returns overview metadata for the given document: title, creator and owner
-   * name and email, and creation date. Throws NotFoundException if the document
-   * does not exist or is deleted, and ForbiddenException if the requesting user
-   * has less than viewer access.
+   * name and email, creation date, and RAG indexing status (lifecycle state
+   * plus when it was last confirmed indexed). Throws NotFoundException if the
+   * document does not exist or is deleted, and ForbiddenException if the
+   * requesting user has less than viewer access.
    * @param documentId - the document to fetch overview data for
    * @param userId - the authenticated user performing the request
    * @returns overview metadata for the document
@@ -421,7 +604,13 @@ export class DocumentService {
     // Fetch the document fields needed for the overview response.
     const docRow = await db
       .selectFrom('documents')
-      .select(['title', 'creator_id', 'created_at'])
+      .select([
+        'title',
+        'creator_id',
+        'created_at',
+        'indexing_status',
+        'last_indexed_at',
+      ])
       .where('id', '=', documentId)
       .where('is_deleted', '=', false)
       .executeTakeFirst();
@@ -463,6 +652,8 @@ export class DocumentService {
       ownerName: ownerRow.name,
       ownerEmail: ownerRow.email,
       createdAt: docRow.created_at,
+      indexingStatus: docRow.indexing_status,
+      lastIndexedAt: docRow.last_indexed_at,
     };
   }
 
@@ -486,12 +677,18 @@ export class DocumentService {
         'You must have admin access to delete this document.',
       );
 
-    // Mark the document as deleted without removing any rows.
-    await db
-      .updateTable('documents')
-      .set({ is_deleted: true, deleted_at: new Date() })
-      .where('id', '=', documentId)
-      .execute();
+    // Mark the document as deleted without removing any rows, and bump the
+    // access version in the same transaction so open sockets re-resolve
+    // (and, now that it 404s, get disconnected) on their next emit.
+    await db.transaction().execute(async (tx) => {
+      await tx
+        .updateTable('documents')
+        .set({ is_deleted: true, deleted_at: new Date() })
+        .where('id', '=', documentId)
+        .execute();
+
+      await this.documentAccessService.bumpDocAccessVersion(tx, documentId);
+    });
   }
 
   /**
@@ -521,14 +718,20 @@ export class DocumentService {
     // WHERE on is_deleted = true makes the "already restored" check atomic
     // with the write itself, so two concurrent restores can't both report
     // success.
-    const result = await db
-      .updateTable('documents')
-      .set({ is_deleted: false, deleted_at: null })
-      .where('id', '=', documentId)
-      .where('is_deleted', '=', true)
-      .returning('id')
-      .executeTakeFirst();
-    if (!result) throw new ConflictException('Document is not deleted.');
+    // The access version is bumped in the same transaction, like every other
+    // write that changes who may access the document.
+    await db.transaction().execute(async (tx) => {
+      const result = await tx
+        .updateTable('documents')
+        .set({ is_deleted: false, deleted_at: null })
+        .where('id', '=', documentId)
+        .where('is_deleted', '=', true)
+        .returning('id')
+        .executeTakeFirst();
+      if (!result) throw new ConflictException('Document is not deleted.');
+
+      await this.documentAccessService.bumpDocAccessVersion(tx, documentId);
+    });
   }
 
   /**
@@ -637,6 +840,9 @@ export class DocumentService {
    * @param workspaceId - the workspace to scope the library to
    * @param limit - maximum number of documents to return
    * @param cursor - compound cursor from the previous page; omit for the first page
+   * @param ignorePinnedDocs - when true, excludes documents the user has pinned, so a
+   * caller that renders its own separate pinned list (e.g. the sidebar) doesn't have to
+   * dedupe client-side. Defaults to false.
    * @returns documents for this page and the nextCursor to fetch the following page
    */
   async getLibraryDocuments(
@@ -644,6 +850,7 @@ export class DocumentService {
     workspaceId: number,
     limit: number,
     cursor?: { lastVisitedAt: Date | null; id: number },
+    ignorePinnedDocs = false,
   ): Promise<GetLibraryDocumentsResponseDto> {
     const db = this.dbService.kysely;
 
@@ -669,6 +876,7 @@ export class DocumentService {
         'd.title',
         'dum.last_visited_at as lastVisitedAt',
         'dum.last_edited_at as lastEditedAt',
+        'dum.pinned_at as pinnedAt',
         sql<ResolvedDocumentAccessLevel>`
           CASE
             WHEN wm.role = 'owner' THEN 'owner'
@@ -691,6 +899,12 @@ export class DocumentService {
       .orderBy(sql`"r"."lastVisitedAt" DESC NULLS LAST`)
       .orderBy(sql`"r"."id" DESC`)
       .limit(limit);
+
+    // Excludes pinned documents so a caller with its own pinned-documents list
+    // (the sidebar) never has to dedupe the two lists client-side.
+    if (ignorePinnedDocs) {
+      query = query.where('r.pinnedAt', 'is', null);
+    }
 
     // Keyset pagination — handles transition into the NULL lastVisitedAt section.
     if (cursor) {
@@ -729,6 +943,127 @@ export class DocumentService {
         : null;
 
     return { documents, nextCursor };
+  }
+
+  /**
+   * Returns every document in the given workspace that the user has pinned
+   * and still has viewer+ access to, ordered by pinned_at DESC (most recently
+   * pinned first). Uses the same access-resolution subquery as
+   * getLibraryDocuments. Unpaginated — a user's pinned list is expected to
+   * stay small.
+   * @param userId - the authenticated user whose pinned documents to list
+   * @param workspaceId - the workspace to scope the list to
+   * @returns the user's pinned documents in this workspace
+   */
+  async getPinnedDocuments(
+    userId: number,
+    workspaceId: number,
+  ): Promise<GetPinnedDocumentsResponseDto> {
+    const db = this.dbService.kysely;
+
+    // Inner subquery: same five-tier access resolution as getLibraryDocuments.
+    const inner = db
+      .selectFrom('documents as d')
+      .innerJoin('workspaces as w', 'w.id', 'd.workspace_id')
+      .leftJoin('document_user_metadata as dum', (join) =>
+        join
+          .onRef('dum.document_id', '=', 'd.id')
+          .on('dum.user_id', '=', userId),
+      )
+      .leftJoin('workspace_members as wm', (join) =>
+        join
+          .onRef('wm.workspace_id', '=', 'd.workspace_id')
+          .on('wm.user_id', '=', userId),
+      )
+      .leftJoin('document_access as da', (join) =>
+        join.onRef('da.document_id', '=', 'd.id').on('da.user_id', '=', userId),
+      )
+      .select([
+        'd.id',
+        'd.title',
+        'dum.last_visited_at as lastVisitedAt',
+        'dum.last_edited_at as lastEditedAt',
+        'dum.pinned_at as pinnedAt',
+        sql<ResolvedDocumentAccessLevel>`
+          CASE
+            WHEN wm.role = 'owner' THEN 'owner'
+            WHEN da.access IS NOT NULL THEN da.access
+            WHEN wm.role = 'admin' THEN COALESCE(d.admin_doc_access, w.admin_doc_access)
+            WHEN wm.role = 'member' THEN COALESCE(d.member_doc_access, w.member_doc_access)
+            ELSE COALESCE(d.non_member_doc_access, w.non_member_doc_access)
+          END
+        `.as('access'),
+      ])
+      .where('d.is_deleted', '=', false)
+      .where('d.workspace_id', '=', workspaceId)
+      .as('r');
+
+    // Outer query: filter to pinned + viewer+ access, order by most recently pinned.
+    const rows = await db
+      .selectFrom(inner)
+      .selectAll()
+      .where('r.pinnedAt', 'is not', null)
+      .where('r.access', '!=', 'noAccess')
+      .orderBy('r.pinnedAt', 'desc')
+      .execute();
+
+    const documents: LibraryDocumentDto[] = rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      access: row.access,
+      lastVisitedAt: row.lastVisitedAt,
+      lastEditedAt: row.lastEditedAt,
+    }));
+
+    return { documents };
+  }
+
+  /**
+   * Pins or unpins the given document for the given user. Throws 404 if the
+   * document does not exist or is deleted, and 403 if the user has less than
+   * viewer access — pinning is a personal bookmark, so it requires no more
+   * access than appearing in the library already does.
+   * @param documentId - the document to pin or unpin
+   * @param userId - the authenticated user pinning or unpinning it
+   * @param pinned - true to pin, false to unpin
+   * @returns the resulting pinnedAt value — a timestamp when pinned, null when unpinned
+   */
+  async setPinned(
+    documentId: number,
+    userId: number,
+    pinned: boolean,
+  ): Promise<SetDocumentPinnedResponseDto> {
+    const db = this.dbService.kysely;
+
+    // Resolve access — throws NotFoundException if the document does not exist.
+    const access = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+    );
+    if (!hasAccess(access, 'viewer'))
+      throw new ForbiddenException('You do not have access to this document.');
+
+    // Upsert so pinning a never-before-visited document doesn't need a
+    // pre-existing document_user_metadata row. Uses the DB's own clock (not
+    // app-server time) for consistency with recordLastVisited/recordLastEdited,
+    // and returns the persisted value rather than re-deriving it client-side.
+    const pinnedAtValue = pinned ? sql<Date>`now()` : null;
+    const row = await db
+      .insertInto('document_user_metadata')
+      .values({
+        document_id: documentId,
+        user_id: userId,
+        pinned_at: pinnedAtValue,
+      })
+      .onConflict((oc) =>
+        oc
+          .columns(['document_id', 'user_id'])
+          .doUpdateSet({ pinned_at: pinnedAtValue }),
+      )
+      .returning('pinned_at as pinnedAt')
+      .executeTakeFirstOrThrow();
+
+    return { pinnedAt: row.pinnedAt };
   }
 
   /**
@@ -809,29 +1144,90 @@ export class DocumentService {
   }
 
   /**
-   * Generates a one-time ImageKit upload auth payload for client-side uploads.
-   * The private key signs the token+expire pair so ImageKit can verify the
-   * request without the private key ever leaving the server.
-   * @returns token, expire (Unix seconds), and HMAC-SHA1 signature
+   * Generates a one-time ImageKit V2 upload token for a file going into this
+   * document. The server decides every upload parameter (folder, file name,
+   * transformation, and the type/size checks ImageKit runs on the file) and
+   * signs them into a JWT, so ImageKit rejects any upload whose parameters
+   * differ from these or whose file fails the checks — the uploader can't
+   * pick its own folder, size or type. Throws NotFoundException if the
+   * document does not exist or is deleted, and ForbiddenException if the user
+   * has less than editor access.
+   * @param documentId - the document the file will be inserted into
+   * @param userId - the ID of the authenticated requesting user
+   * @param fileType - the kind of file, which sets its size cap and transformation
+   * @param extension - the original file's extension, kept on the stored file's name if it's a known one for fileType
+   * @returns the upload URL, the signed token, and the exact fields to send with it
    */
-  getImageKitUploadAuth(): GetUploadAuthResponseDto {
+  async getImageKitUploadAuth(
+    documentId: number,
+    userId: number,
+    fileType: 'image' | 'video' | 'audio',
+    extension?: string,
+  ): Promise<GetUploadAuthResponseDto> {
     const privateKey = this.configService.get<string>('IMAGEKIT_PRIVATE_KEY');
-    if (!privateKey)
+    const publicKey = this.configService.get<string>('IMAGEKIT_PUBLIC_KEY');
+    if (!privateKey || !publicKey)
       throw new InternalServerErrorException(
-        'ImageKit private key is not configured.',
+        'ImageKit keys are not configured.',
       );
 
-    // A unique token per request prevents replay attacks — ImageKit rejects reused tokens.
-    const token = randomUUID();
+    const access = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+    );
+    if (!hasAccess(access, 'editor'))
+      throw new ForbiddenException(
+        'You need editor access to upload files to this document.',
+      );
 
-    // Expire 5 minutes from now; must be within 1 hour per ImageKit's requirement.
-    const expire = Math.floor(Date.now() / 1000) + 300;
+    const document = await this.dbService.kysely
+      .selectFrom('documents')
+      .select('workspace_id')
+      .where('id', '=', documentId)
+      .executeTakeFirstOrThrow();
 
-    // HMAC-SHA1 of token+expire proves this payload was issued by our server.
-    const signature = createHmac('sha1', privateKey)
-      .update(token + expire)
-      .digest('hex');
+    // Same folder names the editor has always used, so existing and new
+    // uploads stay together: "production" for the prod server, else "development".
+    let folderEnv = 'development';
+    if (process.env.NODE_ENV === 'prod') folderEnv = 'production';
 
-    return { token, expire, signature };
+    // Keep a known extension on the stored name: BlockNote turns Markdown
+    // ![](url) into a video block only when the URL ends in a video
+    // extension. An unknown one is dropped rather than rejected, so an
+    // upload never fails over its name — the checks below still decide
+    // what the file actually is.
+    let fileName = randomUUID();
+    const normalizedExtension = extension?.replace(/^\./, '').toLowerCase();
+    if (
+      normalizedExtension &&
+      UPLOAD_EXTENSIONS[fileType].includes(normalizedExtension)
+    )
+      fileName += `.${normalizedExtension}`;
+
+    const fields: Record<string, string> = {
+      fileName,
+      folder: `/converge/${folderEnv}/workspaces/${document.workspace_id}/documents/${documentId}`,
+    };
+
+    // ImageKit runs these checks on the file before storing it. With a
+    // pre-transformation it checks the transformed file, so an image's size
+    // cap applies to the resized result, not to the original upload.
+    if (fileType === 'image') {
+      fields.transformation = JSON.stringify({ pre: 'w-2000,q-80' });
+      fields.checks = '"file.mime" : "image/" AND "file.size" <= "25MB"';
+    } else if (fileType === 'video') {
+      fields.checks = '"file.mime" : "video/" AND "file.size" <= "100MB"';
+    } else {
+      fields.checks = '"file.mime" : "audio/" AND "file.size" <= "5MB"';
+    }
+
+    // ImageKit rejects an upload whose fields don't match this payload, and
+    // rejects a token used twice. Valid 5 minutes (ImageKit allows up to 1 hour).
+    const token = jwt.sign(fields, privateKey, {
+      expiresIn: 300,
+      header: { alg: 'HS256', typ: 'JWT', kid: publicKey },
+    });
+
+    return { uploadUrl: IMAGEKIT_UPLOAD_URL, token, fields };
   }
 }

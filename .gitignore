@@ -1,5 +1,4 @@
 .env
-dev-ports.*.env
 
 # Dependencies
 node_modules/
@@ -17,3 +16,6 @@ npm-debug.log*
 
 # Git worktrees
 worktrees/
+
+# Understand anything files
+.ua

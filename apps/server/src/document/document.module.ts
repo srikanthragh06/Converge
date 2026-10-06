@@ -12,10 +12,20 @@ import { DocumentCheckpointService } from './document-checkpoint.service.js';
 import { DocumentCheckpointSchedulerService } from './document-checkpoint-scheduler.service.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { DocumentTools } from './document.tools.js';
+import { DocumentEmbeddingService } from './document-embedding.service.js';
+import { DocumentIndexingService } from './document-indexing.service.js';
+import { DocumentIndexingSchedulerService } from './document-indexing-scheduler.service.js';
+import { DocumentRerankService } from './document-rerank.service.js';
+import { DocumentRAGService } from './document-rag.service.js';
+import { ImageKitUploadAuthRateLimitGuard } from './imagekit-upload-auth-rate-limit.guard.js';
 
 @Module({
   imports: [DatabaseModule, RedisModule, AuthModule],
-  exports: [DocumentCheckpointSchedulerService, DocumentTools],
+  exports: [
+    DocumentCheckpointSchedulerService,
+    DocumentIndexingSchedulerService,
+    DocumentTools,
+  ],
   controllers: [DocumentController, DocumentAccessController],
   providers: [
     DocumentGateway,
@@ -26,6 +36,12 @@ import { DocumentTools } from './document.tools.js';
     DocumentCheckpointService,
     DocumentCheckpointSchedulerService,
     DocumentTools,
+    DocumentEmbeddingService,
+    DocumentIndexingService,
+    DocumentIndexingSchedulerService,
+    DocumentRerankService,
+    DocumentRAGService,
+    ImageKitUploadAuthRateLimitGuard,
   ],
 })
 export class DocumentModule {}

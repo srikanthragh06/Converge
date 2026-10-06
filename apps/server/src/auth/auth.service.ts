@@ -34,16 +34,19 @@ export class AuthService {
    * or updating profile fields if the user already exists.
    *
    * @param code - The one-time authorisation code from Google's OAuth redirect.
+   * @param redirectUri - The redirect_uri the client used to obtain `code`; must be echoed
+   * back to Google verbatim during the token exchange.
    * @returns The signed JWT and the user's profile details.
    */
   async authorizeGoogleUserAndGenerateJWT(
     code: string,
+    redirectUri: string,
   ): Promise<{ authToken: string; userDetails: AuthResponseDto }> {
     // Exchange the one-time code for Google token data; map axios errors to
     // appropriate HTTP exceptions before they reach the NestJS pipeline.
     let data: any;
     try {
-      data = await this.exchangeCodeWithGoogleAuth(code);
+      data = await this.exchangeCodeWithGoogleAuth(code, redirectUri);
     } catch (err) {
       const error = err as Record<string, unknown>;
       if (error?.response) {
@@ -131,18 +134,21 @@ export class AuthService {
    * network failure — callers are responsible for error mapping.
    *
    * @param code - The one-time authorisation code received from Google's OAuth redirect.
+   * @param redirectUri - The redirect_uri the client used to obtain `code`; Google rejects
+   * the exchange unless this matches the authorisation request exactly.
    * @returns The raw response body from Google's token endpoint, including `id_token`.
    */
-  async exchangeCodeWithGoogleAuth(code: string): Promise<any> {
+  async exchangeCodeWithGoogleAuth(
+    code: string,
+    redirectUri: string,
+  ): Promise<any> {
     const { data } = await firstValueFrom(
       this.httpService.post('https://oauth2.googleapis.com/token', {
         code,
         client_id: this.configService.get<string>('GOOGLE_CLIENT_ID'),
         client_secret: this.configService.get<string>('GOOGLE_CLIENT_SECRET'),
         grant_type: 'authorization_code',
-        redirect_uri: this.configService.get<string>(
-          'GOOGLE_AUTH_CLIENT_CALLBACK_URL',
-        ),
+        redirect_uri: redirectUri,
       }),
     );
 

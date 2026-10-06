@@ -764,7 +764,310 @@ The MCP server had no documentation anywhere a user would actually find it — j
 - `worktrees/` established as the standard location for git worktrees in this repo (moved off the default `.claude/worktrees/`) and added to `.gitignore`
 - Removed the obsolete `version` key from `docker-compose.dev.yml`, which Compose ignores and warns about on current versions
 
+## Link Hover Affordance ✅
+
+> Branch: `release-visible-links` — merged 2026-09-08
+
+### Web (React frontend)
+
+- Links inside the editor previously rendered identically to plain text with no indication they were clickable — contenteditable suppresses the browser's default pointer cursor over anchors, so even the cursor gave no hint
+- `.bn-editor a` now dims slightly, shows a pointer cursor, and gains a dotted underline on hover; the opacity change is eased via a `transition` declared on the base rule rather than the `:hover` rule itself, since a hover-only rule has nothing to transition from and would otherwise snap instead of ease
+
+## Worktree Dev Environment ✅
+
+> Branch: `release-another-dev-setup` — merged 2026-09-09
+
+Makes it possible to run a second full dev stack in a git worktree alongside the main checkout's, without port clashes, doubled memory use, or Google login silently failing.
+
+### Tooling
+
+- New `docker-compose.dev.worktree.yml` mirrors `docker-compose.dev.yml` but runs a single `server`/`web` instance instead of two of each — the main checkout's paired instances exist for multi-instance Yjs sync testing, which a worktree doing feature work doesn't need, and each Vite/Nest instance costs ~0.7-1.3GiB — and shifts every host port by 1000, so a worktree's stack runs alongside the main checkout's with no config to hand-manage; replaces an earlier `dev-ports.<name>.env`-per-worktree override mechanism
+- Fixed the worktree compose file's default server port (6000) landing on the browser's unsafe-ports blocklist (reserved for X11) — every request to it failed client-side with `net::ERR_UNSAFE_PORT` regardless of server config; moved to 6060
+
+### Server (NestJS backend) / Web (React frontend)
+
+- Fixed Google login failing on any origin other than the main checkout's: the token exchange sent Google a hardcoded `GOOGLE_AUTH_CLIENT_CALLBACK_URL` (fixed to the main checkout's port) instead of the `redirect_uri` actually used in the authorization request, so Google rejected the exchange with a mismatch on any other origin/port, leaving the login silently failed and every later request reporting "No authToken present in request cookies". The client now sends its own `redirectUri` (already computed correctly per-origin) alongside `code` to `POST /auth/google`, and the server echoes it back to Google verbatim — no per-environment config to keep in sync, works for the main checkout and any worktree automatically
+
+## Write Lock & Document Pinning ✅
+
+> Branch: `release-minor-ui-changes` — merged 2026-09-09
+
+Two small, independent editor/sidebar comfort features, plus a sidebar layout bug the second one exposed.
+
+### Web (React frontend)
+
+- Write Lock — a per-document, per-browser toggle in `EditorPageHeader` (left of Save Checkpoint) that disables editing for just the current user in the current browser; purely local, no server call, no effect on any other user's ability to write. `useWriteLock` persists the flag to `localStorage` keyed by document ID and re-derives it during render (not inside a `useEffect`) when the open document changes, avoiding an extra render pass. `EditorPage` combines it with the existing access-based `isEditable` into `canWrite`, which gates both the BlockNote editor's `editable` prop and the title input
+- Document Pinning — a "Pinned" section in the sidebar above the existing Documents (recent) section, each row with a pin/unpin toggle. New `pinnedDocumentsAtom` mirrors the existing `recentDocumentsAtom`; `useSidebar` fetches both whenever the workspace changes, passing the server's new `ignorePinnedDocs` flag on the recent-documents request so the two lists never overlap without any client-side dedup. `togglePin` calls the new pin endpoint, then bumps the existing `refreshSidebarAtom` to re-fetch both lists rather than patching either atom locally — pinned and recent are server-computed complements of each other, so only a re-fetch correctly moves a document across in both directions (an unpinned document needs its correct recency position recomputed server-side, not just to disappear from Pinned). `SidebarDocumentRow` (title button + pin toggle) extracted into its own file since it's now shared between both sections
+- Bug fix: the open sidebar's container was `h-full flex-col` with no `overflow-y-auto`, so once its content grew taller than the viewport it silently clipped instead of scrolling — more likely to bite now that the new Pinned section adds height on top of Documents
+
+### Server (NestJS backend)
+
+- `pinned_at` nullable timestamptz column added to `document_user_metadata` (migration `0035`) — a timestamp rather than a boolean, mirroring `last_visited_at`/`last_edited_at` on the same table, so the pinned list can be ordered by most-recently-pinned first
+- `DocumentService.getPinnedDocuments` — reuses the same five-tier access-resolution subquery as `getLibraryDocuments`, filtered to `pinned_at IS NOT NULL` and ordered by most-recently-pinned; unpaginated, since a personal pinned list is expected to stay small
+- `DocumentService.setPinned` — resolves access (404/403, same pattern as every other doc endpoint), then upserts `document_user_metadata.pinned_at` using the DB's own clock (`sql\`now()\``, consistent with `recordLastVisited`/`recordLastEdited`) and returns the persisted value via `RETURNING` rather than re-deriving it from app-server time
+- `getLibraryDocuments` gained an `ignorePinnedDocs` param — when true, excludes documents the caller has pinned, so a consumer that already renders its own pinned list doesn't have to dedupe. `searchLibraryDocuments` was left untouched; pinning only applies to the sidebar's recent-documents list, not search
+- New routes: `GET /document/pinned`, `PUT /document/:id/pin`
+
+### Shared package
+
+- `GetPinnedDocumentsRequestSchema`/`ResponseSchema` and `SetDocumentPinnedRequestSchema`/`ResponseSchema` added to `@converge/shared/http/document`; `GetLibraryDocumentsRequestSchema` gained `ignorePinnedDocs`
+- `ignorePinnedDocs` uses Zod's `z.stringbool()` rather than `z.coerce.boolean()` — it's a query-string value, and `coerce.boolean()` treats any non-empty string (including the literal `"false"`) as `true`
+
+## Real-Time Access Revocation Fix ✅
+
+> Branch: `release-socket-access-removal` — merged 2026-09-10
+
+A user's access to a document was resolved once when their WebSocket connected and then cached for the lifetime of that connection — an admin revoking access, downgrading a role, or removing the user from the workspace had no way to reach an already-open socket, so the user kept their old (often editor) access until they happened to disconnect and reconnect.
+
+### Server (NestJS backend)
+
+- `DocumentAccessService.resolveAccess` collapsed from up to 4 sequential DB round-trips (document, workspace membership, explicit access row, workspace defaults) into a single indexed `LEFT JOIN` query with a SQL `CASE` expression, mirroring the access-resolution subquery `getLibraryDocuments` already used — same four-tier precedence and `includeDeleted` semantics, no caller changes needed. This was a deliberate stepping stone: made resolving access cheap enough to call on every gated socket event instead of caching it
+- `DocumentGateway` no longer stamps a resolved access level onto the socket (`client.data.access`). Every access-gated WebSocket handler — `SYNC_DOC_SERVER`, `REPAIR_SYNC_ACK_DOC_SERVER`, `REPAIR_ACK_DOC_SERVER`, `SYNC_DOC_TITLE_SERVER` — now calls `resolveAccess` fresh on each event, so a revoked grant, downgraded role, or workspace removal takes effect on the user's very next write attempt instead of only after reconnect
+- `handleConnection` also switched from `DocumentService.getDocumentOfUser` (which fetched document title and workspace name that were immediately discarded — only the resolved access level was ever used at connect time) to calling `DocumentAccessService.resolveAccess` directly, removing the gateway's last remaining `DocumentService` dependency
+- Fixed the same shape of bug in `DocumentAwarenessService`: the presence-badge `accessLevel` field was resolved once on a user's first tab open and then carried forward unchanged on every later cursor/focus update, so the collaborator badge shown to other users also never reflected a mid-session access change. `updateUser` now re-resolves it on every call, piggybacking on an event that already fires on real user activity rather than adding new invalidation plumbing
+
+## Retrieval-Augmented Search (RAG) ✅
+
+> Branch: `release-rag` — merged 2026-09-10
+
+Adds semantic search over document content, indexed incrementally as documents are edited and exposed to AI agents via a new MCP tool — the foundation for a future "ask your workspace" chat agent. Chunking strategy, hybrid retrieval, and reranking were all built and evaluated first on a separate `rag-poc` branch (a 1,225-question benchmark plus a 300-question hand-authored hard eval) before landing here as real app infrastructure.
+
+### Server (NestJS backend)
+
+- `document_chunks` (migration `0036`) — embedded, searchable Markdown chunks with a `pgvector` `vector(1536)` column and an HNSW cosine-similarity index, denormalizing `workspace_id` so retrieval can filter by access without a join; `document_block_hashes` (migration `0037`) — per-block content fingerprints used to diff what changed between indexing runs
+- `chunking.util.ts` — the sized-headings chunking strategy validated on `rag-poc`: a 500-token hard cap that never splits a single block, closing a chunk as soon as a 4th small (<80-token) heading section would join it
+- `DocumentEmbeddingService` (OpenAI `text-embedding-3-small`) and a new `markdownFromBlock` (`editor-schema.ts`, wrapped in `withMutex` since the server has concurrent requests hitting the shared jsdom shim, unlike the POC's single-threaded script)
+- `DocumentIndexingService.reindexDocument` — the partial-reindex algorithm: hash-diffs current blocks against `document_block_hashes` to get added/removed/changed sets, anchors each new block to its nearest existing neighbor so it never indexes as an isolated singleton, then grows the rebuild set to a fixed point via alternating chunk-closure (pull in every block sharing a chunk with something already in the set) and section-closure (pull in every block sharing a *headed* section) passes, before re-chunking and re-embedding only the affected contiguous runs. No access check — internal-only, called after the caller-facing edit path already verified access
+- `DocumentYjsService.loadDoc` gained a `rebuild` param — a scheduled indexing job has no socket and no guarantee this instance was ever subscribed to the document's Redis updates, so it always reconstructs the Y.Doc fresh from `document_updates` instead of trusting the shared in-memory cache; every existing socket-driven caller keeps the cheaper cached default
+- `DocumentIndexingSchedulerService` — a dedicated 5-second idle pg-boss queue, deliberately separate and shorter than the checkpoint scheduler's 90s/360s timers since search freshness needs a tighter debounce than version history does; wired into every content-changing edit path (all three `document.gateway.ts` handlers plus both MCP write paths, `updateDocumentBlocks` and `restoreCheckpoint`)
+- BM25 term/corpus stats (migration `0038`) — `document_chunks` gains `token_count` and a generated, GIN-indexed `content_tsv` column; new `document_chunk_term_stats` (per-workspace document frequency) and `document_chunk_corpus_stats` (running chunk/token totals) tables, maintained as net-delta upserts inside the same reindex transaction. `bm25.util.ts` scores real Okapi BM25 (k1=1.5, b=0.75) against these stats — the IDF and length-normalization ingredients plain `ts_rank_cd` has no way to produce
+- `DocumentRerankService` — a thin Voyage `rerank-3` wrapper; reads `VOYAGE_API_KEY` lazily inside `rerank()` rather than the constructor, so an unconfigured key doesn't block the whole server from booting
+- `DocumentRAGService.retrieve` — the hybrid retrieval core: semantic (pgvector cosine, top 30) and lexical (BM25-scored, OR'd query terms, no pre-cut before scoring) candidates are unioned by chunk id — not RRF-fused, since a noisy stage-1 score could otherwise bury a good candidate before reranking sees it — then reranked, with access resolved via the same bulk resolved-access `CASE` query `getLibraryDocuments` uses rather than a per-document check
+- New MCP tool `searchDocumentContent` — one task-shaped tool with no caller-facing strategy parameter; returns grounded content and citations only, leaving answer synthesis to the calling agent, so the same tool stays usable by an external MCP client or a future in-app chat agent without its contract ever changing
+- Persisted indexing lifecycle (migration `0039`): `documents.indexing_status`/`last_indexed_at`, surfaced via `getDocumentOverview` and a new MCP tool `getDocumentIndexingStatus`. `last_indexed_at` means "last time a run confirmed the index is current," not "last time content changed" — a `markIndexed` step runs on every successful `reindexDocument` exit path, including a no-op "nothing changed" one, so a long-idle up-to-date document doesn't read as stale
+- `DocumentCheckpointService.createCheckpointInternal` gained a `force` param: an AI-triggered edit must always leave a checkpoint immediately beforehand, even if nothing changed since the last one (e.g. back-to-back agent edits) — forcing duplicates the previous checkpoint's exact bytes into a new row rather than silently skipping. Both MCP write paths (`updateDocumentBlocks`, `restoreCheckpoint`) now pass it
+- HTTP and WebSocket payload limits raised from framework defaults to 5MB — Express (`bodyParser: false` plus explicit `express.json`/`urlencoded` limits), Socket.io's `maxHttpBufferSize`, and nginx's `client_max_body_size` all have to move together since they gate the same Yjs update payload; `GlobalExceptionFilter` now maps body-parser's `entity.too.large` error to a clean 413 instead of a generic 500
+- Migration renumbering: `rag`'s original `0035`-`0037` collided with a `0035` migration that landed on `main` from a separate release branch while this one was still in flight — renumbered to `0036`-`0039`, exactly the scenario the migration-numbering convention in `CLAUDE.md` warns about
+
+### Web (React frontend)
+
+- Document Overview tab (in "Manage Document") shows live "Search indexing" (Up to date / Pending / Indexing…) and "Last indexed" (relative time, or "Never") rows; `useOverviewTab` polls every 5s while the tab stays mounted so a pending/indexing status resolves to idle without closing and reopening the modal
+
+### Shared package
+
+- `DocumentIndexingStatusSchema` (`idle`/`pending`/`indexing`) added to `@converge/shared`; `GetDocumentOverviewResponseSchema` extended with `indexingStatus`/`lastIndexedAt`
+- `SearchDocumentContentToolInputSchema`/`ResponseSchema` and `GetDocumentIndexingStatusToolInputSchema`/`ResponseSchema` added to `packages/shared/src/tools/document.ts`; a retrieval citation is deliberately minimal (`workspaceId` + `documentId` + `blockIds` only, no excerpt or score baked in)
+
+### Tooling
+
+- `docker-compose.dev.yml`'s Postgres image switched from `postgres:16` to `pgvector/pgvector:pg16` — plain `postgres:16` has no vector extension files, so `CREATE EXTENSION vector` fails against it
+- One-time throwaway script (`apps/server/src/scripts/backfill-rag-index.ts`) to index every document that predates this feature — no new indexing logic, it drives each target through the same `DocumentIndexingSchedulerService.onDocumentEdited` entry point a live edit uses, then polls until the resulting pg-boss jobs drain; deleted after its one production run
+
+## No-Duplicate MCP Checkpoints ✅
+
+> Branch: `release-no-duplicate-checkpoint` — merged 2026-09-11
+
+Small fix to the RAG release's `force` checkpoint behavior: an MCP-driven write no longer forces a redundant duplicate checkpoint row when nothing has changed since the last one.
+
+### Server (NestJS backend)
+
+- `DocumentService.updateDocumentBlocks` and `restoreCheckpoint` no longer pass `force: true` to `DocumentCheckpointService.createCheckpointInternal`. Previously, if an MCP write landed with nothing changed since the last checkpoint (e.g. the idle/interval scheduler had just taken one moments earlier), the forced path duplicated that checkpoint's exact bytes into a new row just to mark the moment. The pre-edit-state guarantee doesn't actually need a new row: an existing checkpoint with nothing since it already captures the exact state right before the agent's change, `mcp`-sourced or not
+
+## Rate Limiting & Indexing Reliability ✅
+
+> Branch: `release-rate-limiting` — merged 2026-09-15
+
+Closes the two request-volume gaps the RAG release left open — the only unauthenticated route in the app (`POST /auth/google`) and the two live paid-provider calls (OpenAI embeddings, Voyage rerank) — and, along the way, fixes a correctness gap in how the indexing pipeline reports and recovers from failure.
+
+### Server (NestJS backend)
+
+- `POST /auth/google` rate limiting — new `GoogleAuthRateLimitGuard` enforces a per-IP window (8 req/min) and a global cross-IP window (300 req/min) before the request ever reaches Google's token endpoint, rejecting with a clean 429 via the existing `HttpException`/`GlobalExceptionFilter` path. Needed `app.set('trust proxy', 1)` added to `main.ts` — without it `req.ip` resolved to nginx's own address on every request, not the real client, even though nginx already forwards the real one; trusting a count (`1`) rather than `true` limits this to the single hop nginx itself adds, so a client can't spoof the address by prepending fake entries to `X-Forwarded-For`
+- New `RedisService.incrWithExpire(key, ttlSeconds)` primitive — a fixed-window Redis counter built on plain `INCR` + a conditional `EXPIRE` set only on the key's first hit; race-free with no Lua script or transaction needed, since `INCR` is itself atomic
+- Third-party provider rate limiting — `DocumentEmbeddingService.embed()` and `DocumentRerankService.rerank()` each enforce three tiers directly inline (user, when the caller is a live search request — workspace, always — global, always), sharing the same Redis primitives as the auth guard. Embedding calls track request count and token volume as independent windows (`RedisService.incrByWithExpire`, a token-sum counterpart to `incrWithExpire`), since OpenAI enforces RPM and TPM as separate constraints; rerank tracks request count only. Background indexing calls (no live request, no single attributable user) go through the same workspace/global tiers with the user tier skipped
+- Max-chunks-per-reindex-run cap (`MAX_CHUNKS_PER_RUN = 20`, `document-indexing.service.ts`) — `reindexDocument` stops early once it hits the cap or a real 429 from the embed rate limiter, committing whatever was already embedded rather than rolling it back, then throws a new `IndexingCappedError` so the scheduler's existing failure/retry path reschedules the remainder with no new bookkeeping. Stale-chunk deletion moved to after the embed loop — a chunk is deleted only once every block it spans has either been re-embedded this run or removed from the document outright — so a capped run leaves the pre-edit text searchable (stale, never absent) until it's genuinely replaced
+- `indexing_status` correctness fix — a failed indexing job now sets `documents.indexing_status` to `'pending'` (not `'idle'`) whenever pg-boss still has a retry queued (`job.retryCount < job.retryLimit`, read via `{ includeMetadata: true }` on `boss.work`); previously it always reset to `'idle'` mid-backoff, so a status read during the retry window falsely reported the document as fully caught up
+- Indexing queue retry backoff — the idle-debounce queue's default instant retry replaced with `retryLimit: 50, retryDelay: 15, retryBackoff: true, retryDelayMax: 300`, since retrying a rate-limit failure immediately just re-hits the same still-full window; `retryLimit` raised well past what a genuine-failure budget would need because `IndexingCappedError` continuations share the same retry path
+- All eight rate-limit-exceeded messages (login, search-by-user/workspace/global, embedding-by-user/workspace/global) now tell the caller to retry in 1-2 minutes instead of "shortly"
+- `/document/upload-auth`'s per-user limit (10 req/min) moved off `UserThrottlerGuard` onto the same Redis-primitive pattern as the rest of this release — new `ImageKitUploadAuthRateLimitGuard` built directly on `incrWithExpire`. `UserThrottlerGuard` was its only remaining caller, so it and the `ThrottlerModule` registration (`@nestjs/throttler`, `@nest-lab/throttler-storage-redis`, and their own dedicated ioredis client) were removed entirely — one fewer rate-limiting implementation to keep consistent with the others
+
+### Tooling
+
+- Worktree dev stack's Postgres image switched from `postgres:16` to `pgvector/pgvector:pg16`, matching the main compose file — plain `postgres:16` has no vector extension files, so migration `0036`'s `CREATE EXTENSION vector` failed on every worktree boot; unrelated to rate limiting but found and fixed while live-testing the auth guard against the worktree stack
+
+## AI Agent Chat ✅
+
+> Branch: `release-ai-agent` — merged 2026-09-16
+
+An in-app, workspace-scoped chat agent that runs Converge's own MCP tool surface agentically on the user's behalf — read, search, summarize, and write documents through a real multi-step tool-calling loop, not one-shot Q&A. Always runs in auto mode (every tool call executes immediately, with no per-action approval gate) and is rate-limited on both request volume and token spend to keep provider cost bounded.
+
+### Server (NestJS backend)
+
+- New `AgentModule` (`apps/server/src/agent/`): `AgentController`/`AgentService`/`AgentTools`/`AgentRateLimitService`, backed by two new tables, `agent_conversations` and `agent_messages` (migrations `0040`-`0046`)
+- Built directly on the raw `openai` SDK's Responses API (`openai.responses.create`), not the Vercel AI SDK the feature started on — migrated off it after root-causing a reproducible crash to the SDK's own handling of the model's cross-turn reasoning continuity. Each turn chains off the previous one via `previous_response_id` rather than this app reconstructing a full message history on every call; `agent_messages` ends up as a pure display/audit log, never read back to drive a model call
+- `AgentTools` wraps all 16 of `DocumentTools`' methods (the same MCP tool surface, unchanged) as OpenAI function tools, calling straight into the same access-control-enforcing service methods the MCP surface uses — no separate authorization logic. Workspace-scoped tools drop `workspaceId` from the schema the model sees, binding it server-side to the conversation's own fixed workspace instead
+- The multi-step loop (`AgentService.sendMessage`) is a plain sequential `for` loop, hard-capped at 8 steps per turn, continuing only while the model's `finishReason` is `'tool-calls'`; each step is hand-streamed onto the response as SSE (`start-step`/`text-delta`/`tool-input-available`/`tool-output-available`/`error`/`[DONE]`) rather than through any SDK's built-in stream protocol, since the loop's steps run strictly sequentially and never need to merge concurrent streams
+- `withAgentErrorHandling` wraps every tool's `execute()` so a thrown error becomes a normal `{error}` result instead of vanishing — the loop only ever persists a step by awaiting `execute()`'s return value, so an uncaught throw would otherwise silently drop all record the call was ever attempted
+- `AgentRateLimitService` — user/workspace/global tiers, each with independent per-minute and per-day request- and token-count budgets, checked once per real OpenAI call inside the loop rather than once per HTTP request, since a single request can trigger up to 8 of them. Request budgets are checked and incremented up front (a step is always exactly one request); token budgets are checked against a running total and only trued up with the Responses API's real `usage.total_tokens` after a call completes, since `previous_response_id` chaining means a step's real prompt size is never fully knowable in advance
+- A general system prompt built up iteratively against live model failures: autonomy/groundedness (no fabricating answers from outside retrieved content, with a worked WRONG/RIGHT example), tool-fallback guidance, cursor/pagination pitfalls, and parallel-tool-call result pairing
+- Citation linking — `searchDocumentContent` results carry server-built `title`/`url` fields (`/document/{id}?blockId={firstBlockId}`) alongside the existing minimal `citation` object; the system prompt instructs the model to render `[title](url)` verbatim rather than constructing a link itself out of ids seen elsewhere
+- `EditorPage` gained `useScrollToBlock`, reading a `?blockId=` query param and scrolling to the target block once it's actually painted in the DOM — tracks the real Yjs `syncStatus` "restoring → settled" edge (not just socket-ready) plus a `MutationObserver` for BlockNote's own node-view mount delay, rather than guessing a fixed timeout
+
+### Web (React frontend)
+
+- New `/agent` page (linked from the sidebar as "AI Agent"): a two-pane layout — a conversation rail on the left (create, inline rename, delete-with-confirmation) and message history plus a composer on the right
+- `useAgentConversations` (list/select/create), `useAgentConversation` (resolve + hydrate history), and `useAgentStream` (send + hand-rolled SSE parsing via `fetch`/`getReader()`, since the send endpoint is POST and can't use `EventSource`), composed by a thin `useAgentChat`
+- `MessageList` renders user/assistant bubbles plus live/persisted tool-call status lines (pending vs. done); assistant text renders as Markdown (`react-markdown`+`remark-gfm`) styled via this app's own Tailwind tokens — a user's own message stays plain text, since it's their literal input, not model output
+- `MessageComposer` — textarea, Enter-to-send/Shift+Enter-newline (IME-composition-safe), capped at `AGENT_MESSAGE_MAX_LENGTH`
+
+### Shared package
+
+- `packages/shared/src/http/agent.ts` — HTTP DTOs/Zod schemas for the five `/agent` endpoints (create/list conversations, get messages, rename, delete, send message) plus `AGENT_MESSAGE_MAX_LENGTH`
+
+## Frontend Redesign & Data-Layer Rewrite ✅
+
+> Branch: `release-redesign` — merged 2026-10-02
+
+A full visual redesign of `apps/web` from an 88-page mockup PDF (light, dark and phone variants of every screen): a warm palette with a gold accent, Newsreader display serif over Inter UI text, a new X-mark logo, and restyled menus, dialogs and tables — in **light and dark mode**, with a theme toggle, and with phone layouts built into every screen rather than bolted on afterwards. Mostly a reskin, plus a few structural changes: Ask Converge moves from its own page into a slide-over panel, the document settings modal splits into a Share dialog and a Document details modal, and Trash gets its own page. Colors were sampled from the rendered PDF pages at 300 dpi, since no design-tool source exists. Planned and tracked item by item in Converge doc 118. On top of the reskin, the web app's data layer and structure were rewritten for readability (tracked in Converge doc 120): every server fetch moved to TanStack Query, the per-page shell became layout routes, and the code was reorganised into feature folders.
+
+### Web (React frontend)
+
+- **Theme foundation** — one semantic token set for both themes in `theme/colors.ts`, injected at startup as CSS variables under `:root[data-theme=…]` and read by Tailwind classes, plain CSS, and a single BlockNote theme made entirely of `var()` references, so switching themes is pure CSS with nothing re-rendering. Tailwind's default palette is removed, so a raw color class no longer compiles. `themeAtom` (persisted, default dark) plus an inline script in `index.html` that applies the theme before first paint. Replaced a palette duplicated between `colors.ts` and `tailwind.config.js`, a mostly-dead shadcn HSL variable layer, ~170 raw palette classes, and a PrimeReact theme imported seven times. Code blocks keep a dark background in both themes, since BlockNote always highlights with Shiki's `github-dark`
+- **Fonts** — Inter (UI) and Newsreader (document title, headings, modal and page titles), replacing Roboto, Montserrat and BlockNote's bundled Inter
+- **Shared UI primitives** (`components/ui/`) — Button, Modal, BottomSheet (drag to dismiss), DropdownMenu / ContextMenu / SheetMenu driven by one menu-entry list, Select, Input, Tooltip with shortcut hints, a grid Table that folds into stacked rows below 1024px, Badge / StatusDot, PageHeader, Avatar with stable hashed colors, Toast with an inline action, and Logo. Interactive pieces are built on Radix primitives; PrimeReact is removed entirely
+- **Sidebar** — workspace switcher, New document / Ask Converge / Search / Library / theme toggle, collapsible Pinned and Recent sections, a Developer section (API keys, MCP setup, Trash), a user menu, a right-click / long-press document menu, a collapsible 56px icon rail, and a slide-in drawer on phones
+- **Editor** — new header with breadcrumb, Saved / Syncing / Offline status, presence avatars, lock / checkpoint / version-history buttons, a Share button and a ⋯ menu (pin, copy link, details, Move to Trash); a write-lock banner; a wider serif-headed reading column; and a phone top bar with a bottom-sheet document menu
+- **Share dialog and Document details** replace `ManageDocumentModal`: add people by email (nothing is granted until Add), people with access, per-role general access showing the workspace default versus a per-document override, and Copy link — a bottom sheet on phones. Document details shows ownership, dates and search-indexing status
+- **Version history** — a restyled split view: a checkpoint list with Auto / Manual / Before AI edit badges and contributor avatars, "what changed" vs. "compared to current" tabs with colored added / removed blocks, and Save checkpoint now
+- **Search palette (⌘K)** — restyled with the same functionality: documents only, keyboard navigation
+- **Ask Converge panel** — the `/agent` page becomes a right slide-over panel (⌘J) that keeps its conversation and any in-flight reply across navigation and while closed: conversation picker, rename / delete, an empty state that names the open document, tool-call rows, in-app citation links, a growing composer, and **Stop**, which aborts a streaming reply. Full-screen on phones
+- **Pages** — Library (table with pins and row menus), a new `/trash` page, Workspaces, a two-pane Workspace settings dialog (General / Members / Default access / Ownership, with ownership transfer confirmed by typing the workspace name), API keys, MCP setup, sign-in / auth callback and not-found screens. The favicon uses the new mark
+- **Data layer on TanStack Query** — 60 hand-rolled fetches across 30 hooks (copy-pasted loading state, an atom-based cache, and a `refreshSidebarAtom` counter bumped to make lists re-fetch) became queries and mutations built on the existing axios `apiClient`, one hook per job. Query keys live per feature (`queryKeys.ts`), hierarchical so one `documentKeys.lists()` invalidation refreshes the sidebar, Library, Trash and ⌘K together. One global error rule on the `QueryClient`: a failed action shows a single toast from its `meta.errorMessage`, a failed load is logged, and 403/404 come back as normal results rather than retried errors. Library, Trash, version history, the Share people list and workspace members paginate with `useInfiniteQuery` and a `useInView` sentinel; checkpoint content is cached once for both the diff and restore; pinning stays instant through an optimistic cache update. Visible effects: failed creates, restores, saves and agent actions now toast instead of failing silently or inline. Only `/auth/me`, Google sign-in, logout (which clears the cache) and upload auth remain plain calls
+- **Layout routes** — a `Page` wrapper rendered by every page (auth gate, sidebar, ⌘K, dialogs, phone top bar behind props) is replaced by `RequireAuth` → `AppShell` layout routes, so the sidebar and dialogs stay mounted across navigation instead of being rebuilt on every page change; each page renders its own `MobileTopBar`. The open document's id is read everywhere through `useDocumentId()` (`useMatch`, typed as a number end to end — the shell can't see a child route's `useParams`), and a non-numeric `/document/:id` goes to 404 without a request. Opening a document now refreshes the lists on `DOC_READY`, so it moves to the top of Recent straight away
+- **Feature folders** — `pages/`, a flat 80-file `hooks/`, `queries/` and `utils/` were reorganised into `app/`, `features/{apiKeys,mcpDocs,auth,workspaces,agent,documents,editor}` (each with its page, components, hooks and query keys), `components/{ui,common}`, generic `hooks/` and `lib/`, with `@/` imports across folders — a move-only commit with no content changes beyond imports. Dead components, atoms and exports deleted
+- Fixes found along the way: the Library crashing when filtered (search shared a cache key with the paged list), the first agent message in an empty workspace getting no reply, a removed person still reading as "already has access" when re-typed, the phone drawer staying open after Move to Trash, and the sidebar row's pin / ⋯ buttons being invisible on touch screens
+- Radix packages added (`dialog`, `dropdown-menu`, `context-menu`, `popover`, `select`, `toast`, `tooltip`), plus `@tanstack/react-query` and its devtools; `primereact`, `primeicons`, `lucide-react`, `class-variance-authority`, `tailwindcss-animate` and `@radix-ui/react-slot` removed
+
+### Server (NestJS backend)
+
+- `GET /document/id/:id` and the `getDocumentMetadata` MCP tool return `isPinned`, so the editor's ⋯ menu can show Pin or Unpin
+- Agent conversations stay resumable after an interrupted turn — new `agent_conversations.pending_tool_outputs` column (migration `0047`) holds the tool results the last response is still owed, sent ahead of the next message. Previously a turn ending between a tool-calling response and its results (a later step's 429 or stream failure, `MAX_STEPS`, a restart) left the conversation permanently rejected by OpenAI (400 "No tool output found for function call")
+- Stop support in `AgentService.sendMessage` — a closed client connection aborts the in-flight OpenAI call, marks tools that haven't started as cancelled, lets a running tool finish, and only writes a step's tool results while that step's response is still the conversation's latest, so a message sent right after Stop isn't overwritten
+
+## RAG Indexing Fixes & Simpler Chunking ✅
+
+> Branch: `release-rag-fixes` — merged 2026-10-04
+
+Fixes four problems in the shipped RAG indexer and replaces heading sections with a much simpler chunking rule. Found and validated on the `rag-poc` branch (Converge doc 82 §22–23, handoff doc 128): seeded test documents were indexed by the server's own indexer and scored with the POC's LLM-judged recall@3 eval (`reranked-sql` retrieval) — Nimbus 100%, recipe book 100%, DSA book 96.7% (one borderline miss), against 98.3% / 93.3% / 100% before.
+
+### Server (NestJS backend)
+
+- **Indexer loop fixed** — a capped reindex of a long document could repeat forever: section-closure pulled the previous run's 20 chunks back into the rebuild set, the chunker rebuilt the same 20, hit `MAX_CHUNKS_PER_RUN` before reaching any unhashed block, and saved nothing new, so the job burned all 50 retries and left the document half indexed. Fixed by removing heading sections altogether (below); long documents now finish in a few capped runs
+- **Heading sections removed, replaced by a local heading break** — no small-heading rule, no `groupIntoSections`, no section-closure step. A chunk fills to 500 tokens and closes early only when the next block is a top-level heading and the chunk already holds 250 tokens (`HEADING_BREAK_TOKENS`), so chunks tend to break at topic boundaries while short sections can still share one. Both checks look only at the current chunk and the next block, so a partial rebuild needs no whole-section context, and an edit in a long section no longer re-embeds the entire section
+- **Every block is its own unit** — the indexer walks the block tree depth-first (`flattenBlocks`) and indexes each block, parent or child, without its children's text, with its own hash. An edit to a child no longer changes its parent's hash, an empty parent's children are still indexed, and a search link (`?blockId=`) can point at a child block
+- **Oversized blocks split** — `splitOversizedBlock` cuts any block over 500 tokens at line ends, then sentence ends, then exact token cuts (moved back to whole characters); a table repeats its header in each piece when the header uses at most 250 tokens. Every piece keeps the block id, and a block only counts as processed once the chunk holding its last piece is in, so a capped run never leaves part of a block unindexed
+- **Chunk size counted on the joined text** — `chunkBlocks` measures the chunk text a block would produce, blank lines between blocks included, instead of summing per-block counts (chunks reached 518 tokens), and stores that real count as `token_count` for the BM25 stats
+- **Stale-chunk fix** — when the cap or a rate-limit rejection stopped a run before a stale chunk's other blocks were rebuilt, the removed block's hash was still deleted, so no later run saw it as removed and the chunk kept the deleted text searchable. A removed block's hash row now stays while a stale chunk that this run didn't delete still contains it
+- `src/scripts/reindex-all-documents.ts` — throwaway migration script: for every non-deleted document, clears its `document_block_hashes` rows (forcing a full rebuild through the normal reindex path, which keeps BM25 stats correct) and queues it through `onDocumentEdited`, in batches of 5. Dry run by default, `--run` to execute; run the compiled `dist/` file after a build. Run once against prod after this deploys, then delete
+
+### Tooling / docs
+
+- `CLAUDE.md`'s RAG entry describes the new block model and heading break; run notes for throwaway scripts added
+
+## Live Access Changes, Agent Navigation Tools & UI Polish ✅
+
+> Branch: `release-converge-enhancements` — merged 2026-10-06
+
+Closes the last gap in live access control — what the server *sends* to an open connection is now re-checked too, not only what it accepts — and shows the user their access level. Gives MCP and in-app agents tools to find and read just the part of a large document they need, and stops write tools echoing whole documents back. Adds hover tooltips across the app and Copy as Markdown, and fixes two editor bugs: toggling the write lock scrolled to the top, and users from a stopped server stayed present as ghosts. Feature branches: `mcp-changes`, `ui-doc-title-hover-tooltip-fix`, `copy-document-markdown`, plus direct commits.
+
+### Server (NestJS backend)
+
+- **Access version counters** — `documents.doc_access_version` and `workspaces.workspace_access_version` (migration `0048`), bumped through `DocumentAccessService.bumpDocAccessVersion` / `WorkspaceService.bumpWorkspaceAccessVersion` in the same transaction as every write that can change access: per-doc grants/revokes, role overrides, delete/restore, workspace membership, member roles, ownership transfer and default doc access
+- **Access re-checked on every room emit** — a socket stores both versions and its level at connect (`resolveAccessWithVersions`, one query); every emit of content, title or presence goes through `DocumentGateway.emitToDocRoomWithAccessCheck`, which re-resolves only sockets whose stored versions differ. Previously only writes re-resolved access, so a revoked user kept *receiving* live updates until they reconnected
+- **`ACCESS_CHANGED` event** — a socket whose level changed is told the new level; one that dropped below viewer (or whose document is gone) gets `noAccess` and is disconnected. The repair-sync handlers now require viewer before sending content, and the 15s heartbeat revokes the same way, so a revoke reaches an idle document within 15s
+- **Presence heartbeat** — `awareness-sockets` becomes one Redis sorted set per document (`userId:socketId`, scored by last heartbeat) instead of a set per user, and the 15s `REPAIR_SYNC_DOC_SERVER` doubles as the presence heartbeat: it drops sockets silent for over 90s, removes users with no live socket left (ghosts from a server that stopped before its disconnect handler ran), adds back a missing entry, and broadcasts only on change. Closing one of two tabs no longer hides the user, and a cursor move recreates a missing entry instead of skipping it. `RedisService`'s set helpers replaced by sorted-set ones
+- **Smaller MCP write responses** — `updateDocumentBlocks` returns only the inserted blocks (`insertedBlocks`, each `{ operationIndex, parentId, previousBlockId, block }`, in document order) instead of the whole document; `restoreCheckpoint` returns `{ success, blockCount }`. The in-app agent stored every full-document response and fed it back into its context
+- **`searchDocumentContent` options** — an optional `documentId` scopes the search to one document (404 for one missing, deleted or outside the workspace, 403 without access, rather than an empty result that reads as "no match"); an optional `lexicalOnly` returns BM25's top candidates in BM25 order with no embedding or rerank, so it makes no AI calls. Reranking those candidates was tried and reverted: it dropped an exact-phrase match from rank 1 to rank 5, the miss `lexicalOnly` exists to avoid
+- **New MCP and agent tools** —
+  - `findInDocument`: case-insensitive exact-text find over the live document (not the index), returning matching block ids with parent, type and a preview, plus `totalMatches`/`truncated`. Block text comes straight from block JSON (`blockPlainText`, `block-text.util.ts`) with no Markdown conversion or jsdom mutex. Its description tells agents to search plain text, not Markdown syntax copied from `readDocumentMarkdown`
+  - `getBlocksById`: reads up to 200 blocks by id (nested too) with `parentId`, optional `before`/`after` siblings and a `depth` limit on children (`childCount` when cut); unknown ids come back in `notFoundIds`
+  - `getDocumentOutline`: every heading with id, level, 80-character text and two sibling counts (`blockCount`, `sectionBlockCount`) meant to be passed as `after` to `getBlocksById`, so an agent reads one section of a large document instead of all of it. Tree helpers in `block-tree.util.ts`
+
+### Web (React frontend)
+
+- **Access badge** — the editor header shows Owner / Admin / Editor / Viewer beside the title on desktop and phone (previously nothing told a viewer the document was read-only), with a tooltip saying what the level allows. `useSocket` writes `ACCESS_CHANGED`'s level into the `documentKeys.detail` cache, so the badge and editability update in place, and `useDocumentFetch` reports `noAccess` as forbidden — the no-access screen, with the socket stopped from reconnecting
+- **Hover tooltips** — a truncated document title shows in full on hover everywhere it appears (sidebar, collapsed rail, Library, Trash, ⌘K, editor breadcrumb, Share / Details / Version history dialogs); relative times show the exact date and time through a new `RelativeTime` component; icon-only buttons get labels; truncated workspace, conversation, people, API key and MCP values show in full. `DropdownMenu` takes a `tooltip` prop for its trigger and hides it while the menu is open and as focus returns on close; tooltip content breaks long unspaced words
+- **Copy as Markdown** — copies the open document as Markdown, headed by its title, converted in the browser from the live editor (`blocksToMarkdownLossy`; colors, highlights and alignment dropped). An icon button left of the lock button on desktop, the first entry in the ⋯ sheet on phones; shown to viewers too
+- **Write-lock scroll fix** — toggling the lock passed a new `editable` to `BlockNoteView`, whose mount callback ref depends on it, so the editor DOM remounted and the page jumped to the top. `useWriteLock` now applies `canWrite` with `_tiptapEditor.setEditable`, which updates the view in place
+
+### Tooling / docs
+
+- `CLAUDE.md` documents the access version counters and `ACCESS_CHANGED`, the presence heartbeat, the new search and navigation tools, smaller write-tool responses, the `setEditable` rule, and the new UI primitives
+
+## ⌘K Content Search: Lexical & Semantic ✅
+
+> Branch: `release-cmdk-lexical-semantic-content-search` — merged 2026-10-06
+
+⌘K searched document titles only. It now searches the text of every document the user can see, reusing the existing RAG pipeline: lexical results (exact, stemmed words, highlighted) update as you type at no AI cost, and semantic results (by meaning) run only when asked, since each one is a rate-limited paid call. Passages open the document scrolled to the matching block — now also when that document is already open. Feature branches: `cmdk-content-search-endpoint`, `cmdk-content-search-client`.
+
+### Server (NestJS backend)
+
+- **`GET /document/search/content`** (`?workspaceId&query&mode=lexical|semantic`, behind `AuthGuard`) — returns `{ documents: [{ documentId, title, passages: [{ url, snippet }] }] }`, best document first and every retrieved passage in rank order, each passage's `url` a `?blockId=` deep link. `lexical` is BM25 only (no AI calls, no rate limit); `semantic` is the hybrid embed + Voyage rerank path, so a rate-limit hit comes back as a 429
+- **`DocumentRAGService.searchContent`** wraps the unchanged `retrieve()` (10 chunks) — MCP and the in-app agent are unaffected. Lexical snippets come from one `ts_headline` query over just the returned chunks (`MaxWords=35, MaxFragments=1`, the query's stems OR'd exactly like BM25's tsquery, so the highlighted words are the ones that matched); semantic snippets are the chunk's opening text
+- **Highlight markers** — each matched word sits between U+E000 / U+E001 (`SEARCH_HIGHLIGHT_START` / `SEARCH_HIGHLIGHT_END` in `@converge/shared`), so the client renders highlights without any HTML from the server. Private-use characters are stripped from chunk text first, since imported documents (e.g. PDFs) carry their own
+- **`search-snippet.util.ts`** — `toSnippet` turns chunk Markdown into one plain line (Markdown syntax removed, escapes and hex entities decoded) cut at a space at 240 characters, so a highlighted word is never split
+
+### Web (React frontend)
+
+- **⌘K palette rebuilt for content search** — an empty box lists recent documents; typing shows a Lexical / Semantic toggle (Ctrl+/ or ⌘/ to switch, remembered for the session in `searchModeAtom`). Lexical shows "Jump to" (title matches) and "In documents" (passages, matched words in gold) together — the title search and the content search run in parallel and render once both finish. Semantic shows a "Run semantic search for …" row that runs on ↵, then results with the top passage labelled "Best match"; editing the query brings the run row back above the old results, now dimmed. A 429 shows a rate-limit screen and any other failure a "Couldn't run semantic search" screen, both with "Search lexically instead". Phone layout keeps the toggle and hides the hints
+- **`useSemanticSearch`** — runs only on ↵: `retry: false`, `staleTime: Infinity` (a window refocus would otherwise re-run a paid search), `gcTime: 0`, and a run counter in its key (`documentKeys.semanticSearch`, outside `lists()` so `DOC_READY` can't re-run it), so a repeated query runs again
+- **Keyboard rows in screen order** — `useDocumentSwitcher` builds the run row, title rows and passages with their actions and `navIndex`es; `useKeyboardNav` now finds the focused row by its `data-nav-index`, so headings between rows are skipped
+- **Same-document deep links scroll** — `useScrollToBlock` scrolled only on a document's first sync, so a `?blockId=` link into the already-open document (a ⌘K passage, an agent citation) did nothing. It now tracks the handled navigation (`location.key`) and the synced document: such a link scrolls straight away, the same link twice scrolls twice, and a reconnect still never re-triggers a scroll
+
+### Tooling / docs
+
+- `simplify-code` and `browser-check` Claude Code skills (outside the repo): a code-simplification pass to the project's rules, and Playwright-driven checks of the running app (cached Chromium, `authToken` cookie)
+- `CLAUDE.md` documents the content-search endpoint and palette, paid queries kept out of `lists()`, `data-nav-index`, the new `useScrollToBlock` behaviour and the Vite pre-bundle step for new `@converge/shared` exports
+
+## Signed Uploads & MCP Image/Video Upload ✅
+
+> Branch: `mcp-image-upload` — merged 2026-10-06
+
+Closes a hole in the editor's file upload and lets an agent with a shell put a local image or video into a document. The old ImageKit V1 signature covered only a token and an expiry, so any signed-in user could mint a credential and upload any file type or size into any folder of the ImageKit account — the type, size and folder rules lived only in the browser. Uploads now use ImageKit's V2 upload, where the server signs every upload field and ImageKit rejects anything that differs.
+
+### Server (NestJS backend)
+
+- **Signed V2 uploads** — `GET /document/upload-auth` becomes `GET /document/:id/upload-auth?fileType=image|video|audio[&extension=]`. It requires editor access on the document, then picks the `fileName` (a UUID), the `folder` (the same `/converge/<development|production>/workspaces/<ws>/documents/<id>` paths as before), the image pre-transform (`w-2000,q-80`) and a `checks` rule (MIME prefix and size cap per kind: image 25MB, video 100MB, audio 5MB), and signs them into an HS256 JWT with the private key and the public key as `kid`, valid 5 minutes. ImageKit rejects an upload whose fields don't match the token, a reused token, and a file that fails the checks — all confirmed with real uploads. With a pre-transform, ImageKit checks the transformed file, so the image cap applies to the resized result. The server now needs `IMAGEKIT_PUBLIC_KEY` as well as the private key
+- **Extension kept on the file name** — an optional `extension`, kept on the signed `fileName` when it's in an allowlist for the file kind (unknown ones are dropped, not rejected). BlockNote turns Markdown `![](url)` into a video block only when the URL ends in a video extension, so without it an uploaded `.mp4` inserted as a broken image block
+- **`getUploadToken` MCP tool** — returns the same signed token, its fields, and a ready `curlCommand` (using `--form-string`, since plain `-F` reads the quotes and commas in `checks`/`transformation` as curl syntax) that uploads a local file with only `<FILE_PATH>` filled in. The file bytes go through curl, never through the model; the agent then inserts the returned URL with `updateDocumentBlocks` as `![](url)`. Shares the editor's 10-per-minute per-user counter, checked inside the tool since `ImageKitUploadAuthRateLimitGuard` is an HTTP guard. Not given to the in-app agent, which has no shell. Tested end to end with an image and an MP4
+
+### Web (React frontend)
+
+- `useUploadFile` takes only the document id, asks the server for a token for the file's kind and extension, and sends the returned fields unchanged; `VITE_IMAGEKIT_PUBLIC_KEY` and `VITE_IMAGEKIT_UPLOAD_URL` are removed from the web env
+
+### Tooling / docs
+
+- `CLAUDE.md` documents the signed-upload flow and `getUploadToken`
+
 ## Upcoming
 
+- ⌘K title search has no minimum similarity — `/document/library/search` returns the closest titles even for nonsense, so "Jump to" is never empty and the palette's "No matches" state can't appear; needs a cutoff in `searchLibraryDocuments`
+- ⌘K semantic search always returns its top 10, even for a meaningless query — no relevance threshold on the rerank score; would need tuning on real queries
+- Lexical prefix match on the last query term (`term:*`), so a partly typed word ("RA") already matches ("RAG") — BM25's term-frequency parsing would need prefix matching too
+- Replace `toSnippet`'s regex Markdown stripping with a real parser (mdast) run before `ts_headline` — more correct, at the cost of four new server dependencies
+- Jump instead of smooth-scrolling when a deep link opens another document — it opens at the top and visibly scrolls the whole way to the block
+- Check the ⌘K "Couldn't run semantic search" screen (non-429 failure) and agent citations into the open document in a browser — both untested live
+- Frontend code-rules pass (Converge doc 120, part 3): one React component per file, a lighter comment pass that keeps the *why*, and ESLint to zero (17 problems today)
+- Tailwind v4 and a shadcn-based UI kit (doc 120, parts 4–5) — planned, but on review low value for readability since the kit is already Radix and token-styled; held until a feature needs components the kit lacks
+- Eval harness for the agent feature — 55 hand-authored cases (task success, safety-violation count, injection resistance) were built and iterated on during development, but on a branch that was ultimately abandoned rather than merged into this release; porting or rebuilding it against the shipped code is deferred, not done
+- Explicit upfront plan surfacing for the agent — the model currently reports tool-call status reactively, step by step, but never states a multi-step plan before acting on it; one of the concepts this feature was meant to showcase and the one piece still unbuilt
+- Per-workspace enable toggle and a hard cost budget for the agent, beyond the request/token rate limits now in place — deliberately descoped from this release to rate limiting only
+- A model picker for the agent — the chat model remains a single hardcoded default, with no way to choose or configure it per workspace
+- Formal retrieval quality evaluation against real production content — the `rag-poc` branch's recall/precision numbers are against a synthetic benchmark corpus and a hand-authored hard eval, not this app's actual documents
 - Workspace/document access-control MCP tools (grant/revoke per-user access, role overrides) — deliberately deferred out of both MCP releases so far as higher-stakes, permission-escalation-risk surface; would need much narrower scoping than a straight mirror of the HTTP endpoints before it's worth building
-
+- `/mcp` per-user throttle (a per-user `incrWithExpire` guard, same pattern as `ImageKitUploadAuthRateLimitGuard`) — caps total MCP request volume per user for server/DB load, distinct from the provider-cost tiers now in place; lower urgency than what this release closed, since it bounds load rather than spend
+- Perimeter-level rate limiting (nginx `limit_req`/`limit_conn`, and/or an off-box layer like Cloudflare) and WebSocket gateway event throttling — deliberately deferred out of this release as lower-urgency than the unauthenticated-endpoint and paid-provider gaps it closed
+- Run `reindex-all-documents.ts` against prod once the RAG fixes deploy, then delete the script — until then, existing documents keep chunks built under the old rules (and documents with nested blocks rebuild piecemeal as they're edited)
+- Check the DSA book's one heading-break miss (#16, merge sort) — boundary shift or judge noise — and build a test document with large nested subtrees to measure what per-block indexing gains
+- Decide on WebM uploads: ImageKit doesn't recognize GNOME screencast `.webm` files (it sees `application/octet-stream`), so the signed `video/` check rejects them in the editor and over MCP, where the old unchecked V1 upload accepted them. Options: also accept `application/octet-stream` for video, or keep the strict check
+- Audio over MCP: `getUploadToken` uploads audio, but Markdown has no audio syntax and BlockNote's parser only special-cases video URLs, so `updateDocumentBlocks` can't insert an audio block — would need an explicit media operation
+- An editor upload in the browser against the V2 flow is still to be checked, and prod's server env must have `IMAGEKIT_PUBLIC_KEY` before this deploys

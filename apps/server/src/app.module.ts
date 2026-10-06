@@ -1,9 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller.js';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ThrottlerModule } from '@nestjs/throttler';
-import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
-import { Redis } from 'ioredis';
+import { ConfigModule } from '@nestjs/config';
 import { DocumentModule } from './document/document.module.js';
 import { DatabaseModule } from './db/database.module.js';
 import { RedisModule } from './redis/redis.module.js';
@@ -11,6 +8,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { WorkspaceModule } from './workspace/workspace.module.js';
 import { McpModule } from './mcp/mcp.module.js';
 import { ApiKeyModule } from './api-key/api-key.module.js';
+import { AgentModule } from './agent/agent.module.js';
 
 // Root module — the entry point of the NestJS DI container.
 // All feature modules (DocumentModule, UserModule, etc.) get imported here.
@@ -23,27 +21,6 @@ import { ApiKeyModule } from './api-key/api-key.module.js';
       envFilePath: [`.env.${process.env.NODE_ENV ?? 'dev'}`, '.env'],
       isGlobal: true,
     }),
-    // Registered in the root module so ThrottlerModule is available to all guards without
-    // re-importing. Uses a dedicated Redis client for storage so counters are shared across
-    // all server instances — prevents the per-instance in-memory default from multiplying limits.
-    ThrottlerModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
-        const environment = configService.getOrThrow<string>('ENVIRONMENT');
-        let redisUrl: string;
-        if (environment === 'DEV') {
-          redisUrl = configService.getOrThrow<string>('REDIS_DEV_URL');
-        } else if (environment === 'PROD') {
-          redisUrl = configService.getOrThrow<string>('REDIS_PROD_URL');
-        } else {
-          throw new Error(`Unknown ENVIRONMENT "${environment}"`);
-        }
-        return {
-          storage: new ThrottlerStorageRedisService(new Redis(redisUrl)),
-          throttlers: [{ name: 'default', ttl: 60000, limit: 10 }],
-        };
-      },
-    }),
     DocumentModule,
     // DatabaseModule wires up the Kysely/pg connection pool and exports
     // DatabaseService so any feature module can inject it without re-importing.
@@ -55,6 +32,7 @@ import { ApiKeyModule } from './api-key/api-key.module.js';
     WorkspaceModule,
     McpModule,
     ApiKeyModule,
+    AgentModule,
   ],
   controllers: [AppController],
   providers: [],

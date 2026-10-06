@@ -63,12 +63,21 @@ export class DocumentCheckpointService {
    * which users contributed since the previous checkpoint.
    * @param documentId - the document to checkpoint
    * @param source - what triggered this checkpoint, recorded on the new row
+   * @param force - when true, still creates a checkpoint even if nothing
+   * changed since the previous one, by duplicating its content as a new row
+   * (used by the MCP write paths, which must always leave a checkpoint
+   * immediately before an AI edit — see updateDocumentBlocks/restoreCheckpoint
+   * in DocumentService). Has no effect when there is no previous checkpoint
+   * to duplicate and no updates yet either — there is nothing to snapshot.
+   * Callers that branch on `created` (e.g. the interval scheduler, to decide
+   * whether to re-arm) must never pass force: true.
    * @returns whether a checkpoint was created, its id if so, and a message
    * explaining the outcome either way
    */
   async createCheckpointInternal(
     documentId: number,
     source: CheckpointSource,
+    force = false,
   ): Promise<{
     created: boolean;
     checkpointId: number | null;
@@ -79,9 +88,10 @@ export class DocumentCheckpointService {
     return db.transaction().execute(async (tx) => {
       // Find the most recent checkpoint, if any — everything after it (and
       // up to the max id captured below) is what this new checkpoint covers.
+      // Also fetched in full in case `force` needs to duplicate it verbatim.
       const lastCheckpoint = await tx
         .selectFrom('document_updates')
-        .select(['id', 'created_at'])
+        .select(['id', 'created_at', 'update', 'content_last_edited_at'])
         .where('document_id', '=', documentId)
         .where('is_checkpoint', '=', true)
         .orderBy('id', 'desc')
@@ -119,6 +129,32 @@ export class DocumentCheckpointService {
         };
       }
       if (maxId <= sinceUpdateId) {
+        // hasPreviousCheckpoint is guaranteed true here: with no previous
+        // checkpoint, sinceUpdateId is 0 and maxId is a real row id (>= 1),
+        // so this branch is unreachable in that case.
+        if (force && hasPreviousCheckpoint) {
+          // Re-insert the last checkpoint's exact bytes as a brand-new row
+          // so the caller gets its own checkpoint id marking this moment,
+          // even though the content is identical to the previous one.
+          const duplicated = await tx
+            .insertInto('document_updates')
+            .values({
+              document_id: documentId,
+              update: lastCheckpoint.update,
+              is_checkpoint: true,
+              checkpoint_source: source,
+              content_last_edited_at: lastCheckpoint.content_last_edited_at,
+            })
+            .returning('id')
+            .executeTakeFirstOrThrow();
+
+          return {
+            created: true,
+            checkpointId: Number(duplicated.id),
+            message: 'Checkpoint created (no changes since the last one).',
+          };
+        }
+
         return {
           created: false,
           checkpointId: null,

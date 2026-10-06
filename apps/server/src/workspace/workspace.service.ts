@@ -5,7 +5,8 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { DatabaseService } from '../db/database.service.js';
-import { sql } from 'kysely';
+import { sql, type Transaction } from 'kysely';
+import type { DatabaseSchema } from '../db/database.schema.js';
 import { hasWorkspaceRole, WORKSPACE_ROLE_RANK } from '@converge/shared';
 import type {
   CreateWorkspaceResponseDto,
@@ -669,6 +670,11 @@ export class WorkspaceService {
         .returning(['role'])
         .executeTakeFirstOrThrow();
 
+      // A new member or role change can change the target's access to every
+      // document in the workspace — bump in the same transaction so open
+      // sockets re-resolve on their next emit.
+      await this.bumpWorkspaceAccessVersion(tx, workspaceId);
+
       return {
         id: targetUser.id,
         name: targetUser.name,
@@ -748,6 +754,9 @@ export class WorkspaceService {
         .where('workspace_id', '=', workspaceId)
         .where('user_id', '=', targetUserId)
         .execute();
+
+      // Same transaction as the delete — see addMember.
+      await this.bumpWorkspaceAccessVersion(tx, workspaceId);
     });
   }
 
@@ -796,6 +805,9 @@ export class WorkspaceService {
       if (!result.numDeletedRows) {
         throw new NotFoundException('Membership not found.');
       }
+
+      // Same transaction as the delete — see addMember.
+      await this.bumpWorkspaceAccessVersion(tx, workspaceId);
     });
   }
 
@@ -896,13 +908,20 @@ export class WorkspaceService {
     if (body.memberDocAccess !== undefined) update.member_doc_access = body.memberDocAccess;
     if (body.nonMemberDocAccess !== undefined) update.non_member_doc_access = body.nonMemberDocAccess;
 
-    // Persist the changes and return the updated defaults.
-    const updated = await db
-      .updateTable('workspaces')
-      .set(update)
-      .where('id', '=', workspaceId)
-      .returning(['admin_doc_access', 'member_doc_access', 'non_member_doc_access'])
-      .executeTakeFirstOrThrow();
+    // Persist the changes and bump the access version in one transaction, so
+    // open sockets on any of the workspace's documents re-resolve on their
+    // next emit.
+    const updated = await db.transaction().execute(async (tx) => {
+      const row = await tx
+        .updateTable('workspaces')
+        .set(update)
+        .where('id', '=', workspaceId)
+        .returning(['admin_doc_access', 'member_doc_access', 'non_member_doc_access'])
+        .executeTakeFirstOrThrow();
+
+      await this.bumpWorkspaceAccessVersion(tx, workspaceId);
+      return row;
+    });
 
     return {
       adminDocAccess: updated.admin_doc_access,
@@ -1102,6 +1121,10 @@ export class WorkspaceService {
         .where('id', '=', workspaceId)
         .execute();
 
+      // Both users' access to every document in the workspace just changed —
+      // bump in the same transaction so open sockets re-resolve.
+      await this.bumpWorkspaceAccessVersion(tx, workspaceId);
+
       // Return the new owner profile so the client can refresh immediately.
       return {
         id: targetUser.id,
@@ -1153,5 +1176,26 @@ export class WorkspaceService {
     });
 
     return { id: ws.id, name: ws.name };
+  }
+
+  /**
+   * Increments a workspace's workspace_access_version. Call it in the same
+   * transaction as any write that can change access to all of the
+   * workspace's documents (membership, member roles, ownership, default doc
+   * access), so the change and the signal that makes every open socket
+   * re-resolve its access commit together — a missed bump leaves open
+   * sockets on their old access.
+   * @param tx - the transaction the access change runs in
+   * @param workspaceId - the workspace whose access changed
+   */
+  private async bumpWorkspaceAccessVersion(
+    tx: Transaction<DatabaseSchema>,
+    workspaceId: number,
+  ): Promise<void> {
+    await tx
+      .updateTable('workspaces')
+      .set({ workspace_access_version: sql`workspace_access_version + 1` })
+      .where('id', '=', workspaceId)
+      .execute();
   }
 }

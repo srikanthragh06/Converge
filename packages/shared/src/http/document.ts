@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DocumentAccessLevelSchema, ResolvedDocumentAccessLevelSchema, CheckpointSourceSchema } from "../types/types.js";
+import { DocumentAccessLevelSchema, ResolvedDocumentAccessLevelSchema, CheckpointSourceSchema, DocumentIndexingStatusSchema } from "../types/types.js";
 
 /**
  * Response for POST /document/:id/checkpoint. checkpointId is null when
@@ -82,11 +82,26 @@ export type GetDocumentCheckpointContentResponseDto = z.infer<
     typeof GetDocumentCheckpointContentResponseSchema
 >;
 
-/** Response for GET /document/upload-auth — one-time ImageKit upload credentials generated server-side. */
+/** Query for GET /document/:id/upload-auth — the kind of file about to be uploaded, which sets its size cap and transformation. */
+export const GetUploadAuthRequestSchema = z.object({
+    fileType: z.enum(["image", "video", "audio"]),
+    extension: z.string().max(10).optional(),
+});
+
+export type GetUploadAuthRequestDto = z.infer<
+    typeof GetUploadAuthRequestSchema
+>;
+
+/**
+ * Response for GET /document/:id/upload-auth — a one-time ImageKit V2 upload
+ * token. `fields` are the exact upload parameters signed into the token: send
+ * every one of them, unchanged, with the file and token, or ImageKit rejects
+ * the upload.
+ */
 export const GetUploadAuthResponseSchema = z.object({
+    uploadUrl: z.string(),
     token: z.string(),
-    expire: z.number().int().positive(),
-    signature: z.string(),
+    fields: z.record(z.string(), z.string()),
 });
 
 export type GetUploadAuthResponseDto = z.infer<typeof GetUploadAuthResponseSchema>;
@@ -108,12 +123,14 @@ export type CreateDocumentResponseDto = z.infer<
     typeof CreateDocumentResponseSchema
 >;
 
+/** Response for GET /document/id/:id. isPinned is whether the caller has pinned the document to their sidebar. */
 export const GetDocumentResponseSchema = z.object({
     id: z.number(),
     title: z.string(),
     createdAt: z.coerce.date(),
     workspace: z.object({ id: z.number(), name: z.string() }),
     resolvedAccess: ResolvedDocumentAccessLevelSchema,
+    isPinned: z.boolean(),
 });
 
 export type GetDocumentResponseDto = z.infer<typeof GetDocumentResponseSchema>;
@@ -126,6 +143,8 @@ export const GetDocumentOverviewResponseSchema = z.object({
     ownerName: z.string(),
     ownerEmail: z.string(),
     createdAt: z.coerce.date(),
+    indexingStatus: DocumentIndexingStatusSchema,
+    lastIndexedAt: z.coerce.date().nullable(),
 });
 
 export type GetDocumentOverviewResponseDto = z.infer<
@@ -138,6 +157,11 @@ export type GetDocumentOverviewResponseDto = z.infer<
  * limit defaults to 20 if omitted.
  * cursorVisitedAt and cursorId must both be present or both be absent —
  * they together form the compound cursor for keyset pagination.
+ * ignorePinnedDocs excludes documents the caller has pinned, so a consumer
+ * that already shows a separate pinned list (e.g. the sidebar) doesn't have
+ * to dedupe client-side; defaults to false. Uses z.stringbool() rather than
+ * z.coerce.boolean() because this is a query-string value — coerce.boolean()
+ * treats any non-empty string (including the literal "false") as true.
  */
 export const GetLibraryDocumentsRequestSchema = z
     .object({
@@ -145,6 +169,7 @@ export const GetLibraryDocumentsRequestSchema = z
         limit: z.coerce.number().int().positive().optional(),
         cursorVisitedAt: z.coerce.date().optional(),
         cursorId: z.coerce.number().int().positive().optional(),
+        ignorePinnedDocs: z.stringbool().optional(),
     })
     .refine(
         (data) =>
@@ -186,6 +211,42 @@ export type GetLibraryDocumentsResponseDto = z.infer<
     typeof GetLibraryDocumentsResponseSchema
 >;
 
+/** Query params for GET /document/pinned. workspaceId is the selected workspace scope. */
+export const GetPinnedDocumentsRequestSchema = z.object({
+    workspaceId: z.coerce.number().int().positive(),
+});
+
+export type GetPinnedDocumentsRequestDto = z.infer<
+    typeof GetPinnedDocumentsRequestSchema
+>;
+
+/** Response for GET /document/pinned — the caller's pinned documents, most-recently-pinned first. Unpaginated. */
+export const GetPinnedDocumentsResponseSchema = z.object({
+    documents: z.array(LibraryDocumentSchema),
+});
+
+export type GetPinnedDocumentsResponseDto = z.infer<
+    typeof GetPinnedDocumentsResponseSchema
+>;
+
+/** Request body for PUT /document/:id/pin — pin or unpin the document for the calling user. */
+export const SetDocumentPinnedRequestSchema = z.object({
+    pinned: z.boolean(),
+});
+
+export type SetDocumentPinnedRequestDto = z.infer<
+    typeof SetDocumentPinnedRequestSchema
+>;
+
+/** Response for PUT /document/:id/pin. pinnedAt is null when the document was just unpinned. */
+export const SetDocumentPinnedResponseSchema = z.object({
+    pinnedAt: z.coerce.date().nullable(),
+});
+
+export type SetDocumentPinnedResponseDto = z.infer<
+    typeof SetDocumentPinnedResponseSchema
+>;
+
 /**
  * Query params for GET /document/library/search.
  * workspaceId is the selected workspace scope.
@@ -208,6 +269,56 @@ export const SearchLibraryDocumentsResponseSchema = z.object({
 
 export type SearchLibraryDocumentsResponseDto = z.infer<
     typeof SearchLibraryDocumentsResponseSchema
+>;
+
+/**
+ * Query params for GET /document/search/content.
+ * workspaceId is the selected workspace scope. query must be non-empty and
+ * at most 256 characters. mode "lexical" matches exact (stemmed) words and
+ * makes no AI calls; "semantic" matches by meaning and is rate-limited.
+ */
+export const SearchDocumentContentRequestSchema = z.object({
+    workspaceId: z.coerce.number().int().positive(),
+    query: z.string().trim().min(1).max(256),
+    mode: z.enum(["lexical", "semantic"]),
+});
+
+export type SearchDocumentContentRequestDto = z.infer<
+    typeof SearchDocumentContentRequestSchema
+>;
+
+/**
+ * One matching passage. url opens the document scrolled to the passage's
+ * first block. snippet is plain text; in lexical mode each matched word is
+ * wrapped in SEARCH_HIGHLIGHT_START / SEARCH_HIGHLIGHT_END.
+ */
+export const ContentSearchPassageSchema = z.object({
+    url: z.string(),
+    snippet: z.string(),
+});
+
+export type ContentSearchPassageDto = z.infer<
+    typeof ContentSearchPassageSchema
+>;
+
+/** A document with one or more matching passages, best passage first. */
+export const ContentSearchDocumentSchema = z.object({
+    documentId: z.number(),
+    title: z.string(),
+    passages: z.array(ContentSearchPassageSchema),
+});
+
+export type ContentSearchDocumentDto = z.infer<
+    typeof ContentSearchDocumentSchema
+>;
+
+/** Response for GET /document/search/content — documents ordered by their best passage, most relevant first. */
+export const SearchDocumentContentResponseSchema = z.object({
+    documents: z.array(ContentSearchDocumentSchema),
+});
+
+export type SearchDocumentContentResponseDto = z.infer<
+    typeof SearchDocumentContentResponseSchema
 >;
 
 /**

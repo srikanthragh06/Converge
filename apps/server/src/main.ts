@@ -4,9 +4,12 @@ import { GlobalExceptionFilter } from './utils/global-exception.filter.js';
 import { registerProcessHandlers } from './utils/process.handlers.js';
 import { loadEnv } from './utils/env.loader.js';
 import { IoAdapter } from '@nestjs/platform-socket.io';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import express from 'express';
 import { DatabaseService } from './db/database.service.js';
 import { RedisService } from './redis/redis.service.js';
 import { DocumentCheckpointSchedulerService } from './document/document-checkpoint-scheduler.service.js';
+import { DocumentIndexingSchedulerService } from './document/document-indexing-scheduler.service.js';
 import cookieParser from 'cookie-parser';
 
 // Load .env files before the NestJS app is created so process.env is fully
@@ -22,8 +25,24 @@ registerProcessHandlers();
  * global filters, validates required env vars, then starts listening.
  */
 async function bootstrap() {
-  // AppModule is the root module — all feature modules are imported from there.
-  const app = await NestFactory.create(AppModule);
+  // AppModule is the root module — all feature modules are imported from
+  // there. bodyParser: false disables Nest's own default-configured parser
+  // (Express's 100kb default) so the explicit 5mb one below applies instead —
+  // must match the raised WebSocket maxHttpBufferSize in DocumentGateway,
+  // since HTTP and WebSocket edits carry the same kind of Yjs update payload.
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  app.use(express.json({ limit: '5mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '5mb' }));
+
+  // Trust exactly one hop (nginx) so req.ip is read from the X-Forwarded-For
+  // entry nginx itself appended, instead of nginx's own socket address.
+  // Must be a count (1), not `true` — `true` trusts the whole X-Forwarded-For
+  // chain and reads the leftmost entry, which a client can prepend arbitrary
+  // fake values into since nginx's $proxy_add_x_forwarded_for appends rather
+  // than overwrites. `1` only trusts the single entry the real proxy added.
+  // Cast to NestExpressApplication here only — `set` isn't on the generic
+  // INestApplication type `create` returns by default.
+  (app as NestExpressApplication).set('trust proxy', 1);
 
   // Restrict CORS to the known client origin so browsers block cross-origin
   // requests from untrusted domains.
@@ -65,6 +84,11 @@ async function bootstrap() {
     DocumentCheckpointSchedulerService,
   );
   await checkpointSchedulerService.start();
+
+  // Start the RAG indexing scheduler for the same reason and at the same
+  // point — needs document_chunks/document_block_hashes to already exist.
+  const indexingSchedulerService = app.get(DocumentIndexingSchedulerService);
+  await indexingSchedulerService.start();
 
   await app.listen(PORT);
 }

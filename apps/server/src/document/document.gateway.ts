@@ -7,12 +7,22 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { forwardRef, Inject, UseFilters } from '@nestjs/common';
+import {
+  forwardRef,
+  Inject,
+  NotFoundException,
+  UseFilters,
+} from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
-import { DocumentService } from './document.service.js';
+import { ZodType } from 'zod';
+import {
+  DocumentAccessService,
+  type AccessVersions,
+} from './document-access.service.js';
 import { DocumentYjsService } from './document-yjs.service.js';
 import { DocumentAwarenessService } from './document-awareness.service.js';
 import { DocumentCheckpointSchedulerService } from './document-checkpoint-scheduler.service.js';
+import { DocumentIndexingSchedulerService } from './document-indexing-scheduler.service.js';
 import { ZodSocketValidationPipe } from '../pipes/zod-socket-validation.pipe.js';
 import {
   PingSchema,
@@ -40,9 +50,10 @@ import {
   AwarenessUpdateServerSchema,
   type AwarenessUpdateServerPayload,
   AwarenessUpdateClientSchema,
+  AccessChangedSchema,
 } from '@converge/shared';
 import { GlobalExceptionFilter } from '../utils/global-exception.filter.js';
-import { socketEmit, socketEmitRoom } from '../utils/ws-emit.util.js';
+import { socketEmit } from '../utils/ws-emit.util.js';
 import { RedisService } from '../redis/redis.service.js';
 import { REDIS_EVENTS } from '../redis/redis.events.js';
 import { base64ToUint8Array, isEmptyYjsUpdate } from '../utils/utils.js';
@@ -59,6 +70,10 @@ import { parse as parseCookie } from 'cookie';
     origin: (_req, cb) => cb(null, process.env.CLIENT_URL),
     credentials: true,
   },
+  // Raised from Socket.io's 1MB default to match the HTTP body limit set in
+  // main.ts — both carry the same kind of Yjs update payload, so neither
+  // should be a smaller ceiling than the other.
+  maxHttpBufferSize: 5 * 1024 * 1024,
 })
 export class DocumentGateway
   implements OnGatewayConnection, OnGatewayDisconnect
@@ -74,7 +89,7 @@ export class DocumentGateway
   private readonly documentYjsService: DocumentYjsService;
 
   constructor(
-    private readonly documentService: DocumentService,
+    private readonly documentAccessService: DocumentAccessService,
     // Untyped (not `: DocumentYjsService`) on purpose — see the matching
     // comment in DocumentYjsService's constructor for why an explicit
     // class-type annotation here would crash at startup regardless of
@@ -85,16 +100,21 @@ export class DocumentGateway
     private readonly authService: AuthService,
     private readonly documentAwarenessService: DocumentAwarenessService,
     private readonly documentCheckpointSchedulerService: DocumentCheckpointSchedulerService,
+    private readonly documentIndexingSchedulerService: DocumentIndexingSchedulerService,
   ) {
     this.documentYjsService = documentYjsService;
   }
 
   /**
-   * Verifies the auth cookie and documentId, resolves the user's access level,
-   * stamps documentId, userId, and access on the socket, joins the document room,
-   * registers the user in the awareness hash, loads the Y.Doc into memory, sets up
-   * the Redis subscriptions for cross-server updates, emits DOC_READY, then broadcasts
-   * the updated awareness state so the joining client's listener is already registered.
+   * Verifies the auth cookie and documentId, verifies the user has at least
+   * viewer access, stamps documentId and userId on the socket, joins the
+   * document room, registers the user in the awareness hash, loads the Y.Doc
+   * into memory, sets up the Redis subscriptions for cross-server updates,
+   * emits DOC_READY, then broadcasts the updated awareness state so the
+   * joining client's listener is already registered. Access itself is never
+   * cached on the socket — every access-gated handler below re-resolves it
+   * fresh, so a mid-session access change (grant, revoke, role change) takes
+   * effect on the very next gated action instead of only on reconnect.
    * Rejects invalid connections using disconnect(true) to force-close the underlying
    * transport — plain disconnect() only removes the socket from namespaces but leaves
    * the WebSocket open, so the client never receives the disconnect event.
@@ -143,13 +163,22 @@ export class DocumentGateway
       }
 
       // Verify the document exists and the user has at least viewer access.
-      let resolvedAccess: ResolvedDocumentAccessLevel;
+      // resolveAccess throws NotFoundException if the document doesn't exist,
+      // so a missing document and an existing-but-forbidden one are handled
+      // by the same rejection path below.
+      let resolved:
+        | (AccessVersions & { access: ResolvedDocumentAccessLevel })
+        | undefined;
       try {
-        ({ resolvedAccess } = await this.documentService.getDocumentOfUser(
+        resolved = await this.documentAccessService.resolveAccessWithVersions(
           documentId,
           userId,
-        ));
+        );
       } catch {
+        // fall through to the shared rejection check below
+      }
+
+      if (!resolved || !hasAccess(resolved.access, 'viewer')) {
         console.log(
           `Connection rejected: document ${documentId} not found or forbidden for user ${userId}`,
         );
@@ -157,15 +186,23 @@ export class DocumentGateway
         return;
       }
 
-      // stamp the socket so all handlers can read documentId, userId, and access without trusting the client
+      // stamp the socket so all handlers can read documentId and userId
+      // without trusting the client — access itself is intentionally not
+      // cached here, see the handleConnection doc comment above.
       client.data.documentId = documentId;
       client.data.userId = userId;
-      client.data.access = resolvedAccess; // resolved access level stamped at connection time; used for per-handler guards
+
+      // Store the access versions read alongside this access check —
+      // emitToDocRoomWithAccessCheck re-checks the socket once they go stale.
+      client.data.docAccessVersion = resolved.docAccessVersion;
+      client.data.workspaceAccessVersion = resolved.workspaceAccessVersion;
+      // Only used to tell whether a later re-check changed the level.
+      client.data.accessLevel = resolved.access;
 
       // join the document room — broadcasts are scoped to this room
       client.join(String(documentId));
 
-      // register this socket in the awareness ref-count set for multi-tab tracking
+      // register this socket in the document's open sockets for multi-tab tracking
       await this.documentAwarenessService.addSocket(
         documentId,
         userId,
@@ -180,6 +217,12 @@ export class DocumentGateway
 
       // Record that this user visited the document.
       await this.documentYjsService.recordLastVisited(documentId, userId);
+
+      // Nest binds the message handlers without waiting for handleConnection,
+      // so a client can send events before the socket is set up (e.g. a
+      // repair sync buffered during a document switch). Every handler that
+      // reads client.data ignores events until this is set.
+      client.data.isReady = true;
 
       // Signals to the client that it can start all server doc operations.
       client.emit(SOCKET_EVENTS.DOC_READY);
@@ -202,9 +245,8 @@ export class DocumentGateway
                   documentId,
                   update,
                 );
-              socketEmitRoom(
-                this.socketServer,
-                String(documentId),
+              await this.emitToDocRoomWithAccessCheck(
+                documentId,
                 SOCKET_EVENTS.SYNC_DOC_CLIENT,
                 SyncDocClientSchema,
                 {
@@ -225,12 +267,13 @@ export class DocumentGateway
           (message) => {
             try {
               const { title } = message;
-              socketEmitRoom(
-                this.socketServer,
-                String(documentId),
+              this.emitToDocRoomWithAccessCheck(
+                documentId,
                 SOCKET_EVENTS.SYNC_DOC_TITLE_CLIENT,
                 SyncDocTitleClientSchema,
                 { title: title as string },
+              ).catch((err) =>
+                console.error('Failed to emit Redis title update:', err),
               );
             } catch (err) {
               console.error('Failed to process Redis title update:', err);
@@ -251,12 +294,13 @@ export class DocumentGateway
                 );
                 return;
               }
-              socketEmitRoom(
-                this.socketServer,
-                String(documentId),
+              this.emitToDocRoomWithAccessCheck(
+                documentId,
                 SOCKET_EVENTS.AWARENESS_UPDATE_CLIENT,
                 AwarenessUpdateClientSchema,
                 { users: result.data.users },
+              ).catch((err) =>
+                console.error('Failed to emit Redis awareness update:', err),
               );
             } catch (err) {
               console.error('Failed to process Redis awareness update:', err);
@@ -283,6 +327,9 @@ export class DocumentGateway
   async handleGetAwarenessUpdate(
     @ConnectedSocket() client: Socket,
   ): Promise<void> {
+    // Ignore events sent before handleConnection finished — see isReady there.
+    if (!client.data.isReady) return;
+
     const documentId = client.data.documentId as number;
     await this.broadcastAwarenessState(documentId);
   }
@@ -300,6 +347,9 @@ export class DocumentGateway
     @MessageBody(new ZodSocketValidationPipe(AwarenessUpdateServerSchema))
     { focusedBlockId }: AwarenessUpdateServerPayload,
   ): Promise<void> {
+    // Ignore events sent before handleConnection finished — see isReady there.
+    if (!client.data.isReady) return;
+
     const documentId = client.data.documentId as number;
     const userId = client.data.userId as number;
 
@@ -312,8 +362,8 @@ export class DocumentGateway
   }
 
   /**
-   * Removes the disconnecting socket from the awareness ref-count set. If this
-   * was the user's last socket for the document, also removes their awareness
+   * Removes the disconnecting socket from the document's open sockets. If the
+   * user has no other live socket in the document, also removes their awareness
    * entry and broadcasts the updated presence list to the room. Once awareness
    * cleanup is complete, evicts the in-memory Y.Doc if no sockets remain in the
    * document room on this server instance. Skips silently if the socket never
@@ -391,12 +441,21 @@ export class DocumentGateway
     @MessageBody(new ZodSocketValidationPipe(SyncDocServerSchema))
     { updateArray, clientSVArray }: SyncDocServerPayload,
   ) {
+    // Ignore events sent before handleConnection finished — see isReady there.
+    if (!client.data.isReady) return;
+
     const documentId = client.data.documentId as number;
     const userId = client.data.userId as number;
 
-    // Reject writes from viewers — editor+ access required.
-    if (!hasAccess(client.data.access as ResolvedDocumentAccessLevel, 'editor'))
-      return;
+    // Reject writes from viewers — editor+ access required. Resolved fresh
+    // (not cached on the socket) so a mid-session revoke or downgrade takes
+    // effect immediately instead of only on reconnect.
+    const { access, ...versions } =
+      await this.documentAccessService.resolveAccessWithVersions(
+        documentId,
+        userId,
+      );
+    if (!hasAccess(access, 'editor')) return;
 
     const update = new Uint8Array(updateArray);
     const clientSV = new Uint8Array(clientSVArray);
@@ -404,11 +463,12 @@ export class DocumentGateway
     // apply the update to the shared doc, get the new server state vector,
     // and broadcast to the room (excluding this client, which already
     // applied its own edit optimistically before sending it) — all handled
-    // by applyDocUpdate itself.
+    // by applyDocUpdate itself, reusing the versions read above.
     const { serverSV } = await this.documentYjsService.applyDocUpdate(
       documentId,
       update,
       client,
+      versions,
     );
 
     // record that this user edited the document
@@ -416,6 +476,9 @@ export class DocumentGateway
 
     // reset the idle checkpoint timer and ensure the interval one is running
     await this.documentCheckpointSchedulerService.onDocumentEdited(documentId);
+
+    // reset the idle re-indexing timer
+    await this.documentIndexingSchedulerService.onDocumentEdited(documentId);
 
     // if the client is behind, prompt it to start a repair sync
     const isSynced = await this.documentYjsService.isClientAndServerDocSynced(
@@ -438,6 +501,9 @@ export class DocumentGateway
   /**
    * Responds to a repair sync request by computing the updates the client
    * is missing and sending them back alongside the server's state vector.
+   * The client sends this every 15s, so it is also the socket's presence
+   * heartbeat: it keeps the socket in the awareness list, and broadcasts the
+   * presence list when that removed a user with no live socket left.
    * @param client - the socket requesting repair
    * @param data - contains the client's encoded state vector
    */
@@ -447,7 +513,26 @@ export class DocumentGateway
     @MessageBody(new ZodSocketValidationPipe(RepairSyncDocServerSchema))
     { clientSVArray }: RepairSyncDocServerPayload,
   ) {
+    // Ignore events sent before handleConnection finished — see isReady there.
+    if (!client.data.isReady) return;
+
     const documentId = client.data.documentId as number;
+    const userId = client.data.userId as number;
+
+    // This sends back document content, so require viewer access — resolved
+    // fresh, so a revoked socket can't keep pulling the document. The client
+    // sends this every 15s, so a revoked user on an idle document is told
+    // and disconnected here even if nothing else is emitted to the room.
+    const access = await this.documentAccessService
+      .resolveAccess(documentId, userId)
+      .catch((err) => {
+        if (err instanceof NotFoundException) return 'noAccess' as const;
+        throw err;
+      });
+    if (!hasAccess(access, 'viewer')) {
+      this.revokeSocket(client);
+      return;
+    }
 
     const clientSV = new Uint8Array(clientSVArray);
 
@@ -469,6 +554,16 @@ export class DocumentGateway
         diffArray: Array.from(diff),
       },
     );
+
+    // Presence heartbeat — runs after the reply so it never delays the sync.
+    const presenceChanged = await this.documentAwarenessService.heartbeat(
+      documentId,
+      userId,
+      client.id,
+    );
+    if (presenceChanged) {
+      await this.broadcastAwarenessState(documentId);
+    }
   }
 
   /**
@@ -486,6 +581,9 @@ export class DocumentGateway
     @MessageBody(new ZodSocketValidationPipe(RepairSyncAckDocServerSchema))
     { diffArray, clientSVArray }: RepairSyncAckDocServerPayload,
   ) {
+    // Ignore events sent before handleConnection finished — see isReady there.
+    if (!client.data.isReady) return;
+
     const documentId = client.data.documentId as number;
     const userId = client.data.userId as number;
 
@@ -496,13 +594,22 @@ export class DocumentGateway
     // viewers cannot push content, and an empty diff means the client had
     // nothing new to contribute (the repair-sync round trip still completes
     // even when there's no divergence to resolve), so there is nothing to
-    // persist, broadcast, or attribute.
-    if (
-      hasAccess(client.data.access as ResolvedDocumentAccessLevel, 'editor') &&
-      !isEmptyYjsUpdate(diff)
-    ) {
+    // persist, broadcast, or attribute. Access is resolved fresh, not read
+    // from a socket-level cache — see handleSyncDocServer for why. Below
+    // viewer, nothing is applied or sent back.
+    const { access, ...versions } =
+      await this.documentAccessService.resolveAccessWithVersions(
+        documentId,
+        userId,
+      );
+    if (hasAccess(access, 'editor') && !isEmptyYjsUpdate(diff)) {
       // applyDocUpdate itself broadcasts to the room, excluding this client.
-      await this.documentYjsService.applyDocUpdate(documentId, diff, client);
+      await this.documentYjsService.applyDocUpdate(
+        documentId,
+        diff,
+        client,
+        versions,
+      );
 
       // record that this user edited the document
       await this.documentYjsService.recordLastEdited(documentId, userId);
@@ -511,7 +618,13 @@ export class DocumentGateway
       await this.documentCheckpointSchedulerService.onDocumentEdited(
         documentId,
       );
+
+      // reset the idle re-indexing timer
+      await this.documentIndexingSchedulerService.onDocumentEdited(documentId);
     }
+
+    // Below viewer, nothing is sent back — this is document content.
+    if (!hasAccess(access, 'viewer')) return;
 
     // Calculate the remaining diff the client is still missing and send it back,
     // regardless of access level, so viewers complete the repair sync and stay current.
@@ -547,6 +660,9 @@ export class DocumentGateway
     @MessageBody(new ZodSocketValidationPipe(RepairAckDocServerSchema))
     { diffArray }: RepairAckDocServerPayload,
   ) {
+    // Ignore events sent before handleConnection finished — see isReady there.
+    if (!client.data.isReady) return;
+
     const documentId = client.data.documentId as number;
     const userId = client.data.userId as number;
 
@@ -555,15 +671,24 @@ export class DocumentGateway
     // Apply the final diff only for editors with a non-empty diff — viewers
     // cannot push content, and an empty diff means there is nothing left to
     // apply or attribute (see handleRepairSyncAckDoc for why this can happen).
-    if (
-      hasAccess(client.data.access as ResolvedDocumentAccessLevel, 'editor') &&
-      !isEmptyYjsUpdate(diff)
-    ) {
+    // Access is resolved fresh, not read from a socket-level cache — see
+    // handleSyncDocServer for why.
+    const { access, ...versions } =
+      await this.documentAccessService.resolveAccessWithVersions(
+        documentId,
+        userId,
+      );
+    if (hasAccess(access, 'editor') && !isEmptyYjsUpdate(diff)) {
       // applyDocUpdate itself broadcasts to the room, excluding this client.
       // Note: this handler previously did not broadcast to the room at all
       // after applying — this is a behavior change, not just a refactor
       // (see the commit message for context).
-      await this.documentYjsService.applyDocUpdate(documentId, diff, client);
+      await this.documentYjsService.applyDocUpdate(
+        documentId,
+        diff,
+        client,
+        versions,
+      );
 
       // record that this user edited the document
       await this.documentYjsService.recordLastEdited(documentId, userId);
@@ -572,6 +697,9 @@ export class DocumentGateway
       await this.documentCheckpointSchedulerService.onDocumentEdited(
         documentId,
       );
+
+      // reset the idle re-indexing timer
+      await this.documentIndexingSchedulerService.onDocumentEdited(documentId);
     }
   }
 
@@ -587,12 +715,20 @@ export class DocumentGateway
     @MessageBody(new ZodSocketValidationPipe(SyncDocTitleServerSchema))
     { title, changeId }: SyncDocTitleServerPayload,
   ) {
+    // Ignore events sent before handleConnection finished — see isReady there.
+    if (!client.data.isReady) return;
+
     const documentId = client.data.documentId as number;
     const userId = client.data.userId as number;
 
-    // Reject writes from viewers — editor+ access required.
-    if (!hasAccess(client.data.access as ResolvedDocumentAccessLevel, 'editor'))
-      return;
+    // Reject writes from viewers — editor+ access required. Resolved fresh —
+    // see handleSyncDocServer for why this isn't read from a socket cache.
+    const { access, ...versions } =
+      await this.documentAccessService.resolveAccessWithVersions(
+        documentId,
+        userId,
+      );
+    if (!hasAccess(access, 'editor')) return;
 
     // Persist the updated title and broadcast to the room (excluding this
     // client, which already has the new title) — handled by
@@ -601,6 +737,7 @@ export class DocumentGateway
       documentId,
       title,
       client,
+      versions,
     );
 
     // record that this user edited the document
@@ -628,12 +765,121 @@ export class DocumentGateway
   private async broadcastAwarenessState(documentId: number): Promise<void> {
     const users =
       await this.documentAwarenessService.getAndPublishState(documentId);
-    socketEmitRoom(
-      this.socketServer,
-      String(documentId),
+    await this.emitToDocRoomWithAccessCheck(
+      documentId,
       SOCKET_EVENTS.AWARENESS_UPDATE_CLIENT,
       AwarenessUpdateClientSchema,
       { users },
     );
+  }
+
+  /**
+   * Validates payload and emits it to every socket in the document's room on
+   * this instance whose access is still current. Each socket's stored access
+   * versions are compared against the document's current ones; a socket
+   * that doesn't match has its access resolved again, and is disconnected
+   * and left out if it's now below viewer (or the document is gone). Every
+   * room emit of document content or presence goes through here.
+   * @param documentId - the document whose room to emit to
+   * @param event - the event name
+   * @param schema - Zod schema the payload must satisfy
+   * @param payload - the data to validate and emit
+   * @param excludeSocket - the originating socket, left out of the emit
+   * @param versions - the document's current access versions when the caller
+   *   just read them with its own access check; read here otherwise
+   */
+  async emitToDocRoomWithAccessCheck<T>(
+    documentId: number,
+    event: string,
+    schema: ZodType<T>,
+    payload: T,
+    excludeSocket?: Socket,
+    versions?: AccessVersions,
+  ): Promise<void> {
+    const room = String(documentId);
+    const socketIds = this.socketServer.sockets.adapter.rooms.get(room);
+    if (!socketIds?.size) return;
+
+    // null means the document is gone or deleted — every socket is stale.
+    const currentAccessVersion =
+      versions ??
+      (await this.documentAccessService.getAccessVersions(documentId));
+
+    // Sockets whose stored versions no longer match.
+    const stale: Socket[] = [];
+    for (const id of socketIds) {
+      if (id === excludeSocket?.id) continue;
+      const socket = this.socketServer.sockets.sockets.get(id);
+      if (!socket) continue;
+      if (
+        !currentAccessVersion ||
+        socket.data.docAccessVersion !==
+          currentAccessVersion.docAccessVersion ||
+        socket.data.workspaceAccessVersion !==
+          currentAccessVersion.workspaceAccessVersion
+      )
+        stale.push(socket);
+    }
+
+    // Re-check each stale socket; leave out any that lost access, or whose
+    // check failed (it's tried again on the next emit).
+    const skipIds = excludeSocket ? [excludeSocket.id] : [];
+    await Promise.all(
+      stale.map(async (socket) => {
+        try {
+          const resolved =
+            await this.documentAccessService.resolveAccessWithVersions(
+              documentId,
+              socket.data.userId as number,
+            );
+          if (hasAccess(resolved.access, 'viewer')) {
+            // Tell the client if its level changed (e.g. editor → viewer).
+            if (resolved.access !== socket.data.accessLevel)
+              socketEmit(
+                socket,
+                SOCKET_EVENTS.ACCESS_CHANGED,
+                AccessChangedSchema,
+                { accessLevel: resolved.access },
+              );
+            socket.data.accessLevel = resolved.access;
+            socket.data.docAccessVersion = resolved.docAccessVersion;
+            socket.data.workspaceAccessVersion =
+              resolved.workspaceAccessVersion;
+            return;
+          }
+        } catch (err) {
+          if (!(err instanceof NotFoundException)) {
+            console.error(
+              `Failed to re-check access for socket ${socket.id}:`,
+              err,
+            );
+            skipIds.push(socket.id);
+            return;
+          }
+        }
+        // Below viewer, or the document is gone.
+        skipIds.push(socket.id);
+        this.revokeSocket(socket);
+      }),
+    );
+
+    this.socketServer
+      .to(room)
+      .except(skipIds)
+      .emit(event, schema.parse(payload));
+  }
+
+  /**
+   * Tells a socket it has lost access (ACCESS_CHANGED with noAccess, so the
+   * client shows the no-access screen and stops reconnecting), then
+   * force-closes its transport — see handleConnection for why plain
+   * disconnect() isn't enough. Disconnecting also removes it from the room.
+   * @param socket - the socket that lost access
+   */
+  private revokeSocket(socket: Socket): void {
+    socketEmit(socket, SOCKET_EVENTS.ACCESS_CHANGED, AccessChangedSchema, {
+      accessLevel: 'noAccess',
+    });
+    socket.disconnect(true);
   }
 }

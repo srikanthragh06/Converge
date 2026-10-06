@@ -1,38 +1,57 @@
-@import "@blocknote/core/fonts/inter.css";
 @import "@blocknote/mantine/style.css";
 
-/* shadcn/ui Neutral theme — dark mode (HSL). */
-:root {
-    --background: 0 0% 9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 13%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 13%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 90%;
-    --primary-foreground: 0 0% 13%;
-    --secondary: 0 0% 17%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 17%;
-    --muted-foreground: 0 0% 63%;
-    --destructive: 0 62% 30%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 13%;
-    --input: 0 0% 20%;
-    --ring: 0 0% 55%;
-    --radius: 0.5rem;
-}
-
-/* Tailwind base, component classes, and utility classes. */
+/* Tailwind base, component classes, and utility classes.
+   Colors come from the theme CSS variables injected by src/theme/themeVariables.ts. */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Body reset — preflight handles most resets, but some need explicit overrides. */
+/* Body reset — preflight handles most resets (including the Tailwind sans font), but some need explicit overrides. */
 body {
     margin: 0;
     padding: 0;
-    font-family: "Roboto", sans-serif;
+}
+
+/* Preflight's default placeholder color comes from Tailwind's default palette, which this app removes. */
+input::placeholder,
+textarea::placeholder {
+    color: rgb(var(--fg-muted));
+}
+
+/* Text selection tinted with the gold accent. */
+::selection {
+    background: rgb(var(--gold) / 0.3);
+}
+
+/* Body text: 16px Inter with roomier lines than BlockNote's 1.5, per the design. */
+.bn-editor .bn-block-outer {
+    line-height: 1.7;
+}
+
+.bn-editor .bn-block-content {
+    padding: 3.5px 0;
+}
+
+/* Headings use the display serif at medium weight in the primary text color,
+   matching the document title, with space above to separate sections. !important is needed on the weight:
+   BlockNote sets bold through a long, high-specificity selector. Sizes are set
+   through the --level variable BlockNote reads, scaled down from its defaults
+   (3em / 2em / 1.3em) to sit below the 46px title. */
+.bn-editor [data-content-type="heading"] {
+    font-family: theme("fontFamily.serif");
+    font-weight: 500 !important;
+    color: rgb(var(--fg));
+    line-height: 1.5;
+    padding-top: 0.85em;
+    --level: 2.25rem;
+}
+
+.bn-editor [data-content-type="heading"][data-level="2"] {
+    --level: 1.875rem;
+}
+
+.bn-editor [data-content-type="heading"][data-level="3"] {
+    --level: 1.375rem;
 }
 
 /* Remove the vertical line BlockNote renders on the left of nested block groups */
@@ -40,7 +59,7 @@ body {
     display: none !important;
 }
 
-/* Custom scrollbar styling to match the dark theme */
+/* Thin scrollbar in the theme's line colors */
 ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -51,12 +70,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #404040;
+    background: rgb(var(--line-strong));
     border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #525252;
+    background: rgb(var(--fg-muted));
 }
 
 /* Breathing room below the last block. Padding on the outer scroll container
@@ -65,10 +84,24 @@ body {
     padding-bottom: 8rem;
 }
 
-/* Reduce editor right padding on mobile — sidebar already takes left space */
-@media (max-width: 767px) {
+/* Narrower side gutters on phones, matching the title's px-5 in EditorPage.
+   BlockNote's 54px exists for the drag handle, which needs hover to appear. */
+@media (max-width: 639px) {
     .bn-editor {
-        padding-right: 10px !important;
+        padding-inline: 20px;
+    }
+
+    /* Headings step down with the phone's smaller 34px title. */
+    .bn-editor [data-content-type="heading"] {
+        --level: 1.75rem;
+    }
+
+    .bn-editor [data-content-type="heading"][data-level="2"] {
+        --level: 1.5rem;
+    }
+
+    .bn-editor [data-content-type="heading"][data-level="3"] {
+        --level: 1.25rem;
     }
 }
 
@@ -82,9 +115,40 @@ input:invalid {
     outline: none;
 }
 
-/* Override the Shiki-injected inline background on code blocks — the default is too dark
-   against the editor background, so we lift it to a slightly lighter surface. */
+/* Override the Shiki-injected inline background on code blocks with the surface-code
+   token — dark in both themes, since Shiki always highlights with github-dark. */
 [data-content-type="codeBlock"] pre {
-    background-color: #1c1c21 !important;
+    background-color: rgb(var(--surface-code)) !important;
     border-radius: 6px;
+}
+
+/* Links show no affordance until hovered — contenteditable suppresses the browser's
+   default pointer cursor over anchors, so the hover state below adds it back along
+   with a dotted underline and a slight dim. The transition lives on the base rule
+   (not the :hover rule) so the opacity change eases in/out instead of snapping,
+   since there's nothing for a hover-only rule to transition from. */
+.bn-editor a {
+    transition: opacity 0.15s ease;
+}
+
+.bn-editor a:hover {
+    cursor: pointer;
+    text-decoration: underline dotted;
+    opacity: 0.8;
+}
+
+/*
+ * Ask Converge: the gold cursor after a streaming reply's last text (the
+ * CSS twin of StreamingCursor), placed inside the last paragraph or list
+ * item so it sits on the text's own line.
+ */
+.agent-streaming > :last-child:not(ul, ol)::after,
+.agent-streaming > :is(ul, ol):last-child > li:last-child::after {
+    content: "";
+    display: inline-block;
+    width: 0.5rem;
+    height: 1.1em;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    background: rgb(var(--gold));
 }

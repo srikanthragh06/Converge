@@ -38,6 +38,7 @@ One row per workspace. Holds the workspace name, owner reference, type, and per-
 | `member_doc_access` | `document_access_level` | NOT NULL, default `'editor'` | Default doc access for workspace members when no per-doc override is set |
 | `non_member_doc_access` | `document_access_level` | NOT NULL, default `'noAccess'` | Default doc access for users not in this workspace when no per-doc override is set |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
+| `workspace_access_version` | `integer` | NOT NULL, default `0` | Access version counter (migration `0048`): bumped by `WorkspaceService.bumpWorkspaceAccessVersion` in the same transaction as every write that can change access to all of this workspace's documents (membership, member roles, ownership transfer, default doc access). Each open document socket stores the value it connected with; `DocumentGateway.emitToDocRoomWithAccessCheck` re-resolves a socket's access before a room emit when it differs |
 
 #### Indexes
 
@@ -86,6 +87,9 @@ One row per document. Stores the title and per-doc role overrides. Does not stor
 | `is_deleted` | `boolean` | NOT NULL, default `false` | Soft-delete flag; all read queries filter on `is_deleted = false`. Cleared back to `false` by `POST /document/:id/restore` (admin+) |
 | `deleted_at` | `timestamptz` | nullable | Set to `now()` when soft-deleted; cleared back to `null` on restore |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
+| `indexing_status` | `text` | NOT NULL, default `'idle'`, CHECK (`idle` \| `pending` \| `indexing`) | RAG indexing lifecycle state (migration `0039`): `'pending'` while an edit's debounce timer is waiting to fire, or while a failed job still has a pg-boss retry queued (rather than falsely reading `'idle'` mid-backoff); `'indexing'` while a reindex job is actively running |
+| `last_indexed_at` | `timestamptz` | nullable | When this document's content was last confirmed indexed by a successful reindex run; NULL if never indexed. Advances even on a run that finds nothing changed — means "confirmed current," not "content changed" |
+| `doc_access_version` | `integer` | NOT NULL, default `0` | Access version counter (migration `0048`): bumped by `DocumentAccessService.bumpDocAccessVersion` in the same transaction as every write that can change access to this one document (per-user grants/revokes, role overrides, soft-delete/restore). Compared with each open socket's stored value before every room emit, alongside `workspaces.workspace_access_version` |
 
 > `update_count` and `last_compact_count` were dropped (migration `0027`) alongside the removal of count-based compaction — see `document_updates` below.
 
@@ -144,7 +148,7 @@ Join table recording which users contributed edits leading up to a given checkpo
 ---
 
 ### `document_user_metadata`
-Tracks per-user activity timestamps for each document. Used by the library page to display last-visited and last-edited times.
+Tracks per-user activity timestamps for each document. Used by the library page to display last-visited and last-edited times, and by the sidebar to track which documents a user has pinned.
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
@@ -152,6 +156,7 @@ Tracks per-user activity timestamps for each document. Used by the library page 
 | `user_id` | `bigint` | NOT NULL, FK → `users.id` ON DELETE CASCADE | Scopes the row to a specific user |
 | `last_visited_at` | `timestamptz` | NOT NULL, default `now()` | Upserted on every WebSocket connect for this document |
 | `last_edited_at` | `timestamptz` | NOT NULL, default `now()` | Updated on every Yjs content update and title change |
+| `pinned_at` | `timestamptz` | nullable | Set to the DB's `now()` when the user pins the document in the sidebar; cleared back to `NULL` on unpin. A timestamp rather than a boolean so the pinned list can be ordered by most-recently-pinned first |
 
 > Composite PK on `(document_id, user_id)`. Rows are upserted (insert or update) rather than inserted to keep one row per user per document.
 
@@ -208,6 +213,136 @@ Long-lived credentials for non-browser callers (MCP, CLI, scripts) that inherit 
 
 ---
 
+### `document_chunks`
+Embedded, searchable Markdown chunks produced by the RAG indexing pipeline. Requires the `pgvector` extension (`CREATE EXTENSION vector`, enabled in migration `0036`).
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `bigserial` | PK | |
+| `document_id` | `bigint` | NOT NULL, FK → `documents.id` ON DELETE CASCADE, indexed | The document this chunk was extracted from |
+| `workspace_id` | `integer` | NOT NULL, FK → `workspaces.id` ON DELETE CASCADE, indexed | Denormalized from `documents.workspace_id` — retrieval-time access filtering needs it directly on this table, not via a join |
+| `block_ids` | `text[]` | NOT NULL | BlockNote block ids (UUID strings) this chunk spans, in document order — any block in the tree, parent or child, listed once. A block over 500 tokens is split into pieces, so its id can appear in more than one chunk |
+| `content` | `text` | NOT NULL | The chunk's text, as Markdown — what gets embedded and what's shown as a citation excerpt |
+| `embedding` | `vector(1536)` | NOT NULL | `text-embedding-3-small` embedding; similarity search uses the `<=>` cosine-distance operator |
+| `token_count` | `integer` | NOT NULL, default `0` | Token count of `content` itself (blocks plus the blank lines joining them), via the same tokenizer used for chunk sizing (migration `0038`) — backs `document_chunk_corpus_stats`' average-length stat and BM25's length normalization |
+| `content_tsv` | `tsvector` | GENERATED ALWAYS AS (`to_tsvector('english', content)`) STORED (migration `0038`) | Postgres maintains this automatically; no insert ever provides a value |
+| `created_at` | `timestamptz` | NOT NULL, default `now()` | |
+
+#### Indexes
+
+| Index | Columns | Type | Source | Purpose |
+|---|---|---|---|---|
+| `document_chunks_pkey` | `id` | B-tree | Implicit — PK | Fast row lookup by primary key. |
+| `idx_document_chunks_embedding_hnsw` | `embedding` | HNSW (vector_cosine_ops) | Explicit — 0036 | Approximate-nearest-neighbor cosine similarity search — `DocumentRAGService.retrieve`'s semantic candidate query (`ORDER BY embedding <=> ?`). Built while the table was still empty, ahead of any real bulk-insert cost. |
+| `idx_document_chunks_document_id` | `document_id` | B-tree | Explicit — 0036 | Scopes chunk lookups/deletes to a specific document — hit on every `reindexDocument` run. |
+| `idx_document_chunks_workspace_id` | `workspace_id` | B-tree | Explicit — 0036 | Scopes retrieval's candidate queries to the caller's accessible workspaces. |
+| `idx_document_chunks_content_tsv` | `content_tsv` | GIN | Explicit — 0038 | Lexical candidate matching (`content_tsv @@ ...`) in `DocumentRAGService.retrieve`, ahead of BM25 scoring. |
+
+---
+
+### `document_block_hashes`
+Per-block content fingerprints, used by the RAG indexing pipeline's snapshot-diff to detect changed/added/deleted blocks between indexing runs. One row per non-empty block in the document tree, parent or child. A removed block's row is kept while a stale chunk containing it survives a capped run, so the next run still sees it as removed; deleting a document's rows forces a full rebuild (`reindex-all-documents.ts`).
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `document_id` | `bigint` | NOT NULL, FK → `documents.id` ON DELETE CASCADE | Scopes this row to a specific document |
+| `block_id` | `text` | NOT NULL | BlockNote block id (UUID string) this fingerprint belongs to |
+| `hash` | `text` | NOT NULL | SHA-256 hash of the block's own Markdown (children excluded) as of the last indexing run |
+| `updated_at` | `timestamptz` | NOT NULL, default `now()` | |
+
+> Composite PK on `(document_id, block_id)`.
+
+#### Indexes
+
+| Index | Columns | Type | Source | Purpose |
+|---|---|---|---|---|
+| `document_block_hashes_pkey` | `(document_id, block_id)` | B-tree composite | Implicit — PK | Enforces one hash row per block per document. Covers `reindexDocument`'s per-document hash-diff read (`WHERE document_id = ?`, the leading column). |
+
+---
+
+### `document_chunk_term_stats`
+Per-workspace, per-term document frequency (how many chunks contain a term) — the IDF ingredient BM25 needs that a `tsvector`/GIN index alone can't provide. Incrementally maintained by `DocumentIndexingService` as a net-delta upsert inside the same transaction as chunk inserts/deletes; absence of a row means zero (a row is deleted once its count reaches zero rather than left at `0`).
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `workspace_id` | `integer` | NOT NULL, FK → `workspaces.id` ON DELETE CASCADE | BM25 stats are scoped per workspace, matching retrieval's access-filtered scope |
+| `term` | `text` | NOT NULL | A single Postgres-stemmed lexeme, as produced by `to_tsvector('english', ...)` — matches `document_chunks.content_tsv`'s tokenization exactly |
+| `document_frequency` | `integer` | NOT NULL, default `0` | Number of chunks in this workspace whose `content_tsv` contains this term |
+
+> Composite PK on `(workspace_id, term)`.
+
+#### Indexes
+
+| Index | Columns | Type | Source | Purpose |
+|---|---|---|---|---|
+| `document_chunk_term_stats_pkey` | `(workspace_id, term)` | B-tree composite | Implicit — PK | Enforces one stats row per term per workspace. Covers the per-term lookups BM25 scoring and the incremental net-delta upsert both need (`WHERE workspace_id = ? AND term = ?`). |
+
+---
+
+### `document_chunk_corpus_stats`
+One row per workspace, tracking the running totals behind average chunk length (`total_tokens / total_chunks`) — BM25's other corpus-wide ingredient, alongside term document-frequency above. Updated by the same net-delta transaction as `document_chunk_term_stats`.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `workspace_id` | `integer` | PK, FK → `workspaces.id` ON DELETE CASCADE | One row per workspace |
+| `total_chunks` | `integer` | NOT NULL, default `0` | Total number of chunks currently indexed in this workspace |
+| `total_tokens` | `integer` | NOT NULL, default `0` | Sum of `token_count` across every chunk currently indexed in this workspace |
+
+#### Indexes
+
+| Index | Columns | Type | Source | Purpose |
+|---|---|---|---|---|
+| `document_chunk_corpus_stats_pkey` | `workspace_id` | B-tree | Implicit — PK | Fast row lookup by workspace; the only access pattern this table has. |
+
+---
+
+### `agent_conversations`
+One row per AI agent chat thread. `workspace_id` is fixed at creation time — it decides which workspace's documents/tools the conversation's tool-calling loop may touch for its entire lifetime, not just whichever workspace the user currently has selected.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `bigserial` | PK | |
+| `workspace_id` | `integer` | NOT NULL, FK → `workspaces.id` ON DELETE CASCADE, indexed | Fixed at creation time; bound into every workspace-scoped tool call for this conversation |
+| `user_id` | `integer` | NOT NULL, FK → `users.id` ON DELETE CASCADE, indexed | Conversations are not shared across users |
+| `last_response_id` | `text` | nullable | The OpenAI Responses API's `response.id` from this conversation's most recently completed step, passed back as `previous_response_id` so OpenAI's own backend supplies prior turns' context (reasoning included). Null until the first step completes |
+| `updated_at` | `timestamptz` | NOT NULL, default `now()` | Bumped alongside `last_response_id` after every completed step — tracks actual activity, not just creation time. `listConversations` orders by this so a caller resumes the conversation they last used |
+| `title` | `text` | nullable | User-set display name. Null means untitled — the frontend falls back to a formatted creation date |
+| `pending_tool_outputs` | `jsonb` | nullable (migration `0047`, no backfill) | The `function_call_output` items `last_response_id`'s response is still owed, sent ahead of the next turn's message — OpenAI rejects any other input after a response with unanswered tool calls (400 "No tool output found for function call"). Written in the same update as `last_response_id`: "cancelled" stand-ins when a response requests tools, the real results once they run (only `WHERE last_response_id` still matches that step, so a Stop followed by a new turn isn't overwritten), `null` once a response requests none. Null means nothing is owed |
+| `created_at` | `timestamptz` | NOT NULL, default `now()` | |
+
+#### Indexes
+
+| Index | Columns | Type | Source | Purpose |
+|---|---|---|---|---|
+| `agent_conversations_pkey` | `id` | B-tree | Implicit — PK | Fast row lookup by primary key; used by `agent_messages`' FK. |
+| `idx_agent_conversations_workspace_id` | `workspace_id` | B-tree | Explicit — 0040 | Scopes workspace-level conversation queries. |
+| `idx_agent_conversations_user_id` | `user_id` | B-tree | Explicit — 0040 | Serves `listConversations`' lookup (`WHERE user_id = ? AND workspace_id = ?`) and every ownership check (`getMessages`, `sendMessage`, rename, delete). |
+
+---
+
+### `agent_messages`
+One row per step's worth of OpenAI Responses API output, not one row per turn — a step with a tool call persists as two rows (`'assistant'` with that step's raw `response.output` array, `'tool'` with the `function_call_output` items sent back) rather than bundling both onto a single row. Purely a display/audit log: a model call is driven by `agent_conversations.last_response_id` (`previous_response_id` chaining), not by reading this table back.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `bigserial` | PK | |
+| `conversation_id` | `bigint` | NOT NULL, FK → `agent_conversations.id` ON DELETE CASCADE, indexed | Scopes this message to a specific conversation |
+| `role` | `text` | NOT NULL, CHECK (`user` \| `assistant` \| `tool`) | Who authored this message |
+| `content` | `text` | NOT NULL | `JSON.stringify` of this row's payload — the plain text string for a `'user'` row, a step's raw `response.output` item array for `'assistant'`, or that step's `function_call_output` item array for `'tool'`. Kept as an opaque string, not parsed back into any request shape |
+| `step_index` | `integer` | NOT NULL, default `0` | Which step within a turn produced this message. Multiple rows can share a `step_index` (an assistant tool-call row and its paired tool-result row) |
+| `created_at` | `timestamptz` | NOT NULL, default `now()` | |
+
+> `tool_calls`/`tool_results` (jsonb, added in migration `0042`) were dropped in migration `0043` once a tool call and its result became two separate rows instead of two columns bundled onto one — matches what the model actually sees.
+
+#### Indexes
+
+| Index | Columns | Type | Source | Purpose |
+|---|---|---|---|---|
+| `agent_messages_pkey` | `id` | B-tree | Implicit — PK | Fast row lookup by primary key. |
+| `idx_agent_messages_conversation_id` | `conversation_id` | B-tree | Explicit — 0041 | Scopes every message query to a specific conversation — hit on every `getMessages` call and on history rehydration. |
+
+---
+
 ## Redis
 
 ### Pub/Sub Channels
@@ -232,5 +367,38 @@ No feature currently holds a Redis-based distributed lock — the old `lock-comp
 
 | Key pattern | Constant | Type | TTL | Purpose |
 |---|---|---|---|---|
-| `awareness:<documentId>` | `REDIS_KEYS.awareness(documentId)` | Hash | 1 hour | Maps `userId` (string) → JSON-serialised `AwarenessUser` for every user currently present in a document. Written on connect, updated on cursor move, deleted on last-tab disconnect. TTL is refreshed on every write as a safety net against stale entries. |
-| `awareness-sockets:<documentId>:<userId>` | `REDIS_KEYS.awarenessSockets(documentId, userId)` | Set | 1 hour | Tracks the set of active `socketId`s for a user in a document — one entry per open browser tab. Used for multi-tab ref counting: the user's awareness entry is only removed when this Set becomes empty. TTL is refreshed on every write. |
+| `awareness:<documentId>` | `REDIS_KEYS.awareness(documentId)` | Hash | 1 hour | Maps `userId` (string) → JSON-serialised `AwarenessUser` for every user currently present in a document. Written on connect, updated on cursor move (recreated if missing), deleted when the user's last live socket closes or goes silent. TTL is refreshed on every write as a safety net against stale entries. |
+| `awareness-sockets:<documentId>` | `REDIS_KEYS.awarenessSockets(documentId)` | Sorted set | 1 hour | One member per open socket in the document, `userId:socketId`, scored by its last heartbeat time in ms. Refreshed on connect and on every 15s `REPAIR_SYNC_DOC_SERVER` heartbeat; each heartbeat drops members silent for over 90s (`AWARENESS_SOCKET_TIMEOUT_MS`) and removes from `awareness:<documentId>` any user with no live socket left — clearing ghosts left by a server that stopped before its disconnect handler ran. Per-tab ref counting: a user's awareness entry is removed only when they have no live socket left. TTL is refreshed on every write. |
+
+---
+
+### Rate-Limit Keys
+
+Fixed-window counters maintained via `RedisService.incrWithExpire` (request-count windows) and `incrByWithExpire` (token-volume windows) — plain `INCR`/`INCRBY`, with the expiry set only on the call that observes the key was just created, race-free with no Lua script or transaction needed since the increment itself is atomic. Every window below is 60 seconds except the agent's `:day` keys (24h), hardcoded per-caller rather than driven by a shared constant. The agent's token-volume keys are also read without incrementing, via `RedisService.getCounter` — see `AgentRateLimitService`'s class doc comment for why its per-call token cost can only be known after the call completes, not before.
+
+| Key pattern | Constant | Type | Purpose |
+|---|---|---|---|
+| `google-auth-ratelimit:ip:<ip>` | `REDIS_KEYS.googleAuthRateLimitIp(ip)` | String counter | Per-IP request count for `POST /auth/google`, checked by `GoogleAuthRateLimitGuard` |
+| `google-auth-ratelimit:global` | `REDIS_KEYS.googleAuthRateLimitGlobal` | String counter | Cross-IP request count for `POST /auth/google` |
+| `voyage-rerank-ratelimit:user:<userId>` | `REDIS_KEYS.voyageRerankRateLimitUser(userId)` | String counter | Per-user request count for Voyage rerank calls, checked by `DocumentRerankService` |
+| `voyage-rerank-ratelimit:workspace:<workspaceId>` | `REDIS_KEYS.voyageRerankRateLimitWorkspace(workspaceId)` | String counter | Per-workspace request count for Voyage rerank calls |
+| `voyage-rerank-ratelimit:global` | `REDIS_KEYS.voyageRerankRateLimitGlobal` | String counter | Cross-workspace request count for Voyage rerank calls |
+| `openai-embedding-ratelimit:user:<userId>:requests` | `REDIS_KEYS.openaiEmbeddingRateLimitUserRequests(userId)` | String counter | Per-user request count for OpenAI embedding calls, checked by `DocumentEmbeddingService` — search path only, since background indexing has no single attributable user |
+| `openai-embedding-ratelimit:user:<userId>:tokens` | `REDIS_KEYS.openaiEmbeddingRateLimitUserTokens(userId)` | String counter | Per-user token volume for OpenAI embedding calls — search path only |
+| `openai-embedding-ratelimit:workspace:<workspaceId>:requests` | `REDIS_KEYS.openaiEmbeddingRateLimitWorkspaceRequests(workspaceId)` | String counter | Per-workspace request count for OpenAI embedding calls |
+| `openai-embedding-ratelimit:workspace:<workspaceId>:tokens` | `REDIS_KEYS.openaiEmbeddingRateLimitWorkspaceTokens(workspaceId)` | String counter | Per-workspace token volume for OpenAI embedding calls |
+| `openai-embedding-ratelimit:global:requests` | `REDIS_KEYS.openaiEmbeddingRateLimitGlobalRequests` | String counter | Cross-workspace request count for OpenAI embedding calls |
+| `openai-embedding-ratelimit:global:tokens` | `REDIS_KEYS.openaiEmbeddingRateLimitGlobalTokens` | String counter | Cross-workspace token volume for OpenAI embedding calls |
+| `imagekit-upload-auth-ratelimit:user:<userId>` | `REDIS_KEYS.imageKitUploadAuthRateLimitUser(userId)` | String counter | Per-user count of ImageKit upload tokens issued, shared by `GET /document/:id/upload-auth` (checked by `ImageKitUploadAuthRateLimitGuard`) and the `getUploadToken` MCP tool (checked inside `DocumentTools.getUploadToken`, since an HTTP guard doesn't run for MCP calls) — 10 per 60s |
+| `agent-ratelimit:user:<userId>:requests:minute` | `REDIS_KEYS.agentRateLimitUserRequestsMinute(userId)` | String counter | Per-user, per-minute request count for agent OpenAI calls, checked by `AgentRateLimitService` once per real call inside the step loop |
+| `agent-ratelimit:user:<userId>:tokens:minute` | `REDIS_KEYS.agentRateLimitUserTokensMinute(userId)` | String counter | Per-user, per-minute token volume for agent OpenAI calls — read-only checked, incremented only after a call completes with its real usage |
+| `agent-ratelimit:user:<userId>:requests:day` | `REDIS_KEYS.agentRateLimitUserRequestsDay(userId)` | String counter | Per-user, per-day request count for agent OpenAI calls — a pure cost backstop, no OpenAI-side analog |
+| `agent-ratelimit:user:<userId>:tokens:day` | `REDIS_KEYS.agentRateLimitUserTokensDay(userId)` | String counter | Per-user, per-day token volume for agent OpenAI calls |
+| `agent-ratelimit:workspace:<workspaceId>:requests:minute` | `REDIS_KEYS.agentRateLimitWorkspaceRequestsMinute(workspaceId)` | String counter | Per-workspace, per-minute request count for agent OpenAI calls |
+| `agent-ratelimit:workspace:<workspaceId>:tokens:minute` | `REDIS_KEYS.agentRateLimitWorkspaceTokensMinute(workspaceId)` | String counter | Per-workspace, per-minute token volume for agent OpenAI calls |
+| `agent-ratelimit:workspace:<workspaceId>:requests:day` | `REDIS_KEYS.agentRateLimitWorkspaceRequestsDay(workspaceId)` | String counter | Per-workspace, per-day request count for agent OpenAI calls |
+| `agent-ratelimit:workspace:<workspaceId>:tokens:day` | `REDIS_KEYS.agentRateLimitWorkspaceTokensDay(workspaceId)` | String counter | Per-workspace, per-day token volume for agent OpenAI calls |
+| `agent-ratelimit:global:requests:minute` | `REDIS_KEYS.agentRateLimitGlobalRequestsMinute` | String counter | Cross-workspace, per-minute request count for agent OpenAI calls — kept at 90% of the account's real RPM limit |
+| `agent-ratelimit:global:tokens:minute` | `REDIS_KEYS.agentRateLimitGlobalTokensMinute` | String counter | Cross-workspace, per-minute token volume for agent OpenAI calls — kept at 90% of the account's real TPM limit |
+| `agent-ratelimit:global:requests:day` | `REDIS_KEYS.agentRateLimitGlobalRequestsDay` | String counter | Cross-workspace, per-day request count for agent OpenAI calls |
+| `agent-ratelimit:global:tokens:day` | `REDIS_KEYS.agentRateLimitGlobalTokensDay` | String counter | Cross-workspace, per-day token volume for agent OpenAI calls |

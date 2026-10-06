@@ -11,7 +11,7 @@ import { REDIS_EVENTS } from '../redis/redis.events.js';
 import { DatabaseService } from '../db/database.service.js';
 import { RedisService } from '../redis/redis.service.js';
 import { uint8ArrayToBase64 } from '../utils/utils.js';
-import { socketEmitRoom } from '../utils/ws-emit.util.js';
+import type { AccessVersions } from './document-access.service.js';
 import { DocumentGateway } from './document.gateway.js';
 import { sql } from 'kysely';
 
@@ -45,13 +45,27 @@ export class DocumentYjsService {
 
   /**
    * Returns the in-memory Y.Doc for the given document, loading and caching it
-   * from the database on first access. Subsequent calls return the cached instance.
+   * from the database on first access. Subsequent calls return the cached
+   * instance, unless rebuild is true.
    * @param documentId - the document to load
+   * @param rebuild - if true, always reconstructs the doc fresh from
+   * document_updates and replaces the cached instance, instead of trusting
+   * whatever is already cached. The cache is only ever kept fresh via a
+   * Redis subscription, and that subscription is only ever established when
+   * a real client socket connects to this document on this server instance
+   * (see document.gateway.ts's handleConnection) — a caller with no socket
+   * of its own (e.g. a scheduled background job like
+   * DocumentIndexingService.reindexDocument) has no guarantee this instance
+   * was ever subscribed, so the cache could be silently, permanently stale.
+   * Defaults to false so every existing socket-driven caller (which IS
+   * covered by that subscription) keeps its current, cheaper behavior.
    * @returns the live Y.Doc instance for this document
    */
-  async loadDoc(documentId: number): Promise<Y.Doc> {
-    const yDoc = this.yDocsMap.get(documentId);
-    if (yDoc) return yDoc;
+  async loadDoc(documentId: number, rebuild = false): Promise<Y.Doc> {
+    if (!rebuild) {
+      const cached = this.yDocsMap.get(documentId);
+      if (cached) return cached;
+    }
 
     const db = this.dbService.kysely;
 
@@ -91,12 +105,15 @@ export class DocumentYjsService {
    *   already applied its own edit optimistically before sending it. Omit
    *   for server-driven writes with no originating socket (e.g. an MCP
    *   write tool), which broadcasts to every socket in the room instead.
+   * @param versions - the document's access versions, when the caller just
+   *   read them with its own access check, so the broadcast needn't read them
    * @returns the applied update and the server state vector after the update
    */
   async applyDocUpdate(
     documentId: number,
     update: Uint8Array,
     excludeSocket?: Socket,
+    versions?: AccessVersions,
   ): Promise<{ update: Uint8Array; serverSV: Uint8Array }> {
     const yDoc = await this.loadDoc(documentId);
 
@@ -135,9 +152,8 @@ export class DocumentYjsService {
     // initializing, which can't happen in practice — the app isn't serving
     // any requests yet at that point.
     if (this.documentGateway.socketServer) {
-      socketEmitRoom(
-        excludeSocket ?? this.documentGateway.socketServer,
-        String(documentId),
+      await this.documentGateway.emitToDocRoomWithAccessCheck(
+        documentId,
         SOCKET_EVENTS.SYNC_DOC_CLIENT,
         SyncDocClientSchema,
         {
@@ -145,6 +161,8 @@ export class DocumentYjsService {
           updateArray: Array.from(update),
           serverSVArray: Array.from(serverSV),
         },
+        excludeSocket,
+        versions,
       );
     }
 
@@ -218,11 +236,13 @@ export class DocumentYjsService {
    *   already has the new title. Omit for server-driven writes with no
    *   originating socket, which broadcasts to every socket in the room
    *   instead — same reasoning as applyDocUpdate's excludeSocket.
+   * @param versions - see applyDocUpdate
    */
   async applyDocTitleUpdate(
     documentId: number,
     title: string,
     excludeSocket?: Socket,
+    versions?: AccessVersions,
   ): Promise<void> {
     const db = this.dbService.kysely;
 
@@ -241,12 +261,13 @@ export class DocumentYjsService {
     // Broadcast to this instance's own room — see applyDocUpdate for why
     // this can't be left to the Redis publish alone.
     if (this.documentGateway.socketServer) {
-      socketEmitRoom(
-        excludeSocket ?? this.documentGateway.socketServer,
-        String(documentId),
+      await this.documentGateway.emitToDocRoomWithAccessCheck(
+        documentId,
         SOCKET_EVENTS.SYNC_DOC_TITLE_CLIENT,
         SyncDocTitleClientSchema,
         { title },
+        excludeSocket,
+        versions,
       );
     }
   }

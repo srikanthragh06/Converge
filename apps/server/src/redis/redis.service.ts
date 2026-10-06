@@ -117,32 +117,44 @@ export class RedisService {
   }
 
   /**
-   * Adds one or more members to a Redis Set, creating it if it does not exist.
-   * @param key - the Redis key for the Set
-   * @param members - the values to add
-   * @returns the number of members actually added (excludes already-present members)
+   * Adds a member to a Redis Sorted Set with the given score, or updates the
+   * score if the member is already present. Creates the set if it does not exist.
+   * @param key - the Redis key for the Sorted Set
+   * @param score - the score to store for the member
+   * @param member - the value to add or update
    */
-  async sadd(key: string, ...members: string[]): Promise<number> {
-    return this.pub.sadd(key, ...members);
+  async zadd(key: string, score: number, member: string): Promise<void> {
+    await this.pub.zadd(key, score, member);
   }
 
   /**
-   * Removes one or more members from a Redis Set.
-   * @param key - the Redis key for the Set
+   * Removes one or more members from a Redis Sorted Set.
+   * @param key - the Redis key for the Sorted Set
    * @param members - the values to remove
    * @returns the number of members actually removed
    */
-  async srem(key: string, ...members: string[]): Promise<number> {
-    return this.pub.srem(key, ...members);
+  async zrem(key: string, ...members: string[]): Promise<number> {
+    return this.pub.zrem(key, ...members);
   }
 
   /**
-   * Returns the number of members in a Redis Set.
-   * Returns 0 if the key does not exist.
-   * @param key - the Redis key for the Set
+   * Removes every member of a Redis Sorted Set whose score is at or below
+   * the given value.
+   * @param key - the Redis key for the Sorted Set
+   * @param maxScore - the highest score to remove
+   * @returns the number of members removed
    */
-  async scard(key: string): Promise<number> {
-    return this.pub.scard(key);
+  async zremBelowOrEqual(key: string, maxScore: number): Promise<number> {
+    return this.pub.zremrangebyscore(key, '-inf', maxScore);
+  }
+
+  /**
+   * Returns every member of a Redis Sorted Set, lowest score first.
+   * Returns an empty array if the key does not exist.
+   * @param key - the Redis key for the Sorted Set
+   */
+  async zmembers(key: string): Promise<string[]> {
+    return this.pub.zrange(key, 0, -1);
   }
 
   /**
@@ -193,6 +205,70 @@ export class RedisService {
     const result = await this.pub.hgetall(key);
     // hgetall returns null for non-existent keys in some ioredis versions.
     return result ?? {};
+  }
+
+  /**
+   * Atomically increments a counter key and returns its new value, setting an
+   * expiry on the key only the first time it's created (INCR is atomic, so
+   * exactly one caller ever observes count === 1 for a fresh key — no
+   * transaction or Lua script needed to avoid a double-EXPIRE race). Used as
+   * the building block for fixed-window rate limiting: the window starts
+   * ticking down from the key's first hit and resets once it expires.
+   * @param key - the Redis key to increment
+   * @param ttlSeconds - how long the window lasts, set only on the first increment
+   * @returns the counter's value after this increment
+   */
+  async incrWithExpire(key: string, ttlSeconds: number): Promise<number> {
+    const count = await this.pub.incr(key);
+    if (count === 1) {
+      await this.pub.expire(key, ttlSeconds);
+    }
+    return count;
+  }
+
+  /**
+   * Reads a counter key's current value without incrementing it — for a
+   * window that's checked more often than it's updated (e.g.
+   * AgentRateLimitService's token-count windows, which are only
+   * incremented once a call's real cost is known, but checked before every
+   * call). Returns 0 for a key that doesn't exist yet, same starting point
+   * incrWithExpire's first increment would produce.
+   * @param key - the Redis key to read
+   * @returns the counter's current value, or 0 if unset
+   */
+  async getCounter(key: string): Promise<number> {
+    const value = await this.pub.get(key);
+    return value === null ? 0 : Number(value);
+  }
+
+  /**
+   * Same as incrWithExpire, but increments by an arbitrary amount instead of
+   * always 1 — used for token-based (rather than call-count-based) rate
+   * limiting, where each call's cost varies with its input size. Can't reuse
+   * incrWithExpire's "count === 1 means fresh key" check here: a later
+   * call's amount could coincidentally equal the running total and falsely
+   * look like the key's first hit, re-arming the expiry and extending the
+   * window past when it should have reset. Checking TTL === -1 (no expiry
+   * currently set) instead is a structural check, not a numeric coincidence,
+   * so it doesn't have that failure mode — a concurrent race between two
+   * genuinely-first callers is harmless, since both would just (redundantly)
+   * set the same TTL.
+   * @param key - the Redis key to increment
+   * @param amount - how much to add to the counter
+   * @param ttlSeconds - how long the window lasts, set only when the key has no expiry yet
+   * @returns the counter's value after this increment
+   */
+  async incrByWithExpire(
+    key: string,
+    amount: number,
+    ttlSeconds: number,
+  ): Promise<number> {
+    const count = await this.pub.incrby(key, amount);
+    const ttl = await this.pub.ttl(key);
+    if (ttl === -1) {
+      await this.pub.expire(key, ttlSeconds);
+    }
+    return count;
   }
 
   /**

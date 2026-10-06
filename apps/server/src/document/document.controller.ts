@@ -6,15 +6,17 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard.js';
-import { UserThrottlerGuard } from '../guards/user-throttler.guard.js';
+import { ImageKitUploadAuthRateLimitGuard } from './imagekit-upload-auth-rate-limit.guard.js';
 import { type Request } from 'express';
 import { DocumentService } from './document.service.js';
 import { DocumentCheckpointService } from './document-checkpoint.service.js';
+import { DocumentRAGService } from './document-rag.service.js';
 import { httpOK } from '../utils/http-response.util.js';
 import {
   CreateDocumentRequestSchema,
@@ -26,12 +28,22 @@ import {
   type GetDocumentResponseDto,
   type GetDocumentOverviewResponseDto,
   type GetLibraryDocumentsResponseDto,
+  type GetPinnedDocumentsResponseDto,
+  type SetDocumentPinnedRequestDto,
+  type SetDocumentPinnedResponseDto,
   type SearchLibraryDocumentsResponseDto,
+  type SearchDocumentContentRequestDto,
+  type SearchDocumentContentResponseDto,
   type GetTrashDocumentsResponseDto,
+  type GetUploadAuthRequestDto,
   type GetUploadAuthResponseDto,
+  GetUploadAuthRequestSchema,
   GetDocumentCheckpointsRequestSchema,
   GetLibraryDocumentsRequestSchema,
+  GetPinnedDocumentsRequestSchema,
+  SetDocumentPinnedRequestSchema,
   SearchLibraryDocumentsRequestSchema,
+  SearchDocumentContentRequestSchema,
   GetTrashDocumentsRequestSchema,
 } from '@converge/shared';
 import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe.js';
@@ -42,7 +54,8 @@ export class DocumentController {
   constructor(
     private readonly documentService: DocumentService,
     private readonly documentCheckpointService: DocumentCheckpointService,
-  ) {} // Handles document CRUD, library, and version-history checkpoints — all routes require authentication via AuthGuard.
+    private readonly documentRAGService: DocumentRAGService,
+  ) {} // Handles document CRUD, library, content search, and version-history checkpoints — all routes require authentication via AuthGuard.
 
   /**
    * Returns the document with the given ID if it belongs to the authenticated user.
@@ -151,10 +164,10 @@ export class DocumentController {
   }
 
   /**
-   * Returns overview metadata for the given document: title, creator name and
-   * email, creation date, and the most recent last-visited and last-edited
-   * timestamps. Throws 404 if not found or deleted, 403 if the user does not
-   * have access.
+   * Returns overview metadata for the given document: title, creator and
+   * owner name and email, creation date, and RAG indexing status (lifecycle
+   * state plus when it was last confirmed indexed). Throws 404 if not found
+   * or deleted, 403 if the user does not have access.
    * @param req - the Express request, with userId stamped by AuthGuard
    * @param documentId - the document ID parsed from the URL path
    * @returns overview metadata for the document
@@ -196,12 +209,38 @@ export class DocumentController {
   }
 
   /**
+   * Searches the content of the documents the user can see in a workspace,
+   * for the ⌘K palette. Lexical mode matches exact (stemmed) words with no
+   * AI calls; semantic mode matches by meaning and is rate-limited per
+   * user, workspace and globally (429 when a limit is hit).
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param query - workspaceId, query (non-empty, max 256 chars), and mode
+   * @returns matching documents with their passages, most relevant first
+   */
+  @Get('/search/content')
+  async handleSearchDocumentContent(
+    @Req() req: Request,
+    @Query(new ZodHttpValidationPipe(SearchDocumentContentRequestSchema))
+    query: SearchDocumentContentRequestDto,
+  ): Promise<SearchDocumentContentResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.documentRAGService.searchContent(
+        query.query,
+        query.workspaceId,
+        userId,
+        query.mode,
+      ),
+    );
+  }
+
+  /**
    * Returns a paginated list of documents in the given workspace the user has
    * viewer+ access to, ordered by last_visited_at DESC. Uses keyset pagination
    * — pass cursorVisitedAt and cursorId from the previous response's nextCursor
    * to fetch the next page.
    * @param req - the Express request, with userId stamped by AuthGuard
-   * @param query - workspaceId, optional limit, cursorVisitedAt, and cursorId
+   * @param query - workspaceId, optional limit, cursorVisitedAt, cursorId, and ignorePinnedDocs
    * @returns documents for this page and nextCursor (null on the last page)
    */
   @Get('/library')
@@ -213,6 +252,7 @@ export class DocumentController {
       limit?: number;
       cursorVisitedAt?: Date;
       cursorId?: number;
+      ignorePinnedDocs?: boolean;
     },
   ): Promise<GetLibraryDocumentsResponseDto> {
     const userId = (req as any).userId as number;
@@ -227,7 +267,50 @@ export class DocumentController {
         query.workspaceId,
         limit,
         cursor,
+        query.ignorePinnedDocs ?? false,
       ),
+    );
+  }
+
+  /**
+   * Returns every document in the given workspace the user has pinned and
+   * still has viewer+ access to, ordered by most recently pinned first.
+   * Unpaginated.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param query - workspaceId
+   * @returns the user's pinned documents in this workspace
+   */
+  @Get('/pinned')
+  async handleGetPinnedDocuments(
+    @Req() req: Request,
+    @Query(new ZodHttpValidationPipe(GetPinnedDocumentsRequestSchema))
+    query: { workspaceId: number },
+  ): Promise<GetPinnedDocumentsResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.documentService.getPinnedDocuments(userId, query.workspaceId),
+    );
+  }
+
+  /**
+   * Pins or unpins the given document for the requesting user. Throws 404 if
+   * the document does not exist or is deleted, 403 if the user has less than
+   * viewer access.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param documentId - the document ID parsed from the URL path
+   * @param body - pinned: true to pin, false to unpin
+   * @returns the resulting pinnedAt value — a timestamp when pinned, null when unpinned
+   */
+  @Put('/:id/pin')
+  async handleSetDocumentPinned(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) documentId: number,
+    @Body(new ZodHttpValidationPipe(SetDocumentPinnedRequestSchema))
+    body: SetDocumentPinnedRequestDto,
+  ): Promise<SetDocumentPinnedResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.documentService.setPinned(documentId, userId, body.pinned),
     );
   }
 
@@ -305,14 +388,32 @@ export class DocumentController {
   }
 
   /**
-   * Returns a one-time ImageKit upload auth token for the authenticated user.
-   * Rate-limited to 10 requests per minute per user — each token mints a valid
-   * ImageKit upload credential, so uncapped calls could fill storage with junk.
-   * @returns token, expire, and HMAC-SHA1 signature for a client-side ImageKit upload
+   * Returns a one-time ImageKit V2 upload token for a file going into this
+   * document, with the exact fields to upload it with. Throws 403 if the user
+   * does not have editor+ access. Rate-limited to 10 requests per minute per
+   * user — each token is a valid ImageKit upload credential, so uncapped calls
+   * could fill storage with junk.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param documentId - the document ID parsed from the URL path
+   * @param query - the kind of file about to be uploaded, and its extension
+   * @returns the upload URL, the signed token, and the fields signed into it
    */
-  @UseGuards(UserThrottlerGuard)
-  @Get('/upload-auth')
-  handleGetUploadAuth(): GetUploadAuthResponseDto {
-    return httpOK(this.documentService.getImageKitUploadAuth());
+  @UseGuards(ImageKitUploadAuthRateLimitGuard)
+  @Get('/:id/upload-auth')
+  async handleGetUploadAuth(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) documentId: number,
+    @Query(new ZodHttpValidationPipe(GetUploadAuthRequestSchema))
+    query: GetUploadAuthRequestDto,
+  ): Promise<GetUploadAuthResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.documentService.getImageKitUploadAuth(
+        documentId,
+        userId,
+        query.fileType,
+        query.extension,
+      ),
+    );
   }
 }

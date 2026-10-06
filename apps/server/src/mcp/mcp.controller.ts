@@ -19,6 +19,14 @@ import {
   ReadDocumentMarkdownResponseSchema,
   GetDocumentBlocksToolInputSchema,
   GetDocumentBlocksResponseSchema,
+  FindInDocumentToolInputSchema,
+  FindInDocumentToolResponseSchema,
+  GetBlocksByIdToolInputSchema,
+  GetBlocksByIdToolResponseSchema,
+  GetDocumentOutlineToolInputSchema,
+  GetDocumentOutlineToolResponseSchema,
+  GetUploadTokenToolInputSchema,
+  GetUploadTokenToolResponseSchema,
   UpdateDocumentBlocksToolInputSchema,
   UpdateDocumentBlocksResponseSchema,
   CreateDocumentToolInputSchema,
@@ -37,6 +45,10 @@ import {
   ListDeletedDocumentsToolResponseSchema,
   RestoreDocumentToolInputSchema,
   RestoreDocumentResponseSchema,
+  SearchDocumentContentToolInputSchema,
+  SearchDocumentContentToolResponseSchema,
+  GetDocumentIndexingStatusToolInputSchema,
+  GetDocumentIndexingStatusToolResponseSchema,
 } from '@converge/shared';
 
 // Exposes a single MCP endpoint over the Streamable HTTP transport. The MCP
@@ -119,7 +131,7 @@ export class McpController {
       {
         title: 'Search Documents',
         description:
-          "Searches documents in a workspace by title, matching by similarity rather than exact text — ordered by relevance descending. Use this instead of listDocuments when looking for a specific document by name.",
+          'Searches documents in a workspace by title, matching by similarity rather than exact text — ordered by relevance descending. Use this instead of listDocuments when looking for a specific document by name.',
         inputSchema: SearchDocumentsToolInputSchema,
         outputSchema: SearchDocumentsToolResponseSchema,
       },
@@ -159,7 +171,7 @@ export class McpController {
       {
         title: 'Get Document Metadata',
         description:
-          "Fetches a document's metadata (title, workspace, resolved access, createdAt). Does not return document content — see getDocumentBlocks/readDocumentMarkdown for that. Requires viewer access or higher.",
+          "Fetches a document's metadata (title, workspace, resolved access, createdAt, and whether the caller has pinned it). Does not return document content — see getDocumentBlocks/readDocumentMarkdown for that. Requires viewer access or higher.",
         inputSchema: GetDocumentMetadataToolInputSchema,
         outputSchema: GetDocumentMetadataToolResponseSchema,
       },
@@ -215,11 +227,91 @@ export class McpController {
     );
 
     server.registerTool(
+      'findInDocument',
+      {
+        title: 'Find In Document',
+        description:
+          'Finds every block in one document whose text contains the given text (case-insensitive, otherwise exact) and returns their block ids, parent ids and short previews, plus the total match count. Reads the live document, not the search index. Use it when you know the exact text, need every occurrence, or need to confirm some text is absent; for meaning-based questions use searchDocumentContent. Search for plain text, not Markdown syntax (no **, [link](url) or backslash escapes copied from readDocumentMarkdown). Read the matched blocks with getBlocksById. Requires viewer access or higher.',
+        inputSchema: FindInDocumentToolInputSchema,
+        outputSchema: FindInDocumentToolResponseSchema,
+      },
+      async (input) => {
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.findInDocument(userId, input),
+        );
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'getBlocksById',
+      {
+        title: 'Get Blocks By Id',
+        description:
+          'Reads specific blocks of one document by id — any block, top-level or nested, e.g. the ids findInDocument or searchDocumentContent returned — as BlockNote block JSON, each with its parentId. Pass before/after to also get that many sibling blocks (same parent) around each block, and depth to limit how many levels of children come back (-1 all, the default; 0 none; a block whose children were left out has childCount). Ids not in the document come back in notFoundIds instead of failing. Reads the live document, so it sees edits made a moment ago. Use it instead of getDocumentBlocks when you only need part of a large document. Requires viewer access or higher.',
+        inputSchema: GetBlocksByIdToolInputSchema,
+        outputSchema: GetBlocksByIdToolResponseSchema,
+      },
+      async (input) => {
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.getBlocksById(userId, input),
+        );
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'getDocumentOutline',
+      {
+        title: 'Get Document Outline',
+        description:
+          'Lists every heading in one document, in order, with its id, level, text (cut to 80 characters) and two counts of the sibling blocks after it: blockCount (up to the next heading of any level) and sectionBlockCount (up to the next heading of the same or a higher level, so including subheadings). To read a section, call getBlocksById with the heading id and after set to one of those counts. Use it to see the structure of a large document, or to find where new content belongs, without reading the whole document; it does not search content — use findInDocument or searchDocumentContent for that. The headings list is empty for a document without headings. Requires viewer access or higher.',
+        inputSchema: GetDocumentOutlineToolInputSchema,
+        outputSchema: GetDocumentOutlineToolResponseSchema,
+      },
+      async (input) => {
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.getDocumentOutline(userId, input),
+        );
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'getUploadToken',
+      {
+        title: 'Get Upload Token',
+        description:
+          "Gets a one-time token to upload a local image, video or audio file into a document. Requires shell access to run curl — never put file contents in a tool call. Steps: 1) call this with the document, the file's kind and its extension (needed for a video to insert as a video block); 2) run curlCommand with <FILE_PATH> replaced by the file's path; 3) read url from curl's JSON response; 4) insert it with updateDocumentBlocks, Markdown ![description](url) — this makes an image block, or a video block when the url ends in a video extension. Audio can't be inserted this way. The token works for one upload and expires after 5 minutes; if the upload fails, call this again for a new token. Requires editor access or higher.",
+        inputSchema: GetUploadTokenToolInputSchema,
+        outputSchema: GetUploadTokenToolResponseSchema,
+      },
+      async (input) => {
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.getUploadToken(userId, input),
+        );
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
       'updateDocumentBlocks',
       {
         title: 'Update Document Blocks',
         description:
-          "Applies a batch of edits to a document's blocks as a single atomic save (all edits apply, or none do). Requires editor access or higher. Each edit either replaces an existing block, inserts new content next to one, or removes blocks — new content is given as Markdown, not raw block JSON. Use getDocumentBlocks first to find the block ids to target.",
+          "Applies a batch of edits to a document's blocks as a single atomic save (all edits apply, or none do). Requires editor access or higher. Each edit either replaces an existing block, inserts new content next to one, or removes blocks — new content is given as Markdown, not raw block JSON. Use getDocumentBlocks first to find the block ids to target. Returns only the blocks the edits inserted, each with its new id, its position (parentId, previousBlockId) and the index of the operation that inserted it — call getDocumentBlocks to read the whole document.",
         inputSchema: UpdateDocumentBlocksToolInputSchema,
         outputSchema: UpdateDocumentBlocksResponseSchema,
       },
@@ -318,7 +410,7 @@ export class McpController {
       {
         title: 'Restore Checkpoint',
         description:
-          "Restores a document's content to a past checkpoint. Requires editor access or higher. Only restores blocks, not title. Takes a fresh checkpoint immediately before the restore lands, so an unwanted restore is itself just one more restore away from undo. Use listCheckpoints first to find a checkpointId.",
+          "Restores a document's content to a past checkpoint. Requires editor access or higher. Only restores blocks, not title. Takes a fresh checkpoint immediately before the restore lands, so an unwanted restore is itself just one more restore away from undo. Use listCheckpoints first to find a checkpointId. Returns only a success flag and the restored document's top-level block count — call getDocumentBlocks to read the restored content.",
         inputSchema: RestoreCheckpointToolInputSchema,
         outputSchema: RestoreCheckpointResponseSchema,
       },
@@ -338,7 +430,7 @@ export class McpController {
       {
         title: 'List Deleted Documents',
         description:
-          "Lists soft-deleted documents in a workspace, newest-deleted first. Only visible to callers with admin access or higher — the same bar restoreDocument requires. Supports keyset pagination via the returned nextCursor. Use restoreDocument to undo a deletion.",
+          'Lists soft-deleted documents in a workspace, newest-deleted first. Only visible to callers with admin access or higher — the same bar restoreDocument requires. Supports keyset pagination via the returned nextCursor. Use restoreDocument to undo a deletion.',
         inputSchema: ListDeletedDocumentsToolInputSchema,
         outputSchema: ListDeletedDocumentsToolResponseSchema,
       },
@@ -365,6 +457,46 @@ export class McpController {
       async (input) => {
         const result = await withMcpErrorHandling(() =>
           this.documentTools.restoreDocument(userId, input),
+        );
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'searchDocumentContent',
+      {
+        title: 'Search Document Content',
+        description:
+          "Retrieves the most relevant indexed content in a workspace for a natural-language question, as cited chunks — hybrid semantic + lexical (BM25) candidates, reranked. Returns grounded content and citations only; synthesizing an answer from them is the caller's job. Use listWorkspaces first to find a workspaceId. Pass documentId to search only that one document (it must be in workspaceId). Pass lexicalOnly to match the question's words only (BM25, no reranking) — for looking up specific words, names or codes; for exact text in one document, findInDocument is exact. Read a result's blocks with getBlocksById. Requires at least viewer access to a document for its content to be returned.",
+        inputSchema: SearchDocumentContentToolInputSchema,
+        outputSchema: SearchDocumentContentToolResponseSchema,
+      },
+      async (input) => {
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.searchDocumentContent(userId, input),
+        );
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'getDocumentIndexingStatus',
+      {
+        title: 'Get Document Indexing Status',
+        description:
+          "Returns a document's RAG indexing status: its lifecycle state (idle/pending/indexing) and when it was last confirmed indexed. Requires viewer access or higher.",
+        inputSchema: GetDocumentIndexingStatusToolInputSchema,
+        outputSchema: GetDocumentIndexingStatusToolResponseSchema,
+      },
+      async (input) => {
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.getDocumentIndexingStatus(userId, input),
         );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],

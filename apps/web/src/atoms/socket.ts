@@ -1,7 +1,7 @@
 import { atom } from "jotai";
 import type { AwarenessUser } from "@converge/shared";
 
-export const isSocketReadyAtom = atom<boolean>(false); // true only after the server emits DOC_READY, confirming handleConnection has fully completed
+export const socketReadyDocumentIdAtom = atom<number | null>(null); // document whose DOC_READY was last received, null while not ready — consumers compare it with their own documentId, so a stale "ready" from the previous document never counts during a switch
 
 export const syncStatusAtom = atom<
     "offline" | "restoring" | "typing" | "syncing" | null

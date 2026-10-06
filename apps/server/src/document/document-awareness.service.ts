@@ -18,11 +18,18 @@ const AWARENESS_COLORS = [
 ];
 
 /**
- * TTL applied to all awareness Redis keys on every interaction.
- * Long enough to survive passive sessions with no cursor activity;
- * auto-cleans stale entries if a server crashes before disconnect handlers run.
+ * TTL applied to both awareness Redis keys on every connect, cursor update
+ * and heartbeat. Open sockets keep refreshing it, so it only cleans up a
+ * document that nobody has open any more.
  */
 const AWARENESS_TTL_SECONDS = 3600;
+
+/**
+ * How long a socket may go without a heartbeat before it counts as gone.
+ * The client sends one every 15s, but Chrome runs the timers of a tab hidden
+ * for over 5 minutes only about once a minute, so this leaves room for that.
+ */
+const AWARENESS_SOCKET_TIMEOUT_MS = 90_000;
 
 @Injectable()
 export class DocumentAwarenessService {
@@ -33,9 +40,10 @@ export class DocumentAwarenessService {
   ) {}
 
   /**
-   * Registers a socket as active for the given user in the given document.
-   * Adds the socketId to the awareness-sockets Set and refreshes the TTL.
-   * @param documentId - the document the socket is connecting to
+   * Registers a socket as open in the given document, or marks an already
+   * registered socket as seen now. Writes the socket into the awareness-sockets
+   * sorted set with the current time as its score and refreshes the TTL.
+   * @param documentId - the document the socket is connected to
    * @param userId - the authenticated user
    * @param socketId - the Socket.io socket ID
    */
@@ -44,31 +52,67 @@ export class DocumentAwarenessService {
     userId: number,
     socketId: string,
   ): Promise<void> {
-    const key = REDIS_KEYS.awarenessSockets(documentId, userId);
-    await this.redisService.sadd(key, socketId);
+    const key = REDIS_KEYS.awarenessSockets(documentId);
+    await this.redisService.zadd(
+      key,
+      Date.now(),
+      this.socketMember(userId, socketId),
+    );
     await this.redisService.expire(key, AWARENESS_TTL_SECONDS);
   }
 
   /**
-   * Removes a socket from the active set for the given user in the given document.
-   * Refreshes the TTL if other sockets remain.
+   * Removes a socket from the document's open sockets.
    * @param documentId - the document the socket is disconnecting from
    * @param userId - the authenticated user
    * @param socketId - the Socket.io socket ID
-   * @returns true if this was the user's last socket for this document, false otherwise
+   * @returns true if the user has no other live socket in this document, false otherwise
    */
   async removeSocket(
     documentId: number,
     userId: number,
     socketId: string,
   ): Promise<boolean> {
-    const key = REDIS_KEYS.awarenessSockets(documentId, userId);
-    await this.redisService.srem(key, socketId);
-    const remaining = await this.redisService.scard(key);
-    if (remaining > 0) {
-      await this.redisService.expire(key, AWARENESS_TTL_SECONDS);
+    const key = REDIS_KEYS.awarenessSockets(documentId);
+    await this.redisService.zrem(key, this.socketMember(userId, socketId));
+    const liveUserIds = await this.getLiveUserIds(documentId);
+    return !liveUserIds.has(userId);
+  }
+
+  /**
+   * Handles a socket's periodic heartbeat. Marks the socket as seen now,
+   * adds the user's awareness entry again if it is missing, and removes the
+   * entries of users who have no live socket left. A missing entry happens
+   * when a reload's disconnect removes the user while the new tab connects;
+   * a user with no live socket is left behind when a server stops before its
+   * disconnect handler runs (crash, kill, deploy).
+   * @param documentId - the document the socket is connected to
+   * @param userId - the authenticated user
+   * @param socketId - the Socket.io socket ID
+   * @returns true if the presence list changed and should be broadcast
+   */
+  async heartbeat(
+    documentId: number,
+    userId: number,
+    socketId: string,
+  ): Promise<boolean> {
+    await this.addSocket(documentId, userId, socketId);
+
+    let changed = false;
+    const awarenessKey = REDIS_KEYS.awareness(documentId);
+    const existing = await this.redisService.hget(awarenessKey, String(userId));
+    if (existing) {
+      await this.redisService.expire(awarenessKey, AWARENESS_TTL_SECONDS);
+    } else {
+      await this.addUser(documentId, userId);
+      changed = true;
     }
-    return remaining === 0;
+
+    const removedSilentUsers = await this.removeSilentUsers(documentId);
+    if (removedSilentUsers) {
+      changed = true;
+    }
+    return changed;
   }
 
   /**
@@ -96,7 +140,9 @@ export class DocumentAwarenessService {
     const existing = await this.redisService.hget(awarenessKey, String(userId));
     if (!existing) {
       const users = await this.getUsers(documentId);
-      // Resolve access level at join time; stored in Redis for the duration of the session.
+      // Resolve access level at join time. Not a permanent cache — updateUser
+      // re-resolves it on every cursor interaction, so this initial value only
+      // covers the window before the user's first focus/cursor update.
       const accessLevel = await this.documentAccessService.resolveAccess(
         documentId,
         userId,
@@ -118,17 +164,21 @@ export class DocumentAwarenessService {
       );
     }
 
-    // Refresh TTL on both hashes to keep them alive for the duration of the session.
+    // Refresh TTL on both keys to keep them alive for the duration of the session.
     await this.redisService.expire(awarenessKey, AWARENESS_TTL_SECONDS);
     await this.redisService.expire(
-      REDIS_KEYS.awarenessSockets(documentId, userId),
+      REDIS_KEYS.awarenessSockets(documentId),
       AWARENESS_TTL_SECONDS,
     );
   }
 
   /**
-   * Updates the user's focusedBlockId in the awareness hash and refreshes the TTL
-   * on both hashes. Silently skips if the entry has expired during a long idle session.
+   * Updates the user's focusedBlockId and access level in the awareness hash,
+   * then refreshes the TTL on both hashes. Access is re-resolved on every call
+   * rather than carried forward from the existing entry, so the presence
+   * badge reflects a mid-session grant/revoke/role change instead of freezing
+   * at whatever was resolved when the user's first tab opened. Adds the entry
+   * again first if it is missing, so the user does not stay hidden.
    * @param documentId - the document the user is in
    * @param userId - the user whose cursor position changed
    * @param focusedBlockId - the block the user focused, or null if focus was lost
@@ -140,23 +190,34 @@ export class DocumentAwarenessService {
   ): Promise<void> {
     const awarenessKey = REDIS_KEYS.awareness(documentId);
 
-    const existing = await this.redisService.hget(awarenessKey, String(userId));
-    if (!existing) return; // Entry expired — skip silently.
+    let existing = await this.redisService.hget(awarenessKey, String(userId));
+    if (!existing) {
+      await this.addUser(documentId, userId);
+      existing = await this.redisService.hget(awarenessKey, String(userId));
+      if (!existing) return; // Deleted account — addUser wrote nothing.
+    }
 
     const entry = this.parseEntry(existing);
     if (!entry) return;
 
-    const updated: AwarenessUser = { ...entry, focusedBlockId };
+    // Re-resolve access fresh rather than reusing entry.accessLevel — see
+    // the doc comment above for why.
+    const accessLevel = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+    );
+
+    const updated: AwarenessUser = { ...entry, focusedBlockId, accessLevel };
     await this.redisService.hset(
       awarenessKey,
       String(userId),
       JSON.stringify(updated),
     );
 
-    // Refresh TTL on both hashes on every cursor interaction.
+    // Refresh TTL on both keys on every cursor interaction.
     await this.redisService.expire(awarenessKey, AWARENESS_TTL_SECONDS);
     await this.redisService.expire(
-      REDIS_KEYS.awarenessSockets(documentId, userId),
+      REDIS_KEYS.awarenessSockets(documentId),
       AWARENESS_TTL_SECONDS,
     );
   }
@@ -202,6 +263,66 @@ export class DocumentAwarenessService {
     return Object.values(hash)
       .map((raw) => this.parseEntry(raw))
       .filter((u): u is AwarenessUser => u !== null);
+  }
+
+  /**
+   * Removes the awareness entry of every user who has no live socket left in
+   * the document.
+   * @param documentId - the document to clean up
+   * @returns true if at least one entry was removed
+   */
+  private async removeSilentUsers(documentId: number): Promise<boolean> {
+    const awarenessKey = REDIS_KEYS.awareness(documentId);
+
+    // Read the entries before the live sockets. A joining user writes their
+    // socket before their entry, so a user whose entry is read here already
+    // has their socket in the live list and is never removed by mistake.
+    const hash = await this.redisService.hgetall(awarenessKey);
+    const liveUserIds = await this.getLiveUserIds(documentId);
+
+    const silentFields: string[] = [];
+    for (const field of Object.keys(hash)) {
+      if (!liveUserIds.has(Number(field))) {
+        silentFields.push(field);
+      }
+    }
+
+    if (silentFields.length === 0) {
+      return false;
+    }
+    await this.redisService.hdel(awarenessKey, ...silentFields);
+    return true;
+  }
+
+  /**
+   * Removes sockets that have gone without a heartbeat for longer than
+   * AWARENESS_SOCKET_TIMEOUT_MS, then returns the ids of users who still have
+   * at least one socket in the document.
+   * @param documentId - the document to read open sockets for
+   */
+  private async getLiveUserIds(documentId: number): Promise<Set<number>> {
+    const key = REDIS_KEYS.awarenessSockets(documentId);
+    await this.redisService.zremBelowOrEqual(
+      key,
+      Date.now() - AWARENESS_SOCKET_TIMEOUT_MS,
+    );
+
+    const members = await this.redisService.zmembers(key);
+    const userIds = new Set<number>();
+    for (const member of members) {
+      userIds.add(Number(member.split(':')[0]));
+    }
+    return userIds;
+  }
+
+  /**
+   * Builds the awareness-sockets member for a socket. The userId comes first
+   * so getLiveUserIds can read it back without another lookup.
+   * @param userId - the socket's user
+   * @param socketId - the Socket.io socket ID
+   */
+  private socketMember(userId: number, socketId: string): string {
+    return `${userId}:${socketId}`;
   }
 
   /**

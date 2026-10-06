@@ -4,8 +4,6 @@ A Notion-style editor with live collaborative editing, workspaces, and granular 
 
 **Live:** [converge.1k5.in](https://converge.1k5.in) · sign in with any Google account.
 
-https://github.com/user-attachments/assets/e74a9a3b-8cf7-4625-925d-6fce35e5bfdd
-
 ## Features
 
 - **Collaborative editing** with live presence avatars showing who is focused on which block
@@ -13,8 +11,13 @@ https://github.com/user-attachments/assets/e74a9a3b-8cf7-4625-925d-6fce35e5bfdd
 - **Rich-text editor** built on BlockNote, with image, video, and audio upload support
 - **Workspaces** to organize documents into shared spaces with owner, admin, and member roles
 - **Granular access control** with four tiers: workspace role defaults, per-doc overrides, explicit user grants, and workspace owner
-- **Document library** with full-text search, infinite scroll, a keyboard-navigable switcher (Ctrl+P), and a Trash tab for restoring soft-deleted documents
-- **AI agent access via MCP** — a Model Context Protocol server exposes documents to AI agents over API-key auth across 15 tools (list, search, create, read, edit, restore, delete, and version history), enforcing the same access control as the browser editor; every agent-driven edit takes an automatic checkpoint beforehand so it can always be undone, and an in-app guide walks through connecting Claude Code, Cursor, or Codex with a self-served API key
+- **Document library** with full-text search, infinite scroll, and a Trash page for restoring soft-deleted documents
+- **⌘K search over titles and document content** — exact-word matches highlighted as you type, plus semantic search by meaning on request; every passage opens the document scrolled to the matching block
+- **Sidebar pinning** for quick access to frequently used documents, kept separate from the recently-visited list
+- **AI agent access via MCP** — a Model Context Protocol server exposes documents to AI agents over API-key auth (list, create, read, edit, rename, delete, plus an exact-text find, a heading outline and read-by-block-id, so an agent reads only the part of a large document it needs, and image/video upload through a server-signed one-time token, so the file goes up through the agent's shell rather than through the model), enforcing the same access control as the browser editor; every agent-driven edit takes an automatic checkpoint beforehand so it can always be undone, and keys are self-served from a dedicated API Keys page, and an in-app guide walks through connecting Claude Code, Cursor, or Codex
+- **Semantic search (RAG)** — hybrid semantic + lexical retrieval over document content, reranked and exposed in the ⌘K palette and as a grounded, cited MCP tool; indexed incrementally as documents are edited, with live indexing-status visibility in the document Overview panel
+- **In-app AI agent chat** — a workspace-scoped chat assistant that runs the same MCP tool surface (read, search, write, checkpoint/restore) through a real multi-step tool-calling loop, streaming its progress live; rate-limited on both request volume and token spend, per user, per workspace, and globally, to keep provider cost bounded; it lives in a slide-over panel (⌘J) that keeps its conversation across navigation, with Stop to cut off a streaming reply
+- **Light and dark themes** from one semantic token set (switching is pure CSS), with phone layouts built into every screen
 - **Google OAuth** with secure httpOnly cookie sessions
 
 ## Architecture
@@ -33,11 +36,11 @@ On connect and every 15-second heartbeat, the client sends its Yjs state vector.
 **Version-history checkpoints reusing the Yjs update log**
 Document content is an append-only Yjs update log in Postgres. A checkpoint just merges every update row since the last checkpoint into one new row and deletes the originals — the same merge Yjs already does for sync, just scoped and flagged. Two pg-boss timers (idle and interval), persisted in Postgres rather than server memory, trigger checkpoints automatically and survive restarts across multiple server instances with no extra locking. Restoring one is `editor.replaceBlocks(...)`, flowing through the normal collaboration pipeline like any other edit.
 
-**Four-tier access resolution**
-Every handler resolves access via a short-circuit chain: workspace owner, explicit user grant, per-document role override, workspace role default. The library endpoint evaluates the full chain for every document in a single SQL `CASE` subquery, avoiding N+1 round-trips.
+**Four-tier access resolution, resolved live on every action**
+Every handler resolves access via a short-circuit chain: workspace owner, explicit user grant, per-document role override, workspace role default. Both the single-document resolver and the library endpoint's per-row resolution run as one indexed SQL `CASE` join rather than sequential round-trips, which keeps it cheap enough to call fresh on every WebSocket write instead of caching it per connection — an admin revoking or downgrading a user's access takes effect on their very next edit, not just on their next reconnect. Reads are covered too, without a cross-server message that could be dropped: every access-changing write bumps a per-document or per-workspace version counter in the same transaction, each open socket remembers the versions it connected with, and every outbound room emit re-resolves only the sockets whose versions moved — so a revoked user stops receiving content, gets told why, and is disconnected, while an open editor's access badge and editability update in place.
 
-**Real-time presence with per-tab ref counting**
-Presence state lives in a Redis hash keyed by document. A Redis Set tracks every open socket per user so presence is cleared only when the user's last tab closes, not on individual socket disconnects.
+**Real-time presence with per-tab ref counting and a heartbeat**
+Presence state lives in a Redis hash keyed by document. A Redis sorted set tracks every open socket in the document, scored by its last heartbeat, so a user is cleared only when their last tab closes, not on individual socket disconnects. The client's existing 15-second repair-sync doubles as the presence heartbeat: sockets silent for 90 seconds are dropped, so a server that stops before its disconnect handler runs can't leave ghost users behind.
 
 **Zero-downtime blue-green deployment**
 Two Docker Compose projects (blue on ports 5001-5003, green on 5004-5006) sit behind nginx. Each deploy builds the inactive slot, waits for healthchecks, writes a new nginx slot conf, reloads nginx atomically, then tears down the old slot.
@@ -51,17 +54,29 @@ The MCP write tool applies a batch of id-addressed block edits (replace/insert/r
 **Checkpoints as an AI-agent safety net**
 An AI agent editing a document unsupervised is more likely to make a large, unwanted change than a human making many small ones — so every MCP-driven edit takes a synchronous checkpoint immediately beforehand, tagged with its own source so it's distinguishable from manual and scheduled ones. It's built entirely on the existing checkpoint mechanism with no new infrastructure: one extra call, one new allowed value on an existing column.
 
+**Live-aware RAG indexing without full re-embeds**
+Every block, parent or child, is hashed and indexed as its own unit, and an edit only re-embeds the chunks it touches: a closure loop pulls in every block sharing a chunk with something that changed, so a chunk is never left partially deleted — without ever re-processing the whole document. Chunking rules are deliberately local (fill to the token cap, split any oversized block, break at a top-level heading once a chunk is half full), so a partial rebuild never needs context from the rest of the document. Retrieval unions semantic (pgvector cosine) and lexical (BM25, scored against real corpus-wide term/length statistics rather than Postgres's own `ts_rank_cd`) candidates and reranks them — a design validated on a separate proof-of-concept branch against a 1,225-question benchmark (96.7% recall@10) and a 300-question hand-authored hard eval targeting cross-document synthesis, disambiguation, and unanswerable questions.
+
+**Two-tier search that keeps typing free**
+The ⌘K palette reuses the RAG index two ways. Lexical (BM25) results stream in as you type and cost nothing, with matched words highlighted by Postgres's own `ts_headline` using the exact stemmed query BM25 matched on, run only over the passages being returned. Semantic results (embedding + rerank, both paid and rate-limited) run only on an explicit Enter, and the client query is built so nothing can re-run one behind the user's back: no retries, no refetch on window focus, and a cache key outside the lists that every document open invalidates. Highlights travel as two Unicode private-use marker characters rather than HTML, so the client never renders markup from document text.
+
+**Cost-aware, multi-tier rate limiting**
+The one unauthenticated route (Google OAuth exchange) and every call to a paid AI provider (OpenAI embeddings, Voyage rerank, and the AI agent's chat completions) are rate-limited with Redis-backed fixed-window counters, layered user/workspace/global — each tier checked cheapest-first so an already-over-limit caller short-circuits before touching the wider ones. Embedding and agent calls track request count and token volume as independent windows, since OpenAI enforces both separately. When a single large edit's reindex run would blow through its own budget, it stops early, commits what it already embedded rather than losing it, and lets the same retry/backoff machinery pick up the remainder on a later pass — the document is briefly stale, never corrupted or incomplete.
+
+**Tool-calling agent chat without message-history reconstruction**
+The in-app AI agent talks to OpenAI's Responses API rather than resending a full conversation on every call: each turn chains off the previous one via `previous_response_id`, so the provider itself carries forward prior context, reasoning included. A server-driven loop executes whichever of the app's own access-controlled document tools the model calls — the same tool surface external MCP clients use — feeding results back as the next step's input, hard-capped at 8 steps per turn and streamed to the client step by step over hand-rolled SSE. Since the provider hides a step's true prompt size behind that chaining, its token-rate-limit budget is checked against a running total and trued up with the call's real reported usage afterward, rather than estimated ahead of time.
+
 ## Stack
 
 | Layer | Tech |
 |---|---|
-| Frontend | React 19, Vite, TypeScript, Tailwind CSS v3, Jotai |
+| Frontend | React 19, Vite, TypeScript, Tailwind CSS v3, TanStack Query, Jotai, Radix UI |
 | Editor | BlockNote (ProseMirror + Tiptap), Yjs, y-prosemirror |
-| Backend | NestJS 11, Socket.io, Kysely, PostgreSQL 16, MCP SDK |
+| Backend | NestJS 11, Socket.io, Kysely, PostgreSQL 16 + pgvector, MCP SDK |
+| AI/ML | OpenAI (embeddings, agent chat), Voyage AI (reranking), BM25 |
 | Infrastructure | Redis 7, Docker, nginx, Supabase (DB), Upstash (Redis) |
 | Shared | Zod schemas and TypeScript types via `@converge/shared` |
 
 ## Docs
 
 - [Roadmap](./ROADMAP.md)
-- [Architecture](./docs/architecture-low-level.md)
