@@ -16,6 +16,7 @@ import { ImageKitUploadAuthRateLimitGuard } from './imagekit-upload-auth-rate-li
 import { type Request } from 'express';
 import { DocumentService } from './document.service.js';
 import { DocumentCheckpointService } from './document-checkpoint.service.js';
+import { DocumentRAGService } from './document-rag.service.js';
 import { httpOK } from '../utils/http-response.util.js';
 import {
   CreateDocumentRequestSchema,
@@ -31,6 +32,8 @@ import {
   type SetDocumentPinnedRequestDto,
   type SetDocumentPinnedResponseDto,
   type SearchLibraryDocumentsResponseDto,
+  type SearchDocumentContentRequestDto,
+  type SearchDocumentContentResponseDto,
   type GetTrashDocumentsResponseDto,
   type GetUploadAuthResponseDto,
   GetDocumentCheckpointsRequestSchema,
@@ -38,6 +41,7 @@ import {
   GetPinnedDocumentsRequestSchema,
   SetDocumentPinnedRequestSchema,
   SearchLibraryDocumentsRequestSchema,
+  SearchDocumentContentRequestSchema,
   GetTrashDocumentsRequestSchema,
 } from '@converge/shared';
 import { ZodHttpValidationPipe } from '../pipes/zod-http-validation.pipe.js';
@@ -48,7 +52,8 @@ export class DocumentController {
   constructor(
     private readonly documentService: DocumentService,
     private readonly documentCheckpointService: DocumentCheckpointService,
-  ) {} // Handles document CRUD, library, and version-history checkpoints — all routes require authentication via AuthGuard.
+    private readonly documentRAGService: DocumentRAGService,
+  ) {} // Handles document CRUD, library, content search, and version-history checkpoints — all routes require authentication via AuthGuard.
 
   /**
    * Returns the document with the given ID if it belongs to the authenticated user.
@@ -197,6 +202,32 @@ export class DocumentController {
         query.workspaceId,
         query.title,
         limit,
+      ),
+    );
+  }
+
+  /**
+   * Searches the content of the documents the user can see in a workspace,
+   * for the ⌘K palette. Lexical mode matches exact (stemmed) words with no
+   * AI calls; semantic mode matches by meaning and is rate-limited per
+   * user, workspace and globally (429 when a limit is hit).
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param query - workspaceId, query (non-empty, max 256 chars), and mode
+   * @returns matching documents with their passages, most relevant first
+   */
+  @Get('/search/content')
+  async handleSearchDocumentContent(
+    @Req() req: Request,
+    @Query(new ZodHttpValidationPipe(SearchDocumentContentRequestSchema))
+    query: SearchDocumentContentRequestDto,
+  ): Promise<SearchDocumentContentResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.documentRAGService.searchContent(
+        query.query,
+        query.workspaceId,
+        userId,
+        query.mode,
       ),
     );
   }

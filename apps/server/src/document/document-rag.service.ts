@@ -8,6 +8,16 @@ import { DatabaseService } from '../db/database.service.js';
 import { DocumentEmbeddingService } from './document-embedding.service.js';
 import { DocumentRerankService } from './document-rerank.service.js';
 import { computeBm25Score, type Bm25Candidate } from '../utils/bm25.util.js';
+import {
+  removePrivateUseCharacters,
+  toSnippet,
+} from '../utils/search-snippet.util.js';
+import {
+  SEARCH_HIGHLIGHT_END,
+  SEARCH_HIGHLIGHT_START,
+  type ContentSearchDocumentDto,
+  type SearchDocumentContentResponseDto,
+} from '@converge/shared';
 
 // How many candidates each of semantic/lexical search contributes to the
 // union before reranking — generous on purpose. Reranking (see
@@ -16,6 +26,10 @@ import { computeBm25Score, type Bm25Candidate } from '../utils/bm25.util.js';
 // pool, so a wider net here costs one extra rerank candidate, not a wrong
 // final answer.
 const CANDIDATE_DEPTH = 30;
+
+// Chunks one ⌘K content search retrieves. Semantic reranks them all in one
+// Voyage call, so a higher number costs no extra rate-limit budget.
+const CONTENT_SEARCH_CHUNK_LIMIT = 10;
 
 /** A single retrieved chunk, grounded with enough to cite it precisely. */
 export interface RetrievalResult {
@@ -201,6 +215,108 @@ export class DocumentRAGService {
         titleByDocumentId,
       ),
     );
+  }
+
+  /**
+   * Content search for the ⌘K palette: retrieves matching chunks, turns each
+   * into a short plain-text snippet, and groups them by document — best
+   * document first, best passage first within it. A lexical snippet is the
+   * window around the chunk's best match, with each matched word between
+   * the highlight markers; a semantic snippet is the chunk's opening text,
+   * since a meaning match has no matched words to show.
+   * @param query - the typed search text
+   * @param workspaceId - the workspace to search within
+   * @param userId - the calling user, for access filtering and rate limits
+   * @param mode - "lexical" (BM25 only, no AI calls) or "semantic" (hybrid + rerank, rate-limited)
+   * @returns matching documents with their passages, most relevant first
+   * @throws HttpException (429) in semantic mode when a rate limit is hit
+   */
+  async searchContent(
+    query: string,
+    workspaceId: number,
+    userId: number,
+    mode: 'lexical' | 'semantic',
+  ): Promise<SearchDocumentContentResponseDto> {
+    const results = await this.retrieve(
+      query,
+      workspaceId,
+      userId,
+      CONTENT_SEARCH_CHUNK_LIMIT,
+      undefined,
+      mode === 'lexical',
+    );
+
+    const contents: string[] = [];
+    for (const result of results) {
+      contents.push(removePrivateUseCharacters(result.content));
+    }
+
+    let snippets: string[] = [];
+    if (mode === 'lexical') {
+      snippets = await this.buildLexicalSnippets(query, contents);
+    } else if (mode === 'semantic') {
+      for (const content of contents) {
+        snippets.push(toSnippet(content));
+      }
+    }
+
+    // Results arrive best first, so a document's first appearance fixes its
+    // place and its passages stay in rank order.
+    const documents: ContentSearchDocumentDto[] = [];
+    const documentById = new Map<number, ContentSearchDocumentDto>();
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      let document = documentById.get(result.citation.documentId);
+      if (!document) {
+        document = {
+          documentId: result.citation.documentId,
+          title: result.title,
+          passages: [],
+        };
+        documentById.set(document.documentId, document);
+        documents.push(document);
+      }
+      document.passages.push({ url: result.url, snippet: snippets[i] });
+    }
+    return { documents };
+  }
+
+  /**
+   * Builds lexical snippets in one query: ts_headline picks the window
+   * around each chunk's best match and puts the highlight markers around
+   * each matched word. Its tsquery is built the same way as
+   * getLexicalCandidates' (the query's stems, OR'd), so the highlighted
+   * words are the ones that made the chunk match. Runs only on the chunks
+   * being returned — ts_headline has to parse the raw text again.
+   * @param query - the typed search text
+   * @param contents - the chunks' Markdown, in rank order
+   * @returns one snippet per chunk, in the same order
+   */
+  private async buildLexicalSnippets(
+    query: string,
+    contents: string[],
+  ): Promise<string[]> {
+    if (contents.length === 0) return [];
+
+    const options =
+      `StartSel="${SEARCH_HIGHLIGHT_START}", StopSel="${SEARCH_HIGHLIGHT_END}", ` +
+      'MaxWords=35, MaxFragments=1';
+    const { rows } = await sql<{ headline: string }>`
+      SELECT ts_headline(
+        'english',
+        c.content,
+        to_tsquery('english', array_to_string(tsvector_to_array(to_tsvector('english', ${query})), ' | ')),
+        ${options}
+      ) AS headline
+      FROM unnest(${contents}::text[]) WITH ORDINALITY AS c(content, position)
+      ORDER BY c.position
+    `.execute(this.dbService.kysely);
+
+    const snippets: string[] = [];
+    for (const row of rows) {
+      snippets.push(toSnippet(row.headline));
+    }
+    return snippets;
   }
 
   /**

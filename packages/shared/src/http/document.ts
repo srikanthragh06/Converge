@@ -257,6 +257,56 @@ export type SearchLibraryDocumentsResponseDto = z.infer<
 >;
 
 /**
+ * Query params for GET /document/search/content.
+ * workspaceId is the selected workspace scope. query must be non-empty and
+ * at most 256 characters. mode "lexical" matches exact (stemmed) words and
+ * makes no AI calls; "semantic" matches by meaning and is rate-limited.
+ */
+export const SearchDocumentContentRequestSchema = z.object({
+    workspaceId: z.coerce.number().int().positive(),
+    query: z.string().trim().min(1).max(256),
+    mode: z.enum(["lexical", "semantic"]),
+});
+
+export type SearchDocumentContentRequestDto = z.infer<
+    typeof SearchDocumentContentRequestSchema
+>;
+
+/**
+ * One matching passage. url opens the document scrolled to the passage's
+ * first block. snippet is plain text; in lexical mode each matched word is
+ * wrapped in SEARCH_HIGHLIGHT_START / SEARCH_HIGHLIGHT_END.
+ */
+export const ContentSearchPassageSchema = z.object({
+    url: z.string(),
+    snippet: z.string(),
+});
+
+export type ContentSearchPassageDto = z.infer<
+    typeof ContentSearchPassageSchema
+>;
+
+/** A document with one or more matching passages, best passage first. */
+export const ContentSearchDocumentSchema = z.object({
+    documentId: z.number(),
+    title: z.string(),
+    passages: z.array(ContentSearchPassageSchema),
+});
+
+export type ContentSearchDocumentDto = z.infer<
+    typeof ContentSearchDocumentSchema
+>;
+
+/** Response for GET /document/search/content — documents ordered by their best passage, most relevant first. */
+export const SearchDocumentContentResponseSchema = z.object({
+    documents: z.array(ContentSearchDocumentSchema),
+});
+
+export type SearchDocumentContentResponseDto = z.infer<
+    typeof SearchDocumentContentResponseSchema
+>;
+
+/**
  * Query params for GET /document/trash.
  * workspaceId is the selected workspace scope.
  * limit defaults to 20 if omitted.
