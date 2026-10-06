@@ -40,10 +40,14 @@ const useUploadFile = (documentId: number) => {
 
             // The server picks the folder, name, transformation and checks, and signs
             // them into the token — ImageKit rejects the upload if any field differs.
+            let extension: string | undefined;
+            const dotIndex = file.name.lastIndexOf(".");
+            if (dotIndex > 0) extension = file.name.slice(dotIndex + 1);
+
             const { data: auth } =
                 await apiClient.get<GetUploadAuthResponseDto>(
                     `/document/${documentId}/upload-auth`,
-                    { params: { fileType } },
+                    { params: { fileType, extension } },
                 );
 
             const body = new FormData();

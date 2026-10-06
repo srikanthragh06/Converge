@@ -62,6 +62,13 @@ import jwt from 'jsonwebtoken';
 /** ImageKit's V2 upload endpoint, which checks a signed JWT covering every upload parameter. */
 const IMAGEKIT_UPLOAD_URL = 'https://upload.imagekit.io/api/v2/files/upload';
 
+/** Extensions an upload may keep on its stored name, per file kind. Video matches BlockNote's isVideoUrl list. */
+const UPLOAD_EXTENSIONS = {
+  image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'svg', 'bmp'],
+  video: ['mp4', 'webm', 'ogg', 'mov', 'mkv', 'flv', 'avi', 'wmv', 'm4v'],
+  audio: ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'opus', 'weba'],
+};
+
 @Injectable()
 export class DocumentService {
   constructor(
@@ -1148,12 +1155,14 @@ export class DocumentService {
    * @param documentId - the document the file will be inserted into
    * @param userId - the ID of the authenticated requesting user
    * @param fileType - the kind of file, which sets its size cap and transformation
+   * @param extension - the original file's extension, kept on the stored file's name if it's a known one for fileType
    * @returns the upload URL, the signed token, and the exact fields to send with it
    */
   async getImageKitUploadAuth(
     documentId: number,
     userId: number,
     fileType: 'image' | 'video' | 'audio',
+    extension?: string,
   ): Promise<GetUploadAuthResponseDto> {
     const privateKey = this.configService.get<string>('IMAGEKIT_PRIVATE_KEY');
     const publicKey = this.configService.get<string>('IMAGEKIT_PUBLIC_KEY');
@@ -1182,8 +1191,21 @@ export class DocumentService {
     let folderEnv = 'development';
     if (process.env.NODE_ENV === 'prod') folderEnv = 'production';
 
+    // Keep a known extension on the stored name: BlockNote turns Markdown
+    // ![](url) into a video block only when the URL ends in a video
+    // extension. An unknown one is dropped rather than rejected, so an
+    // upload never fails over its name — the checks below still decide
+    // what the file actually is.
+    let fileName = randomUUID();
+    const normalizedExtension = extension?.replace(/^\./, '').toLowerCase();
+    if (
+      normalizedExtension &&
+      UPLOAD_EXTENSIONS[fileType].includes(normalizedExtension)
+    )
+      fileName += `.${normalizedExtension}`;
+
     const fields: Record<string, string> = {
-      fileName: randomUUID(),
+      fileName,
       folder: `/converge/${folderEnv}/workspaces/${document.workspace_id}/documents/${documentId}`,
     };
 

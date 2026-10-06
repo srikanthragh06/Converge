@@ -364,7 +364,7 @@ export class DocumentController {
    * could fill storage with junk.
    * @param req - the Express request, with userId stamped by AuthGuard
    * @param documentId - the document ID parsed from the URL path
-   * @param query - the kind of file about to be uploaded
+   * @param query - the kind of file about to be uploaded, and its extension
    * @returns the upload URL, the signed token, and the fields signed into it
    */
   @UseGuards(ImageKitUploadAuthRateLimitGuard)
@@ -381,6 +381,7 @@ export class DocumentController {
         documentId,
         userId,
         query.fileType,
+        query.extension,
       ),
     );
   }

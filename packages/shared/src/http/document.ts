@@ -85,6 +85,7 @@ export type GetDocumentCheckpointContentResponseDto = z.infer<
 /** Query for GET /document/:id/upload-auth — the kind of file about to be uploaded, which sets its size cap and transformation. */
 export const GetUploadAuthRequestSchema = z.object({
     fileType: z.enum(["image", "video", "audio"]),
+    extension: z.string().max(10).optional(),
 });
 
 export type GetUploadAuthRequestDto = z.infer<
