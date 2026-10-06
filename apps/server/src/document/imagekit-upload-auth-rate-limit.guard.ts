@@ -10,7 +10,7 @@ import { RedisService } from '../redis/redis.service.js';
 import { REDIS_KEYS } from '../redis/redis.events.js';
 
 /**
- * Rate-limits GET /document/upload-auth per user. Each call mints a valid
+ * Rate-limits GET /document/:id/upload-auth per user. Each call mints a valid
  * ImageKit upload credential, so uncapped calls could fill storage with junk.
  * Requires AuthGuard to run first so userId is already stamped on the request.
  */

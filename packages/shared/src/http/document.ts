@@ -82,11 +82,25 @@ export type GetDocumentCheckpointContentResponseDto = z.infer<
     typeof GetDocumentCheckpointContentResponseSchema
 >;
 
-/** Response for GET /document/upload-auth — one-time ImageKit upload credentials generated server-side. */
+/** Query for GET /document/:id/upload-auth — the kind of file about to be uploaded, which sets its size cap and transformation. */
+export const GetUploadAuthRequestSchema = z.object({
+    fileType: z.enum(["image", "video", "audio"]),
+});
+
+export type GetUploadAuthRequestDto = z.infer<
+    typeof GetUploadAuthRequestSchema
+>;
+
+/**
+ * Response for GET /document/:id/upload-auth — a one-time ImageKit V2 upload
+ * token. `fields` are the exact upload parameters signed into the token: send
+ * every one of them, unchanged, with the file and token, or ImageKit rejects
+ * the upload.
+ */
 export const GetUploadAuthResponseSchema = z.object({
+    uploadUrl: z.string(),
     token: z.string(),
-    expire: z.number().int().positive(),
-    signature: z.string(),
+    fields: z.record(z.string(), z.string()),
 });
 
 export type GetUploadAuthResponseDto = z.infer<typeof GetUploadAuthResponseSchema>;

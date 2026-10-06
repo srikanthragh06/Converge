@@ -32,7 +32,9 @@ import {
   type SetDocumentPinnedResponseDto,
   type SearchLibraryDocumentsResponseDto,
   type GetTrashDocumentsResponseDto,
+  type GetUploadAuthRequestDto,
   type GetUploadAuthResponseDto,
+  GetUploadAuthRequestSchema,
   GetDocumentCheckpointsRequestSchema,
   GetLibraryDocumentsRequestSchema,
   GetPinnedDocumentsRequestSchema,
@@ -355,14 +357,31 @@ export class DocumentController {
   }
 
   /**
-   * Returns a one-time ImageKit upload auth token for the authenticated user.
-   * Rate-limited to 10 requests per minute per user — each token mints a valid
-   * ImageKit upload credential, so uncapped calls could fill storage with junk.
-   * @returns token, expire, and HMAC-SHA1 signature for a client-side ImageKit upload
+   * Returns a one-time ImageKit V2 upload token for a file going into this
+   * document, with the exact fields to upload it with. Throws 403 if the user
+   * does not have editor+ access. Rate-limited to 10 requests per minute per
+   * user — each token is a valid ImageKit upload credential, so uncapped calls
+   * could fill storage with junk.
+   * @param req - the Express request, with userId stamped by AuthGuard
+   * @param documentId - the document ID parsed from the URL path
+   * @param query - the kind of file about to be uploaded
+   * @returns the upload URL, the signed token, and the fields signed into it
    */
   @UseGuards(ImageKitUploadAuthRateLimitGuard)
-  @Get('/upload-auth')
-  handleGetUploadAuth(): GetUploadAuthResponseDto {
-    return httpOK(this.documentService.getImageKitUploadAuth());
+  @Get('/:id/upload-auth')
+  async handleGetUploadAuth(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) documentId: number,
+    @Query(new ZodHttpValidationPipe(GetUploadAuthRequestSchema))
+    query: GetUploadAuthRequestDto,
+  ): Promise<GetUploadAuthResponseDto> {
+    const userId = (req as any).userId as number;
+    return httpOK(
+      await this.documentService.getImageKitUploadAuth(
+        documentId,
+        userId,
+        query.fileType,
+      ),
+    );
   }
 }

@@ -2,21 +2,16 @@ import { useCallback } from "react";
 import { type GetUploadAuthResponseDto } from "@converge/shared";
 import apiClient from "@/lib/http";
 
-const IMAGEKIT_PUBLIC_KEY = import.meta.env.VITE_IMAGEKIT_PUBLIC_KEY as string;
-const IMAGEKIT_UPLOAD_URL = import.meta.env.VITE_IMAGEKIT_UPLOAD_URL as string;
-const ENV = import.meta.env.MODE; // "development" in dev, "production" in prod — baked in by Vite at build time
-
 /**
  * Returns an async uploadFile function suitable for BlockNote's uploadFile config.
- * Handles size validation, server-side auth token fetching, and direct upload to
- * ImageKit so the private key never passes through the client.
- * @param workspaceId - scopes the upload folder to the current workspace
- * @param documentId - scopes the upload folder to the current document
+ * Handles size validation, fetching a signed upload token from the server, and the
+ * direct upload to ImageKit, so the private key never passes through the client.
+ * @param documentId - the document the uploaded file goes into
  */
-const useUploadFile = (workspaceId: number, documentId: number) => {
+const useUploadFile = (documentId: number) => {
     /**
-     * Validates the file, fetches a one-time auth token from the server, uploads
-     * the file directly to ImageKit, and returns the public CDN URL.
+     * Validates the file, fetches a one-time upload token for it from the server,
+     * uploads the file directly to ImageKit, and returns the public CDN URL.
      * Throws on size violations, auth failures, or upload errors so BlockNote
      * can surface an error state in the block.
      * @param file - the file to upload
@@ -24,56 +19,40 @@ const useUploadFile = (workspaceId: number, documentId: number) => {
      */
     const uploadFile = useCallback(
         async (file: File): Promise<string> => {
-            // Fail fast if required env vars are missing — avoids a confusing ImageKit rejection downstream.
-            if (!IMAGEKIT_PUBLIC_KEY)
-                throw new Error("VITE_IMAGEKIT_PUBLIC_KEY is not configured.");
-            if (!IMAGEKIT_UPLOAD_URL)
-                throw new Error("VITE_IMAGEKIT_UPLOAD_URL is not configured.");
-
             // Reject unsupported file types before any network request.
-            const isImage = file.type.startsWith("image/");
-            const isVideo = file.type.startsWith("video/");
-            const isAudio = file.type.startsWith("audio/");
-            if (!isImage && !isVideo && !isAudio)
+            let fileType: "image" | "video" | "audio";
+            if (file.type.startsWith("image/")) fileType = "image";
+            else if (file.type.startsWith("video/")) fileType = "video";
+            else if (file.type.startsWith("audio/")) fileType = "audio";
+            else
                 throw new Error(
                     "Only images, videos, and audio files can be uploaded.",
                 );
 
-            // Enforce size caps before any network request — fails fast with a clear message.
-            if (isImage && file.size > 25 * 1024 * 1024)
+            // Fail fast with a clear message. ImageKit enforces the real limits
+            // through the checks the server signs into the token.
+            if (fileType === "image" && file.size > 25 * 1024 * 1024)
                 throw new Error("Images must be under 25MB.");
-            if (isVideo && file.size > 100 * 1024 * 1024)
+            if (fileType === "video" && file.size > 100 * 1024 * 1024)
                 throw new Error("Videos must be under 100MB.");
-            if (isAudio && file.size > 5 * 1024 * 1024)
+            if (fileType === "audio" && file.size > 5 * 1024 * 1024)
                 throw new Error("Audio files must be under 5MB.");
 
-            // Fetch a one-time signed token from our server — the private key never leaves the server.
+            // The server picks the folder, name, transformation and checks, and signs
+            // them into the token — ImageKit rejects the upload if any field differs.
             const { data: auth } =
                 await apiClient.get<GetUploadAuthResponseDto>(
-                    "/document/upload-auth",
+                    `/document/${documentId}/upload-auth`,
+                    { params: { fileType } },
                 );
 
-            // Build the multipart payload for ImageKit's upload API.
             const body = new FormData();
             body.append("file", file);
-            body.append("fileName", crypto.randomUUID());
-            body.append("publicKey", IMAGEKIT_PUBLIC_KEY);
+            for (const [name, value] of Object.entries(auth.fields))
+                body.append(name, value);
             body.append("token", auth.token);
-            body.append("expire", String(auth.expire));
-            body.append("signature", auth.signature);
-            body.append(
-                "folder",
-                `/converge/${ENV}/workspaces/${workspaceId}/documents/${documentId}`,
-            );
 
-            // Pre-transform images at ingestion to cap resolution and quality before storage.
-            if (file.type.startsWith("image/"))
-                body.append(
-                    "transformation",
-                    JSON.stringify({ pre: "w-2000,q-80" }),
-                );
-
-            const res = await fetch(IMAGEKIT_UPLOAD_URL, {
+            const res = await fetch(auth.uploadUrl, {
                 method: "POST",
                 body,
             });
@@ -86,7 +65,7 @@ const useUploadFile = (workspaceId: number, documentId: number) => {
             const json = await res.json();
             return json.url as string;
         },
-        [workspaceId, documentId],
+        [documentId],
     );
 
     return uploadFile;

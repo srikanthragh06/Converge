@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from 'crypto';
+import { randomUUID } from 'crypto';
 import {
   ConflictException,
   ForbiddenException,
@@ -57,6 +57,10 @@ import {
 } from '../utils/block-tree.util.js';
 import { sql } from 'kysely';
 import * as Y from 'yjs';
+import jwt from 'jsonwebtoken';
+
+/** ImageKit's V2 upload endpoint, which checks a signed JWT covering every upload parameter. */
+const IMAGEKIT_UPLOAD_URL = 'https://upload.imagekit.io/api/v2/files/upload';
 
 @Injectable()
 export class DocumentService {
@@ -1133,29 +1137,75 @@ export class DocumentService {
   }
 
   /**
-   * Generates a one-time ImageKit upload auth payload for client-side uploads.
-   * The private key signs the token+expire pair so ImageKit can verify the
-   * request without the private key ever leaving the server.
-   * @returns token, expire (Unix seconds), and HMAC-SHA1 signature
+   * Generates a one-time ImageKit V2 upload token for a file going into this
+   * document. The server decides every upload parameter (folder, file name,
+   * transformation, and the type/size checks ImageKit runs on the file) and
+   * signs them into a JWT, so ImageKit rejects any upload whose parameters
+   * differ from these or whose file fails the checks — the uploader can't
+   * pick its own folder, size or type. Throws NotFoundException if the
+   * document does not exist or is deleted, and ForbiddenException if the user
+   * has less than editor access.
+   * @param documentId - the document the file will be inserted into
+   * @param userId - the ID of the authenticated requesting user
+   * @param fileType - the kind of file, which sets its size cap and transformation
+   * @returns the upload URL, the signed token, and the exact fields to send with it
    */
-  getImageKitUploadAuth(): GetUploadAuthResponseDto {
+  async getImageKitUploadAuth(
+    documentId: number,
+    userId: number,
+    fileType: 'image' | 'video' | 'audio',
+  ): Promise<GetUploadAuthResponseDto> {
     const privateKey = this.configService.get<string>('IMAGEKIT_PRIVATE_KEY');
-    if (!privateKey)
+    const publicKey = this.configService.get<string>('IMAGEKIT_PUBLIC_KEY');
+    if (!privateKey || !publicKey)
       throw new InternalServerErrorException(
-        'ImageKit private key is not configured.',
+        'ImageKit keys are not configured.',
       );
 
-    // A unique token per request prevents replay attacks — ImageKit rejects reused tokens.
-    const token = randomUUID();
+    const access = await this.documentAccessService.resolveAccess(
+      documentId,
+      userId,
+    );
+    if (!hasAccess(access, 'editor'))
+      throw new ForbiddenException(
+        'You need editor access to upload files to this document.',
+      );
 
-    // Expire 5 minutes from now; must be within 1 hour per ImageKit's requirement.
-    const expire = Math.floor(Date.now() / 1000) + 300;
+    const document = await this.dbService.kysely
+      .selectFrom('documents')
+      .select('workspace_id')
+      .where('id', '=', documentId)
+      .executeTakeFirstOrThrow();
 
-    // HMAC-SHA1 of token+expire proves this payload was issued by our server.
-    const signature = createHmac('sha1', privateKey)
-      .update(token + expire)
-      .digest('hex');
+    // Same folder names the editor has always used, so existing and new
+    // uploads stay together: "production" for the prod server, else "development".
+    let folderEnv = 'development';
+    if (process.env.NODE_ENV === 'prod') folderEnv = 'production';
 
-    return { token, expire, signature };
+    const fields: Record<string, string> = {
+      fileName: randomUUID(),
+      folder: `/converge/${folderEnv}/workspaces/${document.workspace_id}/documents/${documentId}`,
+    };
+
+    // ImageKit runs these checks on the file before storing it. With a
+    // pre-transformation it checks the transformed file, so an image's size
+    // cap applies to the resized result, not to the original upload.
+    if (fileType === 'image') {
+      fields.transformation = JSON.stringify({ pre: 'w-2000,q-80' });
+      fields.checks = '"file.mime" : "image/" AND "file.size" <= "25MB"';
+    } else if (fileType === 'video') {
+      fields.checks = '"file.mime" : "video/" AND "file.size" <= "100MB"';
+    } else {
+      fields.checks = '"file.mime" : "audio/" AND "file.size" <= "5MB"';
+    }
+
+    // ImageKit rejects an upload whose fields don't match this payload, and
+    // rejects a token used twice. Valid 5 minutes (ImageKit allows up to 1 hour).
+    const token = jwt.sign(fields, privateKey, {
+      expiresIn: 300,
+      header: { alg: 'HS256', typ: 'JWT', kid: publicKey },
+    });
+
+    return { uploadUrl: IMAGEKIT_UPLOAD_URL, token, fields };
   }
 }

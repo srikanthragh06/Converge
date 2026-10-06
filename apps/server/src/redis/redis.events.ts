@@ -45,7 +45,7 @@ export const REDIS_KEYS = {
   /** Global (cross-workspace) token counter for OpenAI embedding calls, windowed to 60s. */
   openaiEmbeddingRateLimitGlobalTokens:
     'openai-embedding-ratelimit:global:tokens',
-  /** Per-user request counter for GET /document/upload-auth, windowed to 60s. */
+  /** Per-user request counter for GET /document/:id/upload-auth, windowed to 60s. */
   imageKitUploadAuthRateLimitUser: (userId: number) =>
     `imagekit-upload-auth-ratelimit:user:${userId}`,
   /** Per-user request counter for agent OpenAI calls, windowed to 60s. */
