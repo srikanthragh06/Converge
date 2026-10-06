@@ -129,6 +129,30 @@ export const TOOL_GROUPS: ToolGroup[] = [
                 description: "Read the exact block structure, ids included.",
             },
             {
+                name: "getDocumentOutline",
+                title: "Get Document Outline",
+                description:
+                    "Every heading with its id, level and section size — see a large document's structure, or find where new content belongs, without reading it all.",
+            },
+            {
+                name: "findInDocument",
+                title: "Find In Document",
+                description:
+                    "Exact-text find in one live document — every matching block's id, so nothing is missed and unindexed edits are seen.",
+            },
+            {
+                name: "getBlocksById",
+                title: "Get Blocks By Id",
+                description:
+                    "Read only the blocks you need by id — nested ones too — with optional sibling blocks and a child depth limit.",
+            },
+            {
+                name: "getUploadToken",
+                title: "Get Upload Token",
+                description:
+                    "A one-time signed token and a ready curl command to upload a local image or video through the agent's shell, so the file never passes through the model.",
+            },
+            {
                 name: "updateDocumentBlocks",
                 title: "Update Document Blocks",
                 description:
@@ -148,7 +172,7 @@ export const TOOL_GROUPS: ToolGroup[] = [
                 name: "searchDocumentContent",
                 title: "Search Document Content",
                 description:
-                    "Semantic + lexical search over indexed content across a workspace, reranked, returned as cited chunks.",
+                    "Semantic + lexical search over indexed content across a workspace, or one document, reranked and returned as cited chunks. An optional lexical-only mode matches exact words with no AI calls.",
             },
         ],
     },
