@@ -27,6 +27,9 @@ export const documentKeys = {
     /** ⌘K switcher; kept apart from Library because it loads a different page size. */
     switcher: (workspaceId: number, search: string) =>
         ["documents", "list", "switcher", workspaceId, search] as const,
+    /** One ⌘K semantic search run. Outside `lists()` on purpose: DOC_READY invalidates every list, and a refetch here would be a paid AI call. `runId` gives each ↵ its own entry, so repeating a query runs it again. */
+    semanticSearch: (workspaceId: number, query: string, runId: number) =>
+        ["documents", "semantic-search", workspaceId, query, runId] as const,
     /** One document's own data: title, access, workspace. */
     detail: (documentId: number | undefined) =>
         ["documents", "detail", documentId] as const,
