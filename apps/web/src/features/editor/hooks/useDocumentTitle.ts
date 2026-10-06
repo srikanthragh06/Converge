@@ -1,7 +1,8 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { isSocketReadyAtom } from "@/atoms/socket";
+import { socketReadyDocumentIdAtom } from "@/atoms/socket";
+import useDocumentId from "@/hooks/useDocumentId";
 import { socketReceive } from "@/lib/socket-receive.util";
 import {
     SOCKET_EVENTS,
@@ -20,7 +21,9 @@ import { documentKeys } from "@/features/documents/queryKeys";
  * clients, tracks pending ack state, and keeps the browser tab title in sync.
  */
 const useDocumentTitle = () => {
-    const isSocketReady = useAtomValue(isSocketReadyAtom); // true only after DOC_READY is received — guards title emits and listener registration
+    const documentId = useDocumentId();
+    const isSocketReady =
+        useAtomValue(socketReadyDocumentIdAtom) === documentId; // true only after this document's DOC_READY — guards title emits and listener registration
 
     const [title, setTitle] = useState<string>(""); // the document title, seeded from the initial fetch and kept in sync via socket
     const [isTitlePending, setIsTitlePending] = useState<boolean>(false); // true while a title change has been emitted but not yet acked by the server

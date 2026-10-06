@@ -14,7 +14,7 @@ import useScrollToBlock from "./hooks/useScrollToBlock";
 import Skeleton from "@/components/ui/Skeleton";
 import { useAtomValue } from "jotai";
 import DelayedRender from "@/components/common/DelayedRender";
-import { isSocketReadyAtom, syncStatusAtom } from "@/atoms/socket";
+import { socketReadyDocumentIdAtom, syncStatusAtom } from "@/atoms/socket";
 
 /**
  * Full-screen editor page. Fetches the document by ID from the URL, redirects
@@ -34,7 +34,8 @@ const EditorPage = () => {
         isTitlePending,
     } = useEditor(); // editor instance, document ID, fetch status, title state, and resolved access level
 
-    const isSocketReady = useAtomValue(isSocketReadyAtom); // true only after DOC_READY — gates editor render so it never mounts before the socket handshake completes
+    const isSocketReady =
+        useAtomValue(socketReadyDocumentIdAtom) === documentId; // true only after this document's DOC_READY — gates editor render so it never mounts before the socket handshake completes
     const scrollRef = useEditorScrollGap(editor); // ref for the scroll container — maintains a gap below the last block
     const editorWrapperRef = useRef<HTMLDivElement>(null); // ref for the position:relative wrapper used by BlockAwarenessOverlay
     const isEditable =

@@ -1,6 +1,6 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { isSocketReadyAtom, syncStatusAtom } from "@/atoms/socket";
+import { socketReadyDocumentIdAtom, syncStatusAtom } from "@/atoms/socket";
 import { socketReceive } from "@/lib/socket-receive.util";
 import {
     mapsAreEqual,
@@ -25,7 +25,8 @@ import { socket } from "@/lib/socket";
  * Returns the Y.Doc for use by the BlockNote editor.
  */
 const useYjsSync = (documentId: number | undefined) => {
-    const isSocketReady = useAtomValue(isSocketReadyAtom); // read-only view of the global socket connection state
+    const isSocketReady =
+        useAtomValue(socketReadyDocumentIdAtom) === documentId; // ready for this document — false on the first render after a switch, so nothing is sent before its DOC_READY
     const setSyncStatus = useSetAtom(syncStatusAtom); // writes the derived sync status to the global atom
 
     const [isRestoring, setIsRestoring] = useState(false); // true while the initial repair sync after connect is in progress

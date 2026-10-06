@@ -10,19 +10,22 @@ import {
 import { socket } from "@/lib/socket";
 import { socketEmit } from "@/lib/socket-emit.util";
 import { socketReceive } from "@/lib/socket-receive.util";
-import { isSocketReadyAtom, awarenessAtom } from "@/atoms/socket";
+import { socketReadyDocumentIdAtom, awarenessAtom } from "@/atoms/socket";
+import useDocumentId from "@/hooks/useDocumentId";
 
 /**
  * Manages awareness for the current user and the document's presence list.
  * Emits AWARENESS_UPDATE_SERVER when the user's focused block changes or the
  * editor loses focus. Listens for AWARENESS_UPDATE_CLIENT and writes the full
  * user list into awarenessAtom. Clears the atom on disconnect.
- * Both effects gate on isSocketReadyAtom per project convention.
+ * Both effects gate on the socket being ready for this document.
  *
  * @param editor - the BlockNote editor instance, or null while the document is loading
  */
 const useAwareness = (editor: BlockNoteEditor | null) => {
-    const isSocketReady = useAtomValue(isSocketReadyAtom);
+    const documentId = useDocumentId();
+    const isSocketReady =
+        useAtomValue(socketReadyDocumentIdAtom) === documentId;
     const setAwareness = useSetAtom(awarenessAtom);
     const selectionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
         null,

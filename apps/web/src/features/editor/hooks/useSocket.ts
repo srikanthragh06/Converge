@@ -7,15 +7,16 @@ import {
     type GetDocumentResponseDto,
 } from "@converge/shared";
 import { useSetAtom } from "jotai";
-import { isSocketReadyAtom } from "@/atoms/socket";
+import { socketReadyDocumentIdAtom } from "@/atoms/socket";
 import { documentKeys } from "@/features/documents/queryKeys";
 import { socketReceive } from "@/lib/socket-receive.util";
 
 /**
  * Manages the Socket.io connection lifecycle.
  * Connects when canConnect is true, disconnects when false. Sets
- * isSocketReady only when the server emits DOC_READY, guaranteeing that
- * handleConnection has fully completed before any sync operations begin.
+ * socketReadyDocumentIdAtom to the document only when the server emits
+ * DOC_READY, guaranteeing that handleConnection has fully completed before
+ * any sync operations begin, and clears it on disconnect.
  * DOC_READY also refreshes the document lists, since the server records
  * the visit just before sending it and Recent, Library and ⌘K are ordered
  * by last visit. ACCESS_CHANGED writes the user's new access level into the
@@ -26,23 +27,23 @@ import { socketReceive } from "@/lib/socket-receive.util";
  * @param documentId - Stamped onto the socket query so the gateway can identify the document.
  */
 const useSocket = (canConnect: boolean = true, documentId?: number) => {
-    const setIsSocketReady = useSetAtom(isSocketReadyAtom); // true only after DOC_READY is received, not merely when the transport connects
+    const setSocketReadyDocumentId = useSetAtom(socketReadyDocumentIdAtom); // set only after DOC_READY is received, not merely when the transport connects
     const queryClient = useQueryClient();
 
     // Registers event listeners then connects or disconnects based on canConnect. Re-runs when documentId changes to reconnect to the new document's room.
     useEffect(() => {
         socket.on(SOCKET_EVENTS.DISCONNECT, (reason) => {
             console.log(`Socket disconnected because \n${reason}`);
-            setIsSocketReady(false);
+            setSocketReadyDocumentId(null);
         });
 
         socket.on(SOCKET_EVENTS.CONNECT_ERROR, (err) => {
             console.error("Socket connection error:", err);
-            setIsSocketReady(false);
+            setSocketReadyDocumentId(null);
         });
 
         socket.on(SOCKET_EVENTS.DOC_READY, () => {
-            setIsSocketReady(true);
+            setSocketReadyDocumentId(documentId ?? null);
             queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
         });
 
@@ -72,7 +73,7 @@ const useSocket = (canConnect: boolean = true, documentId?: number) => {
             socket.off(SOCKET_EVENTS.DOC_READY);
             socket.off(SOCKET_EVENTS.ACCESS_CHANGED);
             socket.off("error");
-            setIsSocketReady(false);
+            setSocketReadyDocumentId(null);
             socket.disconnect();
         };
     }, [canConnect, documentId, queryClient]);

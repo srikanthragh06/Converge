@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAtomValue } from "jotai";
-import { isSocketReadyAtom, syncStatusAtom } from "@/atoms/socket";
+import { socketReadyDocumentIdAtom, syncStatusAtom } from "@/atoms/socket";
 
 const OBSERVE_TIMEOUT_MS = 15000; // gives up waiting for the block to appear rather than leaking an observer forever on a stale/deleted blockId — generous since a long document can take a while to fully render, especially on an unminified dev build
 
@@ -25,7 +25,8 @@ const useScrollToBlock = (documentId: number | undefined) => {
     const [searchParams] = useSearchParams();
     const blockId = searchParams.get("blockId");
 
-    const isSocketReady = useAtomValue(isSocketReadyAtom);
+    const isSocketReady =
+        useAtomValue(socketReadyDocumentIdAtom) === documentId;
     const syncStatus = useAtomValue(syncStatusAtom);
 
     const scrolledForDocumentIdRef = useRef<number | undefined>(undefined); // the documentId this hook has already attempted a scroll for, if any
