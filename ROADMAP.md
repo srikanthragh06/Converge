@@ -984,8 +984,39 @@ Closes the last gap in live access control — what the server *sends* to an ope
 
 - `CLAUDE.md` documents the access version counters and `ACCESS_CHANGED`, the presence heartbeat, the new search and navigation tools, smaller write-tool responses, the `setEditable` rule, and the new UI primitives
 
+## ⌘K Content Search: Lexical & Semantic ✅
+
+> Branch: `release-cmdk-lexical-semantic-content-search` — merged 2026-10-06
+
+⌘K searched document titles only. It now searches the text of every document the user can see, reusing the existing RAG pipeline: lexical results (exact, stemmed words, highlighted) update as you type at no AI cost, and semantic results (by meaning) run only when asked, since each one is a rate-limited paid call. Passages open the document scrolled to the matching block — now also when that document is already open. Feature branches: `cmdk-content-search-endpoint`, `cmdk-content-search-client`.
+
+### Server (NestJS backend)
+
+- **`GET /document/search/content`** (`?workspaceId&query&mode=lexical|semantic`, behind `AuthGuard`) — returns `{ documents: [{ documentId, title, passages: [{ url, snippet }] }] }`, best document first and every retrieved passage in rank order, each passage's `url` a `?blockId=` deep link. `lexical` is BM25 only (no AI calls, no rate limit); `semantic` is the hybrid embed + Voyage rerank path, so a rate-limit hit comes back as a 429
+- **`DocumentRAGService.searchContent`** wraps the unchanged `retrieve()` (10 chunks) — MCP and the in-app agent are unaffected. Lexical snippets come from one `ts_headline` query over just the returned chunks (`MaxWords=35, MaxFragments=1`, the query's stems OR'd exactly like BM25's tsquery, so the highlighted words are the ones that matched); semantic snippets are the chunk's opening text
+- **Highlight markers** — each matched word sits between U+E000 / U+E001 (`SEARCH_HIGHLIGHT_START` / `SEARCH_HIGHLIGHT_END` in `@converge/shared`), so the client renders highlights without any HTML from the server. Private-use characters are stripped from chunk text first, since imported documents (e.g. PDFs) carry their own
+- **`search-snippet.util.ts`** — `toSnippet` turns chunk Markdown into one plain line (Markdown syntax removed, escapes and hex entities decoded) cut at a space at 240 characters, so a highlighted word is never split
+
+### Web (React frontend)
+
+- **⌘K palette rebuilt for content search** — an empty box lists recent documents; typing shows a Lexical / Semantic toggle (Ctrl+/ or ⌘/ to switch, remembered for the session in `searchModeAtom`). Lexical shows "Jump to" (title matches) and "In documents" (passages, matched words in gold) together — the title search and the content search run in parallel and render once both finish. Semantic shows a "Run semantic search for …" row that runs on ↵, then results with the top passage labelled "Best match"; editing the query brings the run row back above the old results, now dimmed. A 429 shows a rate-limit screen and any other failure a "Couldn't run semantic search" screen, both with "Search lexically instead". Phone layout keeps the toggle and hides the hints
+- **`useSemanticSearch`** — runs only on ↵: `retry: false`, `staleTime: Infinity` (a window refocus would otherwise re-run a paid search), `gcTime: 0`, and a run counter in its key (`documentKeys.semanticSearch`, outside `lists()` so `DOC_READY` can't re-run it), so a repeated query runs again
+- **Keyboard rows in screen order** — `useDocumentSwitcher` builds the run row, title rows and passages with their actions and `navIndex`es; `useKeyboardNav` now finds the focused row by its `data-nav-index`, so headings between rows are skipped
+- **Same-document deep links scroll** — `useScrollToBlock` scrolled only on a document's first sync, so a `?blockId=` link into the already-open document (a ⌘K passage, an agent citation) did nothing. It now tracks the handled navigation (`location.key`) and the synced document: such a link scrolls straight away, the same link twice scrolls twice, and a reconnect still never re-triggers a scroll
+
+### Tooling / docs
+
+- `simplify-code` and `browser-check` Claude Code skills (outside the repo): a code-simplification pass to the project's rules, and Playwright-driven checks of the running app (cached Chromium, `authToken` cookie)
+- `CLAUDE.md` documents the content-search endpoint and palette, paid queries kept out of `lists()`, `data-nav-index`, the new `useScrollToBlock` behaviour and the Vite pre-bundle step for new `@converge/shared` exports
+
 ## Upcoming
 
+- ⌘K title search has no minimum similarity — `/document/library/search` returns the closest titles even for nonsense, so "Jump to" is never empty and the palette's "No matches" state can't appear; needs a cutoff in `searchLibraryDocuments`
+- ⌘K semantic search always returns its top 10, even for a meaningless query — no relevance threshold on the rerank score; would need tuning on real queries
+- Lexical prefix match on the last query term (`term:*`), so a partly typed word ("RA") already matches ("RAG") — BM25's term-frequency parsing would need prefix matching too
+- Replace `toSnippet`'s regex Markdown stripping with a real parser (mdast) run before `ts_headline` — more correct, at the cost of four new server dependencies
+- Jump instead of smooth-scrolling when a deep link opens another document — it opens at the top and visibly scrolls the whole way to the block
+- Check the ⌘K "Couldn't run semantic search" screen (non-429 failure) and agent citations into the open document in a browser — both untested live
 - Frontend code-rules pass (Converge doc 120, part 3): one React component per file, a lighter comment pass that keeps the *why*, and ESLint to zero (17 problems today)
 - Tailwind v4 and a shadcn-based UI kit (doc 120, parts 4–5) — planned, but on review low value for readability since the kit is already Radix and token-styled; held until a feature needs components the kit lacks
 - Eval harness for the agent feature — 55 hand-authored cases (task success, safety-violation count, injection resistance) were built and iterated on during development, but on a branch that was ultimately abandoned rather than merged into this release; porting or rebuilding it against the shipped code is deferred, not done

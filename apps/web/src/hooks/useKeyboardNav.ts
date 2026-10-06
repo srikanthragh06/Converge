@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
  * Manages keyboard navigation over a flat list.
  * ArrowDown/ArrowUp move the focus, Enter selects the focused item.
  * Auto-focuses the first item when the list loads or changes, and clears focus when it empties.
- * Attach the returned listRef to the scrollable container so the focused
- * item is automatically scrolled into view.
+ * Attach the returned listRef to the scrollable container and give each
+ * selectable row a `data-nav-index` attribute (its index in the list), so
+ * the focused row is scrolled into view. Other elements in the container,
+ * such as section headings, are skipped.
  */
 const useKeyboardNav = (count: number, onSelect: (index: number) => void) => {
     const [focusedIndex, setFocusedIndex] = useState<number | null>(null); // index of the keyboard-focused item, or null if none
@@ -19,9 +21,9 @@ const useKeyboardNav = (count: number, onSelect: (index: number) => void) => {
     // Scroll the focused item into view whenever the index changes.
     useEffect(() => {
         if (focusedIndex === null || !listRef.current) return;
-        const item = listRef.current.children[focusedIndex] as
-            | HTMLElement
-            | undefined;
+        const item = listRef.current.querySelector(
+            `[data-nav-index="${focusedIndex}"]`,
+        );
         item?.scrollIntoView({ block: "nearest" });
     }, [focusedIndex]);
 

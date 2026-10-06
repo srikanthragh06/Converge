@@ -120,6 +120,10 @@ export {
     SetDocumentPinnedResponseSchema,
     SearchLibraryDocumentsRequestSchema,
     SearchLibraryDocumentsResponseSchema,
+    SearchDocumentContentRequestSchema,
+    ContentSearchPassageSchema,
+    ContentSearchDocumentSchema,
+    SearchDocumentContentResponseSchema,
     GetTrashDocumentsRequestSchema,
     TrashDocumentSchema,
     GetTrashDocumentsResponseSchema,
@@ -156,6 +160,10 @@ export type {
     SetDocumentPinnedResponseDto,
     SearchLibraryDocumentsRequestDto,
     SearchLibraryDocumentsResponseDto,
+    SearchDocumentContentRequestDto,
+    ContentSearchPassageDto,
+    ContentSearchDocumentDto,
+    SearchDocumentContentResponseDto,
     GetTrashDocumentsRequestDto,
     TrashDocumentDto,
     GetTrashDocumentsResponseDto,
@@ -236,7 +244,11 @@ export type {
     TransferWorkspaceOwnerRequestDto,
     TransferWorkspaceOwnerResponseDto,
 } from "./http/workspace.js";
-export { INTERNAL_SERVER_ERROR_MESSAGE } from "./constants/constants.js";
+export {
+    INTERNAL_SERVER_ERROR_MESSAGE,
+    SEARCH_HIGHLIGHT_START,
+    SEARCH_HIGHLIGHT_END,
+} from "./constants/constants.js";
 export {
     DocumentAccessLevel,
     DocumentAccessLevelSchema,
