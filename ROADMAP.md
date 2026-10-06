@@ -1009,6 +1009,26 @@ Closes the last gap in live access control — what the server *sends* to an ope
 - `simplify-code` and `browser-check` Claude Code skills (outside the repo): a code-simplification pass to the project's rules, and Playwright-driven checks of the running app (cached Chromium, `authToken` cookie)
 - `CLAUDE.md` documents the content-search endpoint and palette, paid queries kept out of `lists()`, `data-nav-index`, the new `useScrollToBlock` behaviour and the Vite pre-bundle step for new `@converge/shared` exports
 
+## Signed Uploads & MCP Image/Video Upload ✅
+
+> Branch: `mcp-image-upload` — merged 2026-10-06
+
+Closes a hole in the editor's file upload and lets an agent with a shell put a local image or video into a document. The old ImageKit V1 signature covered only a token and an expiry, so any signed-in user could mint a credential and upload any file type or size into any folder of the ImageKit account — the type, size and folder rules lived only in the browser. Uploads now use ImageKit's V2 upload, where the server signs every upload field and ImageKit rejects anything that differs.
+
+### Server (NestJS backend)
+
+- **Signed V2 uploads** — `GET /document/upload-auth` becomes `GET /document/:id/upload-auth?fileType=image|video|audio[&extension=]`. It requires editor access on the document, then picks the `fileName` (a UUID), the `folder` (the same `/converge/<development|production>/workspaces/<ws>/documents/<id>` paths as before), the image pre-transform (`w-2000,q-80`) and a `checks` rule (MIME prefix and size cap per kind: image 25MB, video 100MB, audio 5MB), and signs them into an HS256 JWT with the private key and the public key as `kid`, valid 5 minutes. ImageKit rejects an upload whose fields don't match the token, a reused token, and a file that fails the checks — all confirmed with real uploads. With a pre-transform, ImageKit checks the transformed file, so the image cap applies to the resized result. The server now needs `IMAGEKIT_PUBLIC_KEY` as well as the private key
+- **Extension kept on the file name** — an optional `extension`, kept on the signed `fileName` when it's in an allowlist for the file kind (unknown ones are dropped, not rejected). BlockNote turns Markdown `![](url)` into a video block only when the URL ends in a video extension, so without it an uploaded `.mp4` inserted as a broken image block
+- **`getUploadToken` MCP tool** — returns the same signed token, its fields, and a ready `curlCommand` (using `--form-string`, since plain `-F` reads the quotes and commas in `checks`/`transformation` as curl syntax) that uploads a local file with only `<FILE_PATH>` filled in. The file bytes go through curl, never through the model; the agent then inserts the returned URL with `updateDocumentBlocks` as `![](url)`. Shares the editor's 10-per-minute per-user counter, checked inside the tool since `ImageKitUploadAuthRateLimitGuard` is an HTTP guard. Not given to the in-app agent, which has no shell. Tested end to end with an image and an MP4
+
+### Web (React frontend)
+
+- `useUploadFile` takes only the document id, asks the server for a token for the file's kind and extension, and sends the returned fields unchanged; `VITE_IMAGEKIT_PUBLIC_KEY` and `VITE_IMAGEKIT_UPLOAD_URL` are removed from the web env
+
+### Tooling / docs
+
+- `CLAUDE.md` documents the signed-upload flow and `getUploadToken`
+
 ## Upcoming
 
 - ⌘K title search has no minimum similarity — `/document/library/search` returns the closest titles even for nonsense, so "Jump to" is never empty and the palette's "No matches" state can't appear; needs a cutoff in `searchLibraryDocuments`
@@ -1029,3 +1049,6 @@ Closes the last gap in live access control — what the server *sends* to an ope
 - Perimeter-level rate limiting (nginx `limit_req`/`limit_conn`, and/or an off-box layer like Cloudflare) and WebSocket gateway event throttling — deliberately deferred out of this release as lower-urgency than the unauthenticated-endpoint and paid-provider gaps it closed
 - Run `reindex-all-documents.ts` against prod once the RAG fixes deploy, then delete the script — until then, existing documents keep chunks built under the old rules (and documents with nested blocks rebuild piecemeal as they're edited)
 - Check the DSA book's one heading-break miss (#16, merge sort) — boundary shift or judge noise — and build a test document with large nested subtrees to measure what per-block indexing gains
+- Decide on WebM uploads: ImageKit doesn't recognize GNOME screencast `.webm` files (it sees `application/octet-stream`), so the signed `video/` check rejects them in the editor and over MCP, where the old unchecked V1 upload accepted them. Options: also accept `application/octet-stream` for video, or keep the strict check
+- Audio over MCP: `getUploadToken` uploads audio, but Markdown has no audio syntax and BlockNote's parser only special-cases video URLs, so `updateDocumentBlocks` can't insert an audio block — would need an explicit media operation
+- An editor upload in the browser against the V2 flow is still to be checked, and prod's server env must have `IMAGEKIT_PUBLIC_KEY` before this deploys

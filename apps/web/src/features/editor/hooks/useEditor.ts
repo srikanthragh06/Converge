@@ -33,12 +33,12 @@ const useEditor = () => {
     // from receiving a connection with an invalid or inaccessible document ID.
     useSocket(documentStatus === "ready", documentId);
 
-    // Stable upload function for this workspace+document pair. Null fallbacks are safe —
-    // the editor is not created until both are present, so the fallbacks never reach ImageKit.
-    const uploadFile = useUploadFile(docWorkspace?.id ?? 0, documentId ?? 0);
+    // Stable upload function for this document. The fallback is safe — the editor
+    // is not created until documentId is present, so it never reaches the server.
+    const uploadFile = useUploadFile(documentId ?? 0);
 
     // Created once per document (yDoc changes on switch). Gated on docWorkspace and
-    // documentId so uploadFile always has the correct folder path when first created.
+    // documentId so uploadFile always targets the right document when first created.
     const editor = useMemo(() => {
         if (!docWorkspace || !documentId) return null;
 

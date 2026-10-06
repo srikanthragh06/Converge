@@ -10,17 +10,17 @@ import { RedisService } from '../redis/redis.service.js';
 import { REDIS_KEYS } from '../redis/redis.events.js';
 
 /**
- * Rate-limits GET /document/upload-auth per user. Each call mints a valid
+ * Rate-limits GET /document/:id/upload-auth per user. Each call mints a valid
  * ImageKit upload credential, so uncapped calls could fill storage with junk.
  * Requires AuthGuard to run first so userId is already stamped on the request.
  */
 @Injectable()
 export class ImageKitUploadAuthRateLimitGuard implements CanActivate {
   /** Max requests from a single user within the window. */
-  private static readonly USER_LIMIT = 10;
+  static readonly USER_LIMIT = 10;
 
   /** Length of the window, in seconds. */
-  private static readonly WINDOW_SECONDS = 60;
+  static readonly WINDOW_SECONDS = 60;
 
   constructor(private readonly redisService: RedisService) {}
 

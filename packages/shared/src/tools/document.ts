@@ -342,6 +342,41 @@ export type GetDocumentOutlineToolResponseDto = z.infer<
     typeof GetDocumentOutlineToolResponseSchema
 >;
 
+export const GetUploadTokenToolInputSchema = {
+    documentId: z.coerce.number().int().positive().describe(
+        "The document the file will be inserted into. Requires editor access.",
+    ),
+    fileType: z.enum(["image", "video", "audio"]).describe(
+        "The kind of file. Sets the size cap: image 25MB (after resizing to 2000px wide), video 100MB, audio 5MB.",
+    ),
+    extension: z.string().max(10).optional().describe(
+        "The local file's extension, e.g. png or mp4. Kept on the uploaded file's URL; a video URL needs it for ![](url) to become a video block.",
+    ),
+};
+
+export type GetUploadTokenToolInputDto = {
+    documentId: number;
+    fileType: "image" | "video" | "audio";
+    extension?: string;
+};
+
+export const GetUploadTokenToolResponseSchema = z.object({
+    uploadUrl: z.string().describe("The ImageKit URL to POST the file to."),
+    token: z.string().describe(
+        "A signed one-time token, valid for 5 minutes.",
+    ),
+    fields: z.record(z.string(), z.string()).describe(
+        "The upload fields signed into the token. Send every one unchanged with the file and token, or the upload is rejected.",
+    ),
+    curlCommand: z.string().describe(
+        "A ready upload command: replace <FILE_PATH> with the local file's path and run it. The JSON response's url is the file's public address.",
+    ),
+});
+
+export type GetUploadTokenToolResponseDto = z.infer<
+    typeof GetUploadTokenToolResponseSchema
+>;
+
 // A single edit within an updateDocumentBlocks call. "replace" and "insert"
 // take a Markdown string rather than raw BlockNote block JSON — an agent
 // writing plain Markdown (which it already knows how to do) is far more

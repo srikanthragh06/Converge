@@ -1,9 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import * as Y from 'yjs';
 import { DocumentService } from './document.service.js';
 import { DocumentCheckpointService } from './document-checkpoint.service.js';
 import { DocumentRAGService } from './document-rag.service.js';
 import { DocumentIndexingService } from './document-indexing.service.js';
+import { ImageKitUploadAuthRateLimitGuard } from './imagekit-upload-auth-rate-limit.guard.js';
+import { RedisService } from '../redis/redis.service.js';
+import { REDIS_KEYS } from '../redis/redis.events.js';
 import { blocksFromYDoc } from '../utils/editor-schema.js';
 import { base64ToUint8Array } from '../utils/utils.js';
 import {
@@ -23,6 +26,8 @@ import {
   type GetBlocksByIdToolResponseDto,
   type GetDocumentOutlineToolInputDto,
   type GetDocumentOutlineToolResponseDto,
+  type GetUploadTokenToolInputDto,
+  type GetUploadTokenToolResponseDto,
   type UpdateDocumentBlocksToolInputDto,
   type UpdateDocumentBlocksResponseDto,
   type CreateDocumentToolInputDto,
@@ -60,6 +65,7 @@ export class DocumentTools {
     private readonly documentCheckpointService: DocumentCheckpointService,
     private readonly documentRAGService: DocumentRAGService,
     private readonly documentIndexingService: DocumentIndexingService,
+    private readonly redisService: RedisService,
   ) {}
 
   /**
@@ -253,6 +259,50 @@ export class DocumentTools {
     input: GetDocumentOutlineToolInputDto,
   ): Promise<GetDocumentOutlineToolResponseDto> {
     return this.documentService.getDocumentOutline(input.documentId, userId);
+  }
+
+  /**
+   * Returns a one-time ImageKit upload token for a file going into a
+   * document, plus a ready curl command that uploads a local file with it —
+   * so an agent with a shell sends the file bytes through curl, never
+   * through the model. Shares the editor's per-user upload-token rate limit
+   * (ImageKitUploadAuthRateLimitGuard's counter), which as an HTTP guard
+   * can't run for an MCP call. getImageKitUploadAuth throws
+   * NotFoundException/ForbiddenException on missing documents or less than
+   * editor access.
+   * @param userId - the calling user's ID, resolved from their API key
+   * @param input - the document and the kind of file being uploaded
+   */
+  async getUploadToken(
+    userId: number,
+    input: GetUploadTokenToolInputDto,
+  ): Promise<GetUploadTokenToolResponseDto> {
+    const count = await this.redisService.incrWithExpire(
+      REDIS_KEYS.imageKitUploadAuthRateLimitUser(userId),
+      ImageKitUploadAuthRateLimitGuard.WINDOW_SECONDS,
+    );
+    if (count > ImageKitUploadAuthRateLimitGuard.USER_LIMIT)
+      throw new HttpException(
+        'Too many upload requests. Please try again in 1-2 minutes.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+
+    const auth = await this.documentService.getImageKitUploadAuth(
+      input.documentId,
+      userId,
+      input.fileType,
+      input.extension,
+    );
+
+    // --form-string sends each value literally — plain -F would treat the
+    // quotes and commas in checks/transformation as curl syntax. No value
+    // contains a single quote, so single-quoting each one is safe.
+    let curlCommand = `curl -s '${auth.uploadUrl}' -F 'file=@<FILE_PATH>'`;
+    for (const [name, value] of Object.entries(auth.fields))
+      curlCommand += ` --form-string '${name}=${value}'`;
+    curlCommand += ` --form-string 'token=${auth.token}'`;
+
+    return { ...auth, curlCommand };
   }
 
   /**

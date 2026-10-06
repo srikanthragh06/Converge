@@ -25,6 +25,8 @@ import {
   GetBlocksByIdToolResponseSchema,
   GetDocumentOutlineToolInputSchema,
   GetDocumentOutlineToolResponseSchema,
+  GetUploadTokenToolInputSchema,
+  GetUploadTokenToolResponseSchema,
   UpdateDocumentBlocksToolInputSchema,
   UpdateDocumentBlocksResponseSchema,
   CreateDocumentToolInputSchema,
@@ -276,6 +278,26 @@ export class McpController {
       async (input) => {
         const result = await withMcpErrorHandling(() =>
           this.documentTools.getDocumentOutline(userId, input),
+        );
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
+    );
+
+    server.registerTool(
+      'getUploadToken',
+      {
+        title: 'Get Upload Token',
+        description:
+          "Gets a one-time token to upload a local image, video or audio file into a document. Requires shell access to run curl — never put file contents in a tool call. Steps: 1) call this with the document, the file's kind and its extension (needed for a video to insert as a video block); 2) run curlCommand with <FILE_PATH> replaced by the file's path; 3) read url from curl's JSON response; 4) insert it with updateDocumentBlocks, Markdown ![description](url) — this makes an image block, or a video block when the url ends in a video extension. Audio can't be inserted this way. The token works for one upload and expires after 5 minutes; if the upload fails, call this again for a new token. Requires editor access or higher.",
+        inputSchema: GetUploadTokenToolInputSchema,
+        outputSchema: GetUploadTokenToolResponseSchema,
+      },
+      async (input) => {
+        const result = await withMcpErrorHandling(() =>
+          this.documentTools.getUploadToken(userId, input),
         );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
