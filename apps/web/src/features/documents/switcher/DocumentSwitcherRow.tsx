@@ -6,20 +6,24 @@ import Tooltip from "@/components/ui/Tooltip";
  * One document in the search palette: a file icon and the title. The
  * keyboard-focused row gets the selected fill and an "Open ↵" hint; other
  * rows get a lighter hover fill.
+ * @param navIndex - the row's index in the palette's keyboard list (useKeyboardNav)
  * @param title - the document's title; empty renders a muted "Untitled"
  * @param isFocused - whether this row is the keyboard-focused one (Enter opens it)
  * @param onClick - opens the document
  */
 const DocumentSwitcherRow = ({
+    navIndex,
     title,
     isFocused,
     onClick,
 }: {
+    navIndex: number;
     title: string;
     isFocused: boolean;
     onClick: () => void;
 }) => (
     <div
+        data-nav-index={navIndex}
         onClick={onClick}
         className={cn(
             "flex h-11 shrink-0 cursor-pointer items-center gap-2.5 rounded-lg px-3 transition-colors",

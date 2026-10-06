@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { useAtomValue } from "jotai";
 import { isSocketReadyAtom, syncStatusAtom } from "@/atoms/socket";
 
@@ -7,7 +7,11 @@ const OBSERVE_TIMEOUT_MS = 15000; // gives up waiting for the block to appear ra
 
 /**
  * Scrolls to the block named by a `?blockId=` deep link (e.g. from an agent
- * chat citation), once. Fires on the genuine "restoring" -> not-"restoring"
+ * chat citation or a ⌘K passage), once per navigation. A link into another
+ * document waits for that document's first sync; a link into the document
+ * that's already synced scrolls straight away. Navigations are told apart by
+ * React Router's location.key, so following the same link twice scrolls
+ * twice. The first sync is detected on the genuine "restoring" -> not-"restoring"
  * edge, not just "currently not restoring": isSocketReady flips true one
  * render before useYjsSync's repair-sync effect actually sets isRestoring,
  * so there's a transient render where syncStatus is still null (not yet
@@ -17,18 +21,20 @@ const OBSERVE_TIMEOUT_MS = 15000; // gives up waiting for the block to appear ra
  * Even the real edge only means the Yjs *data* has landed — BlockNote still
  * mounts each block as its own ProseMirror node view, which can paint a
  * render pass or two later, so a MutationObserver picks up the moment the
- * DOM node actually appears. Guarded per documentId so a later reconnect
- * (syncStatus cycling through "restoring" again mid-session) never
- * re-triggers it.
+ * DOM node actually appears. A later reconnect (syncStatus cycling through
+ * "restoring" again mid-session) keeps the same location.key, so it never
+ * re-triggers a scroll.
  */
 const useScrollToBlock = (documentId: number | undefined) => {
     const [searchParams] = useSearchParams();
+    const location = useLocation();
     const blockId = searchParams.get("blockId");
 
     const isSocketReady = useAtomValue(isSocketReadyAtom);
     const syncStatus = useAtomValue(syncStatusAtom);
 
-    const scrolledForDocumentIdRef = useRef<number | undefined>(undefined); // the documentId this hook has already attempted a scroll for, if any
+    const syncedDocumentIdRef = useRef<number | undefined>(undefined); // the document whose first sync has finished, if any
+    const handledLocationKeyRef = useRef<string | null>(null); // the navigation this hook has already attempted a scroll for, if any
     const prevSyncStatusRef = useRef(syncStatus); // syncStatus as of the previous run, to detect the real "restoring" -> not-"restoring" edge
 
     useEffect(() => {
@@ -37,15 +43,19 @@ const useScrollToBlock = (documentId: number | undefined) => {
 
         const justFinishedRestoring =
             prevSyncStatus === "restoring" && syncStatus !== "restoring";
+        // Recorded even without a blockId, so a link followed later into this
+        // already-open document can scroll without waiting for a sync.
+        if (justFinishedRestoring) syncedDocumentIdRef.current = documentId;
 
-        if (!blockId || !documentId) return;
-        if (!isSocketReady || !justFinishedRestoring) return;
-        if (scrolledForDocumentIdRef.current === documentId) return;
+        if (!blockId || !documentId || !isSocketReady) return;
+        if (syncedDocumentIdRef.current !== documentId) return;
+        if (syncStatus === "restoring") return;
+        if (handledLocationKeyRef.current === location.key) return;
 
         // Marked immediately, not just on success — a block that never
         // appears (stale/deleted blockId) should give up once, not retry on
-        // every later syncStatus change for this same document.
-        scrolledForDocumentIdRef.current = documentId;
+        // every later syncStatus change for this same navigation.
+        handledLocationKeyRef.current = location.key;
 
         // CSS.escape guards against blockId containing characters that would
         // break the attribute selector — unlike BlockAwarenessOverlay's own
@@ -76,7 +86,7 @@ const useScrollToBlock = (documentId: number | undefined) => {
             observer.disconnect();
             clearTimeout(timeoutId);
         };
-    }, [blockId, documentId, isSocketReady, syncStatus]);
+    }, [blockId, documentId, isSocketReady, syncStatus, location.key]);
 };
 
 export default useScrollToBlock;
