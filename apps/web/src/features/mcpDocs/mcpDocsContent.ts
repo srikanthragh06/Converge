@@ -126,13 +126,14 @@ export const TOOL_GROUPS: ToolGroup[] = [
             {
                 name: "getDocumentBlocks",
                 title: "Get Document Blocks",
-                description: "Read the exact block structure, ids included.",
+                description:
+                    "Read the exact block structure, ids included — the whole document, so on a large one prefer the outline, a find or a search, then read just those blocks.",
             },
             {
                 name: "getDocumentOutline",
                 title: "Get Document Outline",
                 description:
-                    "Every heading with its id, level and section size — see a large document's structure, or find where new content belongs, without reading it all.",
+                    "Every heading with its id, level, section size in blocks and estimated tokens, plus the whole document's token cost — see a large document's structure and what reading it will cost, or find where new content belongs, without reading it all.",
             },
             {
                 name: "findInDocument",
