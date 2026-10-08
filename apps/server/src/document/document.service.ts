@@ -51,6 +51,7 @@ import {
   matchPreview,
 } from '../utils/block-text.util.js';
 import {
+  blockTokens,
   indexBlocks,
   limitDepth,
   outlineHeadings,
@@ -296,20 +297,32 @@ export class DocumentService {
    * Lists every heading in the live document with short text and the
    * number of sibling blocks after it, so an agent can see the document's
    * structure and read one section with getBlocksById instead of reading
-   * the whole document. Throws NotFoundException if the document does not
-   * exist, ForbiddenException if the user has less than viewer access.
+   * the whole document. Also estimates the tokens of each section and of
+   * the whole document, as text and as block JSON, so an agent can tell
+   * what a read will cost before making it. Throws NotFoundException if
+   * the document does not exist, ForbiddenException if the user has less
+   * than viewer access.
    * @param documentId - the document to outline
    * @param userId - the requesting user
-   * @returns the headings in document order, plus the top-level block count
+   * @returns the headings in document order, the top-level block count and the document's estimated tokens
    */
   async getDocumentOutline(
     documentId: number,
     userId: number,
   ): Promise<GetDocumentOutlineToolResponseDto> {
     const blocks = await this.getDocumentBlocks(documentId, userId);
+    const tokens = blockTokens(blocks);
+    let plainTokens = 0;
+    let jsonTokens = 0;
+    for (const block of blocks) {
+      plainTokens += tokens.get(block)!.plain;
+      jsonTokens += tokens.get(block)!.json;
+    }
     return {
-      headings: outlineHeadings(blocks, null),
+      headings: outlineHeadings(blocks, null, [], tokens),
       topLevelBlockCount: blocks.length,
+      plainTokens,
+      jsonTokens,
     };
   }
 

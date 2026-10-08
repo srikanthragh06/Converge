@@ -325,6 +325,12 @@ const OutlineHeadingSchema = z.object({
     sectionBlockCount: z.number().describe(
         "How many sibling blocks follow this heading before the next heading of the same or a higher level, so it includes any subheadings — pass it as after to getBlocksById to read the whole section.",
     ),
+    sectionPlainTokens: z.number().describe(
+        "Estimated tokens of the section's text alone (the heading and the sectionBlockCount blocks after it, children included) — roughly what the section costs as Markdown.",
+    ),
+    sectionJsonTokens: z.number().describe(
+        "Estimated tokens of the section as block JSON (ids and props included) — roughly what reading it with getBlocksById costs.",
+    ),
 });
 
 export const GetDocumentOutlineToolResponseSchema = z.object({
@@ -333,6 +339,12 @@ export const GetDocumentOutlineToolResponseSchema = z.object({
     ),
     topLevelBlockCount: z.number().describe(
         "How many top-level blocks the document has.",
+    ),
+    plainTokens: z.number().describe(
+        "Estimated tokens of the whole document's text alone — roughly what readDocumentMarkdown costs.",
+    ),
+    jsonTokens: z.number().describe(
+        "Estimated tokens of the whole document as block JSON — roughly what getDocumentBlocks costs.",
     ),
 });
 
