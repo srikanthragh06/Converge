@@ -51,6 +51,25 @@ import {
   GetDocumentIndexingStatusToolResponseSchema,
 } from '@converge/shared';
 
+/**
+ * Server-wide guidance sent to every client when it connects (MCP
+ * `instructions`) — how to pick the cheapest read, so an agent does not
+ * spend a large document's worth of tokens when a small part would do.
+ * Per-tool detail belongs in each tool's own description.
+ */
+const MCP_INSTRUCTIONS = `Converge MCP: keep reads small. A large document can cost over 100,000 tokens as block JSON.
+
+- Call listWorkspaces once and reuse the workspaceId.
+- Find a document by name with searchDocuments. Do not page through listDocuments.
+- Do not read a whole document by default. Call getDocumentOutline first. Its plainTokens and jsonTokens show what readDocumentMarkdown and getDocumentBlocks would cost, and each heading's sectionPlainTokens and sectionJsonTokens show what that section costs. The token figures are estimates.
+- Read only what you need:
+  - Exact words, every occurrence, or "is X mentioned": findInDocument, then getBlocksById on the matches.
+  - A question about meaning, or a search across documents: searchDocumentContent (lexicalOnly for names or codes), then getBlocksById.
+  - One section: getBlocksById on the heading id, with after set to its sectionBlockCount. Use depth to cut nested children, and before/after for context.
+  - The whole document: readDocumentMarkdown when you do not need block ids (it is cheaper), getDocumentBlocks only when you need every block id.
+- Edit with block ids from findInDocument, getDocumentOutline or getBlocksById. Do not call getDocumentBlocks just to find ids. updateDocumentBlocks returns the blocks it inserted, so do not re-read the document to check an edit.
+- getCheckpointContent reads a whole checkpoint. Call listCheckpoints first, and read one checkpoint only when you must.`;
+
 // Exposes a single MCP endpoint over the Streamable HTTP transport. The MCP
 // SDK owns the raw request/response lifecycle itself (JSON-RPC parsing,
 // choosing between a plain JSON reply or an SSE stream), which doesn't fit
@@ -80,7 +99,10 @@ export class McpController {
   @Post()
   async handleMcpRequest(@Req() req: Request, @Res() res: Response) {
     const userId = (req as any).userId as number;
-    const server = new McpServer({ name: 'converge-mcp', version: '0.0.1' });
+    const server = new McpServer(
+      { name: 'converge-mcp', version: '0.0.1' },
+      { instructions: MCP_INSTRUCTIONS },
+    );
 
     server.registerTool(
       'listWorkspaces',
@@ -311,7 +333,7 @@ export class McpController {
       {
         title: 'Update Document Blocks',
         description:
-          "Applies a batch of edits to a document's blocks as a single atomic save (all edits apply, or none do). Requires editor access or higher. Each edit either replaces an existing block, inserts new content next to one, or removes blocks — new content is given as Markdown, not raw block JSON. Use getDocumentBlocks first to find the block ids to target. Returns only the blocks the edits inserted, each with its new id, its position (parentId, previousBlockId) and the index of the operation that inserted it — call getDocumentBlocks to read the whole document.",
+          "Applies a batch of edits to a document's blocks as a single atomic save (all edits apply, or none do). Requires editor access or higher. Each edit either replaces an existing block, inserts new content next to one, or removes blocks — new content is given as Markdown, not raw block JSON. Find the block ids to target with findInDocument, getDocumentOutline or getBlocksById — not getDocumentBlocks, which reads the whole document. Returns only the blocks the edits inserted, each with its new id, its position (parentId, previousBlockId) and the index of the operation that inserted it — call getDocumentBlocks to read the whole document.",
         inputSchema: UpdateDocumentBlocksToolInputSchema,
         outputSchema: UpdateDocumentBlocksResponseSchema,
       },

@@ -179,7 +179,7 @@ export class AgentTools {
       {
         name: 'getDocumentOutline',
         description:
-          'Lists every heading in one document, in order, with its id, level, text (cut to 80 characters) and two counts of the sibling blocks after it: blockCount (up to the next heading of any level) and sectionBlockCount (up to the next heading of the same or a higher level, so including subheadings). To read a section, call getBlocksById with the heading id and after set to one of those counts. Use it to see the structure of a large document, or to find where new content belongs, without reading the whole document; it does not search content — use findInDocument or searchDocumentContent for that. The headings list is empty for a document without headings.',
+          'Lists every heading in one document, in order, with its id, level, text (cut to 80 characters), two counts of the sibling blocks after it: blockCount (up to the next heading of any level) and sectionBlockCount (up to the next heading of the same or a higher level, so including subheadings), and the estimated size of its section in tokens: sectionPlainTokens (its text, about what Markdown costs) and sectionJsonTokens (as block JSON, about what getBlocksById costs). The whole document has plainTokens (about readDocumentMarkdown) and jsonTokens (about getDocumentBlocks) tell you whether to read it whole. Token figures are estimates. To read a section, call getBlocksById with the heading id and after set to one of those counts. Use it to see the structure and size of a large document, or to find where new content belongs, without reading the whole document; it does not search content — use findInDocument or searchDocumentContent for that. The headings list is empty for a document without headings.',
         inputSchema: z.object(GetDocumentOutlineToolInputSchema),
         execute: (input) =>
           withAgentErrorHandling(() =>
@@ -193,7 +193,7 @@ export class AgentTools {
       {
         name: 'updateDocumentBlocks',
         description:
-          "Applies a batch of edits to a document's blocks as a single atomic save (all edits apply, or none do). Requires editor access or higher. New content is given as Markdown, not raw block JSON. Use getDocumentBlocks first to find the block ids to target. Returns only the blocks the edits inserted, each with its new id, its position (parentId, previousBlockId) and the index of the operation that inserted it — call getDocumentBlocks to read the whole document.",
+          "Applies a batch of edits to a document's blocks as a single atomic save (all edits apply, or none do). Requires editor access or higher. New content is given as Markdown, not raw block JSON. Find the block ids to target with findInDocument, getDocumentOutline or getBlocksById — not getDocumentBlocks, which reads the whole document. Returns only the blocks the edits inserted, each with its new id, its position (parentId, previousBlockId) and the index of the operation that inserted it — call getDocumentBlocks to read the whole document.",
         inputSchema: z.object(UpdateDocumentBlocksToolInputSchema),
         execute: (input) =>
           withAgentErrorHandling(() =>
