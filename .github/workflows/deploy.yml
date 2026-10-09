@@ -6,9 +6,8 @@
 # there (nginx configs, then a rolling restart of the 2 servers), copy the web
 # build, then delete old image tags from the registry.
 #
-# Deploys from release-infra-migration while the new droplet is being tested, into the
-# `test` environment. At the cutover, switch the branch to main and the
-# environment to `production`.
+# Deploys from main, into the `test` environment (which holds the production
+# values since the cutover).
 #
 # Secrets (per environment): DEPLOY_SSH_KEY (private key of the droplet's
 # deploy user), DEPLOY_KNOWN_HOSTS (the droplet's host key line, from
@@ -21,7 +20,7 @@ name: Build and deploy
 
 on:
     push:
-        branches: [release-infra-migration]
+        branches: [main]
 
 jobs:
     check:
