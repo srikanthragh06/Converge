@@ -71,10 +71,7 @@ wait_healthy() {
 
 echo "==> Installing nginx configs"
 mkdir -p "$NGINX_BACKUP"
-# Only the test subdomains' config until the cutover: converge.conf names the
-# real subdomains' certificates, which are issued on this droplet only after
-# their DNS points here. At the cutover, switch both loops to converge.conf.
-for conf in converge-test.conf; do
+for conf in converge.conf; do
     # Keep the live copy so a config that fails `nginx -t` can be put back.
     cp "$NGINX_SITES/$conf" "$NGINX_BACKUP/$conf"
     cp "nginx/$conf" "$NGINX_SITES/$conf"
@@ -82,7 +79,7 @@ done
 
 if ! sudo nginx -t; then
     echo "nginx -t failed — restoring the previous configs"
-    for conf in converge-test.conf; do
+    for conf in converge.conf; do
         cp "$NGINX_BACKUP/$conf" "$NGINX_SITES/$conf"
     done
     exit 1
