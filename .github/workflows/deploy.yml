@@ -55,25 +55,21 @@ jobs:
         steps:
             - uses: actions/checkout@v4
 
-            - name: Log in to the registry
-              uses: docker/login-action@v3
+            # doctl, DigitalOcean's CLI, authenticated with the API token. Used here
+            # to log Docker in to the registry and at the end to clean it up.
+            - uses: digitalocean/action-doctl@v2
               with:
-                  registry: registry.digitalocean.com
-                  username: ${{ secrets.DIGITALOCEAN_TOKEN }}
-                  password: ${{ secrets.DIGITALOCEAN_TOKEN }}
+                  token: ${{ secrets.DIGITALOCEAN_TOKEN }}
 
-            - uses: docker/setup-buildx-action@v3
+            - name: Log in to the registry
+              # Gives Docker registry credentials that expire after 20 minutes,
+              # long enough for this run's push.
+              run: doctl registry login --expiry-seconds 1200
 
             - name: Build and push the server image
-              uses: docker/build-push-action@v6
-              with:
-                  context: .
-                  file: apps/server/Dockerfile.prod
-                  push: true
-                  tags: ${{ env.IMAGE }}:${{ env.IMAGE_TAG }}
-                  # Reuses unchanged layers (e.g. dependencies) from earlier runs.
-                  cache-from: type=gha
-                  cache-to: type=gha,mode=max
+              run: |
+                  docker build -f apps/server/Dockerfile.prod -t "$IMAGE:$IMAGE_TAG" .
+                  docker push "$IMAGE:$IMAGE_TAG"
 
             - uses: pnpm/action-setup@v4
             - uses: actions/setup-node@v4
@@ -120,10 +116,6 @@ jobs:
               # JS files, so those stay; index.html is replaced.
               run: |
                   rsync -az apps/web/dist/ deploy@${{ vars.DEPLOY_HOST }}:/var/www/converge/
-
-            - uses: digitalocean/action-doctl@v2
-              with:
-                  token: ${{ secrets.DIGITALOCEAN_TOKEN }}
 
             - name: Delete old image tags from the registry
               # Cleanup only, so a failure here doesn't fail the deploy. Keeps the
