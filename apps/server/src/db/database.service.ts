@@ -9,6 +9,7 @@ import {
   PostgresDialect,
 } from 'kysely';
 import { DatabaseSchema } from './database.schema.js';
+import { getPostgresConnectionConfig } from './postgres-connection.util.js';
 import path from 'path';
 import { promises as fs } from 'fs';
 import { fileURLToPath } from 'url';
@@ -30,40 +31,15 @@ export class DatabaseService {
     // survive JSON serialisation — safe because all ID columns are SERIAL (32-bit).
     types.setTypeParser(20, (val: string) => Number(val));
 
-    const environment = this.configService.getOrThrow<string>('ENVIRONMENT');
-
-    if (environment === 'DEV') {
-      // DEV connects to the local docker-compose postgres container.
-      this.pool = new Pool({
-        host: this.configService.getOrThrow<string>('POSTGRES_DEV_HOST'),
-        port: this.configService.getOrThrow<number>('POSTGRES_DEV_PORT'),
-        user: this.configService.getOrThrow<string>('POSTGRES_DEV_USERNAME'),
-        password: this.configService.getOrThrow<string>(
-          'POSTGRES_DEV_PASSWORD',
-        ),
-        database: this.configService.getOrThrow<string>('POSTGRES_DEV_DBNAME'),
-      });
-    } else if (environment === 'PROD') {
-      // PROD connects to the production database.
-      this.pool = new Pool({
-        host: this.configService.getOrThrow<string>('POSTGRES_PROD_HOST'),
-        user: this.configService.getOrThrow<string>('POSTGRES_PROD_USERNAME'),
-        password: this.configService.getOrThrow<string>(
-          'POSTGRES_PROD_PASSWORD',
-        ),
-        database: this.configService.getOrThrow<string>('POSTGRES_PROD_DBNAME'),
-        // rejectUnauthorized: false skips CA chain verification — required for Supabase
-        // whose certificate chain is not trusted by Node's default CA bundle.
-        // The connection is still encrypted; only the CA trust check is bypassed.
-        ssl: { rejectUnauthorized: false },
-        // Caps this pool so every PROD pool together fits Supavisor's 48-client
-        // session-mode limit while both deploy slots run: 6 instances × (4 here
-        // + 2 per pg-boss scheduler) = 48. Without it pg defaults to 10.
-        max: 4,
-      });
-    } else {
-      throw new Error(`Unknown ENVIRONMENT "${environment}"`);
-    }
+    this.pool = new Pool({
+      ...getPostgresConnectionConfig(this.configService),
+      // Caps this instance's connections. In PROD they go through DO's
+      // PgBouncer pool, whose 10 real connections are shared by every
+      // instance's clients, so a small cap per instance (4 here + 2 per pg-boss
+      // scheduler = 8) keeps one busy instance from crowding out the others.
+      // Without it pg defaults to 10.
+      max: 4,
+    });
 
     this.kysely = new Kysely<DatabaseSchema>({
       dialect: new PostgresDialect({ pool: this.pool }),

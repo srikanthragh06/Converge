@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PgBoss, type JobWithMetadata } from 'pg-boss';
+import { getPostgresConnectionConfig } from '../db/postgres-connection.util.js';
 import { DatabaseService } from '../db/database.service.js';
 import { DocumentIndexingService } from './document-indexing.service.js';
 import { IndexingCappedError } from './indexing-capped.error.js';
@@ -41,38 +42,11 @@ export class DocumentIndexingSchedulerService {
     private readonly documentIndexingService: DocumentIndexingService,
     private readonly dbService: DatabaseService,
   ) {
-    const environment = this.configService.getOrThrow<string>('ENVIRONMENT');
-
-    if (environment === 'DEV') {
-      // DEV connects to the local docker-compose postgres container.
-      this.boss = new PgBoss({
-        host: this.configService.getOrThrow<string>('POSTGRES_DEV_HOST'),
-        port: this.configService.getOrThrow<number>('POSTGRES_DEV_PORT'),
-        user: this.configService.getOrThrow<string>('POSTGRES_DEV_USERNAME'),
-        password: this.configService.getOrThrow<string>(
-          'POSTGRES_DEV_PASSWORD',
-        ),
-        database: this.configService.getOrThrow<string>('POSTGRES_DEV_DBNAME'),
-      });
-    } else if (environment === 'PROD') {
-      // PROD connects to the production database.
-      this.boss = new PgBoss({
-        host: this.configService.getOrThrow<string>('POSTGRES_PROD_HOST'),
-        user: this.configService.getOrThrow<string>('POSTGRES_PROD_USERNAME'),
-        password: this.configService.getOrThrow<string>(
-          'POSTGRES_PROD_PASSWORD',
-        ),
-        database: this.configService.getOrThrow<string>('POSTGRES_PROD_DBNAME'),
-        // rejectUnauthorized: false skips CA chain verification — required for
-        // Supabase, matching DatabaseService's connection for the same reason.
-        ssl: { rejectUnauthorized: false },
-        // Part of the PROD connection budget sized in DatabaseService — keeps
-        // both deploy slots under Supavisor's 48-client limit.
-        max: 2,
-      });
-    } else {
-      throw new Error(`Unknown ENVIRONMENT "${environment}"`);
-    }
+    this.boss = new PgBoss({
+      ...getPostgresConnectionConfig(this.configService),
+      // Part of the per-instance connection cap sized in DatabaseService.
+      max: 2,
+    });
 
     this.boss.on('error', (err) => console.error('pg-boss error:', err));
   }
