@@ -1048,6 +1048,17 @@ Closes a hole in the editor's file upload and lets an agent with a shell put a l
 
 - `CLAUDE.md` documents the signed-upload flow and `getUploadToken`
 
+## Reindex on Block Moves ✅
+
+> Branch: `fix-reindex-on-block-move` — merged 2026-10-09
+
+Moving a block never reached the RAG index. A drag or a Ctrl+Shift+↑/↓ move keeps the block's id and text, and the block hash covered only the block's own Markdown, so `reindexDocument`'s diff found nothing changed and took the no-op path — the old chunks kept the moved block next to its old neighbours, in both their stored text and their embedding. Moving a heading in or out of a nested position was missed the same way, though it changes where chunks break.
+
+### Server (NestJS backend)
+
+- **Hash covers everything the chunker reads** — `hashBlockText(text)` becomes `hashBlock(previousBlockId, isHeading, text)`, a SHA-256 of `JSON.stringify([previousBlockId, isHeading, text])`, where `previousBlockId` is the previous indexed (non-empty) block in flat document order. A move now changes the hash of the moved block and of the blocks after its old and new positions, so closure rebuilds the old chunk without the block and the new neighbours' chunk with it, giving it its real context. Depth and parent stay out — `chunkBlocks` never reads them, so e.g. indenting a bullet (same flat order) still correctly re-embeds nothing. No schema change: a position change goes through the existing `changedBlockIds` path and hash write. Tested in the browser with moves and heading changes
+- **One-time rebuild** — every stored hash stops matching, so each document rebuilds all its chunks once on its next edit. `reindex-all-documents.ts` was run on dev (12 documents in 211s; no pre-run chunk left on a non-deleted document, BM25 corpus stats match the real chunks)
+
 ## Upcoming
 
 - ⌘K title search has no minimum similarity — `/document/library/search` returns the closest titles even for nonsense, so "Jump to" is never empty and the palette's "No matches" state can't appear; needs a cutoff in `searchLibraryDocuments`
@@ -1066,7 +1077,8 @@ Closes a hole in the editor's file upload and lets an agent with a shell put a l
 - Workspace/document access-control MCP tools (grant/revoke per-user access, role overrides) — deliberately deferred out of both MCP releases so far as higher-stakes, permission-escalation-risk surface; would need much narrower scoping than a straight mirror of the HTTP endpoints before it's worth building
 - `/mcp` per-user throttle (a per-user `incrWithExpire` guard, same pattern as `ImageKitUploadAuthRateLimitGuard`) — caps total MCP request volume per user for server/DB load, distinct from the provider-cost tiers now in place; lower urgency than what this release closed, since it bounds load rather than spend
 - Perimeter-level rate limiting (nginx `limit_req`/`limit_conn`, and/or an off-box layer like Cloudflare) and WebSocket gateway event throttling — deliberately deferred out of this release as lower-urgency than the unauthenticated-endpoint and paid-provider gaps it closed
-- Run `reindex-all-documents.ts` against prod once the RAG fixes deploy, then delete the script — until then, existing documents keep chunks built under the old rules (and documents with nested blocks rebuild piecemeal as they're edited)
+- Run `reindex-all-documents.ts` against prod once the RAG fixes and the block-move hash deploy, then delete the script — until then, existing documents keep chunks built under the old rules, including chunks left out of order by past block moves (each document rebuilds fully on its next edit)
+- Delete the stale `backfill-rag-index.ts` script — it targets only never-indexed documents and its usage text uses `ts-node`, which can't load these sources
 - Check the DSA book's one heading-break miss (#16, merge sort) — boundary shift or judge noise — and build a test document with large nested subtrees to measure what per-block indexing gains
 - Decide on WebM uploads: ImageKit doesn't recognize GNOME screencast `.webm` files (it sees `application/octet-stream`), so the signed `video/` check rejects them in the editor and over MCP, where the old unchecked V1 upload accepted them. Options: also accept `application/octet-stream` for video, or keep the strict check
 - Audio over MCP: `getUploadToken` uploads audio, but Markdown has no audio syntax and BlockNote's parser only special-cases video URLs, so `updateDocumentBlocks` can't insert an audio block — would need an explicit media operation

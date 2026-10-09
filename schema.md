@@ -247,7 +247,7 @@ Per-block content fingerprints, used by the RAG indexing pipeline's snapshot-dif
 |---|---|---|---|
 | `document_id` | `bigint` | NOT NULL, FK → `documents.id` ON DELETE CASCADE | Scopes this row to a specific document |
 | `block_id` | `text` | NOT NULL | BlockNote block id (UUID string) this fingerprint belongs to |
-| `hash` | `text` | NOT NULL | SHA-256 hash of the block's own Markdown (children excluded) as of the last indexing run |
+| `hash` | `text` | NOT NULL | SHA-256 of `JSON.stringify([previousBlockId, isHeading, text])` as of the last indexing run — the block's own Markdown (children excluded), whether it's a top-level heading, and the id of the previous indexed block in flat document order, so a move that keeps the block's id and text still changes the hash of the blocks whose neighbours it changed |
 | `updated_at` | `timestamptz` | NOT NULL, default `now()` | |
 
 > Composite PK on `(document_id, block_id)`.
