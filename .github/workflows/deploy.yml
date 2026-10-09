@@ -1,0 +1,139 @@
+# On every push to the deploy branch, builds Converge and deploys it to the
+# DigitalOcean droplet.
+#
+# Deploy flow: build the server image and push it to DigitalOcean Container
+# Registry, copy the deploy files to the droplet and run deploy/remote-deploy.sh
+# there (nginx configs, then a rolling restart of the 2 servers), copy the web
+# build, then delete old image tags from the registry.
+#
+# Deploys from release-infra-migration while the new droplet is being tested, into the
+# `test` environment. At the cutover, switch the branch to main and the
+# environment to `production`.
+#
+# Secrets (per environment): DEPLOY_SSH_KEY (private key of the droplet's
+# deploy user), DEPLOY_KNOWN_HOSTS (the droplet's host key line, from
+# `ssh-keyscan <host>`), DIGITALOCEAN_TOKEN (API token with registry access).
+# Variables (per environment): DEPLOY_HOST, DEPLOY_PATH (directory on the
+# droplet holding docker-compose.prod.yml), DOCR_REGISTRY, VITE_SERVER_URL,
+# VITE_GOOGLE_CLIENT_ID, VITE_IMAGEKIT_URL_ENDPOINT.
+
+name: Build and deploy
+
+on:
+    push:
+        branches: [release-infra-migration]
+
+jobs:
+    check:
+        name: Build
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            # Reads the pnpm version from package.json's packageManager field.
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 20
+                  cache: pnpm
+            - run: pnpm install --frozen-lockfile
+            # Builds shared, web and server; the TypeScript builds also typecheck.
+            - run: pnpm build
+
+    deploy:
+        name: Deploy
+        needs: check
+        runs-on: ubuntu-latest
+        environment: test
+        # One deploy at a time; a second push waits instead of rolling the
+        # servers while the first deploy is still rolling them.
+        concurrency:
+            group: deploy
+            cancel-in-progress: false
+        env:
+            IMAGE: registry.digitalocean.com/${{ vars.DOCR_REGISTRY }}/converge-server
+            IMAGE_TAG: ${{ github.sha }}
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Log in to the registry
+              uses: docker/login-action@v3
+              with:
+                  registry: registry.digitalocean.com
+                  username: ${{ secrets.DIGITALOCEAN_TOKEN }}
+                  password: ${{ secrets.DIGITALOCEAN_TOKEN }}
+
+            - uses: docker/setup-buildx-action@v3
+
+            - name: Build and push the server image
+              uses: docker/build-push-action@v6
+              with:
+                  context: .
+                  file: apps/server/Dockerfile.prod
+                  push: true
+                  tags: ${{ env.IMAGE }}:${{ env.IMAGE_TAG }}
+                  # Reuses unchanged layers (e.g. dependencies) from earlier runs.
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
+
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 20
+                  cache: pnpm
+            - run: pnpm install --frozen-lockfile
+
+            - name: Build the web app
+              # VITE_* set here take priority over apps/web/.env.production, so
+              # the same code builds against the test or the real API.
+              env:
+                  VITE_SERVER_URL: ${{ vars.VITE_SERVER_URL }}
+                  VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+                  VITE_IMAGEKIT_URL_ENDPOINT: ${{ vars.VITE_IMAGEKIT_URL_ENDPOINT }}
+              run: |
+                  pnpm --filter @converge/shared build
+                  pnpm --filter web build
+
+            - name: Set up SSH
+              env:
+                  DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+                  DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+              run: |
+                  mkdir -p ~/.ssh
+                  echo "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+                  chmod 600 ~/.ssh/id_ed25519
+                  # Pinned host key: SSH refuses to connect to anything else
+                  # answering at DEPLOY_HOST.
+                  echo "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+            - name: Copy the deploy files to the droplet
+              run: |
+                  rsync -az docker-compose.prod.yml nginx deploy/remote-deploy.sh \
+                      deploy@${{ vars.DEPLOY_HOST }}:${{ vars.DEPLOY_PATH }}/
+
+            - name: Deploy nginx and roll the servers
+              run: |
+                  ssh deploy@${{ vars.DEPLOY_HOST }} \
+                      "cd ${{ vars.DEPLOY_PATH }} && bash remote-deploy.sh ${{ vars.DOCR_REGISTRY }} ${{ env.IMAGE_TAG }}"
+
+            - name: Copy the web build
+              # No --delete: open tabs still request the previous build's hashed
+              # JS files, so those stay; index.html is replaced.
+              run: |
+                  rsync -az apps/web/dist/ deploy@${{ vars.DEPLOY_HOST }}:/var/www/converge/
+
+            - uses: digitalocean/action-doctl@v2
+              with:
+                  token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+
+            - name: Delete old image tags from the registry
+              # Cleanup only, so a failure here doesn't fail the deploy. Keeps the
+              # 3 newest tags (the deployed one, the previous one for rollback,
+              # and one more), then runs garbage collection, since deleted tags
+              # keep using the free tier's 500 MiB until it runs.
+              continue-on-error: true
+              run: |
+                  for tag in $(doctl registry repository list-tags converge-server --format Tag,UpdatedAt --no-header \
+                      | sort -k2 -r | tail -n +4 | awk '{print $1}'); do
+                      doctl registry repository delete-tag converge-server "$tag" --force
+                  done
+                  doctl registry garbage-collection start --include-untagged-manifests --force
