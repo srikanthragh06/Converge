@@ -127,7 +127,10 @@ export class DocumentIndexingService {
     // child changes only that child's hash. A block over MAX_TOKENS is split
     // into pieces that share its id (see splitOversizedBlock); the hash
     // covers the block's whole text, so the diff below still works one block
-    // at a time.
+    // at a time. The hash also covers everything else chunkBlocks reads from
+    // a block — the previous indexed block's id and whether it's a heading —
+    // so a move (which keeps the block's id and text) still shows up as a
+    // change to the blocks whose neighbors it changed.
     const blockTexts: BlockText[] = [];
     const piecesByBlockId = new Map<string, BlockText[]>();
     const orderedBlockIds: string[] = [];
@@ -143,18 +146,26 @@ export class DocumentIndexingService {
       // Empty blocks carry nothing to index. An empty parent's children are
       // still their own entries in this loop, so they're indexed anyway.
       if (!text) continue;
+      const isHeading =
+        block.type === 'heading' && topLevelBlockIds.has(block.id);
       const pieces = splitOversizedBlock({
         blockId: block.id,
         text,
         tokens: countTokens(text),
-        isHeading: block.type === 'heading' && topLevelBlockIds.has(block.id),
+        isHeading,
       });
       for (const piece of pieces) {
         blockTexts.push(piece);
       }
       piecesByBlockId.set(block.id, pieces);
+      // Read before pushing this block, so it's the previous indexed block
+      // (empty blocks skipped), or null for the first one.
+      const previousBlockId = orderedBlockIds.at(-1) ?? null;
       orderedBlockIds.push(block.id);
-      currentBlockHashById.set(block.id, this.hashBlockText(text));
+      currentBlockHashById.set(
+        block.id,
+        this.hashBlock(previousBlockId, isHeading, text),
+      );
     }
 
     // blockTexts and orderedBlockIds preserve document order
@@ -657,13 +668,25 @@ export class DocumentIndexingService {
   }
 
   /**
-   * Hashes a block's Markdown content for change detection. Not
-   * cryptographic use — SHA-256 is just a convenient, collision-safe
-   * fingerprint.
+   * Hashes everything chunkBlocks reads from a block, for change detection:
+   * its Markdown content, whether it's a heading, and which indexed block
+   * comes right before it. Including the previous block means a move changes
+   * the hash of the moved block and of the blocks after its old and new
+   * positions, even though no block's text changed. Not cryptographic use —
+   * SHA-256 is just a convenient, collision-safe fingerprint.
+   * @param previousBlockId - the id of the indexed block right before this one in document order, or null for the first
+   * @param isHeading - whether this block is a top-level heading
    * @param text - the block's Markdown content
-   * @returns a hex-encoded content hash
+   * @returns a hex-encoded hash of the three
    */
-  private hashBlockText(text: string): string {
-    return createHash('sha256').update(text).digest('hex');
+  private hashBlock(
+    previousBlockId: string | null,
+    isHeading: boolean,
+    text: string,
+  ): string {
+    // JSON keeps the three fields apart, so text can't be mistaken for an id.
+    return createHash('sha256')
+      .update(JSON.stringify([previousBlockId, isHeading, text]))
+      .digest('hex');
   }
 }
