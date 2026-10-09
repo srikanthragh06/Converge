@@ -1,49 +1,102 @@
-# Production Docker Compose for Converge.
-# Runs 3 NestJS server instances on ports 5001-5003.
-# Postgres and Redis are external (Supabase + Upstash) — not defined here.
+# Production Docker Compose for Converge, on the DigitalOcean droplet.
+# Runs 2 NestJS server instances on ports 5001-5002 and a Redis container.
+# Postgres is external (DigitalOcean Managed Postgres, reached over the VPC).
 #
 # Usage:
 #   docker compose -f docker-compose.prod.yml up -d
 #   docker compose -f docker-compose.prod.yml down
 #   docker compose -f docker-compose.prod.yml logs -f
+#
+# Host files this needs (not in the repo):
+#   apps/server/.env       — secrets, including REDIS_PASSWORD and REDIS_PROD_URL
+#   /etc/converge/do-ca.crt — DigitalOcean's CA certificate for the database,
+#                             referenced by POSTGRES_PROD_CA_CERT_PATH
 
 services:
-    # Three identical server instances running on different ports.
+    # Two identical server instances running on different ports.
     # nginx distributes requests across them using ip_hash (sticky sessions).
-    # Redis pub/sub keeps Yjs state in sync across all three instances.
+    # Redis pub/sub keeps Yjs state in sync across both instances.
 
     server-1:
         build:
             context: .
             dockerfile: apps/server/Dockerfile.prod
         ports:
-            - "5001:5000" # host:container — nginx routes to host port 5001
+            # host:container — nginx routes to host port 5001. Bound to 127.0.0.1 so
+            # only nginx on this droplet reaches it: Docker-published ports bypass ufw.
+            - "127.0.0.1:5001:5000"
         env_file:
             - apps/server/.env # secrets injected at runtime, never baked into image
         environment:
             NODE_ENV: prod # tells loadEnv() to load .env.prod
+        volumes:
+            # DO's CA certificate, read-only — the server verifies the database's
+            # certificate against it (see postgres-connection.util.ts).
+            - /etc/converge/do-ca.crt:/etc/converge/do-ca.crt:ro
+        depends_on:
+            redis:
+                condition: service_healthy # the server fails startup if Redis is unreachable
         restart: unless-stopped
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'node -e "require(''http'').get(''http://localhost:5000/health'', r => process.exit(r.statusCode === 200 ? 0 : 1)).on(''error'', () => process.exit(1))"',
+                ]
+            interval: 5s
+            timeout: 5s
+            retries: 12 # 12 retries × 5s = 60s window after start_period
+            start_period: 30s # grace period for migrations to complete before retries begin
 
     server-2:
         build:
             context: .
             dockerfile: apps/server/Dockerfile.prod
         ports:
-            - "5002:5000"
+            - "127.0.0.1:5002:5000"
         env_file:
             - apps/server/.env
         environment:
             NODE_ENV: prod
+        volumes:
+            - /etc/converge/do-ca.crt:/etc/converge/do-ca.crt:ro
+        depends_on:
+            redis:
+                condition: service_healthy
         restart: unless-stopped
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'node -e "require(''http'').get(''http://localhost:5000/health'', r => process.exit(r.statusCode === 200 ? 0 : 1)).on(''error'', () => process.exit(1))"',
+                ]
+            interval: 5s
+            timeout: 5s
+            retries: 12
+            start_period: 30s
 
-    server-3:
-        build:
-            context: .
-            dockerfile: apps/server/Dockerfile.prod
-        ports:
-            - "5003:5000"
+    # Redis for cross-instance pub/sub, presence and rate-limit counters — all
+    # temporary, so nothing is saved to disk. No published port: only the
+    # servers reach it, as redis:6379 on this file's own Docker network.
+    redis:
+        image: redis:7-alpine
         env_file:
-            - apps/server/.env
-        environment:
-            NODE_ENV: prod
+            - apps/server/.env # provides REDIS_PASSWORD
+        # sh -c so REDIS_PASSWORD is read from the container's environment ($$
+        # stops Compose from substituting it from the host shell instead).
+        # --save "" and --appendonly no turn off persistence. noeviction makes a
+        # full Redis reject writes rather than silently drop keys (e.g. a
+        # rate-limit counter, which would reset that user's limit).
+        command:
+            [
+                "sh",
+                "-c",
+                'exec redis-server --requirepass "$$REDIS_PASSWORD" --save "" --appendonly no --maxmemory 128mb --maxmemory-policy noeviction',
+            ]
         restart: unless-stopped
+        healthcheck:
+            # REDISCLI_AUTH passes the password without putting it on the command line.
+            test: ["CMD-SHELL", 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+            interval: 5s
+            timeout: 3s
+            retries: 5
