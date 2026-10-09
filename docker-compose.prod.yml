@@ -8,6 +8,8 @@
 #   docker compose -f docker-compose.prod.yml logs -f
 #
 # Host files this needs (not in the repo):
+#   .env                   — DOCR_REGISTRY (registry name) and IMAGE_TAG (the
+#                             deployed commit), read by Compose for the image
 #   apps/server/.env       — secrets, including REDIS_PASSWORD and REDIS_PROD_URL
 #   /etc/converge/do-ca.crt — DigitalOcean's CA certificate for the database,
 #                             referenced by POSTGRES_PROD_CA_CERT_PATH
@@ -18,9 +20,10 @@ services:
     # Redis pub/sub keeps Yjs state in sync across both instances.
 
     server-1:
-        build:
-            context: .
-            dockerfile: apps/server/Dockerfile.prod
+        # Image built and pushed by CI (see .github/workflows/); this droplet only
+        # pulls it. DOCR_REGISTRY and IMAGE_TAG come from the .env file next to
+        # this compose file — CI updates IMAGE_TAG on every deploy.
+        image: registry.digitalocean.com/${DOCR_REGISTRY:?set DOCR_REGISTRY in .env}/converge-server:${IMAGE_TAG:?set IMAGE_TAG in .env}
         ports:
             # host:container — nginx routes to host port 5001. Bound to 127.0.0.1 so
             # only nginx on this droplet reaches it: Docker-published ports bypass ufw.
@@ -49,9 +52,7 @@ services:
             start_period: 30s # grace period for migrations to complete before retries begin
 
     server-2:
-        build:
-            context: .
-            dockerfile: apps/server/Dockerfile.prod
+        image: registry.digitalocean.com/${DOCR_REGISTRY:?set DOCR_REGISTRY in .env}/converge-server:${IMAGE_TAG:?set IMAGE_TAG in .env}
         ports:
             - "127.0.0.1:5002:5000"
         env_file:
