@@ -164,7 +164,8 @@ const SidebarPanel = ({ onCollapse }: { onCollapse: () => void }) => {
                                 isPinned
                                 isActive={doc.id === documentId}
                                 menuItems={documentMenu(doc, true)}
-                                onOpen={() => go(`/document/${doc.id}`)}
+                                to={`/document/${doc.id}`}
+                                onNavigate={closeOnMobile}
                                 onTogglePin={() => togglePin(doc, false)}
                             />
                         ))}
@@ -189,7 +190,8 @@ const SidebarPanel = ({ onCollapse }: { onCollapse: () => void }) => {
                             isPinned={false}
                             isActive={doc.id === documentId}
                             menuItems={documentMenu(doc, false)}
-                            onOpen={() => go(`/document/${doc.id}`)}
+                            to={`/document/${doc.id}`}
+                            onNavigate={closeOnMobile}
                             onTogglePin={() => togglePin(doc, true)}
                         />
                     ))}

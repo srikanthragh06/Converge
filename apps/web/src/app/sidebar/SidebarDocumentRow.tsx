@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { LuEllipsis, LuFile, LuPin } from "react-icons/lu";
 import type { LibraryDocumentDto } from "@converge/shared";
 import { cn } from "@/lib/utils";
@@ -14,8 +15,9 @@ const ACTION_BUTTON_CLASSES =
 
 /**
  * Single row in the sidebar's Pinned or Recent section: a document title
- * that opens it, with pin and ⋯ buttons revealed on hover or focus (always
- * shown on touch screens, which have no hover). The ⋯ button and a
+ * that links to it (so Ctrl/⌘-click and middle-click open a new tab), with
+ * pin and ⋯ buttons revealed on hover or focus (always shown on touch
+ * screens, which have no hover). The ⋯ button and a
  * right-click (long-press on touch) open the same menu.
  */
 const SidebarDocumentRow = ({
@@ -23,7 +25,8 @@ const SidebarDocumentRow = ({
     isPinned,
     isActive,
     menuItems,
-    onOpen,
+    to,
+    onNavigate,
     onTogglePin,
 }: {
     /** The document this row represents. */
@@ -34,8 +37,10 @@ const SidebarDocumentRow = ({
     isActive: boolean;
     /** Rows of the ⋯ / right-click menu. */
     menuItems: MenuEntry[];
-    /** Navigates to the document. */
-    onOpen: () => void;
+    /** The document's route. */
+    to: string;
+    /** Called after a plain click opens the document in this tab. */
+    onNavigate: () => void;
     /** Pins doc if it's currently unpinned, unpins it otherwise. */
     onTogglePin: () => void;
 }) => (
@@ -48,9 +53,15 @@ const SidebarDocumentRow = ({
         >
             {/* Full title on hover, since the hover actions truncate it further */}
             <Tooltip content={doc.title || "Untitled"} side="right">
-                <button
-                    type="button"
-                    onClick={onOpen}
+                <Link
+                    to={to}
+                    onClick={(e) => {
+                        // A modified click opens a new tab; leave this one as it is
+                        if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) {
+                            return;
+                        }
+                        onNavigate();
+                    }}
                     aria-current={isActive ? "page" : undefined}
                     className={cn(
                         "flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md pl-2.5 pr-2 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-gold/60 group-focus-within/doc:pr-16 group-hover/doc:pr-16 group-has-[[data-state=open]]/doc:pr-16 [@media(hover:none)]:pr-16",
@@ -66,7 +77,7 @@ const SidebarDocumentRow = ({
                     >
                         {doc.title || "Untitled"}
                     </span>
-                </button>
+                </Link>
             </Tooltip>
             {/* Hover actions — also shown while focused inside, while the ⋯ menu is open, and always on touch screens */}
             <div className="absolute right-1 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/doc:opacity-100 has-[[data-state=open]]:opacity-100 [@media(hover:none)]:opacity-100">
