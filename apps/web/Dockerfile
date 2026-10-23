@@ -1,4 +1,4 @@
-FROM node:20-alpine AS dev
+FROM node:22.23.4-alpine AS dev
 
 # corepack ships with Node and manages package manager versions.
 # Activating pnpm via corepack ensures the version matches packageManager in package.json.
